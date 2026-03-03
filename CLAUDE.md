@@ -1,4 +1,4 @@
-# CLAUDE.md — Skwirrel PIM Sync
+# CLAUDE.md — Skwirrel PIM sync for WooCommerce
 
 ## Project Overview
 

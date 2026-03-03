@@ -1,4 +1,4 @@
-Voeg een nieuwe instelling toe aan de Skwirrel PIM Sync plugin.
+Voeg een nieuwe instelling toe aan de Skwirrel PIM sync for WooCommerce plugin.
 
 Vraag de gebruiker om:
 - Instelling key (snake_case, bijv. `my_new_setting`)

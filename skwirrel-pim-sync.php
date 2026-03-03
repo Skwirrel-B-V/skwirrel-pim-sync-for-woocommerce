@@ -1,7 +1,7 @@
 <?php
 /**
- * Plugin Name: Skwirrel PIM Sync
- * Plugin URI: https://github.com/Skwirrel-B-V/skwirrel-pim-wp-sync
+ * Plugin Name: Skwirrel PIM sync for WooCommerce
+ * Plugin URI: https://github.com/Skwirrel-B-V/skwirrel-pim-sync-for-woocommerce
  * Description: Sync plugin for Skwirrel PIM via Skwirrel JSON-RPC API to WooCommerce.
  * Version: 1.8.1
  * Author: Skwirrel B.V.
@@ -38,7 +38,7 @@ register_activation_hook(__FILE__, function (): void {
     if (!class_exists('WooCommerce') && !in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins', [])), true)) {
         deactivate_plugins(plugin_basename(__FILE__));
         wp_die(
-            esc_html__('Skwirrel PIM Sync requires WooCommerce to function.', 'skwirrel-pim-sync')
+            esc_html__('Skwirrel PIM sync for WooCommerce requires WooCommerce to function.', 'skwirrel-pim-sync')
             . ' <a href="' . esc_url(admin_url('plugin-install.php?s=woocommerce&tab=search&type=term')) . '">'
             . esc_html__('Install WooCommerce', 'skwirrel-pim-sync') . '</a>.',
             'Plugin Activation Error',
@@ -122,7 +122,7 @@ final class Skwirrel_WC_Sync_Plugin {
         $activate_url = admin_url('plugins.php');
         ?>
         <div class="notice notice-error is-dismissible">
-            <p><strong>Skwirrel PIM Sync</strong></p>
+            <p><strong>Skwirrel PIM sync for WooCommerce</strong></p>
             <p><?php
                 printf(
                     wp_kses(

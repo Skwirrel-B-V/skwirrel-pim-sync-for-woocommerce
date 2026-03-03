@@ -1,4 +1,4 @@
-Analyseer de laatste sync log van de Skwirrel PIM Sync plugin.
+Analyseer de laatste sync log van de Skwirrel PIM sync for WooCommerce plugin.
 
 Stappen:
 1. Zoek het meest recente logbestand met bron `skwirrel-pim-sync` in `wp-content/uploads/wc-logs/` of `wp-content/wc-logs/`

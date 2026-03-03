@@ -1,6 +1,6 @@
-# Changelog — Skwirrel PIM Sync
+# Changelog — Skwirrel PIM sync for WooCommerce
 
-All notable changes to Skwirrel PIM Sync will be documented in this file.
+All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
 ## [1.8.1]
 

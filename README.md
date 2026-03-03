@@ -1,4 +1,4 @@
-# Skwirrel PIM Sync
+# Skwirrel PIM sync for WooCommerce
 
 **Versie 1.1.1** — WordPress-plugin die producten synchroniseert van de Skwirrel JSON-RPC API naar WooCommerce.
 

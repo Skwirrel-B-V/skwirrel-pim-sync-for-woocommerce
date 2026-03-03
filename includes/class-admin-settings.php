@@ -429,7 +429,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
         ?>
         <?php $sync_in_progress = (bool) get_transient(Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS); ?>
         <div class="wrap skwirrel-sync-wrap">
-            <h1 class="wp-heading-inline"><?php esc_html_e('Skwirrel PIM Sync', 'skwirrel-pim-sync'); ?></h1>
+            <h1 class="wp-heading-inline"><?php esc_html_e('Skwirrel PIM sync for WooCommerce', 'skwirrel-pim-sync'); ?></h1>
             <?php if ($sync_in_progress) : ?>
                 <span class="page-title-action" style="opacity: 0.5; pointer-events: none; cursor: default;">⟳ <?php esc_html_e('Sync in progress…', 'skwirrel-pim-sync'); ?></span>
             <?php else : ?>

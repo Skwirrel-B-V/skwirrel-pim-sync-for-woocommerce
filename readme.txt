@@ -1,4 +1,4 @@
-=== Skwirrel PIM Sync ===
+=== Skwirrel PIM sync for WooCommerce ===
 Contributors: skwirrel
 Tags: woocommerce, sync, erp, pim, skwirrel
 Requires at least: 6.0
@@ -12,7 +12,7 @@ Synchronises products from the Skwirrel ERP/PIM system to WooCommerce via a JSON
 
 == Description ==
 
-Skwirrel PIM Sync connects your WooCommerce webshop to the Skwirrel ERP/PIM system. Products, variations, images and documents are synchronised automatically.
+Skwirrel PIM sync for WooCommerce connects your WooCommerce webshop to the Skwirrel ERP/PIM system. Products, variations, images and documents are synchronised automatically.
 
 **Features:**
 
