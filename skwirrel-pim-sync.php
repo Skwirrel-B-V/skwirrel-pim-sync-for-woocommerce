@@ -46,11 +46,6 @@ register_activation_hook(__FILE__, function (): void {
         );
     }
 
-    // Clean up old Action Scheduler group from pre-1.8.0 slug rename
-    if (function_exists('as_unschedule_all_actions')) {
-        as_unschedule_all_actions('skwirrel_wc_sync_run', [], 'skwirrel-pim-wp-sync');
-    }
-
     require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-action-scheduler.php';
     Skwirrel_WC_Sync_Action_Scheduler::instance()->schedule();
 });
