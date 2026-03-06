@@ -2,6 +2,11 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [1.8.4]
+
+* Add non-variation ETIM and custom class attributes to parent variable products during sync
+* Variation product attributes (from getProducts) are now automatically collected and merged onto the parent as visible, non-variation attributes
+
 ## [1.8.3]
 
 * Fix empty variation attribute dropdowns on variable products by deferring parent attribute term updates to a single batch flush after all variations are processed
