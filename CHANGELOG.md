@@ -2,6 +2,10 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [1.9.2]
+
+* Remove legacy pa_variant migration code (no live installs to migrate)
+
 ## [1.9.1]
 
 * Remove legacy pre-1.8.0 Action Scheduler cleanup code (old slug reference)
