@@ -370,6 +370,9 @@ class Skwirrel_WC_Sync_Service {
 
         } while (!empty($products));
 
+        // Flush deferred parent attribute terms (batch-updates variable product attribute options)
+        $this->upserter->flush_parent_attribute_terms();
+
         $this->logger->verbose('Sync finished, persisting last sync timestamp');
 
         // Purge stale products/categories (only during full sync without collection filter)

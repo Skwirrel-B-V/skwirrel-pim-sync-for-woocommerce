@@ -23,8 +23,10 @@ class Skwirrel_WC_Sync_Product_Upserter {
     private Skwirrel_WC_Sync_Taxonomy_Manager $taxonomy_manager;
     private Skwirrel_WC_Sync_Slug_Resolver $slug_resolver;
 
+    /** @var array<int, array<string, int[]>> Deferred parent term updates: parent_id => [taxonomy => [term_id, ...]] */
+    private array $deferred_parent_terms = [];
+
     /**
-     * Constructor.
      *
      * @param Skwirrel_WC_Sync_Logger          $logger          Logger instance.
      * @param Skwirrel_WC_Sync_Product_Mapper   $mapper          Product field mapper.
@@ -392,8 +394,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
                 }
                 if ($term && !is_wp_error($term)) {
                     $variation_attrs[$tax] = $term->slug;
-                    // Add term to parent IMMEDIATELY so parent knows about it before variation uses it
-                    $this->add_term_to_parent_attribute($wc_variable_id, $tax, $term->term_id);
+                    // Track term for deferred parent update (applied after all variations are processed)
+                    $this->deferred_parent_terms[$wc_variable_id][$tax][] = $term->term_id;
                 }
             }
         }
@@ -796,44 +798,87 @@ class Skwirrel_WC_Sync_Product_Upserter {
     }
 
     /**
-     * Add a term to a parent variable product's attribute options.
+     * Flush all deferred parent attribute term updates.
      *
-     * Ensures the parent product knows about the term before any variation uses it.
-     * Also sets term relationships on the parent post via wp_set_object_terms().
+     * Called once after all variations have been processed, to update each parent
+     * variable product's attribute options and term relationships in a single pass.
+     * This avoids WC object cache staleness from rapid incremental updates.
      *
-     * @param int    $parent_id Parent variable product ID.
-     * @param string $taxonomy  Attribute taxonomy name (e.g. 'pa_etim_ef001234').
-     * @param int    $term_id   Term ID to add to the attribute options.
      * @return void
      */
-    private function add_term_to_parent_attribute(int $parent_id, string $taxonomy, int $term_id): void {
-        $wc_product = wc_get_product($parent_id);
-        if (!$wc_product || !$wc_product->is_type('variable')) {
+    public function flush_parent_attribute_terms(): void {
+        if (empty($this->deferred_parent_terms)) {
             return;
         }
-        $attrs = $wc_product->get_attributes();
-        if (empty($attrs) || !isset($attrs[$taxonomy])) {
-            return;
-        }
-        $attr = $attrs[$taxonomy];
-        if (!$attr->is_taxonomy()) {
-            return;
-        }
-        $options = $attr->get_options();
-        $options = is_array($options) ? $options : [];
-        if (in_array($term_id, array_map('intval', $options), true)) {
-            return;
-        }
-        $options[] = $term_id;
-        $attr->set_options($options);
-        $attrs[$taxonomy] = $attr;
-        $wc_product->set_attributes($attrs);
 
-        // Explicitly set term relationship on parent product
-        // This ensures the parent post is linked to all attribute terms
-        wp_set_object_terms($parent_id, $options, $taxonomy, false);
+        foreach ($this->deferred_parent_terms as $parent_id => $taxonomies) {
+            // Clear all caches to ensure we get the freshest product data
+            clean_post_cache($parent_id);
+            wc_delete_product_transients($parent_id);
 
-        $wc_product->save();
+            $wc_product = wc_get_product($parent_id);
+            if (!$wc_product || !$wc_product->is_type('variable')) {
+                $this->logger->warning('Deferred parent term flush: product not found or not variable', [
+                    'parent_id' => $parent_id,
+                ]);
+                continue;
+            }
+
+            $attrs = $wc_product->get_attributes();
+            if (empty($attrs)) {
+                $this->logger->warning('Deferred parent term flush: no attributes on parent', [
+                    'parent_id' => $parent_id,
+                ]);
+                continue;
+            }
+
+            $changed = false;
+            foreach ($taxonomies as $taxonomy => $term_ids) {
+                if (!isset($attrs[$taxonomy])) {
+                    $this->logger->warning('Deferred parent term flush: attribute not found on parent', [
+                        'parent_id' => $parent_id,
+                        'taxonomy' => $taxonomy,
+                        'available_attrs' => array_keys($attrs),
+                    ]);
+                    continue;
+                }
+
+                $attr = $attrs[$taxonomy];
+                if (!$attr->is_taxonomy()) {
+                    continue;
+                }
+
+                // Merge existing options with all new term IDs, deduplicated
+                $existing = $attr->get_options();
+                $existing = is_array($existing) ? array_map('intval', $existing) : [];
+                $merged = array_unique(array_merge($existing, array_map('intval', $term_ids)));
+                $attr->set_options($merged);
+                $attrs[$taxonomy] = $attr;
+
+                // Set term relationships directly in DB
+                wp_set_object_terms($parent_id, $merged, $taxonomy, false);
+                $changed = true;
+
+                $this->logger->verbose('Parent attribute terms set', [
+                    'parent_id' => $parent_id,
+                    'taxonomy' => $taxonomy,
+                    'term_ids' => $merged,
+                ]);
+            }
+
+            if ($changed) {
+                $wc_product->set_attributes($attrs);
+                $wc_product->save();
+                $this->logger->verbose('Parent product saved with attribute terms', [
+                    'parent_id' => $parent_id,
+                    'attribute_count' => count($attrs),
+                ]);
+            }
+        }
+
+        $parent_count = count($this->deferred_parent_terms);
+        $this->deferred_parent_terms = [];
+        $this->logger->info('Flushed parent attribute terms', ['parents_updated' => $parent_count]);
     }
 
     /**
