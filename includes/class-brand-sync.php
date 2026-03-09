@@ -70,6 +70,9 @@ class Skwirrel_WC_Sync_Brand_Sync {
 			return;
 		}
 
+		$permalink_opts    = Skwirrel_WC_Sync_Permalink_Settings::get_options();
+		$manufacturer_slug = $permalink_opts['manufacturer_base'] ?? 'manufacturer';
+
 		register_taxonomy(
 			self::MANUFACTURER_TAXONOMY,
 			[ 'product' ],
@@ -91,7 +94,7 @@ class Skwirrel_WC_Sync_Brand_Sync {
 				'show_admin_column' => true,
 				'show_in_rest'      => true,
 				'query_var'         => true,
-				'rewrite'           => [ 'slug' => 'manufacturer' ],
+				'rewrite'           => [ 'slug' => $manufacturer_slug ],
 			]
 		);
 	}

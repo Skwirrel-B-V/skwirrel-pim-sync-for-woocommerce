@@ -44,6 +44,7 @@ class Skwirrel_WC_Sync_Permalink_Settings {
 			'slug_source_field'     => 'product_name',
 			'slug_suffix_field'     => '',
 			'update_slug_on_resync' => false,
+			'manufacturer_base'     => 'manufacturer',
 		];
 
 		$opts = get_option( self::OPTION_KEY, [] );
@@ -94,6 +95,14 @@ class Skwirrel_WC_Sync_Permalink_Settings {
 			'skwirrel_update_slug_on_resync',
 			__( 'Update slug on re-sync', 'skwirrel-pim-sync' ),
 			[ $this, 'render_update_slug_on_resync_field' ],
+			'permalink',
+			'skwirrel-product-permalink'
+		);
+
+		add_settings_field(
+			'skwirrel_manufacturer_base',
+			__( 'Product manufacturer base', 'skwirrel-pim-sync' ),
+			[ $this, 'render_manufacturer_base_field' ],
 			'permalink',
 			'skwirrel-product-permalink'
 		);
@@ -158,6 +167,18 @@ class Skwirrel_WC_Sync_Permalink_Settings {
 	}
 
 	/**
+	 * Render manufacturer base slug input.
+	 */
+	public function render_manufacturer_base_field(): void {
+		$opts  = self::get_options();
+		$value = $opts['manufacturer_base'];
+		?>
+		<input type="text" id="skwirrel_manufacturer_base" name="skwirrel_manufacturer_base" value="<?php echo esc_attr( $value ); ?>" class="regular-text" />
+		<p class="description"><?php esc_html_e( 'The base slug for the product manufacturer taxonomy URLs.', 'skwirrel-pim-sync' ); ?></p>
+		<?php
+	}
+
+	/**
 	 * Save settings from the Permalinks page.
 	 *
 	 * WordPress does not use register_setting() for the permalink page,
@@ -182,15 +203,17 @@ class Skwirrel_WC_Sync_Permalink_Settings {
 		$allowed_suffix = [ '', 'internal_product_code', 'manufacturer_product_code', 'external_product_id', 'product_id' ];
 
         // phpcs:disable WordPress.Security.NonceVerification.Missing -- nonce verified above
-		$source           = sanitize_text_field( wp_unslash( $_POST['skwirrel_slug_source_field'] ?? 'product_name' ) );
-		$suffix           = sanitize_text_field( wp_unslash( $_POST['skwirrel_slug_suffix_field'] ?? '' ) );
-		$update_on_resync = ! empty( $_POST['skwirrel_update_slug_on_resync'] );
+		$source            = sanitize_text_field( wp_unslash( $_POST['skwirrel_slug_source_field'] ?? 'product_name' ) );
+		$suffix            = sanitize_text_field( wp_unslash( $_POST['skwirrel_slug_suffix_field'] ?? '' ) );
+		$update_on_resync  = ! empty( $_POST['skwirrel_update_slug_on_resync'] );
+		$manufacturer_base = sanitize_title( wp_unslash( $_POST['skwirrel_manufacturer_base'] ?? 'manufacturer' ) );
         // phpcs:enable
 
 		$opts = [
 			'slug_source_field'     => in_array( $source, $allowed_source, true ) ? $source : 'product_name',
 			'slug_suffix_field'     => in_array( $suffix, $allowed_suffix, true ) ? $suffix : '',
 			'update_slug_on_resync' => $update_on_resync,
+			'manufacturer_base'     => '' !== $manufacturer_base ? $manufacturer_base : 'manufacturer',
 		];
 
 		update_option( self::OPTION_KEY, $opts );
