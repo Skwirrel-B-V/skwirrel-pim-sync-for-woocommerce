@@ -512,7 +512,7 @@ class Skwirrel_WC_Sync_Service {
 	/**
 	 * Sync a single product by its Skwirrel product_id.
 	 *
-	 * Fetches the product from the API using getProductsByFilter with a product_id filter,
+	 * Fetches the product from the API using getProducts with a product_ids filter,
 	 * then upserts it into WooCommerce including categories, brands, and attributes.
 	 *
 	 * @param int $skwirrel_product_id Skwirrel product_id.
@@ -530,7 +530,7 @@ class Skwirrel_WC_Sync_Service {
 		$options    = $this->get_options();
 		$get_params = [
 			'page'                         => 1,
-			'limit'                        => 10,
+			'limit'                        => (int) ( $options['batch_size'] ?? 100 ),
 			'include_product_status'       => true,
 			'include_product_translations' => true,
 			'include_attachments'          => true,
@@ -543,6 +543,7 @@ class Skwirrel_WC_Sync_Service {
 			'include_etim_translations'    => true,
 			'include_languages'            => $this->get_include_languages(),
 			'include_contexts'             => [ 1 ],
+			'product_ids'                  => [ $skwirrel_product_id ],
 		];
 
 		$sync_cc    = ! empty( $options['sync_custom_classes'] );
@@ -554,20 +555,12 @@ class Skwirrel_WC_Sync_Service {
 			$get_params['include_trade_item_custom_classes'] = true;
 		}
 
-		$req_options = $get_params;
-		unset( $req_options['page'], $req_options['limit'] );
+		$collection_ids = $this->get_collection_ids();
+		if ( ! empty( $collection_ids ) ) {
+			$get_params['collection_ids'] = $collection_ids;
+		}
 
-		$result = $client->call(
-			'getProductsByFilter',
-			[
-				'filter'  => [
-					'product_id' => $skwirrel_product_id,
-				],
-				'options' => $req_options,
-				'page'    => 1,
-				'limit'   => 10,
-			]
-		);
+		$result = $client->call( 'getProducts', $get_params );
 
 		if ( ! $result['success'] ) {
 			$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
@@ -580,14 +573,21 @@ class Skwirrel_WC_Sync_Service {
 		$data     = $result['result'] ?? [];
 		$products = $data['products'] ?? [];
 
-		if ( empty( $products ) ) {
+		// If the API does not support product_ids filtering, search through results.
+		$product = null;
+		foreach ( $products as $p ) {
+			if ( (int) ( $p['product_id'] ?? 0 ) === $skwirrel_product_id ) {
+				$product = $p;
+				break;
+			}
+		}
+
+		if ( null === $product ) {
 			return [
 				'success' => false,
 				'error'   => 'Product not found in Skwirrel API',
 			];
 		}
-
-		$product = $products[0];
 
 		try {
 			$outcome = $this->upserter->upsert_product( $product );
