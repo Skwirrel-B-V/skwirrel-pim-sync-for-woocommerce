@@ -143,7 +143,9 @@ class Skwirrel_WC_Sync_Service {
 		}
 
 		// Sync all brands (independent of products)
-		$this->brand_sync->sync_all_brands( $client );
+		if ( ! empty( $options['sync_brands'] ) ) {
+			$this->brand_sync->sync_all_brands( $client );
+		}
 
 		// Sync all custom classes as WooCommerce attributes (independent of products)
 		if ( ! empty( $options['sync_custom_classes'] ) || ! empty( $options['sync_trade_item_custom_classes'] ) ) {

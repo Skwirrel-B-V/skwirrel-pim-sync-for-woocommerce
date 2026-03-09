@@ -284,7 +284,13 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 
 		$this->category_sync->assign_categories( $id, $product, $this->mapper );
-		$this->brand_sync->assign_brand( $id, $product );
+		$options = $this->get_options();
+		if ( ! empty( $options['sync_brands'] ) ) {
+			$this->brand_sync->assign_brand( $id, $product );
+		}
+		if ( ! empty( $options['sync_manufacturers'] ) ) {
+			$this->brand_sync->assign_manufacturer( $id, $product );
+		}
 
 		// Save attributes as global WooCommerce taxonomy-based attributes
 		// so they appear in layered navigation and product filters.
@@ -571,10 +577,16 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 		}
 
-		// Assign brand from variation product to parent variable product.
-		// The grouped product data from getGroupedProducts usually lacks brand_name,
-		// so we propagate from the first variation that has one.
-		$this->brand_sync->assign_brand( $wc_variable_id, $product );
+		// Assign brand and manufacturer from variation product to parent variable product.
+		// The grouped product data from getGroupedProducts usually lacks these fields,
+		// so we propagate from the first variation that has them.
+		$cc_options = $this->get_options();
+		if ( ! empty( $cc_options['sync_brands'] ) ) {
+			$this->brand_sync->assign_brand( $wc_variable_id, $product );
+		}
+		if ( ! empty( $cc_options['sync_manufacturers'] ) ) {
+			$this->brand_sync->assign_manufacturer( $wc_variable_id, $product );
+		}
 
 		// Assign categories from variation product to parent variable product.
 		// Same issue: getGroupedProducts lacks _categories, but individual
@@ -583,7 +595,6 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		// Collect non-variation ETIM + custom class attributes for parent product
 		$non_var_attrs = $this->mapper->get_attributes( $product );
-		$cc_options    = $this->get_options();
 		if ( ! empty( $cc_options['sync_custom_classes'] ) || ! empty( $cc_options['sync_trade_item_custom_classes'] ) ) {
 			$cc_filter_mode = $cc_options['custom_class_filter_mode'] ?? '';
 			$cc_parsed      = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_options['custom_class_filter_ids'] ?? '' );
@@ -879,7 +890,12 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 
 		$this->category_sync->assign_categories( $id, $group, $this->mapper );
-		$this->brand_sync->assign_brand( $id, $group );
+		if ( ! empty( $this->get_options()['sync_brands'] ) ) {
+			$this->brand_sync->assign_brand( $id, $group );
+		}
+		if ( ! empty( $this->get_options()['sync_manufacturers'] ) ) {
+			$this->brand_sync->assign_manufacturer( $id, $group );
+		}
 
 		return $is_new ? 'created' : 'updated';
 	}

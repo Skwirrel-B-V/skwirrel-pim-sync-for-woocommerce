@@ -58,6 +58,8 @@ The plugin uses the Skwirrel external ID as a unique key. Existing products are 
 * Convert non-variation parent attributes to global WooCommerce taxonomy-based attributes
 * Fix brand not assigned to variable products: propagate brand from child variations to parent
 * Fix categories not assigned to variable products: propagate categories from child variations to parent
+* Add "Sync brands" setting with built-in product_brand taxonomy fallback
+* Add "Sync manufacturers" setting with product_manufacturer taxonomy
 
 = 1.9.2 =
 * Remove legacy pa_variant migration code (no live installs to migrate)

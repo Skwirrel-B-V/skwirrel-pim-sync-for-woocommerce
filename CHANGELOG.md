@@ -8,6 +8,9 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 * Convert non-variation parent attributes to global WooCommerce taxonomy-based attributes (consistent with simple products)
 * Fix brand not assigned to variable products: propagate brand_name from child variations to parent, since getGroupedProducts response lacks brand_name
 * Fix categories not assigned to variable products: propagate _categories from child variations to parent (same root cause)
+* Add "Sync brands" setting: registers product_brand taxonomy as fallback if no other plugin provides it, brand sync now gated by setting
+* Add "Sync manufacturers" setting: registers product_manufacturer taxonomy, syncs manufacturer_name from Skwirrel products to taxonomy terms
+* Manufacturer attribute no longer duplicated as product attribute when synced as taxonomy
 
 ## [1.9.2]
 

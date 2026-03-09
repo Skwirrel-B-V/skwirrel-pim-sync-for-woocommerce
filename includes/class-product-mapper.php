@@ -199,8 +199,10 @@ class Skwirrel_WC_Sync_Product_Mapper {
      */
     public function get_attributes(array $product): array {
         $attrs = [];
+        // Only include manufacturer as attribute if not synced as taxonomy
+        $options = get_option('skwirrel_wc_sync_settings', []);
         $manufacturer = $product['manufacturer_name'] ?? '';
-        if (!empty($manufacturer)) {
+        if (!empty($manufacturer) && empty($options['sync_manufacturers'])) {
             $attrs['Manufacturer'] = $manufacturer;
         }
         $gtin = $product['product_gtin'] ?? '';

@@ -104,6 +104,16 @@ final class Skwirrel_WC_Sync_Plugin {
     }
 
     private function register_hooks(): void {
+        // Register custom taxonomies (fallback if no other plugin provides them)
+        $options = get_option('skwirrel_wc_sync_settings', []);
+        $brand_sync = new Skwirrel_WC_Sync_Brand_Sync(new Skwirrel_WC_Sync_Logger());
+        if (!empty($options['sync_brands'])) {
+            add_action('init', [$brand_sync, 'maybe_register_brand_taxonomy']);
+        }
+        if (!empty($options['sync_manufacturers'])) {
+            add_action('init', [$brand_sync, 'maybe_register_manufacturer_taxonomy']);
+        }
+
         Skwirrel_WC_Sync_Admin_Settings::instance();
         Skwirrel_WC_Sync_Permalink_Settings::instance();
         Skwirrel_WC_Sync_Action_Scheduler::instance();
