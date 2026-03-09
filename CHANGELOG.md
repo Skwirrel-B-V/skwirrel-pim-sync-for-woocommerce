@@ -2,11 +2,14 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
-## [1.9.4]
+## [1.9.5]
 
 * Add "Sync brands" setting: registers product_brand taxonomy as fallback if no other plugin provides it, brand sync now gated by setting
 * Add "Sync manufacturers" setting: registers product_manufacturer taxonomy, syncs manufacturer_name from Skwirrel products to taxonomy terms
 * Manufacturer attribute no longer duplicated as product attribute when synced as taxonomy
+* Default product list columns: hide Tags, show Manufacturers
+* Add "Filter by manufacturer" dropdown on product list page
+* Manufacturers column ordered after Brands, before Date
 
 ## [1.9.3]
 
