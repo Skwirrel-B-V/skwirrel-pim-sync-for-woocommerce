@@ -150,23 +150,15 @@ final class Skwirrel_WC_Sync_Plugin {
         $manufacturer_label = $columns[$manufacturer_key];
         unset($columns[$manufacturer_key]);
 
-        // Find the best insertion point: after Brands, or before Date
-        $brand_key = 'taxonomy-' . Skwirrel_WC_Sync_Brand_Sync::BRAND_TAXONOMY;
+        // Insert before the date column
         $reordered = [];
         $inserted = false;
         foreach ($columns as $key => $label) {
-            $reordered[$key] = $label;
-            if (!$inserted && $key === $brand_key) {
+            if (!$inserted && $key === 'date') {
                 $reordered[$manufacturer_key] = $manufacturer_label;
                 $inserted = true;
             }
-            if (!$inserted && $key === 'date') {
-                // No brand column found — insert before date
-                $reordered = array_slice($reordered, 0, -1, true)
-                    + [$manufacturer_key => $manufacturer_label]
-                    + [$key => $label];
-                $inserted = true;
-            }
+            $reordered[$key] = $label;
         }
         if (!$inserted) {
             $reordered[$manufacturer_key] = $manufacturer_label;
