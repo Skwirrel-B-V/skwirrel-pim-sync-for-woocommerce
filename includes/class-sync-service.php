@@ -509,6 +509,116 @@ class Skwirrel_WC_Sync_Service {
 		return $this->upserter->upsert_product( $product );
 	}
 
+	/**
+	 * Sync a single product by its Skwirrel product_id.
+	 *
+	 * Fetches the product from the API using getProductsByFilter with a product_id filter,
+	 * then upserts it into WooCommerce including categories, brands, and attributes.
+	 *
+	 * @param int $skwirrel_product_id Skwirrel product_id.
+	 * @return array{success: bool, outcome?: string, error?: string}
+	 */
+	public function sync_single_product( int $skwirrel_product_id ): array {
+		$client = $this->get_client();
+		if ( ! $client ) {
+			return [
+				'success' => false,
+				'error'   => 'Invalid API configuration',
+			];
+		}
+
+		$options    = $this->get_options();
+		$get_params = [
+			'page'                         => 1,
+			'limit'                        => 10,
+			'include_product_status'       => true,
+			'include_product_translations' => true,
+			'include_attachments'          => true,
+			'include_trade_items'          => true,
+			'include_trade_item_prices'    => true,
+			'include_categories'           => ! empty( $options['sync_categories'] ),
+			'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
+			'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
+			'include_etim'                 => true,
+			'include_etim_translations'    => true,
+			'include_languages'            => $this->get_include_languages(),
+			'include_contexts'             => [ 1 ],
+		];
+
+		$sync_cc    = ! empty( $options['sync_custom_classes'] );
+		$sync_ti_cc = ! empty( $options['sync_trade_item_custom_classes'] );
+		if ( $sync_cc ) {
+			$get_params['include_custom_classes'] = true;
+		}
+		if ( $sync_ti_cc ) {
+			$get_params['include_trade_item_custom_classes'] = true;
+		}
+
+		$req_options = $get_params;
+		unset( $req_options['page'], $req_options['limit'] );
+
+		$result = $client->call(
+			'getProductsByFilter',
+			[
+				'filter'  => [
+					'product_id' => $skwirrel_product_id,
+				],
+				'options' => $req_options,
+				'page'    => 1,
+				'limit'   => 10,
+			]
+		);
+
+		if ( ! $result['success'] ) {
+			$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
+			return [
+				'success' => false,
+				'error'   => $err['message'] ?? 'API error',
+			];
+		}
+
+		$data     = $result['result'] ?? [];
+		$products = $data['products'] ?? [];
+
+		if ( empty( $products ) ) {
+			return [
+				'success' => false,
+				'error'   => 'Product not found in Skwirrel API',
+			];
+		}
+
+		$product = $products[0];
+
+		try {
+			$outcome = $this->upserter->upsert_product( $product );
+
+			$this->logger->info(
+				'Single product sync completed',
+				[
+					'skwirrel_product_id' => $skwirrel_product_id,
+					'outcome'             => $outcome,
+				]
+			);
+
+			return [
+				'success' => true,
+				'outcome' => $outcome,
+			];
+		} catch ( Throwable $e ) {
+			$this->logger->error(
+				'Single product sync failed',
+				[
+					'skwirrel_product_id' => $skwirrel_product_id,
+					'error'               => $e->getMessage(),
+				]
+			);
+			return [
+				'success' => false,
+				'error'   => $e->getMessage(),
+			];
+		}
+	}
+
 	private function get_client(): ?Skwirrel_WC_Sync_JsonRpc_Client {
 		$opts  = $this->get_options();
 		$url   = $opts['endpoint_url'] ?? '';
