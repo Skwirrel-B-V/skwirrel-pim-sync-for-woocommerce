@@ -4,7 +4,8 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 
 ## [1.9.3]
 
-* Fix simple product attributes: save as global WooCommerce taxonomy-based attributes instead of custom text attributes, so they appear in layered navigation and product filters
+* Fix variable product variation attributes: recover parent attribute options from child variation post meta when deferred terms are empty (e.g. when getProducts lacks _etim_features)
+* Convert non-variation parent attributes to global WooCommerce taxonomy-based attributes (consistent with simple products)
 
 ## [1.9.2]
 
