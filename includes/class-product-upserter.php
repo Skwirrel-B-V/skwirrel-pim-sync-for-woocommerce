@@ -259,15 +259,35 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$wc_product->save();
 		}
 
-		$downloads = $this->mapper->get_downloadable_files( $product, $id );
-		if ( ! empty( $downloads ) ) {
-			$wc_product->set_downloadable( true );
-			$wc_product->set_downloads( $this->format_downloads( $downloads ) );
-			$wc_product->save();
+		try {
+			$downloads = $this->mapper->get_downloadable_files( $product, $id );
+			if ( ! empty( $downloads ) ) {
+				$wc_product->set_downloadable( true );
+				$wc_product->set_downloads( $this->format_downloads( $downloads ) );
+				$wc_product->save();
+			}
+		} catch ( \Throwable $e ) {
+			$this->logger->warning(
+				'Downloadable files save failed, continuing with sync',
+				[
+					'wc_id' => $id,
+					'error' => $e->getMessage(),
+				]
+			);
 		}
 
-		$documents = $this->mapper->get_document_attachments( $product, $id );
-		update_post_meta( $id, '_skwirrel_document_attachments', $documents );
+		try {
+			$documents = $this->mapper->get_document_attachments( $product, $id );
+			update_post_meta( $id, '_skwirrel_document_attachments', $documents );
+		} catch ( \Throwable $e ) {
+			$this->logger->warning(
+				'Document attachments save failed, continuing with sync',
+				[
+					'wc_id' => $id,
+					'error' => $e->getMessage(),
+				]
+			);
+		}
 
 		// Save custom class text meta (T/B types)
 		if ( ! empty( $cc_text_meta ) ) {
