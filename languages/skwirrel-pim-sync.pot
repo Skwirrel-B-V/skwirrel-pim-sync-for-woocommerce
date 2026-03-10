@@ -409,7 +409,7 @@ msgid "Run \"Sync Products\"."
 msgstr ""
 
 #: includes/class-admin-settings.php
-msgid "Check wp-content/uploads/skwirrel-variation-debug.log"
+msgid "Check wp-content/uploads/skwirrel-pim-sync/skwirrel-variation-debug.log"
 msgstr ""
 
 #: includes/class-admin-settings.php
@@ -772,4 +772,130 @@ msgstr ""
 
 #: includes/class-sync-service.php:179
 msgid "Fetching products from API…"
+msgstr ""
+
+#: includes/class-admin-settings.php:834
+msgid "Sync manufacturers"
+msgstr ""
+
+#: includes/class-admin-settings.php:836
+msgid "Sync manufacturer_name to product_manufacturer taxonomy"
+msgstr ""
+
+#: includes/class-admin-settings.php:837
+msgid "Registers the product_manufacturer taxonomy and assigns manufacturers from Skwirrel product data."
+msgstr ""
+
+#: includes/class-brand-sync.php:44
+#: includes/class-brand-sync.php:52
+msgid "Brands"
+msgstr ""
+
+#: includes/class-brand-sync.php:45
+msgid "Brand"
+msgstr ""
+
+#: includes/class-brand-sync.php:46
+msgid "Search brands"
+msgstr ""
+
+#: includes/class-brand-sync.php:47
+msgid "All brands"
+msgstr ""
+
+#: includes/class-brand-sync.php:48
+msgid "Edit brand"
+msgstr ""
+
+#: includes/class-brand-sync.php:49
+msgid "Update brand"
+msgstr ""
+
+#: includes/class-brand-sync.php:50
+msgid "Add new brand"
+msgstr ""
+
+#: includes/class-brand-sync.php:51
+msgid "New brand name"
+msgstr ""
+
+#: includes/class-brand-sync.php:81
+#: includes/class-brand-sync.php:89
+msgid "Manufacturers"
+msgstr ""
+
+#: includes/class-brand-sync.php:82
+msgid "Manufacturer"
+msgstr ""
+
+#: includes/class-brand-sync.php:83
+msgid "Search manufacturers"
+msgstr ""
+
+#: includes/class-brand-sync.php:84
+msgid "All manufacturers"
+msgstr ""
+
+#: includes/class-brand-sync.php:85
+msgid "Edit manufacturer"
+msgstr ""
+
+#: includes/class-brand-sync.php:86
+msgid "Update manufacturer"
+msgstr ""
+
+#: includes/class-brand-sync.php:87
+msgid "Add new manufacturer"
+msgstr ""
+
+#: includes/class-brand-sync.php:88
+msgid "New manufacturer name"
+msgstr ""
+
+#: includes/class-product-sync-meta-box.php:40
+msgid "Skwirrel"
+msgstr ""
+
+#: includes/class-product-upserter.php:796
+#, php-format
+msgid "Product %s"
+msgstr ""
+
+#: includes/class-taxonomy-manager.php:141
+#: includes/class-taxonomy-manager.php:153
+msgid "Variant"
+msgstr ""
+
+#: includes/class-taxonomy-manager.php:282
+#, php-format
+msgid "Search %s"
+msgstr ""
+
+#: includes/class-taxonomy-manager.php:284
+#, php-format
+msgid "All %s"
+msgstr ""
+
+#: includes/class-taxonomy-manager.php:286
+#, php-format
+msgid "Edit %s"
+msgstr ""
+
+#: includes/class-taxonomy-manager.php:288
+#, php-format
+msgid "Update %s"
+msgstr ""
+
+#: includes/class-taxonomy-manager.php:290
+#, php-format
+msgid "Add new %s"
+msgstr ""
+
+#: includes/class-taxonomy-manager.php:292
+#, php-format
+msgid "New %s"
+msgstr ""
+
+#: skwirrel-pim-sync.php:200
+msgid "Filter by manufacturer"
 msgstr ""

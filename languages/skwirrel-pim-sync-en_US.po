@@ -409,8 +409,8 @@ msgid "Run \"Sync Products\"."
 msgstr ""
 
 #: includes/class-admin-settings.php
-msgid "Check wp-content/uploads/skwirrel-variation-debug.log"
-msgstr ""
+msgid "Check wp-content/uploads/skwirrel-pim-sync/skwirrel-variation-debug.log"
+msgstr "Check wp-content/uploads/skwirrel-pim-sync/skwirrel-variation-debug.log"
 
 #: includes/class-admin-settings.php
 msgid "Check: etim_values_found empty? → API languages must match getProducts (e.g. en, en-GB)."
@@ -696,3 +696,150 @@ msgstr "Invalid product ID."
 #: includes/class-product-sync-meta-box.php:158
 msgid "No Skwirrel product ID found for this product."
 msgstr "No Skwirrel product ID found for this product."
+
+msgid "Fetch products from API"
+msgstr "Fetch products from API"
+
+msgid "Fetching products from API…"
+msgstr "Fetching products from API…"
+
+#, php-format
+msgid "Fetching products from API… (%d found)"
+msgstr "Fetching products from API… (%d found)"
+
+msgid "Create & update products"
+msgstr "Create & update products"
+
+msgid "Creating & updating products…"
+msgstr "Creating & updating products…"
+
+msgid "Assign categories & brands"
+msgstr "Assign categories & brands"
+
+msgid "Assigning categories & brands…"
+msgstr "Assigning categories & brands…"
+
+msgid "Assign categories, brands & manufacturers"
+msgstr "Assign categories, brands & manufacturers"
+
+msgid "Assigning categories, brands & manufacturers…"
+msgstr "Assigning categories, brands & manufacturers…"
+
+msgid "Connect attributes"
+msgstr "Connect attributes"
+
+msgid "Connecting attributes…"
+msgstr "Connecting attributes…"
+
+msgid "Download images & documents"
+msgstr "Download images & documents"
+
+msgid "Downloading images & documents…"
+msgstr "Downloading images & documents…"
+
+msgid "Cleanup & finalize"
+msgstr "Cleanup & finalise"
+
+msgid "Cleaning up…"
+msgstr "Cleaning up…"
+
+#, php-format
+msgid "%d fetched"
+msgstr "%d fetched"
+
+msgid "This page refreshes automatically every 5 seconds."
+msgstr "This page refreshes automatically every 5 seconds."
+
+msgid "Sync manufacturers"
+msgstr "Sync manufacturers"
+
+msgid "Sync manufacturer_name to product_manufacturer taxonomy"
+msgstr "Sync manufacturer_name to product_manufacturer taxonomy"
+
+msgid "Registers the product_manufacturer taxonomy and assigns manufacturers from Skwirrel product data."
+msgstr "Registers the product_manufacturer taxonomy and assigns manufacturers from Skwirrel product data."
+
+msgid "Brands"
+msgstr "Brands"
+
+msgid "Brand"
+msgstr "Brand"
+
+msgid "Search brands"
+msgstr "Search brands"
+
+msgid "All brands"
+msgstr "All brands"
+
+msgid "Edit brand"
+msgstr "Edit brand"
+
+msgid "Update brand"
+msgstr "Update brand"
+
+msgid "Add new brand"
+msgstr "Add new brand"
+
+msgid "New brand name"
+msgstr "New brand name"
+
+msgid "Manufacturers"
+msgstr "Manufacturers"
+
+msgid "Manufacturer"
+msgstr "Manufacturer"
+
+msgid "Search manufacturers"
+msgstr "Search manufacturers"
+
+msgid "All manufacturers"
+msgstr "All manufacturers"
+
+msgid "Edit manufacturer"
+msgstr "Edit manufacturer"
+
+msgid "Update manufacturer"
+msgstr "Update manufacturer"
+
+msgid "Add new manufacturer"
+msgstr "Add new manufacturer"
+
+msgid "New manufacturer name"
+msgstr "New manufacturer name"
+
+msgid "Skwirrel"
+msgstr "Skwirrel"
+
+#, php-format
+msgid "Product %s"
+msgstr "Product %s"
+
+msgid "Variant"
+msgstr "Variant"
+
+#, php-format
+msgid "Search %s"
+msgstr "Search %s"
+
+#, php-format
+msgid "All %s"
+msgstr "All %s"
+
+#, php-format
+msgid "Edit %s"
+msgstr "Edit %s"
+
+#, php-format
+msgid "Update %s"
+msgstr "Update %s"
+
+#, php-format
+msgid "Add new %s"
+msgstr "Add new %s"
+
+#, php-format
+msgid "New %s"
+msgstr "New %s"
+
+msgid "Filter by manufacturer"
+msgstr "Filter by manufacturer"

@@ -409,8 +409,8 @@ msgid "Run \"Sync Products\"."
 msgstr "Voer \"Producten synchroniseren\" uit."
 
 #: includes/class-admin-settings.php
-msgid "Check wp-content/uploads/skwirrel-variation-debug.log"
-msgstr "Bekijk wp-content/uploads/skwirrel-variation-debug.log"
+msgid "Check wp-content/uploads/skwirrel-pim-sync/skwirrel-variation-debug.log"
+msgstr "Bekijk wp-content/uploads/skwirrel-pim-sync/skwirrel-variation-debug.log"
 
 #: includes/class-admin-settings.php
 msgid "Check: etim_values_found empty? → API languages must match getProducts (e.g. en, en-GB)."
@@ -696,3 +696,150 @@ msgstr "Ongeldig product-ID."
 #: includes/class-product-sync-meta-box.php:158
 msgid "No Skwirrel product ID found for this product."
 msgstr "Geen Skwirrel product-ID gevonden voor dit product."
+
+msgid "Fetch products from API"
+msgstr "Producten ophalen via API"
+
+msgid "Fetching products from API…"
+msgstr "Producten ophalen via API…"
+
+#, php-format
+msgid "Fetching products from API… (%d found)"
+msgstr "Producten ophalen via API… (%d gevonden)"
+
+msgid "Create & update products"
+msgstr "Producten aanmaken & bijwerken"
+
+msgid "Creating & updating products…"
+msgstr "Producten aanmaken & bijwerken…"
+
+msgid "Assign categories & brands"
+msgstr "Categorieën & merken toewijzen"
+
+msgid "Assigning categories & brands…"
+msgstr "Categorieën & merken toewijzen…"
+
+msgid "Assign categories, brands & manufacturers"
+msgstr "Categorieën, merken & fabrikanten toewijzen"
+
+msgid "Assigning categories, brands & manufacturers…"
+msgstr "Categorieën, merken & fabrikanten toewijzen…"
+
+msgid "Connect attributes"
+msgstr "Attributen koppelen"
+
+msgid "Connecting attributes…"
+msgstr "Attributen koppelen…"
+
+msgid "Download images & documents"
+msgstr "Afbeeldingen & documenten downloaden"
+
+msgid "Downloading images & documents…"
+msgstr "Afbeeldingen & documenten downloaden…"
+
+msgid "Cleanup & finalize"
+msgstr "Opruimen & afronden"
+
+msgid "Cleaning up…"
+msgstr "Opruimen…"
+
+#, php-format
+msgid "%d fetched"
+msgstr "%d opgehaald"
+
+msgid "This page refreshes automatically every 5 seconds."
+msgstr "Deze pagina ververst automatisch elke 5 seconden."
+
+msgid "Sync manufacturers"
+msgstr "Fabrikanten synchroniseren"
+
+msgid "Sync manufacturer_name to product_manufacturer taxonomy"
+msgstr "Synchroniseer manufacturer_name naar product_manufacturer taxonomie"
+
+msgid "Registers the product_manufacturer taxonomy and assigns manufacturers from Skwirrel product data."
+msgstr "Registreert de product_manufacturer taxonomie en wijst fabrikanten toe vanuit Skwirrel productdata."
+
+msgid "Brands"
+msgstr "Merken"
+
+msgid "Brand"
+msgstr "Merk"
+
+msgid "Search brands"
+msgstr "Merken zoeken"
+
+msgid "All brands"
+msgstr "Alle merken"
+
+msgid "Edit brand"
+msgstr "Merk bewerken"
+
+msgid "Update brand"
+msgstr "Merk bijwerken"
+
+msgid "Add new brand"
+msgstr "Nieuw merk toevoegen"
+
+msgid "New brand name"
+msgstr "Nieuwe merknaam"
+
+msgid "Manufacturers"
+msgstr "Fabrikanten"
+
+msgid "Manufacturer"
+msgstr "Fabrikant"
+
+msgid "Search manufacturers"
+msgstr "Fabrikanten zoeken"
+
+msgid "All manufacturers"
+msgstr "Alle fabrikanten"
+
+msgid "Edit manufacturer"
+msgstr "Fabrikant bewerken"
+
+msgid "Update manufacturer"
+msgstr "Fabrikant bijwerken"
+
+msgid "Add new manufacturer"
+msgstr "Nieuwe fabrikant toevoegen"
+
+msgid "New manufacturer name"
+msgstr "Nieuwe fabrikantnaam"
+
+msgid "Skwirrel"
+msgstr "Skwirrel"
+
+#, php-format
+msgid "Product %s"
+msgstr "Product %s"
+
+msgid "Variant"
+msgstr "Variant"
+
+#, php-format
+msgid "Search %s"
+msgstr "%s zoeken"
+
+#, php-format
+msgid "All %s"
+msgstr "Alle %s"
+
+#, php-format
+msgid "Edit %s"
+msgstr "%s bewerken"
+
+#, php-format
+msgid "Update %s"
+msgstr "%s bijwerken"
+
+#, php-format
+msgid "Add new %s"
+msgstr "Nieuwe %s toevoegen"
+
+#, php-format
+msgid "New %s"
+msgstr "Nieuwe %s"
+
+msgid "Filter by manufacturer"
+msgstr "Filteren op fabrikant"

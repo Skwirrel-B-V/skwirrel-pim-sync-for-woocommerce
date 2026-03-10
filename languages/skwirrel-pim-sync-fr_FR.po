@@ -409,8 +409,8 @@ msgid "Run \"Sync Products\"."
 msgstr "Exécuter \"Synchroniser les produits\"."
 
 #: includes/class-admin-settings.php
-msgid "Check wp-content/uploads/skwirrel-variation-debug.log"
-msgstr "Consultez wp-content/uploads/skwirrel-variation-debug.log"
+msgid "Check wp-content/uploads/skwirrel-pim-sync/skwirrel-variation-debug.log"
+msgstr "Voir wp-content/uploads/skwirrel-pim-sync/skwirrel-variation-debug.log"
 
 #: includes/class-admin-settings.php
 msgid "Check: etim_values_found empty? → API languages must match getProducts (e.g. en, en-GB)."
@@ -696,3 +696,150 @@ msgstr "ID de produit invalide."
 #: includes/class-product-sync-meta-box.php:158
 msgid "No Skwirrel product ID found for this product."
 msgstr "Aucun ID produit Skwirrel trouvé pour ce produit."
+
+msgid "Fetch products from API"
+msgstr "Récupérer les produits via l'API"
+
+msgid "Fetching products from API…"
+msgstr "Récupération des produits via l'API…"
+
+#, php-format
+msgid "Fetching products from API… (%d found)"
+msgstr "Récupération des produits via l'API… (%d trouvés)"
+
+msgid "Create & update products"
+msgstr "Créer & mettre à jour les produits"
+
+msgid "Creating & updating products…"
+msgstr "Création & mise à jour des produits…"
+
+msgid "Assign categories & brands"
+msgstr "Attribuer catégories & marques"
+
+msgid "Assigning categories & brands…"
+msgstr "Attribution des catégories & marques…"
+
+msgid "Assign categories, brands & manufacturers"
+msgstr "Attribuer catégories, marques & fabricants"
+
+msgid "Assigning categories, brands & manufacturers…"
+msgstr "Attribution des catégories, marques & fabricants…"
+
+msgid "Connect attributes"
+msgstr "Connecter les attributs"
+
+msgid "Connecting attributes…"
+msgstr "Connexion des attributs…"
+
+msgid "Download images & documents"
+msgstr "Télécharger images & documents"
+
+msgid "Downloading images & documents…"
+msgstr "Téléchargement des images & documents…"
+
+msgid "Cleanup & finalize"
+msgstr "Nettoyage & finalisation"
+
+msgid "Cleaning up…"
+msgstr "Nettoyage…"
+
+#, php-format
+msgid "%d fetched"
+msgstr "%d récupérés"
+
+msgid "This page refreshes automatically every 5 seconds."
+msgstr "Cette page se rafraîchit automatiquement toutes les 5 secondes."
+
+msgid "Sync manufacturers"
+msgstr "Synchroniser les fabricants"
+
+msgid "Sync manufacturer_name to product_manufacturer taxonomy"
+msgstr "Synchroniser manufacturer_name vers la taxonomie product_manufacturer"
+
+msgid "Registers the product_manufacturer taxonomy and assigns manufacturers from Skwirrel product data."
+msgstr "Enregistre la taxonomie product_manufacturer et attribue les fabricants à partir des données produit Skwirrel."
+
+msgid "Brands"
+msgstr "Marques"
+
+msgid "Brand"
+msgstr "Marque"
+
+msgid "Search brands"
+msgstr "Rechercher des marques"
+
+msgid "All brands"
+msgstr "Toutes les marques"
+
+msgid "Edit brand"
+msgstr "Modifier la marque"
+
+msgid "Update brand"
+msgstr "Mettre à jour la marque"
+
+msgid "Add new brand"
+msgstr "Ajouter une marque"
+
+msgid "New brand name"
+msgstr "Nouveau nom de marque"
+
+msgid "Manufacturers"
+msgstr "Fabricants"
+
+msgid "Manufacturer"
+msgstr "Fabricant"
+
+msgid "Search manufacturers"
+msgstr "Rechercher des fabricants"
+
+msgid "All manufacturers"
+msgstr "Tous les fabricants"
+
+msgid "Edit manufacturer"
+msgstr "Modifier le fabricant"
+
+msgid "Update manufacturer"
+msgstr "Mettre à jour le fabricant"
+
+msgid "Add new manufacturer"
+msgstr "Ajouter un fabricant"
+
+msgid "New manufacturer name"
+msgstr "Nouveau nom de fabricant"
+
+msgid "Skwirrel"
+msgstr "Skwirrel"
+
+#, php-format
+msgid "Product %s"
+msgstr "Produit %s"
+
+msgid "Variant"
+msgstr "Variante"
+
+#, php-format
+msgid "Search %s"
+msgstr "Rechercher %s"
+
+#, php-format
+msgid "All %s"
+msgstr "Tous les %s"
+
+#, php-format
+msgid "Edit %s"
+msgstr "Modifier %s"
+
+#, php-format
+msgid "Update %s"
+msgstr "Mettre à jour %s"
+
+#, php-format
+msgid "Add new %s"
+msgstr "Ajouter %s"
+
+#, php-format
+msgid "New %s"
+msgstr "Nouveau %s"
+
+msgid "Filter by manufacturer"
+msgstr "Filtrer par fabricant"
