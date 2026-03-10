@@ -441,8 +441,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
             . '})();'
         );
 
-        // Auto-reload when sync is in progress.
-        if (get_transient(Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS)) {
+        // Auto-reload when sync is in progress — only on the sync tab.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tab parameter is display-only
+        $current_tab = isset($_GET['tab']) ? sanitize_text_field(wp_unslash($_GET['tab'])) : 'sync';
+        if ($current_tab === 'sync' && get_transient(Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS)) {
             wp_add_inline_script('skwirrel-pim-sync-admin', 'setTimeout(function(){ window.location.reload(); }, 5000);');
         }
     }
@@ -509,14 +511,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
         <h2><?php esc_html_e('Sync status', 'skwirrel-pim-sync'); ?></h2>
 
         <?php if ($sync_in_progress) : ?>
-            <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
-                <h3 style="margin-top: 0; color: #0c5460;">
-                    <span class="dashicons dashicons-update skwirrel-pim-sync-spinner" style="color: #0c5460;"></span> <?php esc_html_e('Sync in progress…', 'skwirrel-pim-sync'); ?>
-                </h3>
-                <p style="margin: 0; color: #0c5460;">
-                    <?php esc_html_e('The page will refresh automatically when the sync is completed.', 'skwirrel-pim-sync'); ?>
-                </p>
-            </div>
+            <?php $this->render_sync_progress(); ?>
         <?php elseif ($last_result) : ?>
             <div style="background: <?php echo esc_attr($last_result['success'] ? '#d4edda' : '#f8d7da'); ?>; border: 1px solid <?php echo esc_attr($last_result['success'] ? '#c3e6cb' : '#f5c6cb'); ?>; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
                 <h3 style="margin-top: 0; color: <?php echo esc_attr($last_result['success'] ? '#155724' : '#721c24'); ?>;">
@@ -677,6 +672,75 @@ class Skwirrel_WC_Sync_Admin_Settings {
                 </tbody>
             </table>
         <?php endif; ?>
+        <?php
+    }
+
+    /**
+     * Render the sync-in-progress phase checklist.
+     */
+    private function render_sync_progress(): void {
+        $progress = Skwirrel_WC_Sync_History::get_sync_progress();
+
+        // Phase display configuration: [phase_key => label]
+        $phases = [
+            Skwirrel_WC_Sync_History::PHASE_FETCH      => __('Fetch products from API', 'skwirrel-pim-sync'),
+            Skwirrel_WC_Sync_History::PHASE_PRODUCTS    => __('Create & update products', 'skwirrel-pim-sync'),
+            Skwirrel_WC_Sync_History::PHASE_TAXONOMY    => __('Assign categories & brands', 'skwirrel-pim-sync'),
+            Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES  => __('Connect attributes', 'skwirrel-pim-sync'),
+            Skwirrel_WC_Sync_History::PHASE_MEDIA       => __('Download images & documents', 'skwirrel-pim-sync'),
+            Skwirrel_WC_Sync_History::PHASE_CLEANUP     => __('Cleanup & finalize', 'skwirrel-pim-sync'),
+        ];
+
+        ?>
+        <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0; color: #0c5460;">
+                <span class="dashicons dashicons-update skwirrel-pim-sync-spinner" style="color: #0c5460;"></span>
+                <?php esc_html_e('Sync in progress…', 'skwirrel-pim-sync'); ?>
+            </h3>
+
+            <table style="border-collapse: collapse; width: 100%; max-width: 500px;">
+                <?php foreach ($phases as $key => $label) : ?>
+                    <?php
+                    $phase_data = $progress['phases'][$key] ?? null;
+                    $status     = $phase_data['status'] ?? 'pending';
+                    $current    = $phase_data['current'] ?? 0;
+                    $total      = $phase_data['total'] ?? 0;
+
+                    if ('completed' === $status) {
+                        $icon  = '<span style="color: #155724; font-weight: bold;">&#10003;</span>';
+                        $color = '#155724';
+                    } elseif ('in_progress' === $status) {
+                        $icon  = '<span class="dashicons dashicons-update skwirrel-pim-sync-spinner" style="font-size: 16px; width: 16px; height: 16px; color: #0c5460;"></span>';
+                        $color = '#0c5460';
+                    } else {
+                        $icon  = '<span style="color: #999;">&mdash;</span>';
+                        $color = '#999';
+                    }
+
+                    $counter = '';
+                    if ($phase_data && $total > 0) {
+                        $counter = sprintf('%d / %d', $current, $total);
+                    } elseif ($phase_data && 'in_progress' === $status && $key === Skwirrel_WC_Sync_History::PHASE_FETCH) {
+                        /* translators: %d = number of products fetched */
+                        $counter = sprintf(__('%d fetched', 'skwirrel-pim-sync'), $current);
+                    }
+                    ?>
+                    <tr>
+                        <td style="padding: 4px 8px 4px 0; width: 24px; vertical-align: middle;"><?php echo $icon; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- safe HTML entities ?></td>
+                        <td style="padding: 4px 8px; color: <?php echo esc_attr($color); ?>; font-weight: <?php echo esc_attr('in_progress' === $status ? 'bold' : 'normal'); ?>;">
+                            <?php echo esc_html($label); ?>
+                        </td>
+                        <td style="padding: 4px 0 4px 8px; text-align: right; color: <?php echo esc_attr($color); ?>; font-variant-numeric: tabular-nums;">
+                            <?php echo esc_html($counter); ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </table>
+
+            <p style="margin: 10px 0 0; color: #0c5460; font-size: 12px;">
+                <?php esc_html_e('This page refreshes automatically every 5 seconds.', 'skwirrel-pim-sync'); ?>
+            </p>
+        </div>
         <?php
     }
 
