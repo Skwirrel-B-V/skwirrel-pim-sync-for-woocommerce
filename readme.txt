@@ -55,6 +55,7 @@ The plugin uses the Skwirrel external ID as a unique key. Existing products are 
 
 = 1.9.9 =
 * Fix Danger Zone purge silently timing out on large datasets — add set_time_limit(0) to prevent PHP timeout
+* Rewrite Danger Zone purge to use bulk SQL — orders of magnitude faster on large stores
 
 = 1.9.8 =
 * Add "Skwirrel" meta box on product edit screen with single-product sync button

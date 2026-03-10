@@ -14,6 +14,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Skwirrel_WC_Sync_Purge_Handler {
 
+	/**
+	 * Chunk size for bulk SQL operations to stay within MySQL packet limits.
+	 */
+	private const BULK_CHUNK_SIZE = 1000;
+
 	private Skwirrel_WC_Sync_Logger $logger;
 
 	/**
@@ -28,20 +33,20 @@ class Skwirrel_WC_Sync_Purge_Handler {
 	/**
 	 * Purge all Skwirrel-managed data from WooCommerce.
 	 *
-	 * This is the "danger zone" full purge. It removes all Skwirrel media attachments,
-	 * products (and their variations), categories, brands, attribute taxonomies, and
-	 * resets sync state options. The purge result is stored for display in the admin UI.
+	 * This is the "danger zone" full purge. Uses bulk SQL for attachments and products
+	 * instead of per-item wp_delete_post/wp_delete_attachment calls — orders of magnitude
+	 * faster on large stores. Media files are deleted from disk before DB records are removed.
 	 *
 	 * Steps performed:
-	 * 1. Delete Skwirrel media attachments (posts with _skwirrel_source_url meta).
+	 * 1. Delete Skwirrel media files from disk and their DB records via bulk SQL.
 	 * 2. Find products with _skwirrel_external_id or _skwirrel_grouped_product_id meta
 	 *    and collect their category term IDs.
-	 * 3. Also collect categories with _skwirrel_category_id term meta.
-	 * 4. Delete or trash products (permanent = wp_delete_post with force, else set status to trash).
-	 * 5. Delete product_brand terms (if taxonomy exists).
+	 * 3. Delete or trash products via bulk SQL (including WC lookup tables, comments, meta).
+	 * 4. Delete Skwirrel categories via wp_delete_term (small sets, safe to loop).
+	 * 5. Delete product_brand and product_manufacturer terms.
 	 * 6. Delete Skwirrel attribute taxonomies (etim_% and variant).
-	 * 7. Reset sync state options (last_sync, last_result, force_full_sync — but NOT history).
-	 * 8. Store purge result in skwirrel_wc_sync_last_purge option.
+	 * 7. Reset sync state options.
+	 * 8. Flush object cache and store purge result.
 	 *
 	 * @param bool $permanent Whether to permanently delete products (true) or move them to trash (false).
 	 * @return void
@@ -56,35 +61,73 @@ class Skwirrel_WC_Sync_Purge_Handler {
 
 		global $wpdb;
 
-		// --- Step 1: Delete Skwirrel media attachments ---
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk purge operation
-		$attachment_ids = $wpdb->get_col(
-			"SELECT DISTINCT p.ID FROM {$wpdb->posts} p
-            INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
-            WHERE p.post_type = 'attachment'
-            AND pm.meta_key = '_skwirrel_source_url'"
+		// --- Step 1: Delete Skwirrel media files from disk + bulk SQL ---
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk purge operation
+		$attachments = $wpdb->get_results(
+			"SELECT p.ID,
+				pm_file.meta_value AS attached_file,
+				pm_meta.meta_value AS attachment_metadata
+			FROM {$wpdb->posts} p
+			INNER JOIN {$wpdb->postmeta} pm_src ON p.ID = pm_src.post_id
+				AND pm_src.meta_key = '_skwirrel_source_url'
+			LEFT JOIN {$wpdb->postmeta} pm_file ON p.ID = pm_file.post_id
+				AND pm_file.meta_key = '_wp_attached_file'
+			LEFT JOIN {$wpdb->postmeta} pm_meta ON p.ID = pm_meta.post_id
+				AND pm_meta.meta_key = '_wp_attachment_metadata'
+			WHERE p.post_type = 'attachment'"
 		);
 
 		$attachments_deleted = 0;
-		if ( ! empty( $attachment_ids ) ) {
-			$this->logger->info( 'Purge: ' . count( $attachment_ids ) . ' Skwirrel media files found, deleting...' );
-			foreach ( $attachment_ids as $attachment_id ) {
-				wp_delete_attachment( (int) $attachment_id, true );
+		if ( ! empty( $attachments ) ) {
+			$this->logger->info( 'Purge: ' . count( $attachments ) . ' Skwirrel media files found, deleting...' );
+			$upload_dir     = wp_get_upload_dir();
+			$basedir        = $upload_dir['basedir'];
+			$attachment_ids = [];
+
+			foreach ( $attachments as $att ) {
+				$attachment_ids[] = (int) $att->ID;
+
+				// Delete main file and thumbnails from disk.
+				if ( ! empty( $att->attached_file ) ) {
+					$main_file = $basedir . '/' . $att->attached_file;
+					if ( file_exists( $main_file ) ) {
+						wp_delete_file( $main_file );
+					}
+
+					// Delete generated thumbnail sizes.
+					if ( ! empty( $att->attachment_metadata ) ) {
+						$meta = maybe_unserialize( $att->attachment_metadata );
+						if ( is_array( $meta ) && ! empty( $meta['sizes'] ) ) {
+							$file_dir = dirname( $main_file );
+							foreach ( $meta['sizes'] as $size ) {
+								if ( ! empty( $size['file'] ) ) {
+									$thumb_file = $file_dir . '/' . $size['file'];
+									if ( file_exists( $thumb_file ) ) {
+										wp_delete_file( $thumb_file );
+									}
+								}
+							}
+						}
+					}
+				}
 				++$attachments_deleted;
 			}
+
+			// Bulk delete attachment DB records (postmeta, term_relationships, posts).
+			$this->bulk_delete_post_records( $attachment_ids );
 			$this->logger->info( "Purge: {$attachments_deleted} media files deleted." );
 		}
 
 		// --- Step 2: Find products and collect their category term IDs ---
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk purge operation
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk purge operation
 		if ( $permanent ) {
 			$product_ids = $wpdb->get_col(
 				$wpdb->prepare(
 					"SELECT DISTINCT p.ID FROM {$wpdb->posts} p
-                    INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
-                    WHERE p.post_type IN ('product', 'product_variation')
-                    AND p.post_status IN (%s, %s, %s, %s, %s)
-                    AND pm.meta_key IN ('_skwirrel_external_id', '_skwirrel_grouped_product_id')",
+					INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+					WHERE p.post_type IN ('product', 'product_variation')
+					AND p.post_status IN (%s, %s, %s, %s, %s)
+					AND pm.meta_key IN ('_skwirrel_external_id', '_skwirrel_grouped_product_id')",
 					'publish',
 					'draft',
 					'pending',
@@ -96,10 +139,10 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			$product_ids = $wpdb->get_col(
 				$wpdb->prepare(
 					"SELECT DISTINCT p.ID FROM {$wpdb->posts} p
-                    INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
-                    WHERE p.post_type IN ('product', 'product_variation')
-                    AND p.post_status IN (%s, %s, %s, %s)
-                    AND pm.meta_key IN ('_skwirrel_external_id', '_skwirrel_grouped_product_id')",
+					INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+					WHERE p.post_type IN ('product', 'product_variation')
+					AND p.post_status IN (%s, %s, %s, %s)
+					AND pm.meta_key IN ('_skwirrel_external_id', '_skwirrel_grouped_product_id')",
 					'publish',
 					'draft',
 					'pending',
@@ -108,64 +151,69 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			);
 		}
 
-		// Collect category term IDs assigned to Skwirrel products BEFORE deleting them.
-		// This catches categories without _skwirrel_category_id meta (e.g. from _product_groups fallback).
-		$skwirrel_cat_term_ids = [];
+		$product_ids = array_map( 'intval', $product_ids );
+
+		// Also find variation children that may not have Skwirrel meta directly.
+		$child_ids = [];
 		if ( ! empty( $product_ids ) ) {
-			$int_ids = array_map( 'absint', $product_ids );
-			$id_list = implode( ',', $int_ids );
-			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are absint-sanitized database results
-			$skwirrel_cat_term_ids = $wpdb->get_col(
-				"SELECT DISTINCT tt.term_id FROM {$wpdb->term_relationships} tr
-                INNER JOIN {$wpdb->term_taxonomy} tt ON tr.term_taxonomy_id = tt.term_taxonomy_id AND tt.taxonomy = 'product_cat'
-                WHERE tr.object_id IN ({$id_list})"
-			);
-			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			foreach ( array_chunk( $product_ids, self::BULK_CHUNK_SIZE ) as $chunk ) {
+				$ids = implode( ',', $chunk );
+				// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are intval-sanitized
+				$child_ids = array_merge(
+					$child_ids,
+					array_map(
+						'intval',
+						$wpdb->get_col(
+							"SELECT ID FROM {$wpdb->posts}
+							WHERE post_parent IN ({$ids})
+							AND post_type = 'product_variation'"
+						)
+					)
+				);
+				// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			}
+		}
+		$all_product_ids = array_values( array_unique( array_merge( $product_ids, $child_ids ) ) );
+
+		// Collect category term IDs assigned to Skwirrel products BEFORE deleting them.
+		$skwirrel_cat_term_ids = [];
+		if ( ! empty( $all_product_ids ) ) {
+			foreach ( array_chunk( $all_product_ids, self::BULK_CHUNK_SIZE ) as $chunk ) {
+				$id_list = implode( ',', $chunk );
+				// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are intval-sanitized
+				$skwirrel_cat_term_ids = array_merge(
+					$skwirrel_cat_term_ids,
+					$wpdb->get_col(
+						"SELECT DISTINCT tt.term_id FROM {$wpdb->term_relationships} tr
+						INNER JOIN {$wpdb->term_taxonomy} tt ON tr.term_taxonomy_id = tt.term_taxonomy_id AND tt.taxonomy = 'product_cat'
+						WHERE tr.object_id IN ({$id_list})"
+					)
+				);
+				// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			}
 		}
 
-		// Also collect categories with _skwirrel_category_id meta (may include categories not assigned to any current product)
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk purge operation
+		// Also collect categories with _skwirrel_category_id meta.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk purge operation
 		$meta_cat_term_ids = $wpdb->get_col(
 			"SELECT tm.term_id FROM {$wpdb->termmeta} tm
-            INNER JOIN {$wpdb->term_taxonomy} tt ON tm.term_id = tt.term_id AND tt.taxonomy = 'product_cat'
-            WHERE tm.meta_key = '_skwirrel_category_id' AND tm.meta_value != ''"
+			INNER JOIN {$wpdb->term_taxonomy} tt ON tm.term_id = tt.term_id AND tt.taxonomy = 'product_cat'
+			WHERE tm.meta_key = '_skwirrel_category_id' AND tm.meta_value != ''"
 		);
 
 		$all_cat_term_ids = array_unique( array_map( 'intval', array_merge( $skwirrel_cat_term_ids, $meta_cat_term_ids ) ) );
 
-		// --- Step 3: Delete products ---
-		$deleted = 0;
-		if ( ! empty( $product_ids ) ) {
-			$count = count( $product_ids );
-			$this->logger->info( "Purge: {$count} Skwirrel products found, processing..." );
+		// --- Step 3: Delete or trash products via bulk SQL ---
+		$deleted = count( $all_product_ids );
+		if ( ! empty( $all_product_ids ) ) {
+			$this->logger->info( "Purge: {$deleted} Skwirrel products found, processing..." );
 
-			foreach ( $product_ids as $product_id ) {
-				$product_id = (int) $product_id;
-
-				if ( $permanent ) {
-					// Delete variations first for variable products
-                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk purge operation
-					$children = $wpdb->get_col(
-						$wpdb->prepare(
-							"SELECT ID FROM {$wpdb->posts} WHERE post_parent = %d AND post_type = 'product_variation'",
-							$product_id
-						)
-					);
-					foreach ( $children as $child_id ) {
-						wp_delete_post( (int) $child_id, true );
-					}
-					wp_delete_post( $product_id, true );
-				} else {
-					$product = wc_get_product( $product_id );
-					if ( $product ) {
-						$product->set_status( 'trash' );
-						$product->save();
-					}
-				}
-				++$deleted;
+			if ( $permanent ) {
+				$this->bulk_delete_post_records( $all_product_ids );
+			} else {
+				$this->bulk_trash_post_records( $all_product_ids );
 			}
 		}
-
 		$this->logger->info( "Purge: {$deleted} products processed (mode: {$mode_label})" );
 
 		// --- Step 4: Delete Skwirrel-related categories ---
@@ -218,12 +266,11 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		unset( $deleted_count );
 
 		// --- Step 6: Delete Skwirrel-created attribute taxonomies ---
-		// Matches: etim_* (all ETIM-based attributes) and variant (fallback attribute)
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk purge operation
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk purge operation
 		$attribute_rows = $wpdb->get_results(
 			"SELECT attribute_id, attribute_name FROM {$wpdb->prefix}woocommerce_attribute_taxonomies
-            WHERE attribute_name LIKE 'etim\\_%'
-            OR attribute_name = 'skwirrel_variant'"
+			WHERE attribute_name LIKE 'etim\\_%'
+			OR attribute_name = 'skwirrel_variant'"
 		);
 
 		$attributes_deleted = 0;
@@ -240,12 +287,13 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		}
 
 		// --- Step 7: Reset sync state options ---
-		// Keep last_result visible so users can still see the last sync status.
 		delete_option( 'skwirrel_wc_sync_last_sync' );
 		delete_option( 'skwirrel_wc_sync_force_full_sync' );
 		$this->logger->info( 'Purge: sync state options reset (last sync result preserved).' );
 
-		// --- Step 8: Store purge result + add history entry ---
+		// --- Step 8: Flush caches and store purge result ---
+		wp_cache_flush();
+
 		$this->logger->info( "Purge completed: {$deleted} products, {$attachments_deleted} media, {$categories_deleted} categories, {$brands_deleted} brands, {$manufacturers_deleted} manufacturers, {$attributes_deleted} attributes (mode: {$mode_label})" );
 
 		$purge_result = [
@@ -281,6 +329,99 @@ class Skwirrel_WC_Sync_Purge_Handler {
 				'timestamp'          => time(),
 			]
 		);
+	}
+
+	/**
+	 * Bulk delete post records and all related data via direct SQL.
+	 *
+	 * Deletes in correct order: WC lookup tables → comments/commentmeta →
+	 * term_relationships → postmeta → posts. Operates in chunks to stay
+	 * within MySQL packet size limits.
+	 *
+	 * @param int[] $post_ids Post IDs to permanently delete.
+	 * @return void
+	 */
+	private function bulk_delete_post_records( array $post_ids ): void {
+		if ( empty( $post_ids ) ) {
+			return;
+		}
+
+		global $wpdb;
+
+		foreach ( array_chunk( $post_ids, self::BULK_CHUNK_SIZE ) as $chunk ) {
+			$ids = implode( ',', $chunk );
+
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- bulk purge with intval-sanitized IDs
+
+			// WooCommerce product lookup tables.
+			$wpdb->query( "DELETE FROM {$wpdb->prefix}wc_product_meta_lookup WHERE product_id IN ({$ids})" );
+			$wpdb->query( "DELETE FROM {$wpdb->prefix}wc_product_attributes_lookup WHERE product_id IN ({$ids})" );
+
+			// Comment meta (must precede comments deletion).
+			$wpdb->query(
+				"DELETE cm FROM {$wpdb->commentmeta} cm
+				INNER JOIN {$wpdb->comments} c ON cm.comment_id = c.comment_ID
+				WHERE c.comment_post_ID IN ({$ids})"
+			);
+			$wpdb->query( "DELETE FROM {$wpdb->comments} WHERE comment_post_ID IN ({$ids})" );
+
+			// Term relationships (product → category/brand/attribute assignments).
+			$wpdb->query( "DELETE FROM {$wpdb->term_relationships} WHERE object_id IN ({$ids})" );
+
+			// Post meta and posts.
+			$wpdb->query( "DELETE FROM {$wpdb->postmeta} WHERE post_id IN ({$ids})" );
+			$wpdb->query( "DELETE FROM {$wpdb->posts} WHERE ID IN ({$ids})" );
+
+			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		}
+	}
+
+	/**
+	 * Bulk trash post records via direct SQL.
+	 *
+	 * Stores original post_status for potential un-trash, sets status to 'trash',
+	 * and removes entries from WC lookup tables (WC excludes trashed products).
+	 *
+	 * @param int[] $post_ids Post IDs to move to trash.
+	 * @return void
+	 */
+	private function bulk_trash_post_records( array $post_ids ): void {
+		if ( empty( $post_ids ) ) {
+			return;
+		}
+
+		global $wpdb;
+		$now = time();
+
+		foreach ( array_chunk( $post_ids, self::BULK_CHUNK_SIZE ) as $chunk ) {
+			$ids = implode( ',', $chunk );
+
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- bulk purge with intval-sanitized IDs
+
+			// Store original status for un-trash support.
+			$wpdb->query(
+				"INSERT INTO {$wpdb->postmeta} (post_id, meta_key, meta_value)
+				SELECT ID, '_wp_trash_meta_status', post_status
+				FROM {$wpdb->posts} WHERE ID IN ({$ids})"
+			);
+			$wpdb->query(
+				$wpdb->prepare(
+					"INSERT INTO {$wpdb->postmeta} (post_id, meta_key, meta_value)
+					SELECT ID, '_wp_trash_meta_time', %s
+					FROM {$wpdb->posts} WHERE ID IN ({$ids})",
+					(string) $now
+				)
+			);
+
+			// Move to trash.
+			$wpdb->query( "UPDATE {$wpdb->posts} SET post_status = 'trash' WHERE ID IN ({$ids})" );
+
+			// Remove from WC lookup tables (WC excludes trashed products from queries).
+			$wpdb->query( "DELETE FROM {$wpdb->prefix}wc_product_meta_lookup WHERE product_id IN ({$ids})" );
+			$wpdb->query( "DELETE FROM {$wpdb->prefix}wc_product_attributes_lookup WHERE product_id IN ({$ids})" );
+
+			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		}
 	}
 
 	/**

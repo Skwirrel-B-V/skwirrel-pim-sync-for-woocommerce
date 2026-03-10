@@ -5,6 +5,7 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 ## [1.9.9]
 
 * Fix Danger Zone purge silently timing out on large datasets — add set_time_limit(0) to prevent PHP timeout
+* Rewrite Danger Zone purge to use bulk SQL instead of per-item wp_delete_post/wp_delete_attachment calls — orders of magnitude faster on large stores
 
 ## [1.9.8]
 
