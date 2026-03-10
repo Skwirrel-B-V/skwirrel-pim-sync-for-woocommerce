@@ -439,13 +439,6 @@ class Skwirrel_WC_Sync_Service {
 		if ( ! empty( $options['purge_stale_products'] ) ) {
 			if ( $delta ) {
 				$this->logger->verbose( 'Purge overgeslagen: delta sync (alleen bij volledige sync)' );
-			} elseif ( ! empty( $collection_ids ) ) {
-				$this->logger->warning(
-					'Purge overgeslagen: collectie-filter actief. Verwijder het collectie-filter of voer een volledige sync uit zonder filter om verwijderde producten op te ruimen.',
-					[
-						'collection_ids' => $collection_ids,
-					]
-				);
 			} else {
 				$trashed = $this->purge_handler->purge_stale_products( $sync_started_at, $this->mapper );
 				if ( ! empty( $options['sync_categories'] ) ) {
