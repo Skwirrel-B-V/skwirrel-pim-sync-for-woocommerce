@@ -4,7 +4,7 @@ Tags: woocommerce, sync, erp, pim, skwirrel
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.9.9
+Stable tag: 1.10.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,12 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 1.10.0 =
+* Phased sync architecture — sync now runs in 5 sequential phases (fetch, products, taxonomy, attributes, media) instead of processing everything per product
+* Live progress checklist on the sync tab — shows current phase, status icon, and counter (e.g. "247 / 500")
+* Performance fix: restore getProducts API call for full sync (faster than getProductsByFilter with empty filter)
+* Auto-refresh now only fires on the sync tab, not on other admin pages
 
 = 1.9.9 =
 * Fix Danger Zone purge silently timing out on large datasets — add set_time_limit(0) to prevent PHP timeout

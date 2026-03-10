@@ -2,6 +2,13 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [1.10.0]
+
+* Phased sync architecture — sync now runs in 5 sequential phases (fetch, products, taxonomy, attributes, media) instead of processing everything per product in one pass
+* Live progress checklist on the sync tab — shows current phase with status icon and counter (e.g. "247 / 500"), refreshes every 5 seconds
+* Performance fix: restore `getProducts` API call for full sync — faster than `getProductsByFilter` with empty filter (regression from 1.9.9)
+* Auto-refresh scoped to the sync tab only — no longer reloads settings or logs pages
+
 ## [1.9.9]
 
 * Fix Danger Zone purge silently timing out on large datasets — add set_time_limit(0) to prevent PHP timeout
