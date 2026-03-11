@@ -1,0 +1,7 @@
+- pipeline: release-to-wp-svn
+  name: Release to WP-SVN
+  refs:
+  - refs/heads/main
+  fail_on_prepare_env_warning: true
+  events:
+  - type: WEBHOOK
