@@ -252,6 +252,16 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		update_post_meta( $id, $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		update_post_meta( $id, $this->mapper->get_synced_at_meta_key(), time() );
 
+		// Store searchable identifiers.
+		$mpc = $product['manufacturer_product_code'] ?? '';
+		if ( '' !== $mpc ) {
+			update_post_meta( $id, '_manufacturer_product_code', $mpc );
+		}
+		$gtin = $product['product_gtin'] ?? '';
+		if ( '' !== $gtin ) {
+			update_post_meta( $id, '_product_gtin', $gtin );
+		}
+
 		$img_ids = $this->mapper->get_image_attachment_ids( $product, $id );
 		if ( ! empty( $img_ids ) ) {
 			$wc_product->set_image_id( $img_ids[0] );           // First image = featured
@@ -911,6 +921,472 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 
 		return $is_new ? 'created' : 'updated';
+	}
+
+	// =========================================================================
+	// Phased sync methods
+	// =========================================================================
+
+	/**
+	 * Phase 1: Create or update a simple product with basic fields only.
+	 *
+	 * Does NOT assign categories, brands, attributes, or media — those are
+	 * handled by separate phase methods.
+	 *
+	 * @param array $product Skwirrel product data.
+	 * @return array{wc_id: int, outcome: string} WC product ID and 'created'|'updated'|'skipped'.
+	 */
+	public function create_or_update_product( array $product ): array {
+		$key = $this->mapper->get_unique_key( $product );
+		if ( ! $key ) {
+			$this->logger->warning( 'Product has no unique key, skipping', [ 'product_id' => $product['product_id'] ?? '?' ] );
+			return [
+				'wc_id'   => 0,
+				'outcome' => 'skipped',
+			];
+		}
+
+		$sku                 = $this->mapper->get_sku( $product );
+		$skwirrel_product_id = $product['product_id'] ?? null;
+
+		// Lookup chain: SKU → external_id → product_id
+		$wc_id = wc_get_product_id_by_sku( $sku );
+		if ( $wc_id ) {
+			$existing = wc_get_product( $wc_id );
+			if ( $existing && $existing->is_type( 'variable' ) ) {
+				$wc_id = 0;
+			}
+		}
+		if ( ! $wc_id ) {
+			$wc_id = $this->lookup->find_by_external_id( $key );
+		}
+		if ( ! $wc_id && null !== $skwirrel_product_id && '' !== $skwirrel_product_id && 0 !== $skwirrel_product_id ) {
+			$wc_id = $this->lookup->find_by_skwirrel_product_id( (int) $skwirrel_product_id );
+		}
+
+		// Duplicate SKU protection
+		$is_new = ! $wc_id;
+		if ( $is_new ) {
+			$existing_sku_id = wc_get_product_id_by_sku( $sku );
+			if ( $existing_sku_id ) {
+				$sku = $sku . '-' . ( $skwirrel_product_id ?? uniqid() );
+			}
+		} else {
+			$existing_sku_id = wc_get_product_id_by_sku( $sku );
+			if ( $existing_sku_id && (int) $existing_sku_id !== (int) $wc_id ) {
+				$sku = $sku . '-' . ( $skwirrel_product_id ?? uniqid() );
+			}
+		}
+
+		if ( $is_new ) {
+			$wc_product = new WC_Product_Simple();
+		} else {
+			$wc_product = wc_get_product( $wc_id );
+			if ( ! $wc_product ) {
+				return [
+					'wc_id'   => 0,
+					'outcome' => 'skipped',
+				];
+			}
+			if ( $wc_product->is_type( 'variable' ) ) {
+				return [
+					'wc_id'   => 0,
+					'outcome' => 'skipped',
+				];
+			}
+		}
+
+		$wc_product->set_sku( $sku );
+		$wc_product->set_name( $this->mapper->get_name( $product ) );
+
+		if ( $is_new || $this->slug_resolver->should_update_on_resync() ) {
+			$exclude_id = $is_new ? null : $wc_product->get_id();
+			$slug       = $this->slug_resolver->resolve( $product, $exclude_id );
+			if ( null !== $slug ) {
+				$wc_product->set_slug( $slug );
+			}
+		}
+
+		$wc_product->set_short_description( $this->mapper->get_short_description( $product ) );
+		$wc_product->set_description( $this->mapper->get_long_description( $product ) );
+		$wc_product->set_status( $this->mapper->get_status( $product ) );
+
+		$price = $this->mapper->get_regular_price( $product );
+		if ( $this->mapper->is_price_on_request( $product ) ) {
+			$wc_product->set_regular_price( '' );
+			$wc_product->set_price( '' );
+			$wc_product->set_sold_individually( false );
+		} elseif ( null !== $price ) {
+			$wc_product->set_regular_price( (string) $price );
+			$wc_product->set_price( (string) $price );
+		}
+
+		$wc_product->save();
+		$id = $wc_product->get_id();
+
+		update_post_meta( $id, $this->mapper->get_external_id_meta_key(), $key );
+		update_post_meta( $id, $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
+		update_post_meta( $id, $this->mapper->get_synced_at_meta_key(), time() );
+
+		// Store searchable identifiers.
+		$mpc = $product['manufacturer_product_code'] ?? '';
+		if ( '' !== $mpc ) {
+			update_post_meta( $id, '_manufacturer_product_code', $mpc );
+		}
+		$gtin = $product['product_gtin'] ?? '';
+		if ( '' !== $gtin ) {
+			update_post_meta( $id, '_product_gtin', $gtin );
+		}
+
+		return [
+			'wc_id'   => $id,
+			'outcome' => $is_new ? 'created' : 'updated',
+		];
+	}
+
+	/**
+	 * Phase 1 for variations: Create or update with basic fields + variation attributes.
+	 *
+	 * Variation attributes are included because they define the variation identity.
+	 *
+	 * @param array $product    Skwirrel product data.
+	 * @param array $group_info Group mapping info.
+	 * @return array{wc_id: int, outcome: string}
+	 */
+	public function create_or_update_variation( array $product, array $group_info ): array {
+		$wc_variable_id = $group_info['wc_variable_id'] ?? 0;
+		$sku            = $group_info['sku'] ?? $this->mapper->get_sku( $product );
+		if ( ! $wc_variable_id ) {
+			return $this->create_or_update_product( $product );
+		}
+
+		$variation_id = $this->lookup->find_variation_by_sku( $wc_variable_id, $sku );
+		if ( ! $variation_id ) {
+			$variation = new WC_Product_Variation();
+			$variation->set_parent_id( $wc_variable_id );
+		} else {
+			$variation = wc_get_product( $variation_id );
+			if ( ! $variation instanceof WC_Product_Variation ) {
+				return [
+					'wc_id'   => 0,
+					'outcome' => 'skipped',
+				];
+			}
+		}
+
+		$variation->set_sku( $sku );
+		$variation->set_status( 'publish' );
+		$variation->set_catalog_visibility( 'visible' );
+
+		$price = $this->mapper->get_regular_price( $product );
+		if ( $this->mapper->is_price_on_request( $product ) ) {
+			$variation->set_regular_price( '' );
+			$variation->set_price( '' );
+			$variation->set_stock_status( 'outofstock' );
+		} elseif ( null !== $price && $price > 0 ) {
+			$variation->set_regular_price( (string) $price );
+			$variation->set_price( (string) $price );
+			$variation->set_stock_status( 'instock' );
+			$variation->set_manage_stock( false );
+		} else {
+			$variation->set_regular_price( '0' );
+			$variation->set_price( '0' );
+			$variation->set_stock_status( 'instock' );
+			$variation->set_manage_stock( false );
+		}
+
+		// Variation attributes (identity) — must be set before save
+		$variation_attrs = [];
+		$etim_codes      = $group_info['etim_variation_codes'] ?? [];
+		$etim_values     = [];
+		if ( ! empty( $etim_codes ) ) {
+			$lang_arr    = $this->get_include_languages();
+			$lang        = ! empty( $lang_arr ) ? $lang_arr[0] : ( get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl' );
+			$etim_values = $this->mapper->get_etim_feature_values_for_codes( $product, $etim_codes, $lang );
+			foreach ( $etim_codes as $ef ) {
+				$code = strtoupper( (string) ( $ef['code'] ?? '' ) );
+				$data = $etim_values[ $code ] ?? null;
+				if ( ! $data ) {
+					continue;
+				}
+				$slug  = $this->taxonomy_manager->get_etim_attribute_slug( $code );
+				$tax   = wc_attribute_taxonomy_name( $slug );
+				$label = ! empty( $data['label'] ) ? $data['label'] : $code;
+				if ( ! taxonomy_exists( $tax ) ) {
+					$this->taxonomy_manager->ensure_product_attribute_exists( $slug, $label );
+				} else {
+					$this->taxonomy_manager->maybe_update_attribute_label( $slug, $label );
+				}
+				$term = get_term_by( 'slug', $data['slug'], $tax ) ?: get_term_by( 'name', $data['value'], $tax );
+				if ( ! $term || is_wp_error( $term ) ) {
+					$insert = wp_insert_term( $data['value'], $tax, [ 'slug' => $data['slug'] ] );
+					$term   = ! is_wp_error( $insert ) ? get_term( $insert['term_id'], $tax ) : null;
+				}
+				if ( $term && ! is_wp_error( $term ) ) {
+					$variation_attrs[ $tax ]                                  = $term->slug;
+					$this->deferred_parent_terms[ $wc_variable_id ][ $tax ][] = $term->term_id;
+				}
+			}
+		}
+		if ( empty( $variation_attrs ) ) {
+			$parent_uses_etim = ! empty( $etim_codes );
+			if ( $parent_uses_etim ) {
+				$this->logger->warning(
+					'Variation has no eTIM values; parent expects eTIM attributes',
+					[
+						'sku'            => $sku,
+						'wc_variable_id' => $wc_variable_id,
+						'etim_codes'     => array_column( $etim_codes, 'code' ),
+					]
+				);
+			}
+			$term = get_term_by( 'name', $sku, 'pa_skwirrel_variant' ) ?: get_term_by( 'slug', sanitize_title( $sku ), 'pa_skwirrel_variant' );
+			if ( ! $term ) {
+				$insert = wp_insert_term( $sku, 'pa_skwirrel_variant' );
+				$term   = ! is_wp_error( $insert ) ? get_term( $insert['term_id'], 'pa_skwirrel_variant' ) : null;
+			}
+			if ( $term && ! is_wp_error( $term ) ) {
+				$variation_attrs['pa_skwirrel_variant'] = $term->slug;
+			}
+		}
+
+		if ( ! empty( $variation_attrs ) ) {
+			$variation->set_attributes( $variation_attrs );
+		}
+
+		$variation->update_meta_data( $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
+		$variation->update_meta_data( $this->mapper->get_external_id_meta_key(), $this->mapper->get_unique_key( $product ) ?? '' );
+		$variation->update_meta_data( $this->mapper->get_synced_at_meta_key(), time() );
+
+		$variation->save();
+		$vid = $variation->get_id();
+
+		// Persist variation attributes in post meta
+		if ( $vid && ! empty( $variation_attrs ) ) {
+			foreach ( $variation_attrs as $tax => $term_slug ) {
+				update_post_meta( $vid, 'attribute_' . $tax, wp_slash( $term_slug ) );
+			}
+			clean_post_cache( $vid );
+			if ( function_exists( 'wc_delete_product_transients' ) ) {
+				wc_delete_product_transients( $vid );
+			}
+		}
+
+		// Sync parent variable product
+		$wc_product = wc_get_product( $wc_variable_id );
+		if ( $wc_product && $wc_product->is_type( 'variable' ) ) {
+			try {
+				WC_Product_Variable::sync( $wc_variable_id );
+				WC_Product_Variable::sync_stock_status( $wc_variable_id );
+				clean_post_cache( $wc_variable_id );
+				if ( function_exists( 'wc_delete_product_transients' ) ) {
+					wc_delete_product_transients( $wc_variable_id );
+				}
+			} catch ( Throwable $e ) {
+				$this->logger->warning( 'Parent sync failed', [ 'error' => $e->getMessage() ] );
+			}
+		}
+
+		do_action( 'skwirrel_wc_sync_after_variation_save', $vid, $variation_attrs, $product );
+
+		return [
+			'wc_id'   => $vid,
+			'outcome' => $variation_id ? 'updated' : 'created',
+		];
+	}
+
+	/**
+	 * Phase 2: Assign categories, brands, and manufacturers to a product.
+	 *
+	 * @param int   $wc_id   WooCommerce product ID.
+	 * @param array $product Skwirrel product data.
+	 * @return void
+	 */
+	public function assign_taxonomy( int $wc_id, array $product ): void {
+		if ( ! $wc_id ) {
+			return;
+		}
+		$this->category_sync->assign_categories( $wc_id, $product, $this->mapper );
+		$this->brand_sync->assign_brand( $wc_id, $product );
+		$options = $this->get_options();
+		if ( ! empty( $options['sync_manufacturers'] ) ) {
+			$this->brand_sync->assign_manufacturer( $wc_id, $product );
+		}
+	}
+
+	/**
+	 * Phase 3: Assign attributes (ETIM + custom class) to a product.
+	 *
+	 * For variations, collects non-variation attrs for the parent (deferred).
+	 *
+	 * @param int        $wc_id      WooCommerce product ID.
+	 * @param array      $product    Skwirrel product data.
+	 * @param array|null $group_info Group mapping info (null for simple products).
+	 * @return int Number of attributes assigned.
+	 */
+	public function assign_attributes( int $wc_id, array $product, ?array $group_info = null ): int {
+		if ( ! $wc_id ) {
+			return 0;
+		}
+
+		$attrs        = $this->mapper->get_attributes( $product );
+		$cc_options   = $this->get_options();
+		$cc_text_meta = [];
+
+		if ( ! empty( $cc_options['sync_custom_classes'] ) || ! empty( $cc_options['sync_trade_item_custom_classes'] ) ) {
+			$cc_filter_mode = $cc_options['custom_class_filter_mode'] ?? '';
+			$cc_parsed      = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_options['custom_class_filter_ids'] ?? '' );
+			$include_ti     = ! empty( $cc_options['sync_trade_item_custom_classes'] );
+
+			$cc_attrs = $this->mapper->get_custom_class_attributes(
+				$product,
+				$include_ti,
+				$cc_filter_mode,
+				$cc_parsed['ids'],
+				$cc_parsed['codes']
+			);
+			foreach ( $cc_attrs as $name => $value ) {
+				if ( ! isset( $attrs[ $name ] ) ) {
+					$attrs[ $name ] = $value;
+				}
+			}
+
+			$cc_text_meta = $this->mapper->get_custom_class_text_meta(
+				$product,
+				$include_ti,
+				$cc_filter_mode,
+				$cc_parsed['ids'],
+				$cc_parsed['codes']
+			);
+		}
+
+		// For variations: remove variation-axis attrs, defer non-variation attrs to parent
+		if ( $group_info ) {
+			$wc_variable_id = $group_info['wc_variable_id'] ?? 0;
+			$etim_codes     = $group_info['etim_variation_codes'] ?? [];
+			$var_tax_slugs  = [];
+			foreach ( $etim_codes as $ef ) {
+				$code            = strtoupper( (string) ( $ef['code'] ?? '' ) );
+				$slug            = $this->taxonomy_manager->get_etim_attribute_slug( $code );
+				$var_tax_slugs[] = $slug;
+			}
+			foreach ( $var_tax_slugs as $slug ) {
+				foreach ( $attrs as $label => $val ) {
+					if ( sanitize_title( $label ) === $slug ) {
+						unset( $attrs[ $label ] );
+					}
+				}
+			}
+			if ( $wc_variable_id && ! empty( $attrs ) ) {
+				foreach ( $attrs as $label => $value ) {
+					$this->deferred_parent_attrs[ $wc_variable_id ][ $label ][] = (string) $value;
+				}
+				return count( $attrs );
+			}
+		}
+
+		// Save custom class text meta
+		if ( ! empty( $cc_text_meta ) ) {
+			foreach ( $cc_text_meta as $meta_key => $meta_value ) {
+				update_post_meta( $wc_id, $meta_key, $meta_value );
+			}
+		}
+
+		if ( empty( $attrs ) ) {
+			return 0;
+		}
+
+		$wc_product = wc_get_product( $wc_id );
+		if ( ! $wc_product ) {
+			return 0;
+		}
+
+		$wc_attrs = [];
+		$position = 0;
+		foreach ( $attrs as $name => $value ) {
+			$term_data = $this->taxonomy_manager->ensure_attribute_term( $name, (string) $value );
+			if ( ! $term_data ) {
+				continue;
+			}
+			$tax  = $term_data['taxonomy'];
+			$slug = $this->taxonomy_manager->get_attribute_slug( $name );
+
+			wp_set_object_terms( $wc_id, [ $term_data['term_id'] ], $tax, false );
+
+			$attr = new WC_Product_Attribute();
+			$attr->set_id( wc_attribute_taxonomy_id_by_name( $slug ) );
+			$attr->set_name( $tax );
+			$attr->set_options( [ $term_data['term_id'] ] );
+			$attr->set_position( $position++ );
+			$attr->set_visible( true );
+			$attr->set_variation( false );
+			$wc_attrs[ $tax ] = $attr;
+		}
+		if ( ! empty( $wc_attrs ) ) {
+			$wc_product->set_attributes( $wc_attrs );
+			$wc_product->save();
+			clean_post_cache( $wc_id );
+			if ( function_exists( 'wc_delete_product_transients' ) ) {
+				wc_delete_product_transients( $wc_id );
+			}
+		}
+
+		return count( $wc_attrs );
+	}
+
+	/**
+	 * Phase 4: Download and assign images + documents to a product.
+	 *
+	 * @param int   $wc_id   WooCommerce product ID.
+	 * @param array $product Skwirrel product data.
+	 * @return void
+	 */
+	public function assign_media( int $wc_id, array $product ): void {
+		if ( ! $wc_id ) {
+			return;
+		}
+
+		$wc_product = wc_get_product( $wc_id );
+		if ( ! $wc_product ) {
+			return;
+		}
+
+		$img_ids = $this->mapper->get_image_attachment_ids( $product, $wc_id );
+		if ( ! empty( $img_ids ) ) {
+			$wc_product->set_image_id( $img_ids[0] );
+			$wc_product->set_gallery_image_ids( array_slice( $img_ids, 1 ) );
+			$wc_product->save();
+		}
+
+		try {
+			$downloads = $this->mapper->get_downloadable_files( $product, $wc_id );
+			if ( ! empty( $downloads ) ) {
+				$wc_product->set_downloadable( true );
+				$wc_product->set_downloads( $this->format_downloads( $downloads ) );
+				$wc_product->save();
+			}
+		} catch ( \Throwable $e ) {
+			$this->logger->warning(
+				'Downloadable files save failed',
+				[
+					'wc_id' => $wc_id,
+					'error' => $e->getMessage(),
+				]
+			);
+		}
+
+		try {
+			$documents = $this->mapper->get_document_attachments( $product, $wc_id );
+			update_post_meta( $wc_id, '_skwirrel_document_attachments', $documents );
+		} catch ( \Throwable $e ) {
+			$this->logger->warning(
+				'Document attachments save failed',
+				[
+					'wc_id' => $wc_id,
+					'error' => $e->getMessage(),
+				]
+			);
+		}
 	}
 
 	/**

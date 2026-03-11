@@ -3,7 +3,7 @@
  * Plugin Name: Skwirrel PIM sync for WooCommerce
  * Plugin URI: https://github.com/Skwirrel-B-V/skwirrel-pim-sync-for-woocommerce
  * Description: Sync plugin for Skwirrel PIM via Skwirrel JSON-RPC API to WooCommerce.
- * Version: 1.9.8
+ * Version: 2.0.3
  * Author: Skwirrel B.V.
  * Author URI: https://skwirrel.eu
  * Requires at least: 6.0
@@ -12,6 +12,7 @@
  * WC tested up to: 10.5
  * License: GPL v2 or later
  * Text Domain: skwirrel-pim-sync
+ * Domain Path: /languages
  * Requires Plugins: woocommerce
  */
 
@@ -21,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SKWIRREL_WC_SYNC_VERSION', '1.9.8' );
+define( 'SKWIRREL_WC_SYNC_VERSION', '2.0.3' );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_FILE', __FILE__ );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -104,6 +105,7 @@ final class Skwirrel_WC_Sync_Plugin {
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-sync-service.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-action-scheduler.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-admin-settings.php';
+		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-admin-dashboard.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-product-documents.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-variation-attributes-fix.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-delete-protection.php';
@@ -131,6 +133,10 @@ final class Skwirrel_WC_Sync_Plugin {
 			add_action( 'restrict_manage_posts', [ $this, 'add_manufacturer_filter_dropdown' ], 20 );
 			add_filter( 'parse_query', [ $this, 'filter_products_by_manufacturer' ] );
 		}
+
+		// Add GTIN / Manufacturer code search on product list.
+		add_action( 'restrict_manage_posts', [ $this, 'add_identifier_search_input' ], 25 );
+		add_filter( 'parse_query', [ $this, 'filter_products_by_identifier' ] );
 
 		Skwirrel_WC_Sync_Admin_Settings::instance();
 		Skwirrel_WC_Sync_Permalink_Settings::instance();
@@ -195,7 +201,7 @@ final class Skwirrel_WC_Sync_Plugin {
 		}
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only filter
-		$selected = sanitize_text_field( $_GET[ Skwirrel_WC_Sync_Brand_Sync::MANUFACTURER_TAXONOMY ] ?? '' );
+		$selected = sanitize_text_field( wp_unslash( $_GET[ Skwirrel_WC_Sync_Brand_Sync::MANUFACTURER_TAXONOMY ] ?? '' ) );
 		echo '<select name="' . esc_attr( Skwirrel_WC_Sync_Brand_Sync::MANUFACTURER_TAXONOMY ) . '">';
 		echo '<option value="">' . esc_html__( 'Filter by manufacturer', 'skwirrel-pim-sync' ) . '</option>';
 		foreach ( $terms as $term ) {
@@ -220,7 +226,7 @@ final class Skwirrel_WC_Sync_Plugin {
 			return;
 		}
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only filter
-		$manufacturer = sanitize_text_field( $_GET[ Skwirrel_WC_Sync_Brand_Sync::MANUFACTURER_TAXONOMY ] ?? '' );
+		$manufacturer = sanitize_text_field( wp_unslash( $_GET[ Skwirrel_WC_Sync_Brand_Sync::MANUFACTURER_TAXONOMY ] ?? '' ) );
 		if ( $manufacturer === '' ) {
 			return;
 		}
@@ -231,6 +237,57 @@ final class Skwirrel_WC_Sync_Plugin {
 			'terms'    => $manufacturer,
 		];
 		$query->set( 'tax_query', $tax_query );
+	}
+
+	/**
+	 * Render a search input for GTIN / Manufacturer product code on the product list page.
+	 *
+	 * @param string $post_type Current post type.
+	 */
+	public function add_identifier_search_input( string $post_type ): void {
+		if ( 'product' !== $post_type ) {
+			return;
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only filter
+		$value = sanitize_text_field( wp_unslash( $_GET['skw_identifier'] ?? '' ) );
+		printf(
+			'<input type="text" name="skw_identifier" value="%s" placeholder="%s" style="width:180px;" />',
+			esc_attr( $value ),
+			esc_attr__( 'GTIN / Manufacturer code', 'skwirrel-pim-sync' )
+		);
+	}
+
+	/**
+	 * Filter products by GTIN or manufacturer product code meta.
+	 *
+	 * @param \WP_Query $query Current query.
+	 */
+	public function filter_products_by_identifier( \WP_Query $query ): void {
+		global $pagenow;
+		if ( ! is_admin() || 'edit.php' !== $pagenow || 'product' !== $query->get( 'post_type' ) ) {
+			return;
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only filter
+		$identifier = sanitize_text_field( wp_unslash( $_GET['skw_identifier'] ?? '' ) );
+		if ( '' === $identifier ) {
+			return;
+		}
+		$existing     = $query->get( 'meta_query' );
+		$meta_query   = is_array( $existing ) ? $existing : [];
+		$meta_query[] = [
+			'relation' => 'OR',
+			[
+				'key'     => '_product_gtin',
+				'value'   => $identifier,
+				'compare' => 'LIKE',
+			],
+			[
+				'key'     => '_manufacturer_product_code',
+				'value'   => $identifier,
+				'compare' => 'LIKE',
+			],
+		];
+		$query->set( 'meta_query', $meta_query );
 	}
 
 	/**

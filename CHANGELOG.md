@@ -2,6 +2,64 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.0.4]
+
+* Inline "Update on re-sync" toggle in Permalinks section — saves instantly via AJAX with ✓ indicator
+* Slug change warning only shown when "Update on re-sync" is enabled and settings have actually changed
+* Persistent hint below the toggle when enabled: warns about URL overwrite and SEO impact
+* Add batch size field hint: "Products per API request (1–500)."
+
+## [2.0.3]
+
+* Add Permalinks section in Settings showing current slug configuration with link to Settings → Permalinks
+* Show warning banner when slug settings change — advises a full resync and warns about potential link breakage
+* Warning auto-clears after a successful sync completes
+* Add Selection IDs hint link to Skwirrel selections page with dynamic subdomain URL
+
+## [2.0.2]
+
+* Add GTIN / Manufacturer product code search filter on the WooCommerce product list page
+* Store `_product_gtin` and `_manufacturer_product_code` as dedicated product meta during sync
+* Add subtitles to Debug and Danger Zone dashboard blocks
+
+## [2.0.1]
+
+* Rename "Collection IDs" to "Selection IDs"
+* Add API token creation link with dynamic subdomain URL
+* Add category finder link on Super category ID field
+* Move WordPress admin notices below the Skwirrel header
+
+## [2.0.0]
+
+* New admin dashboard with block-grid layout replacing the tab-based UI
+* Sync progress banner with 6-phase checklist and live counters
+* Date-grouped sync history table (Today, Yesterday, day name, or date)
+* Settings page redesigned with grouped fieldsets and Tailwind-inspired styling
+* Simplified API connection: subdomain-only input with visual prefix/suffix
+* Remove auth type selector (always uses static token)
+* Sync Logs block links directly to WooCommerce logs
+* Debug and Danger Zone inline in the dashboard grid
+* Full translation update for all 7 locales (nl_NL, nl_BE, de_DE, fr_FR, fr_BE, en_US, en_GB)
+
+## [1.10.1]
+
+* Add `Domain Path: /languages` header for automatic translation loading on WordPress 6.7+
+* Add `load_plugin_textdomain()` fallback for older WordPress versions
+* Add `nl.mo`/`nl.po` locale files for sites using `nl` instead of `nl_NL`
+* Fix Danger Zone purge not removing all product attribute taxonomies — now cleans up all orphaned `pa_*` attributes, not just `etim_*` and `skwirrel_variant`
+
+## [1.10.0]
+
+* Phased sync architecture — sync now runs in 5 sequential phases (fetch, products, taxonomy, attributes, media) instead of processing everything per product in one pass
+* Live progress checklist on the sync tab — shows current phase with status icon and counter (e.g. "247 / 500"), refreshes every 5 seconds
+* Performance fix: restore `getProducts` API call for full sync — faster than `getProductsByFilter` with empty filter (regression from 1.9.9)
+* Auto-refresh scoped to the sync tab only — no longer reloads settings or logs pages
+
+## [1.9.9]
+
+* Fix Danger Zone purge silently timing out on large datasets — add set_time_limit(0) to prevent PHP timeout
+* Rewrite Danger Zone purge to use bulk SQL instead of per-item wp_delete_post/wp_delete_attachment calls — orders of magnitude faster on large stores
+
 ## [1.9.8]
 
 * Add "Skwirrel" meta box on the WooCommerce product edit screen (above Publish) — shows Skwirrel product ID, last sync time, and a "Sync this product" button for quick single-product sync via the API

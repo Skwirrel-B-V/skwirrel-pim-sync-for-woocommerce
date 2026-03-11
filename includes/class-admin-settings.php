@@ -55,6 +55,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
         add_action('admin_post_skwirrel_wc_sync_clear_history', [$this, 'handle_clear_history']);
         add_action('wp_ajax_' . self::BG_PURGE_ACTION, [$this, 'handle_background_purge']);
         add_action('wp_ajax_nopriv_' . self::BG_PURGE_ACTION, [$this, 'handle_background_purge']);
+        add_action('wp_ajax_skwirrel_wc_sync_save_slug_resync', [$this, 'handle_save_slug_resync']);
     }
 
     public function add_menu(): void {
@@ -382,6 +383,21 @@ class Skwirrel_WC_Sync_Admin_Settings {
         exit;
     }
 
+    /**
+     * AJAX handler: save the "update slug on re-sync" toggle.
+     */
+    public function handle_save_slug_resync(): void {
+        check_ajax_referer( 'skwirrel_slug_resync_nonce', '_nonce' );
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( 'Access denied', 403 );
+        }
+        $enabled = ! empty( $_POST['enabled'] );
+        $opts    = get_option( Skwirrel_WC_Sync_Permalink_Settings::OPTION_KEY, [] );
+        $opts['update_slug_on_resync'] = $enabled;
+        update_option( Skwirrel_WC_Sync_Permalink_Settings::OPTION_KEY, $opts );
+        wp_send_json_success();
+    }
+
     public function enqueue_assets(string $hook): void {
         // Spinner CSS on all admin pages when sync is in progress.
         if (get_transient(Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS)) {
@@ -401,6 +417,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
         }
 
         wp_enqueue_style('skwirrel-pim-sync-admin', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/admin.css', [], SKWIRREL_WC_SYNC_VERSION);
+        wp_enqueue_style('skwirrel-pim-sync-dashboard', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/dashboard.css', [], SKWIRREL_WC_SYNC_VERSION);
+        wp_enqueue_style('skwirrel-pim-sync-inter-font', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', [], null);
 
         // Admin page JS (purge confirmation + auto-reload).
         wp_register_script('skwirrel-pim-sync-admin', false, [], SKWIRREL_WC_SYNC_VERSION, true);
@@ -410,6 +428,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
             'purgeConfirmPermanent' => __('WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be undone!\n\nAre you sure?', 'skwirrel-pim-sync'),
             'purgeConfirmTrash'     => __('All Skwirrel products will be moved to the trash.\n\nAre you sure?', 'skwirrel-pim-sync'),
             'clearHistoryConfirm'   => __('Delete all sync history?', 'skwirrel-pim-sync'),
+            'ajaxUrl'               => admin_url( 'admin-ajax.php' ),
+            'slugResyncNonce'       => wp_create_nonce( 'skwirrel_slug_resync_nonce' ),
         ]);
 
         wp_add_inline_script(
@@ -431,6 +451,24 @@ class Skwirrel_WC_Sync_Admin_Settings {
             . '   if (this.value !== "_custom") { document.getElementById("image_language_custom").value = ""; }'
             . '  });'
             . ' }'
+            . ' var subInput = document.getElementById("skwirrel_subdomain");'
+            . ' var urlField = document.getElementById("endpoint_url");'
+            . ' if (subInput && urlField) {'
+            . '  subInput.addEventListener("input", function() {'
+            . '   var v = this.value;'
+            . '   urlField.value = v ? "https://" + v + ".skwirrel.eu/jsonrpc" : "";'
+            . '   var tokenDomain = document.getElementById("skwirrel-token-domain");'
+            . '   var tokenLink = document.getElementById("skwirrel-token-link");'
+            . '   if (tokenDomain) tokenDomain.textContent = v || "<your-subdomain>";'
+            . '   if (tokenLink && v) tokenLink.href = "https://" + v + ".skwirrel.eu/data/webservice";'
+            . '   var catLink = document.getElementById("skwirrel-categories-link");'
+            . '   var catDomains = document.querySelectorAll(".skwirrel-link-domain");'
+            . '   catDomains.forEach(function(el) { el.textContent = v || "<your-subdomain>"; });'
+            . '   if (catLink && v) catLink.href = "https://" + v + ".skwirrel.eu/base/categories";'
+            . '   var selLink = document.getElementById("skwirrel-selections-link");'
+            . '   if (selLink && v) selLink.href = "https://" + v + ".skwirrel.eu/data/selections";'
+            . '  });'
+            . ' }'
             . ' var historyBtn = document.getElementById("skwirrel-clear-history-btn");'
             . ' if (historyBtn) {'
             . '  historyBtn.addEventListener("click", function(e) {'
@@ -441,8 +479,48 @@ class Skwirrel_WC_Sync_Admin_Settings {
             . '})();'
         );
 
-        // Auto-reload when sync is in progress.
-        if (get_transient(Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS)) {
+        // Move WP admin notices into the dashboard notices slot.
+        wp_add_inline_script(
+            'skwirrel-pim-sync-admin',
+            '(function() {'
+            . ' var slot = document.getElementById("skwirrel-notices");'
+            . ' if (!slot) return;'
+            . ' var container = document.getElementById("wpbody-content");'
+            . ' if (!container) return;'
+            . ' var notices = container.querySelectorAll(":scope > .notice, :scope > .updated, :scope > .error, :scope > .update-nag, .wrap > .notice, .wrap > .updated, .wrap > .error, .wrap > .update-nag");'
+            . ' notices.forEach(function(n) { slot.appendChild(n); });'
+            . '})();'
+        );
+
+        // Inline toggle: save "update slug on re-sync" via AJAX.
+        wp_add_inline_script(
+            'skwirrel-pim-sync-admin',
+            '(function() {'
+            . ' var sel = document.getElementById("skwirrel-update-slug-resync");'
+            . ' if (!sel) return;'
+            . ' sel.addEventListener("change", function() {'
+            . '  var enabled = this.value === "1";'
+            . '  var hint = document.getElementById("skwirrel-slug-resync-hint");'
+            . '  var warn = document.getElementById("skwirrel-slug-warning");'
+            . '  if (hint) hint.style.display = enabled ? "" : "none";'
+            . '  if (warn) warn.style.display = enabled ? "" : "none";'
+            . '  var fd = new FormData();'
+            . '  fd.append("action", "skwirrel_wc_sync_save_slug_resync");'
+            . '  fd.append("_nonce", skwirrelPimSync.slugResyncNonce);'
+            . '  fd.append("enabled", enabled ? "1" : "0");'
+            . '  fetch(skwirrelPimSync.ajaxUrl, { method: "POST", body: fd })'
+            . '   .then(function() {'
+            . '    var ok = document.getElementById("skwirrel-slug-saved");'
+            . '    if (ok) { ok.style.display = "inline"; setTimeout(function() { ok.style.display = "none"; }, 1500); }'
+            . '   });'
+            . ' });'
+            . '})();'
+        );
+
+        // Auto-reload when sync is in progress — only on the dashboard.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tab parameter is display-only
+        $current_tab = isset($_GET['tab']) ? sanitize_text_field(wp_unslash($_GET['tab'])) : 'dashboard';
+        if (in_array($current_tab, ['dashboard', 'sync'], true) && get_transient(Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS)) {
             wp_add_inline_script('skwirrel-pim-sync-admin', 'setTimeout(function(){ window.location.reload(); }, 5000);');
         }
     }
@@ -455,48 +533,18 @@ class Skwirrel_WC_Sync_Admin_Settings {
         $this->maybe_show_notices();
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tab parameter is display-only
-        $active_tab = isset($_GET['tab']) ? sanitize_text_field(wp_unslash($_GET['tab'])) : 'sync';
-        $allowed_tabs = ['sync', 'settings', 'logs'];
-        if (!in_array($active_tab, $allowed_tabs, true)) {
-            $active_tab = 'sync';
+        $active_view = isset($_GET['tab']) ? sanitize_text_field(wp_unslash($_GET['tab'])) : 'dashboard';
+        $allowed_views = ['dashboard', 'sync', 'history', 'settings', 'debug'];
+        if (!in_array($active_view, $allowed_views, true)) {
+            $active_view = 'dashboard';
+        }
+        // Legacy: map 'sync' tab to dashboard.
+        if ($active_view === 'sync') {
+            $active_view = 'dashboard';
         }
 
-        $base_url = admin_url('admin.php?page=' . self::PAGE_SLUG);
-
-        ?>
-        <?php $sync_in_progress = (bool) get_transient(Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS); ?>
-        <div class="wrap skwirrel-sync-wrap">
-            <h1 class="wp-heading-inline"><?php esc_html_e('Skwirrel PIM sync for WooCommerce', 'skwirrel-pim-sync'); ?></h1>
-            <?php if ($sync_in_progress) : ?>
-                <span class="page-title-action" style="opacity: 0.5; pointer-events: none; cursor: default;">⟳ <?php esc_html_e('Sync in progress…', 'skwirrel-pim-sync'); ?></span>
-            <?php else : ?>
-                <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=skwirrel_wc_sync_run'), 'skwirrel_wc_sync_run', '_wpnonce')); ?>" class="page-title-action"><?php esc_html_e('Sync Products', 'skwirrel-pim-sync'); ?></a>
-            <?php endif; ?>
-            <hr class="wp-header-end">
-
-            <nav class="nav-tab-wrapper">
-                <a href="<?php echo esc_url(add_query_arg('tab', 'sync', $base_url)); ?>" class="nav-tab <?php echo esc_attr( $active_tab === 'sync' ? 'nav-tab-active' : '' ); ?>"><?php esc_html_e('Sync Products', 'skwirrel-pim-sync'); ?></a>
-                <a href="<?php echo esc_url(add_query_arg('tab', 'settings', $base_url)); ?>" class="nav-tab <?php echo esc_attr( $active_tab === 'settings' ? 'nav-tab-active' : '' ); ?>"><?php esc_html_e('Settings', 'skwirrel-pim-sync'); ?></a>
-                <a href="<?php echo esc_url(add_query_arg('tab', 'logs', $base_url)); ?>" class="nav-tab <?php echo esc_attr( $active_tab === 'logs' ? 'nav-tab-active' : '' ); ?>"><?php esc_html_e('Logs', 'skwirrel-pim-sync'); ?></a>
-            </nav>
-
-            <div class="skwirrel-tab-content">
-                <?php
-                switch ($active_tab) {
-                    case 'settings':
-                        $this->render_tab_settings();
-                        break;
-                    case 'logs':
-                        $this->render_tab_logs();
-                        break;
-                    default:
-                        $this->render_tab_sync();
-                        break;
-                }
-                ?>
-            </div>
-        </div>
-        <?php
+        $dashboard = new Skwirrel_WC_Sync_Admin_Dashboard();
+        $dashboard->render($active_view);
     }
 
     private function render_tab_sync(): void {
@@ -509,14 +557,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
         <h2><?php esc_html_e('Sync status', 'skwirrel-pim-sync'); ?></h2>
 
         <?php if ($sync_in_progress) : ?>
-            <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
-                <h3 style="margin-top: 0; color: #0c5460;">
-                    <span class="dashicons dashicons-update skwirrel-pim-sync-spinner" style="color: #0c5460;"></span> <?php esc_html_e('Sync in progress…', 'skwirrel-pim-sync'); ?>
-                </h3>
-                <p style="margin: 0; color: #0c5460;">
-                    <?php esc_html_e('The page will refresh automatically when the sync is completed.', 'skwirrel-pim-sync'); ?>
-                </p>
-            </div>
+            <?php $this->render_sync_progress(); ?>
         <?php elseif ($last_result) : ?>
             <div style="background: <?php echo esc_attr($last_result['success'] ? '#d4edda' : '#f8d7da'); ?>; border: 1px solid <?php echo esc_attr($last_result['success'] ? '#c3e6cb' : '#f5c6cb'); ?>; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
                 <h3 style="margin-top: 0; color: <?php echo esc_attr($last_result['success'] ? '#155724' : '#721c24'); ?>;">
@@ -677,6 +718,80 @@ class Skwirrel_WC_Sync_Admin_Settings {
                 </tbody>
             </table>
         <?php endif; ?>
+        <?php
+    }
+
+    /**
+     * Render the sync-in-progress phase checklist.
+     */
+    private function render_sync_progress(): void {
+        $progress = Skwirrel_WC_Sync_History::get_sync_progress();
+
+        // Phase display configuration: [phase_key => label]
+        $opts = get_option('skwirrel_wc_sync_settings', []);
+        $taxonomy_label = ! empty($opts['sync_manufacturers'])
+            ? __('Assign categories, brands & manufacturers', 'skwirrel-pim-sync')
+            : __('Assign categories & brands', 'skwirrel-pim-sync');
+
+        $phases = [
+            Skwirrel_WC_Sync_History::PHASE_FETCH      => __('Fetch products from API', 'skwirrel-pim-sync'),
+            Skwirrel_WC_Sync_History::PHASE_PRODUCTS    => __('Create & update products', 'skwirrel-pim-sync'),
+            Skwirrel_WC_Sync_History::PHASE_TAXONOMY    => $taxonomy_label,
+            Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES  => __('Connect attributes', 'skwirrel-pim-sync'),
+            Skwirrel_WC_Sync_History::PHASE_MEDIA       => __('Download images & documents', 'skwirrel-pim-sync'),
+            Skwirrel_WC_Sync_History::PHASE_CLEANUP     => __('Cleanup & finalize', 'skwirrel-pim-sync'),
+        ];
+
+        ?>
+        <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0; color: #0c5460;">
+                <span class="dashicons dashicons-update skwirrel-pim-sync-spinner" style="color: #0c5460;"></span>
+                <?php esc_html_e('Sync in progress…', 'skwirrel-pim-sync'); ?>
+            </h3>
+
+            <table style="border-collapse: collapse; width: 100%; max-width: 500px;">
+                <?php foreach ($phases as $key => $label) : ?>
+                    <?php
+                    $phase_data = $progress['phases'][$key] ?? null;
+                    $status     = $phase_data['status'] ?? 'pending';
+                    $current    = $phase_data['current'] ?? 0;
+                    $total      = $phase_data['total'] ?? 0;
+
+                    if ('completed' === $status) {
+                        $icon  = '<span style="color: #155724; font-weight: bold;">&#10003;</span>';
+                        $color = '#155724';
+                    } elseif ('in_progress' === $status) {
+                        $icon  = '<span class="dashicons dashicons-update skwirrel-pim-sync-spinner" style="font-size: 16px; width: 16px; height: 16px; color: #0c5460;"></span>';
+                        $color = '#0c5460';
+                    } else {
+                        $icon  = '<span style="color: #999;">&mdash;</span>';
+                        $color = '#999';
+                    }
+
+                    $counter = '';
+                    if ($phase_data && $total > 0) {
+                        $counter = sprintf('%d / %d', $current, $total);
+                    } elseif ($phase_data && 'in_progress' === $status && $key === Skwirrel_WC_Sync_History::PHASE_FETCH) {
+                        /* translators: %d = number of products fetched */
+                        $counter = sprintf(__('%d fetched', 'skwirrel-pim-sync'), $current);
+                    }
+                    ?>
+                    <tr>
+                        <td style="padding: 4px 8px 4px 0; width: 24px; vertical-align: middle;"><?php echo $icon; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- safe HTML entities ?></td>
+                        <td style="padding: 4px 8px; color: <?php echo esc_attr($color); ?>; font-weight: <?php echo esc_attr('in_progress' === $status ? 'bold' : 'normal'); ?>;">
+                            <?php echo esc_html($label); ?>
+                        </td>
+                        <td style="padding: 4px 0 4px 8px; text-align: right; color: <?php echo esc_attr($color); ?>; font-variant-numeric: tabular-nums;">
+                            <?php echo esc_html($counter); ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </table>
+
+            <p style="margin: 10px 0 0; color: #0c5460; font-size: 12px;">
+                <?php esc_html_e('This page refreshes automatically every 5 seconds.', 'skwirrel-pim-sync'); ?>
+            </p>
+        </div>
         <?php
     }
 

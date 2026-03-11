@@ -32,6 +32,17 @@ class Skwirrel_WC_Sync_History {
 	/** @var int Time-to-live in seconds for the sync-in-progress transient. */
 	public const HEARTBEAT_TTL = 60;
 
+	/** @var string Option key for the sync phase progress array. */
+	public const OPTION_SYNC_PROGRESS = 'skwirrel_wc_sync_progress';
+
+	/** Phase identifiers. */
+	public const PHASE_FETCH      = 'fetch';
+	public const PHASE_PRODUCTS   = 'products';
+	public const PHASE_TAXONOMY   = 'taxonomy';
+	public const PHASE_ATTRIBUTES = 'attributes';
+	public const PHASE_MEDIA      = 'media';
+	public const PHASE_CLEANUP    = 'cleanup';
+
 	/** Trigger types. */
 	public const TRIGGER_MANUAL    = 'manual';
 	public const TRIGGER_SCHEDULED = 'scheduled';
@@ -128,6 +139,12 @@ class Skwirrel_WC_Sync_History {
 
 		update_option( self::OPTION_LAST_SYNC_RESULT, $result, false );
 		delete_transient( self::SYNC_IN_PROGRESS );
+		self::clear_sync_progress();
+
+		// Clear slug resync flag after successful sync.
+		if ( $ok ) {
+			delete_option( 'skwirrel_wc_sync_slug_resync_needed' );
+		}
 
 		self::append_to_history( $result );
 	}
@@ -164,6 +181,74 @@ class Skwirrel_WC_Sync_History {
 		$history = array_slice( $history, 0, self::MAX_HISTORY_ENTRIES );
 
 		update_option( self::OPTION_SYNC_HISTORY, $history, false );
+	}
+
+	/**
+	 * Update the phase progress for the current sync.
+	 *
+	 * Stores progress in a non-autoloaded option so the admin UI can poll it.
+	 * Also refreshes the heartbeat to keep the sync-in-progress transient alive.
+	 *
+	 * @param string $phase     Phase identifier (one of the PHASE_* constants).
+	 * @param int    $current   Number of items processed in this phase.
+	 * @param int    $total     Total items to process in this phase.
+	 * @param string $label     Human-readable phase label.
+	 * @return void
+	 */
+	public static function update_phase_progress( string $phase, int $current, int $total, string $label = '' ): void {
+		$progress = get_option( self::OPTION_SYNC_PROGRESS, [] );
+		if ( ! is_array( $progress ) ) {
+			$progress = [];
+		}
+
+		$progress['current_phase'] = $phase;
+		$progress['updated_at']    = time();
+
+		if ( ! isset( $progress['phases'] ) || ! is_array( $progress['phases'] ) ) {
+			$progress['phases'] = [];
+		}
+
+		$progress['phases'][ $phase ] = [
+			'label'   => $label,
+			'current' => $current,
+			'total'   => $total,
+			'status'  => $current >= $total && $total > 0 ? 'completed' : 'in_progress',
+		];
+
+		// Mark earlier phases as completed
+		$phase_order = [ self::PHASE_FETCH, self::PHASE_PRODUCTS, self::PHASE_TAXONOMY, self::PHASE_ATTRIBUTES, self::PHASE_MEDIA, self::PHASE_CLEANUP ];
+		$reached     = false;
+		foreach ( $phase_order as $p ) {
+			if ( $p === $phase ) {
+				$reached = true;
+				continue;
+			}
+			if ( ! $reached && isset( $progress['phases'][ $p ] ) ) {
+				$progress['phases'][ $p ]['status'] = 'completed';
+			}
+		}
+
+		update_option( self::OPTION_SYNC_PROGRESS, $progress, false );
+		self::sync_heartbeat();
+	}
+
+	/**
+	 * Get the current sync phase progress.
+	 *
+	 * @return array|null Progress array with 'current_phase' and 'phases', or null if not syncing.
+	 */
+	public static function get_sync_progress(): ?array {
+		$progress = get_option( self::OPTION_SYNC_PROGRESS, null );
+		return is_array( $progress ) ? $progress : null;
+	}
+
+	/**
+	 * Clear the sync progress (called when sync completes or is reset).
+	 *
+	 * @return void
+	 */
+	public static function clear_sync_progress(): void {
+		delete_option( self::OPTION_SYNC_PROGRESS );
 	}
 
 	/**
