@@ -4,7 +4,7 @@ Tags: woocommerce, sync, erp, pim, skwirrel
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.10.1
+Stable tag: 2.0.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,28 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 2.0.2 =
+* Add GTIN / Manufacturer product code search filter on product list page
+* Store product GTIN and manufacturer product code as dedicated meta during sync
+* Add subtitles to Debug and Danger Zone dashboard blocks
+
+= 2.0.1 =
+* Rename "Collection IDs" to "Selection IDs"
+* Add API token creation link with dynamic subdomain URL
+* Add category finder link on Super category ID field
+* Move WordPress admin notices below the Skwirrel header
+
+= 2.0.0 =
+* New admin dashboard with block-grid layout replacing the tab-based UI
+* Sync progress banner with 6-phase checklist and live counters
+* Date-grouped sync history table (Today, Yesterday, day name, or date)
+* Settings page redesigned with grouped fieldsets and Tailwind-inspired styling
+* Simplified API connection: subdomain-only input with visual prefix/suffix
+* Remove auth type selector (always uses static token)
+* Sync Logs block links directly to WooCommerce logs
+* Debug and Danger Zone inline in the dashboard grid
+* Full translation update for all 7 locales (nl_NL, nl_BE, de_DE, fr_FR, fr_BE, en_US, en_GB)
 
 = 1.10.1 =
 * Add Domain Path header for automatic translation loading on WordPress 6.7+

@@ -72,6 +72,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</div>
 			</div>
 
+			<?php // -- Notices slot (filled by JS) -- ?>
+			<div id="skwirrel-notices" class="skw-notices"></div>
+
 			<?php // -- Sync Progress Banner -- ?>
 			<?php if ( $sync_in_progress ) : ?>
 				<?php $this->render_sync_progress(); ?>
@@ -224,7 +227,10 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<div class="skw-block-icon skw-bg-rose">
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M12 12.75c1.148 0 2.278.08 3.383.237 1.037.146 1.866.966 1.866 2.013 0 3.728-2.35 6.75-5.25 6.75S6.75 18.728 6.75 15c0-1.046.83-1.867 1.866-2.013A24.204 24.204 0 0 1 12 12.75Zm0 0c2.883 0 5.647.508 8.207 1.44a23.91 23.91 0 0 1-1.152-6.135 3.24 3.24 0 0 0-.399-1.003 3.278 3.278 0 0 0-.755-.89 3.245 3.245 0 0 0-1.614-.637 23.834 23.834 0 0 0-8.574 0 3.245 3.245 0 0 0-2.37 1.527 3.24 3.24 0 0 0-.398 1.003 23.91 23.91 0 0 1-1.152 6.135A23.856 23.856 0 0 1 12 12.75ZM2.695 18.678a25.076 25.076 0 0 1 3.197-7.8c.07-.116.145-.229.225-.34A3 3 0 0 1 8.46 9.15a24.795 24.795 0 0 1 7.078 0 3 3 0 0 1 2.345 1.388c.08.111.155.224.225.34a25.076 25.076 0 0 1 3.197 7.8 24.237 24.237 0 0 1-9.305 1.822 24.237 24.237 0 0 1-9.305-1.822Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
 				</div>
-				<span class="skw-block-title"><?php esc_html_e( 'Debug', 'skwirrel-pim-sync' ); ?></span>
+				<div class="skw-block-body">
+					<h3 class="skw-block-title"><?php esc_html_e( 'Debug', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-block-desc"><?php esc_html_e( 'Troubleshoot variation attribute issues.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
 				<span class="skw-block-arrow"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M20 4h1a1 1 0 00-1-1v1zm-1 12a1 1 0 102 0h-2zM8 3a1 1 0 000 2V3zM3.293 19.293a1 1 0 101.414 1.414l-1.414-1.414zM19 4v12h2V4h-2zm1-1H8v2h12V3zm-.707.293l-16 16 1.414 1.414 16-16-1.414-1.414z" /></svg></span>
 			</a>
 
@@ -233,7 +239,10 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<div class="skw-block-icon skw-bg-red">
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
 				</div>
-				<span class="skw-block-title"><?php esc_html_e( 'Danger Zone', 'skwirrel-pim-sync' ); ?></span>
+				<div class="skw-block-body">
+					<h3 class="skw-block-title"><?php esc_html_e( 'Danger Zone', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-block-desc"><?php esc_html_e( 'Delete all synced products and start fresh.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
 				<span class="skw-block-arrow"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M20 4h1a1 1 0 00-1-1v1zm-1 12a1 1 0 102 0h-2zM8 3a1 1 0 000 2V3zM3.293 19.293a1 1 0 101.414 1.414l-1.414-1.414zM19 4v12h2V4h-2zm1-1H8v2h12V3zm-.707.293l-16 16 1.414 1.414 16-16-1.414-1.414z" /></svg></span>
 			</a>
 
@@ -462,9 +471,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<div class="skw-fieldgroup">
 					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'API Connection', 'skwirrel-pim-sync' ); ?></h3>
 					<?php
-					$full_url  = $opts['endpoint_url'] ?? '';
+					$full_url  = rtrim( $opts['endpoint_url'] ?? '', '/' );
 					$subdomain = '';
-					if ( preg_match( '#^https?://([^.]+)\.(?:dev\.)?skwirrel\.eu/jsonrpc#i', $full_url, $m ) ) {
+					if ( preg_match( '#^https?://(.+)\.skwirrel\.eu(?:/jsonrpc)?$#i', $full_url, $m ) ) {
 						$subdomain = $m[1];
 					}
 					?>
@@ -472,7 +481,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<label for="skwirrel_subdomain" class="skw-label"><?php esc_html_e( 'Skwirrel subdomain', 'skwirrel-pim-sync' ); ?></label>
 						<div class="skw-input-affixed">
 							<span class="skw-input-prefix">https://</span>
-							<input type="text" id="skwirrel_subdomain" value="<?php echo esc_attr( $subdomain ); ?>" class="skw-input" placeholder="yourcompany" required pattern="[a-zA-Z0-9._-]+" />
+							<input type="text" id="skwirrel_subdomain" value="<?php echo esc_attr( $subdomain ); ?>" class="skw-input" placeholder="yourcompany" required />
 							<span class="skw-input-suffix">.skwirrel.eu/jsonrpc</span>
 						</div>
 						<input type="hidden" id="endpoint_url" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[endpoint_url]" value="<?php echo esc_attr( $full_url ); ?>" />
@@ -481,6 +490,15 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<div class="skw-field">
 						<label for="auth_token" class="skw-label"><?php esc_html_e( 'API Token', 'skwirrel-pim-sync' ); ?></label>
 						<input type="password" id="auth_token" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[auth_token]" value="<?php echo esc_attr( $token_masked ); ?>" class="skw-input" autocomplete="off" />
+						<p class="skw-field-hint">
+							<?php
+							printf(
+								/* translators: %s = URL to Skwirrel webservice page */
+								esc_html__( 'Create a static API token at %s.', 'skwirrel-pim-sync' ),
+								'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/data/webservice" target="_blank" id="skwirrel-token-link">https://<span id="skwirrel-token-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/data/webservice</a>'
+							);
+							?>
+						</p>
 					</div>
 					<div class="skw-field-row">
 						<div class="skw-field">
@@ -530,9 +548,18 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<div class="skw-field">
 							<label for="super_category_id" class="skw-label"><?php esc_html_e( 'Super category ID', 'skwirrel-pim-sync' ); ?></label>
 							<input type="text" id="super_category_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[super_category_id]" value="<?php echo esc_attr( $opts['super_category_id'] ?? '' ); ?>" class="skw-input skw-input-sm" placeholder="<?php esc_attr_e( 'e.g. 42', 'skwirrel-pim-sync' ); ?>" />
+							<p class="skw-field-hint">
+								<?php
+								printf(
+									/* translators: %s = link to Skwirrel categories page */
+									esc_html__( 'Find your category IDs at %s.', 'skwirrel-pim-sync' ),
+									'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/base/categories" target="_blank" id="skwirrel-categories-link">https://<span class="skwirrel-link-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/base/categories</a>'
+								);
+								?>
+							</p>
 						</div>
 						<div class="skw-field">
-							<label for="collection_ids" class="skw-label"><?php esc_html_e( 'Collection IDs', 'skwirrel-pim-sync' ); ?></label>
+							<label for="collection_ids" class="skw-label"><?php esc_html_e( 'Selection IDs', 'skwirrel-pim-sync' ); ?></label>
 							<input type="text" id="collection_ids" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[collection_ids]" value="<?php echo esc_attr( $opts['collection_ids'] ?? '' ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 123, 456', 'skwirrel-pim-sync' ); ?>" />
 						</div>
 					</div>

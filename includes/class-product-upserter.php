@@ -252,6 +252,16 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		update_post_meta( $id, $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		update_post_meta( $id, $this->mapper->get_synced_at_meta_key(), time() );
 
+		// Store searchable identifiers.
+		$mpc = $product['manufacturer_product_code'] ?? '';
+		if ( '' !== $mpc ) {
+			update_post_meta( $id, '_manufacturer_product_code', $mpc );
+		}
+		$gtin = $product['product_gtin'] ?? '';
+		if ( '' !== $gtin ) {
+			update_post_meta( $id, '_product_gtin', $gtin );
+		}
+
 		$img_ids = $this->mapper->get_image_attachment_ids( $product, $id );
 		if ( ! empty( $img_ids ) ) {
 			$wc_product->set_image_id( $img_ids[0] );           // First image = featured
@@ -1017,6 +1027,16 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		update_post_meta( $id, $this->mapper->get_external_id_meta_key(), $key );
 		update_post_meta( $id, $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		update_post_meta( $id, $this->mapper->get_synced_at_meta_key(), time() );
+
+		// Store searchable identifiers.
+		$mpc = $product['manufacturer_product_code'] ?? '';
+		if ( '' !== $mpc ) {
+			update_post_meta( $id, '_manufacturer_product_code', $mpc );
+		}
+		$gtin = $product['product_gtin'] ?? '';
+		if ( '' !== $gtin ) {
+			update_post_meta( $id, '_product_gtin', $gtin );
+		}
 
 		return [
 			'wc_id'   => $id,

@@ -3,7 +3,7 @@
  * Plugin Name: Skwirrel PIM sync for WooCommerce
  * Plugin URI: https://github.com/Skwirrel-B-V/skwirrel-pim-sync-for-woocommerce
  * Description: Sync plugin for Skwirrel PIM via Skwirrel JSON-RPC API to WooCommerce.
- * Version: 2.0.0
+ * Version: 2.0.2
  * Author: Skwirrel B.V.
  * Author URI: https://skwirrel.eu
  * Requires at least: 6.0
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SKWIRREL_WC_SYNC_VERSION', '2.0.0' );
+define( 'SKWIRREL_WC_SYNC_VERSION', '2.0.2' );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_FILE', __FILE__ );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -134,6 +134,10 @@ final class Skwirrel_WC_Sync_Plugin {
 			add_filter( 'parse_query', [ $this, 'filter_products_by_manufacturer' ] );
 		}
 
+		// Add GTIN / Manufacturer code search on product list.
+		add_action( 'restrict_manage_posts', [ $this, 'add_identifier_search_input' ], 25 );
+		add_filter( 'parse_query', [ $this, 'filter_products_by_identifier' ] );
+
 		Skwirrel_WC_Sync_Admin_Settings::instance();
 		Skwirrel_WC_Sync_Permalink_Settings::instance();
 		Skwirrel_WC_Sync_Action_Scheduler::instance();
@@ -233,6 +237,57 @@ final class Skwirrel_WC_Sync_Plugin {
 			'terms'    => $manufacturer,
 		];
 		$query->set( 'tax_query', $tax_query );
+	}
+
+	/**
+	 * Render a search input for GTIN / Manufacturer product code on the product list page.
+	 *
+	 * @param string $post_type Current post type.
+	 */
+	public function add_identifier_search_input( string $post_type ): void {
+		if ( 'product' !== $post_type ) {
+			return;
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only filter
+		$value = sanitize_text_field( wp_unslash( $_GET['skw_identifier'] ?? '' ) );
+		printf(
+			'<input type="text" name="skw_identifier" value="%s" placeholder="%s" style="width:180px;" />',
+			esc_attr( $value ),
+			esc_attr__( 'GTIN / Manufacturer code', 'skwirrel-pim-sync' )
+		);
+	}
+
+	/**
+	 * Filter products by GTIN or manufacturer product code meta.
+	 *
+	 * @param \WP_Query $query Current query.
+	 */
+	public function filter_products_by_identifier( \WP_Query $query ): void {
+		global $pagenow;
+		if ( ! is_admin() || 'edit.php' !== $pagenow || 'product' !== $query->get( 'post_type' ) ) {
+			return;
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only filter
+		$identifier = sanitize_text_field( wp_unslash( $_GET['skw_identifier'] ?? '' ) );
+		if ( '' === $identifier ) {
+			return;
+		}
+		$existing     = $query->get( 'meta_query' );
+		$meta_query   = is_array( $existing ) ? $existing : [];
+		$meta_query[] = [
+			'relation' => 'OR',
+			[
+				'key'     => '_product_gtin',
+				'value'   => $identifier,
+				'compare' => 'LIKE',
+			],
+			[
+				'key'     => '_manufacturer_product_code',
+				'value'   => $identifier,
+				'compare' => 'LIKE',
+			],
+		];
+		$query->set( 'meta_query', $meta_query );
 	}
 
 	/**

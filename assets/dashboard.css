@@ -100,6 +100,20 @@
    Content
    ========================================================================== */
 
+.skw-notices {
+	padding: 12px 24px 0;
+	margin-left: -20px;
+	max-width: 960px;
+}
+
+.skw-notices:empty {
+	display: none;
+}
+
+.skw-notices .notice {
+	margin: 0 0 8px;
+}
+
 .skw-content {
 	padding: 24px 0 40px;
 	margin-left: -20px;
@@ -292,9 +306,18 @@
 	padding: 8px;
 }
 
+.skw-block-compact .skw-block-body {
+	flex: 1;
+	min-width: 0;
+}
+
 .skw-block-compact .skw-block-title {
 	margin: 0;
-	flex: 1;
+}
+
+.skw-block-compact .skw-block-desc {
+	margin: 2px 0 0;
+	font-size: 12px;
 }
 
 .skw-block-compact .skw-block-arrow {
@@ -758,6 +781,21 @@
 
 .skw-checkbox-indent {
 	margin-left: 24px;
+}
+
+.skw-field-hint {
+	font-size: 12px;
+	color: #6b7280;
+	margin: 6px 0 0;
+}
+
+.skw-field-hint a {
+	color: var(--skw-blue);
+	text-decoration: none;
+}
+
+.skw-field-hint a:hover {
+	text-decoration: underline;
 }
 
 .skw-field-actions {

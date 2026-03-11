@@ -437,7 +437,16 @@ class Skwirrel_WC_Sync_Admin_Settings {
             . ' var urlField = document.getElementById("endpoint_url");'
             . ' if (subInput && urlField) {'
             . '  subInput.addEventListener("input", function() {'
-            . '   urlField.value = this.value ? "https://" + this.value + ".skwirrel.eu/jsonrpc" : "";'
+            . '   var v = this.value;'
+            . '   urlField.value = v ? "https://" + v + ".skwirrel.eu/jsonrpc" : "";'
+            . '   var tokenDomain = document.getElementById("skwirrel-token-domain");'
+            . '   var tokenLink = document.getElementById("skwirrel-token-link");'
+            . '   if (tokenDomain) tokenDomain.textContent = v || "<your-subdomain>";'
+            . '   if (tokenLink && v) tokenLink.href = "https://" + v + ".skwirrel.eu/data/webservice";'
+            . '   var catLink = document.getElementById("skwirrel-categories-link");'
+            . '   var catDomains = document.querySelectorAll(".skwirrel-link-domain");'
+            . '   catDomains.forEach(function(el) { el.textContent = v || "<your-subdomain>"; });'
+            . '   if (catLink && v) catLink.href = "https://" + v + ".skwirrel.eu/base/categories";'
             . '  });'
             . ' }'
             . ' var historyBtn = document.getElementById("skwirrel-clear-history-btn");'
@@ -447,6 +456,19 @@ class Skwirrel_WC_Sync_Admin_Settings {
             . '   if (period === "all" && !confirm(skwirrelPimSync.clearHistoryConfirm)) { e.preventDefault(); }'
             . '  });'
             . ' }'
+            . '})();'
+        );
+
+        // Move WP admin notices into the dashboard notices slot.
+        wp_add_inline_script(
+            'skwirrel-pim-sync-admin',
+            '(function() {'
+            . ' var slot = document.getElementById("skwirrel-notices");'
+            . ' if (!slot) return;'
+            . ' var container = document.getElementById("wpbody-content");'
+            . ' if (!container) return;'
+            . ' var notices = container.querySelectorAll(":scope > .notice, :scope > .updated, :scope > .error, :scope > .update-nag, .wrap > .notice, .wrap > .updated, .wrap > .error, .wrap > .update-nag");'
+            . ' notices.forEach(function(n) { slot.appendChild(n); });'
             . '})();'
         );
 
