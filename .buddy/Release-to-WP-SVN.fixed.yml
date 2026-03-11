@@ -41,6 +41,7 @@
   - action: Upload to WP SVN
     type: BUILD
     execute_commands:
+    - set -ex
     - ""
     - "# Step 1: Ensure we have an SVN trunk working copy"
     - "if [ -d \"/tmp/svn-trunk/.svn\" ]; then"
@@ -51,7 +52,7 @@
     - else
     - '  echo "No SVN working copy found. Checking out trunk..."'
     - '  mkdir -p "/tmp/svn-trunk"'
-    - ' svn co "https://plugins.svn.wordpress.org/skwirrel-pim-sync/trunk" "/tmp/svn-trunk"  \'
+    - ' svn checkout "https://plugins.svn.wordpress.org/skwirrel-pim-sync/trunk" "/tmp/svn-trunk"  \'
     - "    --username ${WP_SVN_USERNAME} --password ${WP_SVN_PASSWORD} \\"
     - '    --non-interactive --trust-server-cert'
     - fi
