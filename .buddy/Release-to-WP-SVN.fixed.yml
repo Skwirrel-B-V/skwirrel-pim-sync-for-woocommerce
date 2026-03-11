@@ -38,7 +38,7 @@
     shell: BASH
     docker_image_name: library/php
     docker_image_tag: 8.5
-  - action: '  "$BUDDY_PIPELINE_WORKSPACE/" "$SVN_DIR/"'
+  - action: Upload to WP SVN
     type: BUILD
     execute_commands:
     - apt-get update -qq && apt-get install -y -qq subversion rsync
