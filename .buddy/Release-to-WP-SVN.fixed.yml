@@ -60,7 +60,7 @@
     - '  "$BUDDY_PIPELINE_WORKSPACE/" "$SVN_DIR/"'
     - ""
     setup_commands:
-    - apt-get update -qq && apt-get install -y -qq subversion
+    - apt-get update -qq && apt-get install -y -qq subversion rsync
     shell: BASH
     docker_image_name: buddy/localshell
     docker_image_tag: ubuntu_24.04
