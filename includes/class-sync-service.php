@@ -79,10 +79,11 @@ class Skwirrel_WC_Sync_Service {
 			];
 		}
 
-		$options     = $this->get_options();
-		$created     = 0;
-		$updated     = 0;
-		$failed      = 0;
+		$options         = $this->get_options();
+		$created         = 0;
+		$updated         = 0;
+		$failed          = 0;
+		$failed_products = [];
 		$delta_since = get_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, '' );
 
 		$collection_ids = $this->get_collection_ids();
@@ -313,9 +314,11 @@ class Skwirrel_WC_Sync_Service {
 					++$updated;
 				} else {
 					++$failed;
+					$failed_products[] = $this->build_failed_product_entry( $item['product'], 'Skipped by upserter' );
 				}
 			} catch ( Throwable $e ) {
 				++$failed;
+				$failed_products[] = $this->build_failed_product_entry( $item['product'], $e->getMessage() );
 				$this->logger->error(
 					'Product create/update failed',
 					[
@@ -518,7 +521,7 @@ class Skwirrel_WC_Sync_Service {
 		}
 
 		update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z' ) );
-		Skwirrel_WC_Sync_History::update_last_result( true, $created, $updated, $failed, '', $with_attrs, $without_attrs, $trashed, $categories_removed, $trigger );
+		Skwirrel_WC_Sync_History::update_last_result( true, $created, $updated, $failed, '', $with_attrs, $without_attrs, $trashed, $categories_removed, $trigger, $failed_products );
 
 		$this->logger->info(
 			'Sync completed',
@@ -774,6 +777,85 @@ class Skwirrel_WC_Sync_Service {
 		}
 		$parts = preg_split( '/[\s,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY );
 		return array_values( array_map( 'intval', array_filter( $parts, 'is_numeric' ) ) );
+	}
+
+	/**
+	 * Build a failed product entry for tracking.
+	 *
+	 * @param array  $product Skwirrel product data.
+	 * @param string $error   Error description.
+	 * @return array{product_id: int, sku: string, name: string, error: string}
+	 */
+	private function build_failed_product_entry( array $product, string $error ): array {
+		return [
+			'product_id' => (int) ( $product['product_id'] ?? $product['id'] ?? 0 ),
+			'sku'        => (string) ( $product['internal_product_code'] ?? $product['manufacturer_product_code'] ?? '' ),
+			'name'       => (string) ( $product['product_erp_description'] ?? $product['product_description'] ?? '' ),
+			'error'      => $error,
+		];
+	}
+
+	/**
+	 * Re-sync only the products that failed in the last sync run.
+	 *
+	 * Reads the failed_products list from the last sync result, fetches each
+	 * product individually from the API, and upserts it.
+	 *
+	 * @return array{success: bool, total: int, resolved: int, still_failed: int, failed_products: array}
+	 */
+	public function sync_failed_products(): array {
+		$last_result     = Skwirrel_WC_Sync_History::get_last_result();
+		$failed_products = $last_result['failed_products'] ?? [];
+
+		if ( empty( $failed_products ) ) {
+			return [
+				'success'         => true,
+				'total'           => 0,
+				'resolved'        => 0,
+				'still_failed'    => 0,
+				'failed_products' => [],
+			];
+		}
+
+		$this->ensure_uploads_approved_directory();
+
+		$total        = count( $failed_products );
+		$resolved     = 0;
+		$still_failed = [];
+
+		$this->logger->info( 'Resync failed products: starting', [ 'count' => $total ] );
+
+		foreach ( $failed_products as $entry ) {
+			$pid = (int) ( $entry['product_id'] ?? 0 );
+			if ( $pid <= 0 ) {
+				$still_failed[] = $entry;
+				continue;
+			}
+
+			$result = $this->sync_single_product( $pid );
+
+			if ( $result['success'] ) {
+				++$resolved;
+				$this->logger->info( 'Resync failed product: resolved', [ 'product_id' => $pid ] );
+			} else {
+				$entry['error'] = $result['error'] ?? 'Unknown error';
+				$still_failed[] = $entry;
+				$this->logger->warning( 'Resync failed product: still failing', [ 'product_id' => $pid, 'error' => $entry['error'] ] );
+			}
+		}
+
+		// Update the last result with the new failed list.
+		Skwirrel_WC_Sync_History::update_failed_products( $still_failed );
+
+		$this->logger->info( 'Resync failed products: completed', [ 'resolved' => $resolved, 'still_failed' => count( $still_failed ) ] );
+
+		return [
+			'success'         => true,
+			'total'           => $total,
+			'resolved'        => $resolved,
+			'still_failed'    => count( $still_failed ),
+			'failed_products' => $still_failed,
+		];
 	}
 
 	/**
