@@ -1,5 +1,5 @@
 === Skwirrel PIM sync for WooCommerce ===
-Contributors: skwirrel
+Contributors: jkoomen
 Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
