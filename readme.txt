@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 8.1
-Stable tag: 2.1.0
+Stable tag: 2.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,6 +62,11 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 2.1.1 =
+* Fix grouped products ignoring selection ID filter — pass dynamic_selection_id to getGroupedProducts
+* Store raw Skwirrel API response as _skwirrel_api_response post meta during sync
+* Add dedicated "Skwirrel API Response" meta box on the product edit screen showing the stored JSON
 
 = 2.1.0 =
 * Selection ID is now required — sync aborts if no selection ID is configured

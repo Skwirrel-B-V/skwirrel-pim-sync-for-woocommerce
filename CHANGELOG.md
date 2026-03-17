@@ -2,6 +2,12 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.1.1]
+
+* Fix grouped products ignoring selection ID filter — pass `dynamic_selection_id` to `getGroupedProducts`
+* Store raw Skwirrel API response as `_skwirrel_api_response` post meta during sync
+* Add dedicated "Skwirrel API Response" meta box on the product edit screen showing the stored JSON
+
 ## [2.1.0]
 
 * Selection ID is now required — sync aborts if no selection ID is configured

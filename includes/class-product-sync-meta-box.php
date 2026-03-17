@@ -4,6 +4,7 @@
  *
  * Adds a "Skwirrel" meta box to the WooCommerce product edit screen
  * allowing single-product sync directly from the product editor.
+ * Also adds an "API Response" meta box showing the stored Skwirrel JSON.
  */
 
 declare(strict_types=1);
@@ -17,9 +18,6 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 	/** AJAX action name. */
 	private const AJAX_ACTION = 'skwirrel_wc_sync_single_product';
 
-	/** AJAX action for fetching raw API JSON. */
-	private const AJAX_FETCH_JSON = 'skwirrel_wc_fetch_api_json';
-
 	private static ?self $instance = null;
 
 	public static function instance(): self {
@@ -30,15 +28,14 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 	}
 
 	private function __construct() {
-		add_action( 'add_meta_boxes', [ $this, 'register_meta_box' ] );
+		add_action( 'add_meta_boxes', [ $this, 'register_meta_boxes' ] );
 		add_action( 'wp_ajax_' . self::AJAX_ACTION, [ $this, 'handle_ajax_sync' ] );
-		add_action( 'wp_ajax_' . self::AJAX_FETCH_JSON, [ $this, 'handle_ajax_fetch_json' ] );
 	}
 
 	/**
-	 * Register meta box on the product edit screen, positioned above Publish.
+	 * Register meta boxes on the product edit screen.
 	 */
-	public function register_meta_box(): void {
+	public function register_meta_boxes(): void {
 		add_meta_box(
 			'skwirrel-product-sync',
 			__( 'Skwirrel', 'skwirrel-pim-sync' ),
@@ -47,13 +44,26 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 			'side',
 			'high'
 		);
+
+		// Only add API response box for Skwirrel-managed products.
+		global $post;
+		if ( $post && ( get_post_meta( $post->ID, '_skwirrel_product_id', true ) || get_post_meta( $post->ID, '_skwirrel_external_id', true ) ) ) {
+			add_meta_box(
+				'skwirrel-api-response',
+				__( 'Skwirrel API Response', 'skwirrel-pim-sync' ),
+				[ $this, 'render_api_response_meta_box' ],
+				'product',
+				'normal',
+				'low'
+			);
+		}
 	}
 
 	/**
-	 * Render the meta box content.
+	 * Render the sync meta box content.
 	 *
 	 * Shows Skwirrel product ID and last sync timestamp if available,
-	 * plus a "Sync this product" button and "Show API response" toggle.
+	 * plus a "Sync this product" button.
 	 *
 	 * @param WP_Post $post Current post object.
 	 */
@@ -94,19 +104,6 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 				<span class="spinner" id="skwirrel-sync-spinner" style="float: none; margin-top: 0;"></span>
 			</p>
 			<div id="skwirrel-sync-result" style="display: none; margin-top: 8px;"></div>
-
-			<?php if ( $skwirrel_product_id ) : ?>
-				<hr style="margin: 12px 0;" />
-				<p>
-					<button type="button" class="button" id="skwirrel-fetch-json-btn">
-						<?php esc_html_e( 'Show API response', 'skwirrel-pim-sync' ); ?>
-					</button>
-					<span class="spinner" id="skwirrel-json-spinner" style="float: none; margin-top: 0;"></span>
-				</p>
-				<div id="skwirrel-json-output" style="display: none; margin-top: 8px;">
-					<pre style="background: #f0f0f1; border: 1px solid #c3c4c7; padding: 8px; max-height: 400px; overflow: auto; font-size: 11px; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word;"><code id="skwirrel-json-code"></code></pre>
-				</div>
-			<?php endif; ?>
 		</div>
 		<script>
 		(function() {
@@ -150,64 +147,34 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 					resultDiv.innerHTML = '<div class="notice notice-error inline"><p><?php echo esc_js( __( 'Network error. Please try again.', 'skwirrel-pim-sync' ) ); ?></p></div>';
 				});
 			});
-
-			/* Show API response toggle */
-			var jsonBtn = document.getElementById('skwirrel-fetch-json-btn');
-			var jsonSpinner = document.getElementById('skwirrel-json-spinner');
-			var jsonOutput = document.getElementById('skwirrel-json-output');
-			var jsonCode = document.getElementById('skwirrel-json-code');
-			var jsonLoaded = false;
-
-			if (!jsonBtn) return;
-
-			jsonBtn.addEventListener('click', function() {
-				if (jsonLoaded) {
-					var visible = jsonOutput.style.display !== 'none';
-					jsonOutput.style.display = visible ? 'none' : 'block';
-					jsonBtn.textContent = visible
-						? '<?php echo esc_js( __( 'Show API response', 'skwirrel-pim-sync' ) ); ?>'
-						: '<?php echo esc_js( __( 'Hide API response', 'skwirrel-pim-sync' ) ); ?>';
-					return;
-				}
-
-				jsonBtn.disabled = true;
-				jsonSpinner.classList.add('is-active');
-
-				var data = new FormData();
-				data.append('action', '<?php echo esc_js( self::AJAX_FETCH_JSON ); ?>');
-				data.append('wc_product_id', '<?php echo esc_js( (string) $post->ID ); ?>');
-				data.append('_wpnonce', document.getElementById('skwirrel_sync_nonce').value);
-
-				fetch(ajaxurl, {
-					method: 'POST',
-					credentials: 'same-origin',
-					body: data
-				})
-				.then(function(response) { return response.json(); })
-				.then(function(response) {
-					jsonSpinner.classList.remove('is-active');
-					jsonBtn.disabled = false;
-
-					if (response.success) {
-						jsonCode.textContent = JSON.stringify(response.data.json, null, 2);
-						jsonOutput.style.display = 'block';
-						jsonBtn.textContent = '<?php echo esc_js( __( 'Hide API response', 'skwirrel-pim-sync' ) ); ?>';
-						jsonLoaded = true;
-					} else {
-						var msg = (response.data && response.data.message) ? response.data.message : '<?php echo esc_js( __( 'Failed to fetch API data.', 'skwirrel-pim-sync' ) ); ?>';
-						jsonCode.textContent = msg;
-						jsonOutput.style.display = 'block';
-					}
-				})
-				.catch(function() {
-					jsonSpinner.classList.remove('is-active');
-					jsonBtn.disabled = false;
-					jsonCode.textContent = '<?php echo esc_js( __( 'Network error. Please try again.', 'skwirrel-pim-sync' ) ); ?>';
-					jsonOutput.style.display = 'block';
-				});
-			});
 		})();
 		</script>
+		<?php
+	}
+
+	/**
+	 * Render the API Response meta box.
+	 *
+	 * Shows the stored raw JSON from the last Skwirrel sync.
+	 *
+	 * @param WP_Post $post Current post object.
+	 */
+	public function render_api_response_meta_box( $post ): void {
+		$json = get_post_meta( $post->ID, '_skwirrel_api_response', true );
+
+		if ( empty( $json ) ) {
+			echo '<p class="description">' . esc_html__( 'No API response stored yet. Sync this product first.', 'skwirrel-pim-sync' ) . '</p>';
+			return;
+		}
+
+		// Try to pretty-print if it's valid JSON that wasn't already formatted.
+		$decoded = json_decode( $json );
+		if ( null !== $decoded ) {
+			$json = (string) wp_json_encode( $decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE );
+		}
+
+		?>
+		<pre style="background: #f0f0f1; border: 1px solid #c3c4c7; padding: 10px; max-height: 500px; overflow: auto; font-size: 12px; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word;"><code><?php echo esc_html( $json ); ?></code></pre>
 		<?php
 	}
 
@@ -247,95 +214,5 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 		} else {
 			wp_send_json_error( [ 'message' => $result['error'] ?? __( 'Sync failed.', 'skwirrel-pim-sync' ) ] );
 		}
-	}
-
-	/**
-	 * Handle AJAX request to fetch raw API JSON for a product.
-	 */
-	public function handle_ajax_fetch_json(): void {
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( [ 'message' => __( 'Access denied.', 'skwirrel-pim-sync' ) ], 403 );
-		}
-
-		check_ajax_referer( self::AJAX_ACTION, '_wpnonce' );
-
-		$wc_product_id = isset( $_POST['wc_product_id'] ) ? absint( $_POST['wc_product_id'] ) : 0;
-		if ( ! $wc_product_id ) {
-			wp_send_json_error( [ 'message' => __( 'Invalid product ID.', 'skwirrel-pim-sync' ) ] );
-		}
-
-		$skwirrel_product_id = get_post_meta( $wc_product_id, '_skwirrel_product_id', true );
-		if ( empty( $skwirrel_product_id ) ) {
-			wp_send_json_error( [ 'message' => __( 'No Skwirrel product ID found for this product.', 'skwirrel-pim-sync' ) ] );
-		}
-
-		$opts     = get_option( 'skwirrel_wc_sync_settings', [] );
-		$endpoint = $opts['endpoint_url'] ?? '';
-		$timeout  = (int) ( $opts['timeout'] ?? 30 );
-		$retries  = (int) ( $opts['retries'] ?? 2 );
-
-		if ( empty( $endpoint ) ) {
-			wp_send_json_error( [ 'message' => __( 'API endpoint not configured.', 'skwirrel-pim-sync' ) ] );
-		}
-
-		$logger = new Skwirrel_WC_Sync_Logger();
-		$client = new Skwirrel_WC_Sync_JsonRpc_Client( $endpoint, $logger, $timeout, $retries );
-
-		$languages = $opts['include_languages'] ?? [ 'nl-NL', 'nl' ];
-		if ( ! empty( $languages ) && is_array( $languages ) ) {
-			$languages = array_values( array_filter( array_map( 'sanitize_text_field', $languages ) ) );
-		} else {
-			$languages = [ 'nl-NL', 'nl' ];
-		}
-		$req_options = [
-			'include_product_status'       => true,
-			'include_product_translations' => true,
-			'include_attachments'          => true,
-			'include_trade_items'          => true,
-			'include_trade_item_prices'    => true,
-			'include_categories'           => ! empty( $opts['sync_categories'] ),
-			'include_product_groups'       => ! empty( $opts['sync_categories'] ) || ! empty( $opts['sync_grouped_products'] ),
-			'include_grouped_products'     => ! empty( $opts['sync_grouped_products'] ),
-			'include_etim'                 => true,
-			'include_etim_translations'    => true,
-			'include_languages'            => $languages,
-			'include_contexts'             => [ 1 ],
-		];
-
-		if ( ! empty( $opts['sync_custom_classes'] ) ) {
-			$req_options['include_custom_classes'] = true;
-		}
-		if ( ! empty( $opts['sync_trade_item_custom_classes'] ) ) {
-			$req_options['include_trade_item_custom_classes'] = true;
-		}
-
-		$result = $client->call(
-			'getProductsByFilter',
-			[
-				'filter'  => [
-					'code' => [
-						'type'  => 'product_id',
-						'codes' => [ (string) $skwirrel_product_id ],
-					],
-				],
-				'options' => $req_options,
-				'page'    => 1,
-				'limit'   => 1,
-			]
-		);
-
-		if ( ! $result['success'] ) {
-			$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
-			wp_send_json_error( [ 'message' => $err['message'] ?? 'API error' ] );
-		}
-
-		$data    = $result['result'] ?? [];
-		$product = $data['products'][0] ?? null;
-
-		if ( null === $product ) {
-			wp_send_json_error( [ 'message' => __( 'Product not found in Skwirrel API.', 'skwirrel-pim-sync' ) ] );
-		}
-
-		wp_send_json_success( [ 'json' => $product ] );
 	}
 }

@@ -252,6 +252,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		update_post_meta( $id, $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		update_post_meta( $id, $this->mapper->get_synced_at_meta_key(), time() );
 
+		// Store raw API response for debugging.
+		update_post_meta( $id, '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
+
 		// Store searchable identifiers.
 		$mpc = $product['manufacturer_product_code'] ?? '';
 		if ( '' !== $mpc ) {
@@ -684,10 +687,11 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'include_languages'         => $this->get_include_languages(),
 		];
 
-		// Pass collection_ids filter to grouped products API call
+		// Pass selection filter to grouped products API call
 		$collection_ids = $this->get_collection_ids();
 		if ( ! empty( $collection_ids ) ) {
-			$params['collection_ids'] = $collection_ids;
+			$params['dynamic_selection_id'] = $collection_ids[0];
+			$params['collection_ids']       = $collection_ids;
 		}
 
 		$page = 1;
@@ -1027,6 +1031,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		update_post_meta( $id, $this->mapper->get_external_id_meta_key(), $key );
 		update_post_meta( $id, $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		update_post_meta( $id, $this->mapper->get_synced_at_meta_key(), time() );
+
+		// Store raw API response for debugging.
+		update_post_meta( $id, '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
 
 		// Store searchable identifiers.
 		$mpc = $product['manufacturer_product_code'] ?? '';
