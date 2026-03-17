@@ -2,6 +2,13 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.0.6]
+
+* Add diagnostic logging for category-to-product assignment to trace resolution failures
+* Log each category resolve step (meta lookup, name fallback, creation) when verbose logging is enabled
+* Warn when categories are extracted from API but no WooCommerce term IDs could be resolved
+* Check and log `wp_set_object_terms` errors instead of silently ignoring failures
+
 ## [2.0.5]
 
 * Update README and plugin description to reflect current feature set

@@ -244,6 +244,16 @@ class Skwirrel_WC_Sync_Category_Sync {
 				$wc_parent_term_id
 			);
 
+			$this->logger->verbose(
+				'Category resolve step',
+				[
+					'skwirrel_id'    => $cat_id,
+					'name'           => $cat['name'],
+					'parent_term_id' => $wc_parent_term_id,
+					'wc_term_id'     => $wc_term_id,
+				]
+			);
+
 			if ( $wc_term_id ) {
 				$term_ids[] = $wc_term_id;
 				if ( $cat_id !== null ) {
@@ -264,13 +274,42 @@ class Skwirrel_WC_Sync_Category_Sync {
 
 		$term_ids = array_unique( array_map( 'intval', $term_ids ) );
 		if ( ! empty( $term_ids ) ) {
-			wp_set_object_terms( $wc_product_id, $term_ids, $tax );
-			$this->logger->verbose(
-				'Categories assigned',
+			$result = wp_set_object_terms( $wc_product_id, $term_ids, $tax );
+			if ( is_wp_error( $result ) ) {
+				$this->logger->warning(
+					'wp_set_object_terms failed',
+					[
+						'wc_product_id' => $wc_product_id,
+						'term_ids'      => $term_ids,
+						'error'         => $result->get_error_message(),
+					]
+				);
+			} else {
+				$this->logger->verbose(
+					'Categories assigned',
+					[
+						'wc_product_id' => $wc_product_id,
+						'term_ids'      => $term_ids,
+						'names'         => array_column( $categories, 'name' ),
+					]
+				);
+			}
+		} else {
+			$this->logger->warning(
+				'Category assignment produced no term IDs',
 				[
-					'wc_product_id' => $wc_product_id,
-					'term_ids'      => $term_ids,
-					'names'         => array_column( $categories, 'name' ),
+					'wc_product_id'  => $wc_product_id,
+					'category_count' => count( $categories ),
+					'categories'     => array_map(
+						static function ( array $c ): array {
+							return [
+								'id'        => $c['id'] ?? null,
+								'name'      => $c['name'] ?? '',
+								'parent_id' => $c['parent_id'] ?? null,
+							];
+						},
+						$categories
+					),
 				]
 			);
 		}
@@ -317,8 +356,24 @@ class Skwirrel_WC_Sync_Category_Sync {
 				)
 			);
 			if ( $existing_term_id ) {
+				$this->logger->verbose(
+					'Category found by meta',
+					[
+						'skwirrel_id' => $skwirrel_id,
+						'term_id'     => (int) $existing_term_id,
+						'name'        => $name,
+					]
+				);
 				return (int) $existing_term_id;
 			}
+			$this->logger->verbose(
+				'Category meta lookup missed',
+				[
+					'skwirrel_id' => $skwirrel_id,
+					'name'        => $name,
+					'meta_key'    => $meta_key,
+				]
+			);
 		}
 
 		// 2. Fall back to name matching
@@ -330,8 +385,24 @@ class Skwirrel_WC_Sync_Category_Sync {
 				if ( $skwirrel_id !== null ) {
 					update_term_meta( $term_id, $meta_key, (string) $skwirrel_id );
 				}
+				$this->logger->verbose(
+					'Category found by name',
+					[
+						'name'           => $name,
+						'term_id'        => $term_id,
+						'parent_term_id' => $parent_term_id,
+					]
+				);
 				return $term_id;
 			}
+			$this->logger->verbose(
+				'Category name lookup missed',
+				[
+					'name'           => $name,
+					'parent_term_id' => $parent_term_id,
+					'term_exists'    => $term,
+				]
+			);
 		}
 
 		// 3. Create new term

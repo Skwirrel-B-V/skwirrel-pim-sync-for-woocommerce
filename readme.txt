@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 8.1
-Stable tag: 2.0.5
+Stable tag: 2.0.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,6 +62,12 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 2.0.6 =
+* Add diagnostic logging for category-to-product assignment to trace resolution failures
+* Log each category resolve step (meta lookup, name fallback, creation) when verbose logging is enabled
+* Warn when categories are extracted from API but no WooCommerce term IDs could be resolved
+* Check and log wp_set_object_terms errors instead of silently ignoring failures
 
 = 2.0.5 =
 * Update README and plugin description to reflect current feature set
