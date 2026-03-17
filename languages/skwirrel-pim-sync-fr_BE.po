@@ -348,7 +348,7 @@ msgstr "ex. 42"
 #: includes/class-admin-dashboard.php:556
 #, php-format
 msgid "Find your category IDs at %s."
-msgstr "Trouvez vos identifiants de catégorie sur %s."
+msgstr "Trouvez vos identifiants de sélection sur %s."
 
 #: includes/class-admin-dashboard.php:563
 msgid "Selection IDs"
@@ -361,7 +361,7 @@ msgstr "ex. 123, 456"
 #: includes/class-admin-dashboard.php:569
 #, php-format
 msgid "Find your selection IDs at %s."
-msgstr "Trouvez vos identifiants de catégorie sur %s."
+msgstr "Trouvez vos identifiants de sélection sur %s."
 
 #: includes/class-admin-dashboard.php:579 includes/class-admin-settings.php:895
 msgid "Custom class filter"

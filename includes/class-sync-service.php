@@ -85,7 +85,17 @@ class Skwirrel_WC_Sync_Service {
 		$delta_since = get_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, '' );
 
 		$collection_ids = $this->get_collection_ids();
-		$batch_size     = (int) ( $options['batch_size'] ?? 100 );
+		if ( empty( $collection_ids ) ) {
+			$this->logger->error( 'Sync aborted: no selection IDs configured' );
+			return [
+				'success' => false,
+				'error'   => 'No selection IDs configured. A selection ID is required.',
+				'created' => 0,
+				'updated' => 0,
+				'failed'  => 0,
+			];
+		}
+		$batch_size = (int) ( $options['batch_size'] ?? 10 );
 
 		// Build API include flags (used as top-level params for getProducts, nested 'options' for getProductsByFilter).
 		$api_includes = [

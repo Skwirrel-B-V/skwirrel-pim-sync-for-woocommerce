@@ -529,8 +529,8 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						</div>
 						<div class="skw-field">
 							<label for="batch_size" class="skw-label"><?php esc_html_e( 'Batch size', 'skwirrel-pim-sync' ); ?></label>
-							<input type="number" id="batch_size" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[batch_size]" value="<?php echo esc_attr( (string) ( $opts['batch_size'] ?? 100 ) ); ?>" min="1" max="500" class="skw-input skw-input-sm" />
-							<p class="skw-field-hint"><?php esc_html_e( 'Products per API request (1–500).', 'skwirrel-pim-sync' ); ?></p>
+							<input type="number" id="batch_size" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[batch_size]" value="<?php echo esc_attr( (string) ( $opts['batch_size'] ?? 10 ) ); ?>" min="1" max="50" class="skw-input skw-input-sm" />
+							<p class="skw-field-hint"><?php esc_html_e( 'Products per API request (1–50).', 'skwirrel-pim-sync' ); ?></p>
 						</div>
 					</div>
 				</div>

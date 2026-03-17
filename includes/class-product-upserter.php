@@ -674,7 +674,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$created              = 0;
 		$updated              = 0;
 		$product_to_group_map = [];
-		$batch_size           = (int) ( $options['batch_size'] ?? 100 );
+		$batch_size           = (int) ( $options['batch_size'] ?? 10 );
 		$params               = [
 			'page'                      => 1,
 			'limit'                     => $batch_size,

@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 8.1
-Stable tag: 2.0.8
+Stable tag: 2.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,6 +62,12 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 2.1.0 =
+* Selection ID is now required — sync aborts if no selection ID is configured
+* Add "Show API response" button in the Skwirrel product meta box to view raw JSON from the API
+* Reduce batch size maximum from 500 to 50, default from 100 to 10
+* Fix translation: selection ID hint incorrectly said "category IDs" in all locales
 
 = 2.0.8 =
 * Add raw API response logging for getCategories and per-product _categories data (verbose mode)

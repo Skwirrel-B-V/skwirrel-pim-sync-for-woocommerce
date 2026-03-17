@@ -2,6 +2,13 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.1.0]
+
+* Selection ID is now required — sync aborts if no selection ID is configured
+* Add "Show API response" button in the Skwirrel product meta box to view raw JSON from the API
+* Reduce batch size maximum from 500 to 50, default from 100 to 10
+* Fix translation: selection ID hint incorrectly said "category IDs" in all locales (nl, en, fr, de)
+
 ## [2.0.8]
 
 * Add raw API response logging for `getCategories` and per-product `_categories` data (verbose mode)

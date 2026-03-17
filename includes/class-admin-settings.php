@@ -144,7 +144,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
         $out['timeout'] = isset($input['timeout']) ? max(5, min(120, (int) $input['timeout'])) : 30;
         $out['retries'] = isset($input['retries']) ? max(0, min(5, (int) $input['retries'])) : 2;
         $out['sync_interval'] = $input['sync_interval'] ?? '';
-        $out['batch_size'] = isset($input['batch_size']) ? max(10, min(500, (int) $input['batch_size'])) : 100;
+        $out['batch_size'] = isset($input['batch_size']) ? max(1, min(50, (int) $input['batch_size'])) : 10;
         $out['sync_categories'] = !empty($input['sync_categories']);
         $out['super_category_id'] = isset($input['super_category_id']) ? sanitize_text_field(trim($input['super_category_id'])) : '';
         $out['sync_grouped_products'] = !empty($input['sync_grouped_products']);
@@ -853,8 +853,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
                 <tr>
                     <th scope="row"><label for="batch_size"><?php esc_html_e('Batch size', 'skwirrel-pim-sync'); ?></label></th>
                     <td>
-                        <input type="number" id="batch_size" name="<?php echo esc_attr(self::OPTION_KEY); ?>[batch_size]" value="<?php echo esc_attr((string) ($opts['batch_size'] ?? 100)); ?>" min="10" max="500" />
-                        <p class="description"><?php esc_html_e('Products per API page (1–500).', 'skwirrel-pim-sync'); ?></p>
+                        <input type="number" id="batch_size" name="<?php echo esc_attr(self::OPTION_KEY); ?>[batch_size]" value="<?php echo esc_attr((string) ($opts['batch_size'] ?? 10)); ?>" min="1" max="50" />
+                        <p class="description"><?php esc_html_e('Products per API request (1–50).', 'skwirrel-pim-sync'); ?></p>
                     </td>
                 </tr>
                 <tr>

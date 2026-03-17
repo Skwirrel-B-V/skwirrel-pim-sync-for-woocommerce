@@ -348,7 +348,7 @@ msgstr "bijv. 42"
 #: includes/class-admin-dashboard.php:556
 #, php-format
 msgid "Find your category IDs at %s."
-msgstr "Vind je categorie-ID's op %s."
+msgstr "Vind je selectie-ID's op %s."
 
 #: includes/class-admin-dashboard.php:563
 msgid "Selection IDs"
@@ -361,7 +361,7 @@ msgstr "bijv. 123, 456"
 #: includes/class-admin-dashboard.php:569
 #, php-format
 msgid "Find your selection IDs at %s."
-msgstr "Vind je categorie-ID's op %s."
+msgstr "Vind je selectie-ID's op %s."
 
 #: includes/class-admin-dashboard.php:579 includes/class-admin-settings.php:895
 msgid "Custom class filter"
