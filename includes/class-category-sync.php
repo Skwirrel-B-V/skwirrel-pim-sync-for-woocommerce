@@ -89,6 +89,20 @@ class Skwirrel_WC_Sync_Category_Sync {
 			return;
 		}
 
+		// The API may return a single root category object (the super category)
+		// instead of an array of categories. Detect this by checking for known
+		// category keys and extract the children.
+		if ( isset( $categories['category_id'] ) || isset( $categories['_children'] ) || isset( $categories['category_name'] ) ) {
+			$this->logger->info(
+				'getCategories returned single root object, extracting children',
+				[
+					'root_id'   => $categories['category_id'] ?? null,
+					'root_name' => $categories['category_name'] ?? '',
+				]
+			);
+			$categories = $categories['_children'] ?? $categories['_categories'] ?? $categories['children'] ?? [];
+		}
+
 		$this->logger->info( 'Category tree received', [ 'count' => count( $categories ) ] );
 
 		$tax         = 'product_cat';
@@ -100,7 +114,13 @@ class Skwirrel_WC_Sync_Category_Sync {
 		$this->flatten_category_tree( $categories, $flat, $lang );
 
 		if ( empty( $flat ) ) {
-			$this->logger->info( 'No categories found in tree' );
+			$this->logger->warning(
+				'No categories found in tree after flattening',
+				[
+					'input_count' => count( $categories ),
+					'sample_keys' => array_slice( array_keys( $categories ), 0, 10 ),
+				]
+			);
 			return;
 		}
 
