@@ -650,6 +650,17 @@ class Skwirrel_WC_Sync_Service {
 			];
 		}
 
+		// Log raw category data from API response for diagnostics.
+		$this->logger->verbose(
+			'Single product raw API _categories',
+			[
+				'product_id'      => $product['product_id'] ?? '?',
+				'has__categories' => isset( $product['_categories'] ),
+				'_categories'     => $product['_categories'] ?? null,
+				'_product_groups' => $product['_product_groups'] ?? null,
+			]
+		);
+
 		try {
 			$outcome = $this->upserter->upsert_product( $product );
 

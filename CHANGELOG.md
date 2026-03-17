@@ -2,6 +2,10 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.0.8]
+
+* Add raw API response logging for `getCategories` and per-product `_categories` data (verbose mode)
+
 ## [2.0.7]
 
 * Fix category tree sync failing when API returns single root category object instead of array

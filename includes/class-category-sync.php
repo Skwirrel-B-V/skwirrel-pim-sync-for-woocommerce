@@ -84,6 +84,17 @@ class Skwirrel_WC_Sync_Category_Sync {
 
 		$data       = $result['result'] ?? [];
 		$categories = $data['categories'] ?? $data;
+
+		// Log raw API response structure for diagnostics.
+		$this->logger->verbose(
+			'getCategories raw response structure',
+			[
+				'result_keys'    => is_array( $data ) ? array_keys( $data ) : gettype( $data ),
+				'categories_keys' => is_array( $categories ) ? array_slice( array_keys( $categories ), 0, 15 ) : gettype( $categories ),
+				'first_entry'    => is_array( $categories ) ? array_slice( $categories, 0, 1, true ) : null,
+			]
+		);
+
 		if ( ! is_array( $categories ) ) {
 			$this->logger->warning( 'getCategories returned unexpected format', [ 'type' => gettype( $categories ) ] );
 			return;
