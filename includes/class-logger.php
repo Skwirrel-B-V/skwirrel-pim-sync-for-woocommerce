@@ -36,19 +36,20 @@ class Skwirrel_WC_Sync_Logger {
 	/**
 	 * Start writing to a per-sync log file.
 	 *
-	 * Manual syncs get a unique file per run. Scheduled syncs append to a daily file.
-	 *
-	 * @param string $trigger 'manual' or 'scheduled'.
+	 * @param string $trigger  'manual' or 'scheduled'.
+	 * @param string $log_mode 'per_sync' for a unique file per run, 'per_day' to append to a daily file.
 	 * @return string The log filename (basename).
 	 */
-	public function start_sync_log( string $trigger ): string {
+	public function start_sync_log( string $trigger, string $log_mode = 'per_day' ): string {
 		$dir = self::get_log_directory();
 		self::ensure_log_directory( $dir );
 
-		if ( 'scheduled' === $trigger ) {
-			$filename = 'sync-scheduled-' . gmdate( 'Y-m-d' ) . '.log';
+		$prefix = 'scheduled' === $trigger ? 'sync-scheduled' : 'sync-manual';
+
+		if ( 'per_sync' === $log_mode ) {
+			$filename = $prefix . '-' . gmdate( 'Y-m-d-His' ) . '.log';
 		} else {
-			$filename = 'sync-manual-' . gmdate( 'Y-m-d-His' ) . '.log';
+			$filename = $prefix . '-' . gmdate( 'Y-m-d' ) . '.log';
 		}
 
 		$path = $dir . $filename;
@@ -101,9 +102,13 @@ class Skwirrel_WC_Sync_Logger {
 	/**
 	 * Remove log files older than the given retention period.
 	 *
-	 * @param string $retention Retention period key: '12hours', '1day', '2days', '7days', '30days'.
+	 * @param string $retention Retention period key: '12hours', '1day', '2days', '7days', '30days', or 'manual' (no auto-delete).
 	 */
 	public static function cleanup_old_logs( string $retention ): void {
+		if ( 'manual' === $retention ) {
+			return;
+		}
+
 		$dir = self::get_log_directory();
 		if ( ! is_dir( $dir ) ) {
 			return;

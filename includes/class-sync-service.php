@@ -69,7 +69,10 @@ class Skwirrel_WC_Sync_Service {
 		// Per-sync log file: cleanup old logs, then start a new one.
 		$options_for_log = $this->get_options();
 		Skwirrel_WC_Sync_Logger::cleanup_old_logs( $options_for_log['log_retention'] ?? '7days' );
-		$log_filename = $this->logger->start_sync_log( $trigger );
+		$log_mode     = Skwirrel_WC_Sync_History::TRIGGER_SCHEDULED === $trigger
+			? ( $options_for_log['log_mode_scheduled'] ?? 'per_day' )
+			: ( $options_for_log['log_mode_manual'] ?? 'per_sync' );
+		$log_filename = $this->logger->start_sync_log( $trigger, $log_mode );
 
 		try {
 

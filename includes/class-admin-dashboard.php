@@ -567,7 +567,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<div class="skw-field-row">
 						<div class="skw-field">
 							<label for="super_category_id" class="skw-label"><?php esc_html_e( 'Super category ID', 'skwirrel-pim-sync' ); ?></label>
-							<input type="text" id="super_category_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[super_category_id]" value="<?php echo esc_attr( $opts['super_category_id'] ?? '' ); ?>" class="skw-input skw-input-sm" placeholder="<?php esc_attr_e( 'e.g. 42', 'skwirrel-pim-sync' ); ?>" />
+							<input type="text" id="super_category_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[super_category_id]" value="<?php echo esc_attr( $opts['super_category_id'] ?? '' ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 42', 'skwirrel-pim-sync' ); ?>" />
 							<p class="skw-field-hint">
 								<?php
 								printf(
@@ -718,16 +718,31 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					</p>
 				</div>
 
-				<?php // -- Advanced -- ?>
+				<?php // -- Sync Logs -- ?>
 				<div class="skw-fieldgroup">
-					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Advanced', 'skwirrel-pim-sync' ); ?></h3>
-					<div class="skw-checkbox-group">
-						<label class="skw-checkbox"><input type="checkbox" id="verbose_logging" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[verbose_logging]" value="1" <?php checked( ! empty( $opts['verbose_logging'] ) ); ?> /> <?php esc_html_e( 'Verbose logging', 'skwirrel-pim-sync' ); ?></label>
-						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[purge_stale_products]" value="1" <?php checked( ! empty( $opts['purge_stale_products'] ) ); ?> /> <?php esc_html_e( 'Clean up deleted products after full sync', 'skwirrel-pim-sync' ); ?></label>
-						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_delete_warning]" value="1" <?php checked( $opts['show_delete_warning'] ?? true ); ?> /> <?php esc_html_e( 'Show delete warning on Skwirrel products', 'skwirrel-pim-sync' ); ?></label>
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Sync Logs', 'skwirrel-pim-sync' ); ?></h3>
+					<?php
+					$log_mode_manual    = $opts['log_mode_manual'] ?? 'per_sync';
+					$log_mode_scheduled = $opts['log_mode_scheduled'] ?? 'per_day';
+					$log_retention      = $opts['log_retention'] ?? '7days';
+					?>
+					<div class="skw-field-row">
+						<div class="skw-field">
+							<label for="log_mode_manual" class="skw-label"><?php esc_html_e( 'Manual sync logs', 'skwirrel-pim-sync' ); ?></label>
+							<select id="log_mode_manual" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[log_mode_manual]" class="skw-select">
+								<option value="per_sync" <?php selected( $log_mode_manual, 'per_sync' ); ?>><?php esc_html_e( 'One file per sync', 'skwirrel-pim-sync' ); ?></option>
+								<option value="per_day" <?php selected( $log_mode_manual, 'per_day' ); ?>><?php esc_html_e( 'One file per day', 'skwirrel-pim-sync' ); ?></option>
+							</select>
+						</div>
+						<div class="skw-field">
+							<label for="log_mode_scheduled" class="skw-label"><?php esc_html_e( 'Scheduled sync logs', 'skwirrel-pim-sync' ); ?></label>
+							<select id="log_mode_scheduled" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[log_mode_scheduled]" class="skw-select">
+								<option value="per_sync" <?php selected( $log_mode_scheduled, 'per_sync' ); ?>><?php esc_html_e( 'One file per sync', 'skwirrel-pim-sync' ); ?></option>
+								<option value="per_day" <?php selected( $log_mode_scheduled, 'per_day' ); ?>><?php esc_html_e( 'One file per day', 'skwirrel-pim-sync' ); ?></option>
+							</select>
+						</div>
 					</div>
-					<div class="skw-field" style="margin-top: 14px;">
-						<?php $log_retention = $opts['log_retention'] ?? '7days'; ?>
+					<div class="skw-field">
 						<label for="log_retention" class="skw-label"><?php esc_html_e( 'Log file retention', 'skwirrel-pim-sync' ); ?></label>
 						<select id="log_retention" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[log_retention]" class="skw-select" style="max-width: 200px;">
 							<option value="12hours" <?php selected( $log_retention, '12hours' ); ?>><?php esc_html_e( '12 hours', 'skwirrel-pim-sync' ); ?></option>
@@ -735,8 +750,19 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							<option value="2days" <?php selected( $log_retention, '2days' ); ?>><?php esc_html_e( '2 days', 'skwirrel-pim-sync' ); ?></option>
 							<option value="7days" <?php selected( $log_retention, '7days' ); ?>><?php esc_html_e( '7 days', 'skwirrel-pim-sync' ); ?></option>
 							<option value="30days" <?php selected( $log_retention, '30days' ); ?>><?php esc_html_e( '30 days', 'skwirrel-pim-sync' ); ?></option>
+							<option value="manual" <?php selected( $log_retention, 'manual' ); ?>><?php esc_html_e( 'Manual (no auto-delete)', 'skwirrel-pim-sync' ); ?></option>
 						</select>
 						<p class="skw-field-hint"><?php esc_html_e( 'How long to keep per-sync log files. Old files are cleaned up at the start of each sync.', 'skwirrel-pim-sync' ); ?></p>
+					</div>
+				</div>
+
+				<?php // -- Advanced -- ?>
+				<div class="skw-fieldgroup">
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Advanced', 'skwirrel-pim-sync' ); ?></h3>
+					<div class="skw-checkbox-group">
+						<label class="skw-checkbox"><input type="checkbox" id="verbose_logging" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[verbose_logging]" value="1" <?php checked( ! empty( $opts['verbose_logging'] ) ); ?> /> <?php esc_html_e( 'Verbose logging', 'skwirrel-pim-sync' ); ?></label>
+						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[purge_stale_products]" value="1" <?php checked( ! empty( $opts['purge_stale_products'] ) ); ?> /> <?php esc_html_e( 'Clean up deleted products after full sync', 'skwirrel-pim-sync' ); ?></label>
+						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_delete_warning]" value="1" <?php checked( $opts['show_delete_warning'] ?? true ); ?> /> <?php esc_html_e( 'Show delete warning on Skwirrel products', 'skwirrel-pim-sync' ); ?></label>
 					</div>
 				</div>
 

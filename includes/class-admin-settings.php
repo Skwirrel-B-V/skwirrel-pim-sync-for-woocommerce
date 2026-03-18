@@ -198,7 +198,13 @@ class Skwirrel_WC_Sync_Admin_Settings {
         $out['verbose_logging'] = !empty($input['verbose_logging']);
         $out['purge_stale_products'] = !empty($input['purge_stale_products']);
         $out['show_delete_warning'] = !empty($input['show_delete_warning']);
-        $out['log_retention'] = in_array($input['log_retention'] ?? '', ['12hours', '1day', '2days', '7days', '30days'], true)
+        $out['log_mode_manual'] = in_array($input['log_mode_manual'] ?? '', ['per_sync', 'per_day'], true)
+            ? $input['log_mode_manual']
+            : 'per_sync';
+        $out['log_mode_scheduled'] = in_array($input['log_mode_scheduled'] ?? '', ['per_sync', 'per_day'], true)
+            ? $input['log_mode_scheduled']
+            : 'per_day';
+        $out['log_retention'] = in_array($input['log_retention'] ?? '', ['12hours', '1day', '2days', '7days', '30days', 'manual'], true)
             ? $input['log_retention']
             : '7days';
         return $out;

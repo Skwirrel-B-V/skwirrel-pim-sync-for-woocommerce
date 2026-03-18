@@ -2,6 +2,13 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.2.1]
+
+* Separate "Sync Logs" settings section with per-trigger log mode (one file per sync or per day)
+* Manual and scheduled syncs each have their own log mode setting
+* Add "Manual (no auto-delete)" option to log retention
+* Fix super category ID field width to match selection IDs field
+
 ## [2.2.0]
 
 * Per-sync log files — each sync run writes to its own log file for easy debugging
