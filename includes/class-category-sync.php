@@ -64,86 +64,33 @@ class Skwirrel_WC_Sync_Category_Sync {
 
 		$this->logger->info( 'Syncing category tree', [ 'super_category_id' => $super_id ] );
 
-		$params = [
-			'category_id'                   => $super_id,
-			'include_children'              => true,
-			'include_category_translations' => true,
-		];
+		$lang = $options['image_language'] ?? 'nl';
 
-		if ( ! empty( $languages ) ) {
-			$params['include_languages'] = $languages;
-		}
+		// Recursively fetch the full category tree from the API.
+		// The API may only return direct children per call, so we fetch
+		// each level and recurse into sub-categories.
+		$flat = [];
+		$this->fetch_categories_recursive( $client, $super_id, $languages, $lang, $flat );
 
-		$result = $client->call( 'getCategories', $params );
-
-		if ( ! $result['success'] ) {
-			$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
-			$this->logger->error( 'getCategories API error', $err );
+		if ( empty( $flat ) ) {
+			$this->logger->warning( 'No categories found in tree', [ 'super_category_id' => $super_id ] );
 			return;
 		}
 
-		$data       = $result['result'] ?? [];
-		$categories = $data['categories'] ?? $data;
-
-		// Log raw API response structure for diagnostics.
-		$this->logger->verbose(
-			'getCategories raw response structure',
-			[
-				'result_keys'    => is_array( $data ) ? array_keys( $data ) : gettype( $data ),
-				'categories_keys' => is_array( $categories ) ? array_slice( array_keys( $categories ), 0, 15 ) : gettype( $categories ),
-				'first_entry'    => is_array( $categories ) ? array_slice( $categories, 0, 1, true ) : null,
-			]
-		);
-
-		if ( ! is_array( $categories ) ) {
-			$this->logger->warning( 'getCategories returned unexpected format', [ 'type' => gettype( $categories ) ] );
-			return;
-		}
-
-		// The API may return a single root category object (the super category)
-		// instead of an array of categories. Detect this by checking for known
-		// category keys and extract the children.
-		if ( isset( $categories['category_id'] ) || isset( $categories['_children'] ) || isset( $categories['category_name'] ) ) {
-			$this->logger->info(
-				'getCategories returned single root object, extracting children',
-				[
-					'root_id'   => $categories['category_id'] ?? null,
-					'root_name' => $categories['category_name'] ?? '',
-				]
-			);
-			$categories = $categories['_children'] ?? $categories['_categories'] ?? $categories['children'] ?? [];
-		}
-
-		$this->logger->info( 'Category tree received', [ 'count' => count( $categories ) ] );
+		$this->logger->info( 'Category tree fetched (all levels)', [ 'total_categories' => count( $flat ) ] );
 
 		$tax         = 'product_cat';
 		$cat_id_meta = Skwirrel_WC_Sync_Product_Mapper::CATEGORY_ID_META;
-		$lang        = $options['image_language'] ?? 'nl';
 
-		// Flatten the tree: build a list of all categories with parent references.
-		$flat = [];
-		$this->flatten_category_tree( $categories, $flat, $lang );
-
-		if ( empty( $flat ) ) {
-			$this->logger->warning(
-				'No categories found in tree after flattening',
-				[
-					'input_count' => count( $categories ),
-					'sample_keys' => array_slice( array_keys( $categories ), 0, 10 ),
-				]
-			);
-			return;
-		}
-
-		// Resolve in order: parents before children.
 		// Build lookup by Skwirrel category ID.
 		$by_id = [];
 		foreach ( $flat as $cat ) {
-			if ( $cat['id'] !== null ) {
+			if ( null !== $cat['id'] ) {
 				$by_id[ $cat['id'] ] = $cat;
 			}
 		}
 
+		// Resolve in order: parents before children.
 		$resolved      = []; // skwirrel_id => wc_term_id
 		$created_count = 0;
 
@@ -197,6 +144,119 @@ class Skwirrel_WC_Sync_Category_Sync {
 				'resolved'          => $created_count,
 			]
 		);
+	}
+
+	/**
+	 * Recursively fetch categories from the API, descending into each child.
+	 *
+	 * Calls getCategories for a parent category ID, flattens the direct children,
+	 * then recurses into each child to fetch deeper levels. Stops when a category
+	 * returns no children or has already been seen (cycle protection).
+	 *
+	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client    API client.
+	 * @param int                             $parent_id Category ID to fetch children for.
+	 * @param array                           $languages Include languages for API call.
+	 * @param string                          $lang      Preferred language for names.
+	 * @param array                           &$flat     Output: flat list (mutated).
+	 * @param int                             $depth     Current recursion depth (safety limit).
+	 */
+	private function fetch_categories_recursive(
+		Skwirrel_WC_Sync_JsonRpc_Client $client,
+		int $parent_id,
+		array $languages,
+		string $lang,
+		array &$flat,
+		int $depth = 0
+	): void {
+		// Safety: prevent infinite recursion (10 levels should be more than enough)
+		if ( $depth > 10 ) {
+			$this->logger->warning(
+				'Category tree recursion depth limit reached',
+				[
+					'parent_id' => $parent_id,
+					'depth'     => $depth,
+				]
+			);
+			return;
+		}
+
+		$params = [
+			'category_id'                   => $parent_id,
+			'include_children'              => true,
+			'include_category_translations' => true,
+		];
+
+		if ( ! empty( $languages ) ) {
+			$params['include_languages'] = $languages;
+		}
+
+		$result = $client->call( 'getCategories', $params );
+
+		if ( ! $result['success'] ) {
+			$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
+			$this->logger->error(
+				'getCategories API error',
+				[
+					'parent_id' => $parent_id,
+					'error'     => $err,
+				]
+			);
+			return;
+		}
+
+		$data       = $result['result'] ?? [];
+		$categories = $data['categories'] ?? $data;
+
+		$this->logger->verbose(
+			'getCategories response',
+			[
+				'parent_id'       => $parent_id,
+				'depth'           => $depth,
+				'result_keys'     => is_array( $data ) ? array_keys( $data ) : gettype( $data ),
+				'categories_keys' => is_array( $categories ) ? array_slice( array_keys( $categories ), 0, 15 ) : gettype( $categories ),
+			]
+		);
+
+		if ( ! is_array( $categories ) ) {
+			return;
+		}
+
+		// The API may return a single root category object — extract children.
+		if ( isset( $categories['category_id'] ) || isset( $categories['_children'] ) || isset( $categories['category_name'] ) ) {
+			$categories = $categories['_children'] ?? $categories['_categories'] ?? $categories['children'] ?? [];
+		}
+
+		if ( empty( $categories ) ) {
+			return;
+		}
+
+		// Collect IDs already in $flat to avoid duplicates and detect what's new.
+		$known_ids = [];
+		foreach ( $flat as $existing ) {
+			if ( null !== $existing['id'] ) {
+				$known_ids[ $existing['id'] ] = true;
+			}
+		}
+
+		// Flatten this level and collect child IDs for recursive fetching.
+		$level_flat = [];
+		$this->flatten_category_tree( $categories, $level_flat, $lang );
+
+		$new_child_ids = [];
+		foreach ( $level_flat as $cat ) {
+			if ( null !== $cat['id'] && ! isset( $known_ids[ $cat['id'] ] ) ) {
+				$flat[]                      = $cat;
+				$known_ids[ $cat['id'] ]     = true;
+				$new_child_ids[ $cat['id'] ] = true;
+			} elseif ( null === $cat['id'] ) {
+				$flat[] = $cat;
+			}
+		}
+
+		// Recurse into each new child category to fetch deeper levels.
+		foreach ( $new_child_ids as $child_id => $_ ) {
+			$this->fetch_categories_recursive( $client, $child_id, $languages, $lang, $flat, $depth + 1 );
+		}
 	}
 
 	/**

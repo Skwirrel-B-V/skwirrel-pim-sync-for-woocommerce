@@ -2,6 +2,10 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.1.5]
+
+* Recursively fetch full category tree from API — all depth levels are now synced, not just direct children of the super category
+
 ## [2.1.4]
 
 * Auto-register WP uploads directory as WooCommerce approved download directory during sync
