@@ -275,6 +275,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		try {
 			$downloads = $this->mapper->get_downloadable_files( $product, $id );
 			if ( ! empty( $downloads ) ) {
+				$this->ensure_uploads_approved_download_directory();
 				$wc_product->set_downloadable( true );
 				$wc_product->set_downloads( $this->format_downloads( $downloads ) );
 				$wc_product->save();
@@ -1457,6 +1458,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		try {
 			$downloads = $this->mapper->get_downloadable_files( $product, $wc_id );
 			if ( ! empty( $downloads ) ) {
+				$this->ensure_uploads_approved_download_directory();
 				$wc_product->set_downloadable( true );
 				$wc_product->set_downloads( $this->format_downloads( $downloads ) );
 				$wc_product->save();
@@ -1696,6 +1698,50 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$this->deferred_parent_terms = [];
 		$this->deferred_parent_attrs = [];
 		$this->logger->info( 'Flushed parent attribute terms', [ 'parents_updated' => $parent_count ] );
+	}
+
+	/**
+	 * Ensure the WP uploads directory is registered as an approved download directory.
+	 *
+	 * WooCommerce 6.5+ requires downloadable file URLs to be in an approved
+	 * directory. This method auto-registers the uploads base URL so that
+	 * files imported by the sync do not fail validation.
+	 *
+	 * Only runs once per request.
+	 */
+	private function ensure_uploads_approved_download_directory(): void {
+		static $done = false;
+		if ( $done ) {
+			return;
+		}
+		$done = true;
+
+		if ( ! class_exists( '\Automattic\WooCommerce\Internal\ProductDownloads\ApprovedDirectories\Register' ) ) {
+			return;
+		}
+
+		try {
+			$register = wc_get_container()->get( \Automattic\WooCommerce\Internal\ProductDownloads\ApprovedDirectories\Register::class );
+			$uploads  = wp_get_upload_dir();
+			$base_url = $uploads['baseurl'] ?? '';
+
+			if ( '' === $base_url ) {
+				return;
+			}
+
+			// Check if already approved by testing a dummy file path.
+			if ( $register->is_approved_directory( $base_url . '/test.pdf' ) ) {
+				return;
+			}
+
+			$register->add_approved_directory( $base_url );
+			$this->logger->info( 'Auto-approved uploads as download directory', [ 'url' => $base_url ] );
+		} catch ( \Throwable $e ) {
+			$this->logger->warning(
+				'Failed to auto-approve uploads download directory',
+				[ 'error' => $e->getMessage() ]
+			);
+		}
 	}
 
 	/**
