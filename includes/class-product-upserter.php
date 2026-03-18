@@ -530,6 +530,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$variation->update_meta_data( $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		$variation->update_meta_data( $this->mapper->get_external_id_meta_key(), $this->mapper->get_unique_key( $product ) ?? '' );
 		$variation->update_meta_data( $this->mapper->get_synced_at_meta_key(), time() );
+		$variation->update_meta_data( '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
 
 		// Save variation first to get ID
 		$variation->save();
@@ -966,6 +967,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$id = $wc_product->get_id();
 		update_post_meta( $id, Skwirrel_WC_Sync_Product_Lookup::GROUPED_PRODUCT_ID_META, (int) $grouped_id );
 		update_post_meta( $id, $this->mapper->get_synced_at_meta_key(), time() );
+		update_post_meta( $id, '_skwirrel_api_response', wp_json_encode( $group, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
 
 		// Store virtual_product_id if present (this product has images for the variable product)
 		$virtual_product_id = $group['virtual_product_id'] ?? null;
@@ -1250,6 +1252,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$variation->update_meta_data( $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		$variation->update_meta_data( $this->mapper->get_external_id_meta_key(), $this->mapper->get_unique_key( $product ) ?? '' );
 		$variation->update_meta_data( $this->mapper->get_synced_at_meta_key(), time() );
+		$variation->update_meta_data( '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
 
 		$variation->save();
 		$vid = $variation->get_id();

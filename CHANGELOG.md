@@ -2,6 +2,10 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.1.3]
+
+* Store Skwirrel API response for all product types: `upsert_product_as_variation`, `create_variable_product_from_group`, and `create_or_update_variation` now also save `_skwirrel_api_response`
+
 ## [2.1.2]
 
 * Fix grouped products ignoring dynamic selection ID — post-filter groups against selection product list
