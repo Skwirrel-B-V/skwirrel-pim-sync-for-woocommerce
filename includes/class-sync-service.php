@@ -173,7 +173,7 @@ class Skwirrel_WC_Sync_Service {
 
 		$product_to_group_map = [];
 		if ( ! empty( $options['sync_grouped_products'] ) ) {
-			$grouped_result       = $this->upserter->sync_grouped_products_first( $client, $options );
+			$grouped_result       = $this->upserter->sync_grouped_products_first( $client, $options, $collection_ids );
 			$product_to_group_map = $grouped_result['map'];
 			$created             += $grouped_result['created'];
 			$updated             += $grouped_result['updated'];

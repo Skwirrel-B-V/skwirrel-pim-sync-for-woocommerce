@@ -669,13 +669,18 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * Stap 1: Haal grouped products op, maak variable producten aan (zonder variations).
 	 * Retourneert map: product_id => [grouped_product_id, order, sku, wc_variable_id].
 	 *
-	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client  JSON-RPC client instance.
-	 * @param array                           $options Plugin settings array.
+	 * Groups are post-filtered against the dynamic selection: only groups
+	 * containing at least one product in the selection are processed.
+	 *
+	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client         JSON-RPC client instance.
+	 * @param array                           $options        Plugin settings array.
+	 * @param array<int>                      $collection_ids Selection IDs to filter by.
 	 * @return array{created: int, updated: int, map: array}
 	 */
-	public function sync_grouped_products_first( Skwirrel_WC_Sync_JsonRpc_Client $client, array $options ): array {
+	public function sync_grouped_products_first( Skwirrel_WC_Sync_JsonRpc_Client $client, array $options, array $collection_ids = [] ): array {
 		$created              = 0;
 		$updated              = 0;
+		$skipped              = 0;
 		$product_to_group_map = [];
 		$batch_size           = (int) ( $options['batch_size'] ?? 10 );
 		$params               = [
@@ -687,11 +692,17 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'include_languages'         => $this->get_include_languages(),
 		];
 
-		// Pass selection filter to grouped products API call
-		$collection_ids = $this->get_collection_ids();
+		// Build allowed product IDs from the dynamic selection (post-filter).
+		$allowed_product_ids = null;
 		if ( ! empty( $collection_ids ) ) {
-			$params['dynamic_selection_id'] = $collection_ids[0];
-			$params['collection_ids']       = $collection_ids;
+			$allowed_product_ids = $this->fetch_product_ids_for_selection( $client, $collection_ids[0], $batch_size );
+			$this->logger->info(
+				'Fetched product IDs for selection filter',
+				[
+					'dynamic_selection_id' => $collection_ids[0],
+					'product_count'        => count( $allowed_product_ids ),
+				]
+			);
 		}
 
 		$page = 1;
@@ -716,11 +727,34 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$total_pages  = (int) ( $page_info['number_of_pages'] ?? 1 );
 
 			foreach ( $groups as $group ) {
+				// Post-filter: skip groups with no members in the selection.
+				if ( null !== $allowed_product_ids ) {
+					$members   = $group['_products'] ?? $group['products'] ?? [];
+					$has_match = false;
+					foreach ( $members as $item ) {
+						$pid = is_array( $item )
+							? ( $item['product_id'] ?? null )
+							: (int) $item;
+						if ( null !== $pid && isset( $allowed_product_ids[ (int) $pid ] ) ) {
+							$has_match = true;
+							break;
+						}
+					}
+					if ( ! $has_match ) {
+						++$skipped;
+						$this->logger->verbose(
+							'Grouped product skipped: no members in dynamic selection',
+							[ 'grouped_product_id' => $group['grouped_product_id'] ?? $group['id'] ?? '?' ]
+						);
+						continue;
+					}
+				}
+
 				try {
 					$outcome = $this->create_variable_product_from_group( $group, $product_to_group_map );
-					if ( $outcome === 'created' ) {
+					if ( 'created' === $outcome ) {
 						++$created;
-					} elseif ( $outcome === 'updated' ) {
+					} elseif ( 'updated' === $outcome ) {
 						++$updated;
 					}
 				} catch ( Throwable $e ) {
@@ -744,8 +778,10 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$this->logger->info(
 			'Grouped products loaded',
 			[
-				'variable_products'     => $created + $updated,
-				'product_ids_in_groups' => count( $product_ids_in_groups ),
+				'variable_products'      => $created + $updated,
+				'product_ids_in_groups'  => count( $product_ids_in_groups ),
+				'skipped_by_selection'   => $skipped,
+				'filtered_by_selection'  => null !== $allowed_product_ids,
 			]
 		);
 		return [
@@ -753,6 +789,56 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'updated' => $updated,
 			'map'     => $product_to_group_map,
 		];
+	}
+
+	/**
+	 * Fetch all product IDs belonging to a dynamic selection.
+	 *
+	 * Used to post-filter grouped products: only groups containing at least
+	 * one product from the selection should be synced.
+	 *
+	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client               API client.
+	 * @param int                             $dynamic_selection_id  Selection ID.
+	 * @param int                             $batch_size            Products per page.
+	 * @return array<int, true> Product IDs as keys for fast isset() lookup.
+	 */
+	private function fetch_product_ids_for_selection( Skwirrel_WC_Sync_JsonRpc_Client $client, int $dynamic_selection_id, int $batch_size ): array {
+		$ids  = [];
+		$page = 1;
+		do {
+			$result = $client->call(
+				'getProductsByFilter',
+				[
+					'filter'  => [ 'dynamic_selection_id' => $dynamic_selection_id ],
+					'options' => [],
+					'page'    => $page,
+					'limit'   => $batch_size,
+				]
+			);
+			if ( ! $result['success'] ) {
+				$this->logger->warning(
+					'Failed to fetch product IDs for selection filter',
+					[
+						'dynamic_selection_id' => $dynamic_selection_id,
+						'error'                => $result['error'] ?? [],
+					]
+				);
+				break;
+			}
+			$products = $result['result']['products'] ?? [];
+			foreach ( $products as $p ) {
+				$pid = $p['product_id'] ?? $p['id'] ?? null;
+				if ( null !== $pid ) {
+					$ids[ (int) $pid ] = true;
+				}
+			}
+			if ( count( $products ) < $batch_size ) {
+				break;
+			}
+			++$page;
+		} while ( true );
+
+		return $ids;
 	}
 
 	/**
@@ -1648,21 +1734,6 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		];
 		$saved    = get_option( 'skwirrel_wc_sync_settings', [] );
 		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );
-	}
-
-	/**
-	 * Get collection IDs from settings. Returns array of int IDs, or empty array for "sync all".
-	 *
-	 * @return array<int> Numeric collection IDs.
-	 */
-	private function get_collection_ids(): array {
-		$opts = get_option( 'skwirrel_wc_sync_settings', [] );
-		$raw  = $opts['collection_ids'] ?? '';
-		if ( $raw === '' || ! is_string( $raw ) ) {
-			return [];
-		}
-		$parts = preg_split( '/[\s,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY );
-		return array_values( array_map( 'intval', array_filter( $parts, 'is_numeric' ) ) );
 	}
 
 	/**

@@ -2,6 +2,12 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.1.2]
+
+* Fix grouped products ignoring dynamic selection ID — post-filter groups against selection product list
+* Fetch allowed product IDs from selection before processing groups, skip groups with no matching members
+* Remove unused `get_collection_ids()` from upserter (now passed as parameter from sync service)
+
 ## [2.1.1]
 
 * Fix grouped products ignoring selection ID filter — pass `dynamic_selection_id` to `getGroupedProducts`
