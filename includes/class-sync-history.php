@@ -121,7 +121,8 @@ class Skwirrel_WC_Sync_History {
 		int $without_attrs = 0,
 		int $trashed = 0,
 		int $categories_removed = 0,
-		string $trigger = self::TRIGGER_MANUAL
+		string $trigger = self::TRIGGER_MANUAL,
+		string $log_file = ''
 	): void {
 		$result = [
 			'success'            => $ok,
@@ -135,6 +136,7 @@ class Skwirrel_WC_Sync_History {
 			'without_attributes' => $without_attrs,
 			'trigger'            => $trigger,
 			'timestamp'          => time(),
+			'log_file'           => $log_file,
 		];
 
 		update_option( self::OPTION_LAST_SYNC_RESULT, $result, false );
@@ -163,6 +165,44 @@ class Skwirrel_WC_Sync_History {
 	}
 
 	/**
+	 * Delete a single log file by filename.
+	 *
+	 * Validates the filename to prevent directory traversal.
+	 *
+	 * @param string $filename Log file basename.
+	 * @return void
+	 */
+	public static function delete_log_file( string $filename ): void {
+		if ( ! preg_match( '/^sync-(manual|scheduled)-[\d-]+\.log$/', $filename ) ) {
+			return;
+		}
+		$path = Skwirrel_WC_Sync_Logger::get_log_directory() . $filename;
+		if ( file_exists( $path ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Log file cleanup
+			unlink( $path );
+		}
+	}
+
+	/**
+	 * Delete log files for the given history entries.
+	 *
+	 * Only deletes unique filenames (scheduled entries may share a daily log).
+	 *
+	 * @param array $entries History entries to clean up.
+	 * @return void
+	 */
+	public static function delete_log_files_for_entries( array $entries ): void {
+		$seen = [];
+		foreach ( $entries as $entry ) {
+			$file = $entry['log_file'] ?? '';
+			if ( '' !== $file && ! isset( $seen[ $file ] ) ) {
+				$seen[ $file ] = true;
+				self::delete_log_file( $file );
+			}
+		}
+	}
+
+	/**
 	 * Append an entry to the history array.
 	 *
 	 * @param array $entry History entry.
@@ -177,8 +217,28 @@ class Skwirrel_WC_Sync_History {
 		// Prepend newest entry at the beginning
 		array_unshift( $history, $entry );
 
-		// Keep only the latest MAX_HISTORY_ENTRIES
-		$history = array_slice( $history, 0, self::MAX_HISTORY_ENTRIES );
+		// Trim to MAX_HISTORY_ENTRIES — clean up log files for removed entries.
+		if ( count( $history ) > self::MAX_HISTORY_ENTRIES ) {
+			$removed = array_slice( $history, self::MAX_HISTORY_ENTRIES );
+			$history = array_slice( $history, 0, self::MAX_HISTORY_ENTRIES );
+
+			// Collect filenames still in use by remaining entries.
+			$active_files = [];
+			foreach ( $history as $h ) {
+				$f = $h['log_file'] ?? '';
+				if ( '' !== $f ) {
+					$active_files[ $f ] = true;
+				}
+			}
+
+			// Only delete files not still referenced by remaining entries.
+			foreach ( $removed as $r ) {
+				$f = $r['log_file'] ?? '';
+				if ( '' !== $f && ! isset( $active_files[ $f ] ) ) {
+					self::delete_log_file( $f );
+				}
+			}
+		}
 
 		update_option( self::OPTION_SYNC_HISTORY, $history, false );
 	}

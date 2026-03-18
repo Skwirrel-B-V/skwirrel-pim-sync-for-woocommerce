@@ -56,6 +56,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
         add_action('wp_ajax_' . self::BG_PURGE_ACTION, [$this, 'handle_background_purge']);
         add_action('wp_ajax_nopriv_' . self::BG_PURGE_ACTION, [$this, 'handle_background_purge']);
         add_action('wp_ajax_skwirrel_wc_sync_save_slug_resync', [$this, 'handle_save_slug_resync']);
+        add_action('wp_ajax_skwirrel_wc_sync_view_log', [$this, 'handle_view_log']);
     }
 
     public function add_menu(): void {
@@ -197,6 +198,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
         $out['verbose_logging'] = !empty($input['verbose_logging']);
         $out['purge_stale_products'] = !empty($input['purge_stale_products']);
         $out['show_delete_warning'] = !empty($input['show_delete_warning']);
+        $out['log_retention'] = in_array($input['log_retention'] ?? '', ['12hours', '1day', '2days', '7days', '30days'], true)
+            ? $input['log_retention']
+            : '7days';
         return $out;
     }
 
@@ -363,14 +367,35 @@ class Skwirrel_WC_Sync_Admin_Settings {
         $history = Skwirrel_WC_Sync_History::get_sync_history();
 
         if ($period === 'all') {
+            Skwirrel_WC_Sync_History::delete_log_files_for_entries($history);
             $history = [];
         } else {
             $days = (int) $period;
             $cutoff = time() - ($days * DAY_IN_SECONDS);
-            $history = array_filter($history, static function (array $entry) use ($cutoff): bool {
-                return !empty($entry['timestamp']) && $entry['timestamp'] >= $cutoff;
-            });
-            $history = array_values($history);
+            $kept = [];
+            $removed = [];
+            foreach ($history as $entry) {
+                if (!empty($entry['timestamp']) && $entry['timestamp'] >= $cutoff) {
+                    $kept[] = $entry;
+                } else {
+                    $removed[] = $entry;
+                }
+            }
+            // Only delete log files not referenced by kept entries.
+            $active_files = [];
+            foreach ($kept as $entry) {
+                $f = $entry['log_file'] ?? '';
+                if ('' !== $f) {
+                    $active_files[$f] = true;
+                }
+            }
+            foreach ($removed as $entry) {
+                $f = $entry['log_file'] ?? '';
+                if ('' !== $f && !isset($active_files[$f])) {
+                    Skwirrel_WC_Sync_History::delete_log_file($f);
+                }
+            }
+            $history = $kept;
         }
 
         update_option('skwirrel_wc_sync_history', $history, false);
@@ -396,6 +421,56 @@ class Skwirrel_WC_Sync_Admin_Settings {
         $opts['update_slug_on_resync'] = $enabled;
         update_option( Skwirrel_WC_Sync_Permalink_Settings::OPTION_KEY, $opts );
         wp_send_json_success();
+    }
+
+    /**
+     * AJAX handler: view a sync log file.
+     */
+    public function handle_view_log(): void {
+        check_ajax_referer('skwirrel_view_log_nonce', '_nonce');
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error('Access denied', 403);
+        }
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified above
+        $filename = isset($_POST['filename']) ? sanitize_text_field(wp_unslash($_POST['filename'])) : '';
+        if (!preg_match('/^sync-(manual|scheduled)-[\d-]+\.log$/', $filename)) {
+            wp_send_json_error('Invalid filename');
+        }
+
+        $path = Skwirrel_WC_Sync_Logger::get_log_directory() . $filename;
+        if (!file_exists($path)) {
+            wp_send_json_error('Log file not found');
+        }
+
+        $max_bytes = 500 * 1024; // 500 KB
+        $size = filesize($path);
+        $truncated = false;
+
+        if ($size > $max_bytes) {
+            // Read the last 500 KB of the file.
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Direct read of log file
+            $fh = fopen($path, 'r');
+            if ($fh) {
+                fseek($fh, -$max_bytes, SEEK_END);
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Direct read of log file
+                $content = fread($fh, $max_bytes);
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Direct read of log file
+                fclose($fh);
+                $truncated = true;
+            } else {
+                $content = '';
+            }
+        } else {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local log file read
+            $content = file_get_contents($path);
+        }
+
+        wp_send_json_success([
+            'content'   => $content,
+            'truncated' => $truncated,
+            'size'      => $size,
+        ]);
     }
 
     public function enqueue_assets(string $hook): void {
@@ -430,6 +505,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
             'clearHistoryConfirm'   => __('Delete all sync history?', 'skwirrel-pim-sync'),
             'ajaxUrl'               => admin_url( 'admin-ajax.php' ),
             'slugResyncNonce'       => wp_create_nonce( 'skwirrel_slug_resync_nonce' ),
+            'viewLogNonce'          => wp_create_nonce( 'skwirrel_view_log_nonce' ),
         ]);
 
         wp_add_inline_script(
@@ -513,6 +589,51 @@ class Skwirrel_WC_Sync_Admin_Settings {
             . '    var ok = document.getElementById("skwirrel-slug-saved");'
             . '    if (ok) { ok.style.display = "inline"; setTimeout(function() { ok.style.display = "none"; }, 1500); }'
             . '   });'
+            . ' });'
+            . '})();'
+        );
+
+        // Log viewer modal.
+        wp_add_inline_script(
+            'skwirrel-pim-sync-admin',
+            '(function() {'
+            . ' document.addEventListener("click", function(e) {'
+            . '  var btn = e.target.closest(".skw-btn-log-view");'
+            . '  if (!btn) return;'
+            . '  e.preventDefault();'
+            . '  var filename = btn.dataset.logFile;'
+            . '  var modal = document.getElementById("skwirrel-log-modal");'
+            . '  var content = document.getElementById("skwirrel-log-content");'
+            . '  if (!modal || !content) return;'
+            . '  content.textContent = "Loading…";'
+            . '  modal.style.display = "flex";'
+            . '  var fd = new FormData();'
+            . '  fd.append("action", "skwirrel_wc_sync_view_log");'
+            . '  fd.append("_nonce", skwirrelPimSync.viewLogNonce);'
+            . '  fd.append("filename", filename);'
+            . '  fetch(skwirrelPimSync.ajaxUrl, { method: "POST", body: fd })'
+            . '   .then(function(r) { return r.json(); })'
+            . '   .then(function(r) {'
+            . '    if (r.success) {'
+            . '     content.textContent = (r.data.truncated ? "[…truncated…]\\n" : "") + r.data.content;'
+            . '     content.scrollTop = content.scrollHeight;'
+            . '    } else {'
+            . '     content.textContent = "Error: " + (r.data || "Could not load log");'
+            . '    }'
+            . '   })'
+            . '   .catch(function() { content.textContent = "Network error"; });'
+            . ' });'
+            . ' document.addEventListener("click", function(e) {'
+            . '  if (e.target.id === "skwirrel-log-modal" || e.target.closest(".skw-modal-close")) {'
+            . '   var modal = document.getElementById("skwirrel-log-modal");'
+            . '   if (modal) modal.style.display = "none";'
+            . '  }'
+            . ' });'
+            . ' document.addEventListener("keydown", function(e) {'
+            . '  if (e.key === "Escape") {'
+            . '   var modal = document.getElementById("skwirrel-log-modal");'
+            . '   if (modal) modal.style.display = "none";'
+            . '  }'
             . ' });'
             . '})();'
         );

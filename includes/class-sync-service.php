@@ -66,9 +66,17 @@ class Skwirrel_WC_Sync_Service {
 		Skwirrel_WC_Sync_History::sync_heartbeat();
 		Skwirrel_WC_Sync_History::clear_sync_progress();
 
+		// Per-sync log file: cleanup old logs, then start a new one.
+		$options_for_log = $this->get_options();
+		Skwirrel_WC_Sync_Logger::cleanup_old_logs( $options_for_log['log_retention'] ?? '7days' );
+		$log_filename = $this->logger->start_sync_log( $trigger );
+
+		try {
+
 		$client = $this->get_client();
 		if ( ! $client ) {
 			$this->logger->error( 'Sync aborted: invalid configuration' );
+			$this->logger->stop_sync_log();
 			return [
 				'success' => false,
 				'error'   => 'Invalid configuration',
@@ -87,6 +95,7 @@ class Skwirrel_WC_Sync_Service {
 		$collection_ids = $this->get_collection_ids();
 		if ( empty( $collection_ids ) ) {
 			$this->logger->error( 'Sync aborted: no selection IDs configured' );
+			$this->logger->stop_sync_log();
 			return [
 				'success' => false,
 				'error'   => 'No selection IDs configured. A selection ID is required.',
@@ -197,7 +206,8 @@ class Skwirrel_WC_Sync_Service {
 		if ( ! $result['success'] ) {
 			$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
 			$this->logger->error( 'Sync API error', $err );
-			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $err['message'] ?? '', 0, 0, 0, 0, $trigger );
+			$this->logger->stop_sync_log();
+			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $err['message'] ?? '', 0, 0, 0, 0, $trigger, $log_filename );
 			return [
 				'success' => false,
 				'error'   => $err['message'] ?? 'API error',
@@ -212,7 +222,8 @@ class Skwirrel_WC_Sync_Service {
 
 		if ( $delta && empty( $products ) ) {
 			$this->logger->info( 'Delta sync: no products updated since last sync' );
-			Skwirrel_WC_Sync_History::update_last_result( true, 0, 0, 0, '', 0, 0, 0, 0, $trigger );
+			$this->logger->stop_sync_log();
+			Skwirrel_WC_Sync_History::update_last_result( true, 0, 0, 0, '', 0, 0, 0, 0, $trigger, $log_filename );
 			return [
 				'success' => true,
 				'created' => 0,
@@ -527,7 +538,7 @@ class Skwirrel_WC_Sync_Service {
 		}
 
 		update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z' ) );
-		Skwirrel_WC_Sync_History::update_last_result( true, $created, $updated, $failed, '', $with_attrs, $without_attrs, $trashed, $categories_removed, $trigger );
+		Skwirrel_WC_Sync_History::update_last_result( true, $created, $updated, $failed, '', $with_attrs, $without_attrs, $trashed, $categories_removed, $trigger, $log_filename );
 
 		$this->logger->info(
 			'Sync completed',
@@ -550,6 +561,10 @@ class Skwirrel_WC_Sync_Service {
 			'trashed'            => $trashed,
 			'categories_removed' => $categories_removed,
 		];
+
+		} finally {
+			$this->logger->stop_sync_log();
+		}
 	}
 
 	/**

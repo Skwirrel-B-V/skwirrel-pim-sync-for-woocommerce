@@ -99,6 +99,17 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				}
 				?>
 			</div>
+
+			<?php // -- Log Viewer Modal -- ?>
+			<div id="skwirrel-log-modal" class="skw-modal" style="display:none;">
+				<div class="skw-modal-content">
+					<div class="skw-modal-header">
+						<h3 class="skw-modal-title"><?php esc_html_e( 'Sync Log', 'skwirrel-pim-sync' ); ?></h3>
+						<button type="button" class="skw-modal-close">&times;</button>
+					</div>
+					<pre id="skwirrel-log-content"></pre>
+				</div>
+			</div>
 		</div>
 		<?php
 	}
@@ -390,6 +401,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<th class="skw-th-right"><?php esc_html_e( 'Failed', 'skwirrel-pim-sync' ); ?></th>
 						<th class="skw-th-right"><?php esc_html_e( 'Deleted', 'skwirrel-pim-sync' ); ?></th>
 						<th class="skw-th-right"><?php esc_html_e( 'Total', 'skwirrel-pim-sync' ); ?></th>
+						<th class="skw-th-left"><?php esc_html_e( 'Log', 'skwirrel-pim-sync' ); ?></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -407,6 +419,8 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						$trashed       = (int) ( $entry['trashed'] ?? 0 );
 						$total         = $is_purge ? $trashed : ( $created + $updated + $failed );
 						$trigger_label = $trigger_labels[ $entry_trigger ] ?? $trigger_labels[ Skwirrel_WC_Sync_History::TRIGGER_MANUAL ];
+						$log_file      = $entry['log_file'] ?? '';
+						$log_exists    = '' !== $log_file && file_exists( Skwirrel_WC_Sync_Logger::get_log_directory() . $log_file );
 
 						// Date group header.
 						if ( $group_dates && $prev_date !== $entry_date && '' !== $entry_date ) :
@@ -423,7 +437,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							}
 							?>
 							<tr class="skw-date-row">
-								<th colspan="8" class="skw-date-header"><?php echo esc_html( $date_label ); ?></th>
+								<th colspan="9" class="skw-date-header"><?php echo esc_html( $date_label ); ?></th>
 							</tr>
 						<?php endif; ?>
 						<tr class="skw-entry-row <?php echo $is_purge ? 'skw-row-purge' : ''; ?>">
@@ -443,6 +457,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							<td class="skw-td-right skw-c-red"><?php echo esc_html( (string) $failed ); ?></td>
 							<td class="skw-td-right skw-c-yellow"><?php echo esc_html( (string) $trashed ); ?></td>
 							<td class="skw-td-right skw-td-bold"><?php echo esc_html( (string) $total ); ?></td>
+							<td class="skw-td-left">
+								<?php if ( $log_exists ) : ?>
+									<button type="button" class="skw-btn skw-btn-secondary skw-btn-log-view" data-log-file="<?php echo esc_attr( $log_file ); ?>"><?php esc_html_e( 'View', 'skwirrel-pim-sync' ); ?></button>
+								<?php endif; ?>
+							</td>
 						</tr>
 					<?php endforeach; ?>
 				</tbody>
@@ -706,6 +725,18 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<label class="skw-checkbox"><input type="checkbox" id="verbose_logging" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[verbose_logging]" value="1" <?php checked( ! empty( $opts['verbose_logging'] ) ); ?> /> <?php esc_html_e( 'Verbose logging', 'skwirrel-pim-sync' ); ?></label>
 						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[purge_stale_products]" value="1" <?php checked( ! empty( $opts['purge_stale_products'] ) ); ?> /> <?php esc_html_e( 'Clean up deleted products after full sync', 'skwirrel-pim-sync' ); ?></label>
 						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_delete_warning]" value="1" <?php checked( $opts['show_delete_warning'] ?? true ); ?> /> <?php esc_html_e( 'Show delete warning on Skwirrel products', 'skwirrel-pim-sync' ); ?></label>
+					</div>
+					<div class="skw-field" style="margin-top: 14px;">
+						<?php $log_retention = $opts['log_retention'] ?? '7days'; ?>
+						<label for="log_retention" class="skw-label"><?php esc_html_e( 'Log file retention', 'skwirrel-pim-sync' ); ?></label>
+						<select id="log_retention" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[log_retention]" class="skw-select" style="max-width: 200px;">
+							<option value="12hours" <?php selected( $log_retention, '12hours' ); ?>><?php esc_html_e( '12 hours', 'skwirrel-pim-sync' ); ?></option>
+							<option value="1day" <?php selected( $log_retention, '1day' ); ?>><?php esc_html_e( '1 day', 'skwirrel-pim-sync' ); ?></option>
+							<option value="2days" <?php selected( $log_retention, '2days' ); ?>><?php esc_html_e( '2 days', 'skwirrel-pim-sync' ); ?></option>
+							<option value="7days" <?php selected( $log_retention, '7days' ); ?>><?php esc_html_e( '7 days', 'skwirrel-pim-sync' ); ?></option>
+							<option value="30days" <?php selected( $log_retention, '30days' ); ?>><?php esc_html_e( '30 days', 'skwirrel-pim-sync' ); ?></option>
+						</select>
+						<p class="skw-field-hint"><?php esc_html_e( 'How long to keep per-sync log files. Old files are cleaned up at the start of each sync.', 'skwirrel-pim-sync' ); ?></p>
 					</div>
 				</div>
 

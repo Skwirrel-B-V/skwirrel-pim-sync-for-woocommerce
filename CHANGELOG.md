@@ -2,6 +2,15 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.2.0]
+
+* Per-sync log files — each sync run writes to its own log file for easy debugging
+* Manual syncs get a unique log file; scheduled syncs share a daily log file (appended)
+* Log viewer modal in sync history — click "View" to read log contents inline
+* Configurable log retention setting (12 hours, 1 day, 2 days, 7 days, 30 days)
+* Auto-cleanup of old log files at the start of each sync run
+* Log files are cleaned up when history entries are deleted
+
 ## [2.1.5]
 
 * Recursively fetch full category tree from API — all depth levels are now synced, not just direct children of the super category
