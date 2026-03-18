@@ -288,6 +288,31 @@ class Skwirrel_WC_Sync_Product_Mapper {
 				// before the leaf category. This inserts from root → leaf.
 				$this->extract_ancestor_chain( $cat, $categories, $seen_ids );
 			}
+
+			// If _categories contained only IDs (no names), extract them as ID-only entries.
+			// The category sync will match these by Skwirrel ID against existing WC terms.
+			if ( empty( $categories ) ) {
+				foreach ( $raw_cats as $cat ) {
+					if ( ! is_array( $cat ) ) {
+						continue;
+					}
+					$cat_id = $cat['category_id'] ?? $cat['product_category_id'] ?? $cat['id'] ?? null;
+					if ( null === $cat_id ) {
+						continue;
+					}
+					$cat_id = (int) $cat_id;
+					if ( isset( $seen_ids[ $cat_id ] ) ) {
+						continue;
+					}
+					$seen_ids[ $cat_id ] = true;
+					$categories[]        = [
+						'id'          => $cat_id,
+						'name'        => '',
+						'parent_id'   => isset( $cat['parent_category_id'] ) ? (int) $cat['parent_category_id'] : null,
+						'parent_name' => '',
+					];
+				}
+			}
 		}
 
 		// Fallback: _product_groups (legacy — only group name, no ID)

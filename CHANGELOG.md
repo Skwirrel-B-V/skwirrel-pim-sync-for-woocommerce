@@ -2,6 +2,13 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.2.4]
+
+* **Fix category sync** — use correct API parameter `super_category_id` instead of non-existent `category_id`
+* Category tree sync now fetches all categories under a super category in one API call (no more recursion)
+* Fix per-product category assignment when API returns ID-only `_categories` (no names) — match by Skwirrel ID against existing WC terms
+* Support V1 API `_translation` format (keyed by language) in addition to V2 `_category_translations` (array)
+
 ## [2.2.3]
 
 * Dark terminal-style log viewer with syntax highlighting for log levels (INFO=blue, WARNING=yellow, ERROR=red)
