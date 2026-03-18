@@ -1729,12 +1729,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				return;
 			}
 
-			// Check if already approved by testing a dummy file path.
+			// Check if already approved and enabled.
 			if ( $register->is_approved_directory( $base_url . '/test.pdf' ) ) {
 				return;
 			}
 
-			$register->add_approved_directory( $base_url );
+			// Add or enable: add_approved_directory returns existing ID if already present
+			// but does NOT enable it. We must enable it separately if it was disabled.
+			$id = $register->add_approved_directory( $base_url );
+			$register->enable_by_id( $id );
 			$this->logger->info( 'Auto-approved uploads as download directory', [ 'url' => $base_url ] );
 		} catch ( \Throwable $e ) {
 			$this->logger->warning(

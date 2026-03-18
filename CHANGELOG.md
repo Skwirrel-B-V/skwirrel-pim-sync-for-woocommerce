@@ -2,6 +2,10 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.2.5]
+
+* Fix approved download directory: also enable existing disabled directories (WooCommerce could add the `/uploads` directory but leave it disabled)
+
 ## [2.2.4]
 
 * **Fix category sync** — use correct API parameter `super_category_id` instead of non-existent `category_id`
