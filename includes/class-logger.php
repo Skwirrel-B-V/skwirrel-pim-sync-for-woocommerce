@@ -216,12 +216,12 @@ class Skwirrel_WC_Sync_Logger {
 	}
 
 	/**
-	 * Returns URL to WooCommerce logs page. User can select skwirrel-wc-sync from dropdown.
+	 * Returns URL to WooCommerce logs page, filtered to skwirrel-pim-sync source.
 	 */
 	public function get_log_file_url(): ?string {
 		if ( ! function_exists( 'wc_get_logger' ) ) {
 			return null;
 		}
-		return admin_url( 'admin.php?page=wc-status&tab=logs' );
+		return admin_url( 'admin.php?page=wc-status&tab=logs&source=' . self::LOG_SOURCE );
 	}
 }

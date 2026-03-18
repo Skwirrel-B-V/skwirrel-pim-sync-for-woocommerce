@@ -61,6 +61,11 @@ class Skwirrel_WC_Sync_Service {
 			@set_time_limit( 0 ); // phpcs:ignore Generic.PHP.NoSilencedErrors.Discouraged,Squiz.PHP.DiscouragedFunctions.Discouraged -- long-running sync requires no time limit
 		}
 
+		// Raise PHP memory limit — API responses with all includes can be very large.
+		if ( function_exists( 'wp_raise_memory_limit' ) ) {
+			wp_raise_memory_limit( 'admin' );
+		}
+
 		$sync_started_at = time();
 		$this->category_sync->reset_seen_category_ids();
 		Skwirrel_WC_Sync_History::sync_heartbeat();
@@ -74,498 +79,529 @@ class Skwirrel_WC_Sync_Service {
 			: ( $options_for_log['log_mode_manual'] ?? 'per_sync' );
 		$log_filename = $this->logger->start_sync_log( $trigger, $log_mode );
 
+		// Register shutdown handler to catch fatal errors (e.g. OOM) and record them.
+		$shutdown_trigger    = $trigger;
+		$shutdown_log_file   = $log_filename;
+		$shutdown_registered = true;
+		register_shutdown_function(
+			static function () use ( $shutdown_trigger, $shutdown_log_file, &$shutdown_registered ): void {
+				if ( ! $shutdown_registered ) {
+					return; // Sync completed normally, nothing to do.
+				}
+				$error = error_get_last();
+				if ( null === $error || ! in_array( $error['type'], [ E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR ], true ) ) {
+					return;
+				}
+				// Record a failed sync so the dashboard shows the crash.
+				Skwirrel_WC_Sync_History::update_last_result(
+					false,
+					0,
+					0,
+					0,
+					$error['message'],
+					0,
+					0,
+					0,
+					0,
+					$shutdown_trigger,
+					$shutdown_log_file
+				);
+			}
+		);
+
 		try {
 
-		$client = $this->get_client();
-		if ( ! $client ) {
-			$this->logger->error( 'Sync aborted: invalid configuration' );
-			$this->logger->stop_sync_log();
-			return [
-				'success' => false,
-				'error'   => 'Invalid configuration',
-				'created' => 0,
-				'updated' => 0,
-				'failed'  => 0,
-			];
-		}
-
-		$options     = $this->get_options();
-		$created     = 0;
-		$updated     = 0;
-		$failed      = 0;
-		$delta_since = get_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, '' );
-
-		$collection_ids = $this->get_collection_ids();
-		if ( empty( $collection_ids ) ) {
-			$this->logger->error( 'Sync aborted: no selection IDs configured' );
-			$this->logger->stop_sync_log();
-			return [
-				'success' => false,
-				'error'   => 'No selection IDs configured. A selection ID is required.',
-				'created' => 0,
-				'updated' => 0,
-				'failed'  => 0,
-			];
-		}
-		$batch_size = (int) ( $options['batch_size'] ?? 10 );
-
-		// Build API include flags (used as top-level params for getProducts, nested 'options' for getProductsByFilter).
-		$api_includes = [
-			'include_product_status'       => true,
-			'include_product_translations' => true,
-			'include_attachments'          => true,
-			'include_trade_items'          => true,
-			'include_trade_item_prices'    => true,
-			'include_categories'           => ! empty( $options['sync_categories'] ),
-			'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
-			'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
-			'include_etim'                 => true,
-			'include_etim_translations'    => true,
-			'include_languages'            => $this->get_include_languages(),
-			'include_contexts'             => [ 1 ],
-		];
-
-		// Custom classes
-		$sync_cc    = ! empty( $options['sync_custom_classes'] );
-		$sync_ti_cc = ! empty( $options['sync_trade_item_custom_classes'] );
-		if ( $sync_cc ) {
-			$api_includes['include_custom_classes'] = true;
-			$cc_filter_mode                         = $options['custom_class_filter_mode'] ?? '';
-			$cc_raw                                 = $options['custom_class_filter_ids'] ?? '';
-			$cc_parsed                              = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_raw );
-			if ( 'whitelist' === $cc_filter_mode && ! empty( $cc_parsed['ids'] ) ) {
-				$api_includes['include_custom_class_id'] = $cc_parsed['ids'];
-			}
-		}
-		if ( $sync_ti_cc ) {
-			$api_includes['include_trade_item_custom_classes'] = true;
-			$cc_filter_mode                                    = $cc_filter_mode ?? ( $options['custom_class_filter_mode'] ?? '' );
-			$cc_raw    = $cc_raw ?? ( $options['custom_class_filter_ids'] ?? '' );
-			$cc_parsed = $cc_parsed ?? Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_raw );
-			if ( 'whitelist' === $cc_filter_mode && ! empty( $cc_parsed['ids'] ) ) {
-				$api_includes['include_trade_item_custom_class_id'] = $cc_parsed['ids'];
-			}
-		}
-
-		// Determine whether to use getProducts (fast, full sync) or getProductsByFilter (filtered).
-		$use_filter = false;
-		$filter     = [];
-		if ( $delta && ! empty( $delta_since ) ) {
-			$use_filter           = true;
-			$filter['updated_on'] = [
-				'datetime' => $delta_since,
-				'operator' => '>=',
-			];
-		}
-		if ( ! empty( $collection_ids ) ) {
-			$use_filter                     = true;
-			$filter['dynamic_selection_id'] = $collection_ids[0];
-		}
-
-		$this->logger->verbose(
-			'Sync started',
-			[
-				'delta'          => $delta,
-				'delta_since'    => $delta_since,
-				'batch_size'     => $batch_size,
-				'api_method'     => $use_filter ? 'getProductsByFilter' : 'getProducts',
-				'collection_ids' => $collection_ids ? $collection_ids : '(all)',
-				'filter'         => $filter ? $filter : '(none)',
-			]
-		);
-
-		// Pre-sync: category tree, brands, custom classes, grouped products
-		if ( ! empty( $options['sync_categories'] ) && ! empty( $options['super_category_id'] ) ) {
-			$this->category_sync->sync_category_tree( $client, $options, $this->get_include_languages() );
-		}
-		$this->brand_sync->sync_all_brands( $client );
-		if ( ! empty( $options['sync_custom_classes'] ) || ! empty( $options['sync_trade_item_custom_classes'] ) ) {
-			$this->taxonomy_manager->sync_all_custom_classes( $client, $options, $this->get_include_languages() );
-		}
-
-		$product_to_group_map = [];
-		if ( ! empty( $options['sync_grouped_products'] ) ) {
-			$grouped_result       = $this->upserter->sync_grouped_products_first( $client, $options, $collection_ids );
-			$product_to_group_map = $grouped_result['map'];
-			$created             += $grouped_result['created'];
-			$updated             += $grouped_result['updated'];
-		}
-
-		// =====================================================================
-		// Phase: Fetch — paginate through API, collect all product data
-		// =====================================================================
-		Skwirrel_WC_Sync_History::update_phase_progress(
-			Skwirrel_WC_Sync_History::PHASE_FETCH,
-			0,
-			0,
-			__( 'Fetching products from API…', 'skwirrel-pim-sync' )
-		);
-
-		$sync_items    = []; // [{product, group_info, wc_id, outcome}]
-		$virtual_items = []; // [{product, wc_variable_id}] — images for variable products
-		$page          = 1;
-
-		$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
-		if ( ! $result['success'] ) {
-			$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
-			$this->logger->error( 'Sync API error', $err );
-			$this->logger->stop_sync_log();
-			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $err['message'] ?? '', 0, 0, 0, 0, $trigger, $log_filename );
-			return [
-				'success' => false,
-				'error'   => $err['message'] ?? 'API error',
-				'created' => 0,
-				'updated' => 0,
-				'failed'  => 0,
-			];
-		}
-
-		$data     = $result['result'] ?? [];
-		$products = $data['products'] ?? [];
-
-		if ( $delta && empty( $products ) ) {
-			$this->logger->info( 'Delta sync: no products updated since last sync' );
-			$this->logger->stop_sync_log();
-			Skwirrel_WC_Sync_History::update_last_result( true, 0, 0, 0, '', 0, 0, 0, 0, $trigger, $log_filename );
-			return [
-				'success' => true,
-				'created' => 0,
-				'updated' => 0,
-				'failed'  => 0,
-			];
-		}
-
-		do {
-			$this->logger->verbose(
-				'Fetching batch',
-				[
-					'page'  => $page,
-					'count' => count( $products ),
-				]
-			);
-
-			foreach ( $products as $product ) {
-				$skwirrel_product_id = $product['product_id'] ?? $product['id'] ?? null;
-
-				// Virtual products → collect for phase 4 (media on parent)
-				$virtual_info = null;
-				if ( null !== $skwirrel_product_id ) {
-					$virtual_info = $product_to_group_map[ 'virtual:' . (int) $skwirrel_product_id ] ?? null;
-				}
-				if ( $virtual_info && ! empty( $virtual_info['is_virtual_for_variable'] ) ) {
-					$virtual_items[] = [
-						'product'        => $product,
-						'wc_variable_id' => $virtual_info['wc_variable_id'],
-					];
-					continue;
-				}
-
-				// Skip non-grouped VIRTUAL products
-				if ( ( $product['product_type'] ?? '' ) === 'VIRTUAL' ) {
-					continue;
-				}
-
-				// Resolve group info
-				$sku_for_lookup = (string) ( $product['internal_product_code'] ?? $product['manufacturer_product_code'] ?? $this->mapper->get_sku( $product ) );
-				$group_info     = null;
-				if ( null !== $skwirrel_product_id && '' !== $skwirrel_product_id ) {
-					$group_info = $product_to_group_map[ (int) $skwirrel_product_id ] ?? null;
-				}
-				if ( ! $group_info && '' !== $sku_for_lookup ) {
-					$group_info = $product_to_group_map[ 'sku:' . $sku_for_lookup ] ?? null;
-				}
-
-				$sync_items[] = [
-					'product'    => $product,
-					'group_info' => $group_info,
-					'wc_id'      => 0,
-					'outcome'    => 'skipped',
+			$client = $this->get_client();
+			if ( ! $client ) {
+				$this->logger->error( 'Sync aborted: invalid configuration' );
+				$this->logger->stop_sync_log();
+				return [
+					'success' => false,
+					'error'   => 'Invalid configuration',
+					'created' => 0,
+					'updated' => 0,
+					'failed'  => 0,
 				];
 			}
 
-			Skwirrel_WC_Sync_History::update_phase_progress(
-				Skwirrel_WC_Sync_History::PHASE_FETCH,
-				count( $sync_items ),
-				0,
-				/* translators: %d = number of products fetched so far */
-				sprintf( __( 'Fetching products from API… (%d found)', 'skwirrel-pim-sync' ), count( $sync_items ) )
+			$options     = $this->get_options();
+			$created     = 0;
+			$updated     = 0;
+			$failed      = 0;
+			$delta_since = get_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, '' );
+
+			$collection_ids = $this->get_collection_ids();
+			if ( empty( $collection_ids ) ) {
+				$this->logger->error( 'Sync aborted: no selection IDs configured' );
+				$this->logger->stop_sync_log();
+				return [
+					'success' => false,
+					'error'   => 'No selection IDs configured. A selection ID is required.',
+					'created' => 0,
+					'updated' => 0,
+					'failed'  => 0,
+				];
+			}
+			$batch_size = (int) ( $options['batch_size'] ?? 10 );
+
+			// Build API include flags (used as top-level params for getProducts, nested 'options' for getProductsByFilter).
+			$api_includes = [
+				'include_product_status'       => true,
+				'include_product_translations' => true,
+				'include_attachments'          => true,
+				'include_trade_items'          => true,
+				'include_trade_item_prices'    => true,
+				'include_categories'           => ! empty( $options['sync_categories'] ),
+				'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
+				'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
+				'include_etim'                 => true,
+				'include_etim_translations'    => true,
+				'include_languages'            => $this->get_include_languages(),
+				'include_contexts'             => [ 1 ],
+			];
+
+			// Custom classes
+			$sync_cc    = ! empty( $options['sync_custom_classes'] );
+			$sync_ti_cc = ! empty( $options['sync_trade_item_custom_classes'] );
+			if ( $sync_cc ) {
+				$api_includes['include_custom_classes'] = true;
+				$cc_filter_mode                         = $options['custom_class_filter_mode'] ?? '';
+				$cc_raw                                 = $options['custom_class_filter_ids'] ?? '';
+				$cc_parsed                              = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_raw );
+				if ( 'whitelist' === $cc_filter_mode && ! empty( $cc_parsed['ids'] ) ) {
+					$api_includes['include_custom_class_id'] = $cc_parsed['ids'];
+				}
+			}
+			if ( $sync_ti_cc ) {
+				$api_includes['include_trade_item_custom_classes'] = true;
+				$cc_filter_mode                                    = $cc_filter_mode ?? ( $options['custom_class_filter_mode'] ?? '' );
+				$cc_raw    = $cc_raw ?? ( $options['custom_class_filter_ids'] ?? '' );
+				$cc_parsed = $cc_parsed ?? Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_raw );
+				if ( 'whitelist' === $cc_filter_mode && ! empty( $cc_parsed['ids'] ) ) {
+					$api_includes['include_trade_item_custom_class_id'] = $cc_parsed['ids'];
+				}
+			}
+
+			// Determine whether to use getProducts (fast, full sync) or getProductsByFilter (filtered).
+			$use_filter = false;
+			$filter     = [];
+			if ( $delta && ! empty( $delta_since ) ) {
+				$use_filter           = true;
+				$filter['updated_on'] = [
+					'datetime' => $delta_since,
+					'operator' => '>=',
+				];
+			}
+			if ( ! empty( $collection_ids ) ) {
+				$use_filter                     = true;
+				$filter['dynamic_selection_id'] = $collection_ids[0];
+			}
+
+			$this->logger->verbose(
+				'Sync started',
+				[
+					'delta'          => $delta,
+					'delta_since'    => $delta_since,
+					'batch_size'     => $batch_size,
+					'api_method'     => $use_filter ? 'getProductsByFilter' : 'getProducts',
+					'collection_ids' => $collection_ids ? $collection_ids : '(all)',
+					'filter'         => $filter ? $filter : '(none)',
+				]
 			);
 
-			if ( count( $products ) < $batch_size ) {
-				break;
+			// Pre-sync: category tree, brands, custom classes, grouped products
+			if ( ! empty( $options['sync_categories'] ) && ! empty( $options['super_category_id'] ) ) {
+				$this->category_sync->sync_category_tree( $client, $options, $this->get_include_languages() );
+			}
+			$this->brand_sync->sync_all_brands( $client );
+			if ( ! empty( $options['sync_custom_classes'] ) || ! empty( $options['sync_trade_item_custom_classes'] ) ) {
+				$this->taxonomy_manager->sync_all_custom_classes( $client, $options, $this->get_include_languages() );
 			}
 
-			++$page;
+			$product_to_group_map = [];
+			if ( ! empty( $options['sync_grouped_products'] ) ) {
+				$grouped_result       = $this->upserter->sync_grouped_products_first( $client, $options, $collection_ids );
+				$product_to_group_map = $grouped_result['map'];
+				$created             += $grouped_result['created'];
+				$updated             += $grouped_result['updated'];
+			}
+
+			// =====================================================================
+			// Phase: Fetch — paginate through API, collect all product data
+			// =====================================================================
+			Skwirrel_WC_Sync_History::update_phase_progress(
+				Skwirrel_WC_Sync_History::PHASE_FETCH,
+				0,
+				0,
+				__( 'Fetching products from API…', 'skwirrel-pim-sync' )
+			);
+
+			$sync_items    = []; // [{product, group_info, wc_id, outcome}]
+			$virtual_items = []; // [{product, wc_variable_id}] — images for variable products
+			$page          = 1;
+
 			$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
 			if ( ! $result['success'] ) {
-				$this->logger->error( 'Pagination failed', $result['error'] ?? [] );
-				break;
+				$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
+				$this->logger->error( 'Sync API error', $err );
+				$this->logger->stop_sync_log();
+				Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $err['message'] ?? '', 0, 0, 0, 0, $trigger, $log_filename );
+				return [
+					'success' => false,
+					'error'   => $err['message'] ?? 'API error',
+					'created' => 0,
+					'updated' => 0,
+					'failed'  => 0,
+				];
 			}
+
 			$data     = $result['result'] ?? [];
 			$products = $data['products'] ?? [];
-		} while ( ! empty( $products ) );
 
-		$total = count( $sync_items );
-		$this->logger->info( "Fetch complete: {$total} products to process in phases" );
+			if ( $delta && empty( $products ) ) {
+				$this->logger->info( 'Delta sync: no products updated since last sync' );
+				$this->logger->stop_sync_log();
+				Skwirrel_WC_Sync_History::update_last_result( true, 0, 0, 0, '', 0, 0, 0, 0, $trigger, $log_filename );
+				return [
+					'success' => true,
+					'created' => 0,
+					'updated' => 0,
+					'failed'  => 0,
+				];
+			}
 
-		// =====================================================================
-		// Phase 1: Products — create/update with basic fields
-		// =====================================================================
-		Skwirrel_WC_Sync_History::update_phase_progress(
-			Skwirrel_WC_Sync_History::PHASE_PRODUCTS,
-			0,
-			$total,
-			__( 'Creating & updating products…', 'skwirrel-pim-sync' )
-		);
+			do {
+				$this->logger->verbose(
+					'Fetching batch',
+					[
+						'page'  => $page,
+						'count' => count( $products ),
+					]
+				);
 
-		foreach ( $sync_items as $i => &$item ) {
-			try {
-				$result_item = $item['group_info']
+				foreach ( $products as $product ) {
+					$skwirrel_product_id = $product['product_id'] ?? $product['id'] ?? null;
+
+					// Virtual products → collect for phase 4 (media on parent)
+					$virtual_info = null;
+					if ( null !== $skwirrel_product_id ) {
+						$virtual_info = $product_to_group_map[ 'virtual:' . (int) $skwirrel_product_id ] ?? null;
+					}
+					if ( $virtual_info && ! empty( $virtual_info['is_virtual_for_variable'] ) ) {
+						$virtual_items[] = [
+							'product'        => $product,
+							'wc_variable_id' => $virtual_info['wc_variable_id'],
+						];
+						continue;
+					}
+
+					// Skip non-grouped VIRTUAL products
+					if ( ( $product['product_type'] ?? '' ) === 'VIRTUAL' ) {
+						continue;
+					}
+
+					// Resolve group info
+					$sku_for_lookup = (string) ( $product['internal_product_code'] ?? $product['manufacturer_product_code'] ?? $this->mapper->get_sku( $product ) );
+					$group_info     = null;
+					if ( null !== $skwirrel_product_id && '' !== $skwirrel_product_id ) {
+						$group_info = $product_to_group_map[ (int) $skwirrel_product_id ] ?? null;
+					}
+					if ( ! $group_info && '' !== $sku_for_lookup ) {
+						$group_info = $product_to_group_map[ 'sku:' . $sku_for_lookup ] ?? null;
+					}
+
+					$sync_items[] = [
+						'product'    => $product,
+						'group_info' => $group_info,
+						'wc_id'      => 0,
+						'outcome'    => 'skipped',
+					];
+				}
+
+				Skwirrel_WC_Sync_History::update_phase_progress(
+					Skwirrel_WC_Sync_History::PHASE_FETCH,
+					count( $sync_items ),
+					0,
+					/* translators: %d = number of products fetched so far */
+					sprintf( __( 'Fetching products from API… (%d found)', 'skwirrel-pim-sync' ), count( $sync_items ) )
+				);
+
+				if ( count( $products ) < $batch_size ) {
+					break;
+				}
+
+				++$page;
+				$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
+				if ( ! $result['success'] ) {
+					$this->logger->error( 'Pagination failed', $result['error'] ?? [] );
+					break;
+				}
+				$data     = $result['result'] ?? [];
+				$products = $data['products'] ?? [];
+			} while ( ! empty( $products ) );
+
+			$total = count( $sync_items );
+			$this->logger->info( "Fetch complete: {$total} products to process in phases" );
+
+			// =====================================================================
+			// Phase 1: Products — create/update with basic fields
+			// =====================================================================
+			Skwirrel_WC_Sync_History::update_phase_progress(
+				Skwirrel_WC_Sync_History::PHASE_PRODUCTS,
+				0,
+				$total,
+				__( 'Creating & updating products…', 'skwirrel-pim-sync' )
+			);
+
+			foreach ( $sync_items as $i => &$item ) {
+				try {
+					$result_item = $item['group_info']
 					? $this->upserter->create_or_update_variation(
 						apply_filters( 'skwirrel_wc_sync_product_before_variation', $item['product'], $item['group_info'] ),
 						$item['group_info']
 					)
-					: $this->upserter->create_or_update_product( $item['product'] );
+						: $this->upserter->create_or_update_product( $item['product'] );
 
-				$item['wc_id']   = $result_item['wc_id'];
-				$item['outcome'] = $result_item['outcome'];
+					$item['wc_id']   = $result_item['wc_id'];
+					$item['outcome'] = $result_item['outcome'];
 
-				if ( 'created' === $result_item['outcome'] ) {
-					++$created;
-				} elseif ( 'updated' === $result_item['outcome'] ) {
-					++$updated;
-				} else {
+					if ( 'created' === $result_item['outcome'] ) {
+						++$created;
+					} elseif ( 'updated' === $result_item['outcome'] ) {
+						++$updated;
+					} else {
+						++$failed;
+					}
+				} catch ( Throwable $e ) {
 					++$failed;
+					$this->logger->error(
+						'Product create/update failed',
+						[
+							'product' => $item['product']['internal_product_code'] ?? $item['product']['product_id'] ?? '?',
+							'error'   => $e->getMessage(),
+						]
+					);
 				}
-			} catch ( Throwable $e ) {
-				++$failed;
-				$this->logger->error(
-					'Product create/update failed',
-					[
-						'product' => $item['product']['internal_product_code'] ?? $item['product']['product_id'] ?? '?',
-						'error'   => $e->getMessage(),
-					]
-				);
-			}
 
-			if ( ( $i + 1 ) % 25 === 0 || $i === $total - 1 ) {
-				Skwirrel_WC_Sync_History::update_phase_progress(
-					Skwirrel_WC_Sync_History::PHASE_PRODUCTS,
-					$i + 1,
-					$total,
-					__( 'Creating & updating products…', 'skwirrel-pim-sync' )
-				);
+				if ( ( $i + 1 ) % 25 === 0 || $i === $total - 1 ) {
+					Skwirrel_WC_Sync_History::update_phase_progress(
+						Skwirrel_WC_Sync_History::PHASE_PRODUCTS,
+						$i + 1,
+						$total,
+						__( 'Creating & updating products…', 'skwirrel-pim-sync' )
+					);
+				}
 			}
-		}
-		unset( $item );
+			unset( $item );
 
-		// =====================================================================
-		// Phase 2: Taxonomy — categories, brands, manufacturers
-		// =====================================================================
-		$taxonomy_label = ! empty( $options['sync_manufacturers'] )
+			// =====================================================================
+			// Phase 2: Taxonomy — categories, brands, manufacturers
+			// =====================================================================
+			$taxonomy_label = ! empty( $options['sync_manufacturers'] )
 			? __( 'Assigning categories, brands & manufacturers…', 'skwirrel-pim-sync' )
 			: __( 'Assigning categories & brands…', 'skwirrel-pim-sync' );
 
-		Skwirrel_WC_Sync_History::update_phase_progress(
-			Skwirrel_WC_Sync_History::PHASE_TAXONOMY,
-			0,
-			$total,
-			$taxonomy_label
-		);
+			Skwirrel_WC_Sync_History::update_phase_progress(
+				Skwirrel_WC_Sync_History::PHASE_TAXONOMY,
+				0,
+				$total,
+				$taxonomy_label
+			);
 
-		foreach ( $sync_items as $i => $item ) {
-			if ( ! $item['wc_id'] || 'skipped' === $item['outcome'] ) {
-				continue;
-			}
-			try {
-				// For variations, taxonomy goes to the parent variable product
-				$tax_target = $item['group_info']['wc_variable_id'] ?? $item['wc_id'];
-				$this->upserter->assign_taxonomy( $tax_target, $item['product'] );
-			} catch ( Throwable $e ) {
-				$this->logger->warning(
-					'Taxonomy assignment failed',
-					[
-						'wc_id' => $item['wc_id'],
-						'error' => $e->getMessage(),
-					]
-				);
-			}
-
-			if ( ( $i + 1 ) % 50 === 0 || $i === $total - 1 ) {
-				Skwirrel_WC_Sync_History::update_phase_progress(
-					Skwirrel_WC_Sync_History::PHASE_TAXONOMY,
-					$i + 1,
-					$total,
-					$taxonomy_label
-				);
-			}
-		}
-
-		// =====================================================================
-		// Phase 3: Attributes — ETIM + custom class
-		// =====================================================================
-		$with_attrs    = 0;
-		$without_attrs = 0;
-
-		Skwirrel_WC_Sync_History::update_phase_progress(
-			Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES,
-			0,
-			$total,
-			__( 'Connecting attributes…', 'skwirrel-pim-sync' )
-		);
-
-		foreach ( $sync_items as $i => $item ) {
-			if ( ! $item['wc_id'] || 'skipped' === $item['outcome'] ) {
-				continue;
-			}
-			try {
-				$attr_count = $this->upserter->assign_attributes( $item['wc_id'], $item['product'], $item['group_info'] );
-				if ( $attr_count > 0 ) {
-					++$with_attrs;
-				} else {
-					++$without_attrs;
+			foreach ( $sync_items as $i => $item ) {
+				if ( ! $item['wc_id'] || 'skipped' === $item['outcome'] ) {
+					continue;
 				}
-			} catch ( Throwable $e ) {
-				$this->logger->warning(
-					'Attribute assignment failed',
-					[
-						'wc_id' => $item['wc_id'],
-						'error' => $e->getMessage(),
-					]
-				);
+				try {
+					// For variations, taxonomy goes to the parent variable product
+					$tax_target = $item['group_info']['wc_variable_id'] ?? $item['wc_id'];
+					$this->upserter->assign_taxonomy( $tax_target, $item['product'] );
+				} catch ( Throwable $e ) {
+					$this->logger->warning(
+						'Taxonomy assignment failed',
+						[
+							'wc_id' => $item['wc_id'],
+							'error' => $e->getMessage(),
+						]
+					);
+				}
+
+				if ( ( $i + 1 ) % 50 === 0 || $i === $total - 1 ) {
+					Skwirrel_WC_Sync_History::update_phase_progress(
+						Skwirrel_WC_Sync_History::PHASE_TAXONOMY,
+						$i + 1,
+						$total,
+						$taxonomy_label
+					);
+				}
 			}
 
-			if ( ( $i + 1 ) % 25 === 0 || $i === $total - 1 ) {
-				Skwirrel_WC_Sync_History::update_phase_progress(
-					Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES,
-					$i + 1,
-					$total,
-					__( 'Connecting attributes…', 'skwirrel-pim-sync' )
-				);
+			// =====================================================================
+			// Phase 3: Attributes — ETIM + custom class
+			// =====================================================================
+			$with_attrs    = 0;
+			$without_attrs = 0;
+
+			Skwirrel_WC_Sync_History::update_phase_progress(
+				Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES,
+				0,
+				$total,
+				__( 'Connecting attributes…', 'skwirrel-pim-sync' )
+			);
+
+			foreach ( $sync_items as $i => $item ) {
+				if ( ! $item['wc_id'] || 'skipped' === $item['outcome'] ) {
+					continue;
+				}
+				try {
+					$attr_count = $this->upserter->assign_attributes( $item['wc_id'], $item['product'], $item['group_info'] );
+					if ( $attr_count > 0 ) {
+						++$with_attrs;
+					} else {
+						++$without_attrs;
+					}
+				} catch ( Throwable $e ) {
+					$this->logger->warning(
+						'Attribute assignment failed',
+						[
+							'wc_id' => $item['wc_id'],
+							'error' => $e->getMessage(),
+						]
+					);
+				}
+
+				if ( ( $i + 1 ) % 25 === 0 || $i === $total - 1 ) {
+					Skwirrel_WC_Sync_History::update_phase_progress(
+						Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES,
+						$i + 1,
+						$total,
+						__( 'Connecting attributes…', 'skwirrel-pim-sync' )
+					);
+				}
 			}
-		}
 
-		// Flush deferred parent attribute terms
-		$this->upserter->flush_parent_attribute_terms();
+			// Flush deferred parent attribute terms
+			$this->upserter->flush_parent_attribute_terms();
 
-		// =====================================================================
-		// Phase 4: Media — images + documents (slowest phase)
-		// =====================================================================
-		$media_total = $total + count( $virtual_items );
+			// =====================================================================
+			// Phase 4: Media — images + documents (slowest phase)
+			// =====================================================================
+			$media_total = $total + count( $virtual_items );
 
-		Skwirrel_WC_Sync_History::update_phase_progress(
-			Skwirrel_WC_Sync_History::PHASE_MEDIA,
-			0,
-			$media_total,
-			__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
-		);
+			Skwirrel_WC_Sync_History::update_phase_progress(
+				Skwirrel_WC_Sync_History::PHASE_MEDIA,
+				0,
+				$media_total,
+				__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
+			);
 
-		$media_i = 0;
-		foreach ( $sync_items as $item ) {
-			if ( ! $item['wc_id'] || 'skipped' === $item['outcome'] ) {
+			$media_i = 0;
+			foreach ( $sync_items as $item ) {
+				if ( ! $item['wc_id'] || 'skipped' === $item['outcome'] ) {
+					++$media_i;
+					continue;
+				}
+				try {
+					$this->upserter->assign_media( $item['wc_id'], $item['product'] );
+				} catch ( Throwable $e ) {
+					$this->logger->warning(
+						'Media assignment failed',
+						[
+							'wc_id' => $item['wc_id'],
+							'error' => $e->getMessage(),
+						]
+					);
+				}
 				++$media_i;
-				continue;
-			}
-			try {
-				$this->upserter->assign_media( $item['wc_id'], $item['product'] );
-			} catch ( Throwable $e ) {
-				$this->logger->warning(
-					'Media assignment failed',
-					[
-						'wc_id' => $item['wc_id'],
-						'error' => $e->getMessage(),
-					]
-				);
-			}
-			++$media_i;
 
-			if ( 0 === $media_i % 10 || $media_i === $media_total ) {
-				Skwirrel_WC_Sync_History::update_phase_progress(
-					Skwirrel_WC_Sync_History::PHASE_MEDIA,
-					$media_i,
-					$media_total,
-					__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
-				);
-			}
-		}
-
-		// Virtual products: assign images/documents to parent variable product
-		foreach ( $virtual_items as $vi ) {
-			try {
-				$this->upserter->assign_media( $vi['wc_variable_id'], $vi['product'] );
-			} catch ( Throwable $e ) {
-				$this->logger->warning(
-					'Virtual product media failed',
-					[
-						'wc_variable_id' => $vi['wc_variable_id'],
-						'error'          => $e->getMessage(),
-					]
-				);
-			}
-			++$media_i;
-
-			if ( 0 === $media_i % 10 || $media_i === $media_total ) {
-				Skwirrel_WC_Sync_History::update_phase_progress(
-					Skwirrel_WC_Sync_History::PHASE_MEDIA,
-					$media_i,
-					$media_total,
-					__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
-				);
-			}
-		}
-
-		// Free memory — product data is no longer needed
-		unset( $sync_items, $virtual_items );
-
-		// =====================================================================
-		// Phase 5: Cleanup — purge stale, persist history
-		// =====================================================================
-		Skwirrel_WC_Sync_History::update_phase_progress(
-			Skwirrel_WC_Sync_History::PHASE_CLEANUP,
-			0,
-			1,
-			__( 'Cleaning up…', 'skwirrel-pim-sync' )
-		);
-
-		$trashed            = 0;
-		$categories_removed = 0;
-		if ( ! empty( $options['purge_stale_products'] ) ) {
-			if ( $delta ) {
-				$this->logger->verbose( 'Purge skipped: delta sync (only during full sync)' );
-			} else {
-				$trashed = $this->purge_handler->purge_stale_products( $sync_started_at, $this->mapper );
-				if ( ! empty( $options['sync_categories'] ) ) {
-					$categories_removed = $this->purge_handler->purge_stale_categories( $this->category_sync->get_seen_category_ids() );
+				if ( 0 === $media_i % 10 || $media_i === $media_total ) {
+					Skwirrel_WC_Sync_History::update_phase_progress(
+						Skwirrel_WC_Sync_History::PHASE_MEDIA,
+						$media_i,
+						$media_total,
+						__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
+					);
 				}
 			}
-		}
 
-		update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z' ) );
-		Skwirrel_WC_Sync_History::update_last_result( true, $created, $updated, $failed, '', $with_attrs, $without_attrs, $trashed, $categories_removed, $trigger, $log_filename );
+			// Virtual products: assign images/documents to parent variable product
+			foreach ( $virtual_items as $vi ) {
+				try {
+					$this->upserter->assign_media( $vi['wc_variable_id'], $vi['product'] );
+				} catch ( Throwable $e ) {
+					$this->logger->warning(
+						'Virtual product media failed',
+						[
+							'wc_variable_id' => $vi['wc_variable_id'],
+							'error'          => $e->getMessage(),
+						]
+					);
+				}
+				++$media_i;
 
-		$this->logger->info(
-			'Sync completed',
-			[
+				if ( 0 === $media_i % 10 || $media_i === $media_total ) {
+					Skwirrel_WC_Sync_History::update_phase_progress(
+						Skwirrel_WC_Sync_History::PHASE_MEDIA,
+						$media_i,
+						$media_total,
+						__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
+					);
+				}
+			}
+
+			// Free memory — product data is no longer needed
+			unset( $sync_items, $virtual_items );
+
+			// =====================================================================
+			// Phase 5: Cleanup — purge stale, persist history
+			// =====================================================================
+			Skwirrel_WC_Sync_History::update_phase_progress(
+				Skwirrel_WC_Sync_History::PHASE_CLEANUP,
+				0,
+				1,
+				__( 'Cleaning up…', 'skwirrel-pim-sync' )
+			);
+
+			$trashed            = 0;
+			$categories_removed = 0;
+			if ( ! empty( $options['purge_stale_products'] ) ) {
+				if ( $delta ) {
+					$this->logger->verbose( 'Purge skipped: delta sync (only during full sync)' );
+				} else {
+					$trashed = $this->purge_handler->purge_stale_products( $sync_started_at, $this->mapper );
+					if ( ! empty( $options['sync_categories'] ) ) {
+						$categories_removed = $this->purge_handler->purge_stale_categories( $this->category_sync->get_seen_category_ids() );
+					}
+				}
+			}
+
+			update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z' ) );
+			Skwirrel_WC_Sync_History::update_last_result( true, $created, $updated, $failed, '', $with_attrs, $without_attrs, $trashed, $categories_removed, $trigger, $log_filename );
+
+			$this->logger->info(
+				'Sync completed',
+				[
+					'created'            => $created,
+					'updated'            => $updated,
+					'failed'             => $failed,
+					'trashed'            => $trashed,
+					'categories_removed' => $categories_removed,
+					'with_attributes'    => $with_attrs,
+					'without_attributes' => $without_attrs,
+				]
+			);
+
+			return [
+				'success'            => true,
 				'created'            => $created,
 				'updated'            => $updated,
 				'failed'             => $failed,
 				'trashed'            => $trashed,
 				'categories_removed' => $categories_removed,
-				'with_attributes'    => $with_attrs,
-				'without_attributes' => $without_attrs,
-			]
-		);
-
-		return [
-			'success'            => true,
-			'created'            => $created,
-			'updated'            => $updated,
-			'failed'             => $failed,
-			'trashed'            => $trashed,
-			'categories_removed' => $categories_removed,
-		];
+			];
 
 		} finally {
+			$shutdown_registered = false; // Disable shutdown handler — sync completed.
 			$this->logger->stop_sync_log();
 		}
 	}

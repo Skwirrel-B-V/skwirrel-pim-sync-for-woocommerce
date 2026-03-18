@@ -2,6 +2,12 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.2.2]
+
+* Raise PHP memory limit at sync start via `wp_raise_memory_limit('admin')` to prevent OOM crashes on large API responses
+* Register shutdown handler to detect fatal errors (OOM) during sync and record them as failed sync results
+* Fixes silent sync failures where a crash left the dashboard showing the previous successful result with no error record
+
 ## [2.2.1]
 
 * Separate "Sync Logs" settings section with per-trigger log mode (one file per sync or per day)
