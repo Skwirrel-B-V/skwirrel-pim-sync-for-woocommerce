@@ -104,7 +104,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<div id="skwirrel-log-modal" class="skw-modal" style="display:none;">
 				<div class="skw-modal-content">
 					<div class="skw-modal-header">
-						<h3 class="skw-modal-title"><?php esc_html_e( 'Sync Log', 'skwirrel-pim-sync' ); ?></h3>
+						<h3 class="skw-modal-title" id="skwirrel-log-title"><?php esc_html_e( 'Sync Log', 'skwirrel-pim-sync' ); ?></h3>
 						<button type="button" class="skw-modal-close">&times;</button>
 					</div>
 					<pre id="skwirrel-log-content"></pre>

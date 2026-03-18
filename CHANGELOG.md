@@ -2,6 +2,14 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.2.3]
+
+* Dark terminal-style log viewer with syntax highlighting for log levels (INFO=blue, WARNING=yellow, ERROR=red)
+* JSON objects in log lines highlighted in cyan
+* Sync separator lines styled with subtle dividers
+* Modal title shows the log filename
+* Truncation notice styled as warning banner
+
 ## [2.2.2]
 
 * Raise PHP memory limit at sync start via `wp_raise_memory_limit('admin')` to prevent OOM crashes on large API responses

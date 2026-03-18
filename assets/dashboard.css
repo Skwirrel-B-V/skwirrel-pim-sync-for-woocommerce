@@ -968,37 +968,38 @@
 }
 
 .skw-modal-content {
-	background: #fff;
+	background: #1e1e2e;
 	border-radius: var(--skw-radius-lg);
 	width: 90vw;
-	max-width: 900px;
-	max-height: 80vh;
+	max-width: 960px;
+	max-height: 85vh;
 	display: flex;
 	flex-direction: column;
-	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
 }
 
 .skw-modal-header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 16px 20px;
-	border-bottom: 1px solid #e5e7eb;
+	padding: 12px 20px;
+	border-bottom: 1px solid #313244;
 	flex-shrink: 0;
 }
 
 .skw-modal-title {
-	font-size: 15px;
+	font-size: 13px;
 	font-weight: 600;
 	margin: 0;
-	color: #111827;
+	color: #cdd6f4;
+	font-family: ui-monospace, "SF Mono", Monaco, "Cascadia Code", monospace;
 }
 
 .skw-modal-close {
 	background: none;
 	border: none;
-	font-size: 22px;
-	color: #6b7280;
+	font-size: 20px;
+	color: #6c7086;
 	cursor: pointer;
 	padding: 4px 8px;
 	line-height: 1;
@@ -1007,8 +1008,8 @@
 }
 
 .skw-modal-close:hover {
-	color: #111827;
-	background: #f3f4f6;
+	color: #cdd6f4;
+	background: #313244;
 }
 
 #skwirrel-log-content {
@@ -1016,14 +1017,36 @@
 	padding: 16px 20px;
 	font-family: ui-monospace, "SF Mono", Monaco, "Cascadia Code", monospace;
 	font-size: 12px;
-	line-height: 1.6;
-	color: #1f2937;
-	background: #f9fafb;
+	line-height: 1.7;
+	color: #a6adc8;
+	background: #1e1e2e;
 	overflow: auto;
 	white-space: pre-wrap;
 	word-wrap: break-word;
 	flex: 1;
 	min-height: 200px;
+	tab-size: 4;
+}
+
+/* Log level coloring */
+#skwirrel-log-content .skw-log-ts { color: #585b70; }
+#skwirrel-log-content .skw-log-info { color: #89b4fa; }
+#skwirrel-log-content .skw-log-warning { color: #f9e2af; }
+#skwirrel-log-content .skw-log-error { color: #f38ba8; font-weight: 600; }
+#skwirrel-log-content .skw-log-debug { color: #6c7086; }
+#skwirrel-log-content .skw-log-separator {
+	color: #585b70;
+	display: block;
+	border-top: 1px solid #313244;
+	margin: 8px 0;
+	padding-top: 8px;
+}
+#skwirrel-log-content .skw-log-json { color: #74c7ec; }
+#skwirrel-log-content .skw-log-truncated {
+	color: #f9e2af;
+	font-style: italic;
+	display: block;
+	margin-bottom: 8px;
 }
 
 /* ==========================================================================
