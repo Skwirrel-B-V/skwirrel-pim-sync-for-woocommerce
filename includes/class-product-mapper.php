@@ -497,4 +497,39 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	): array {
 		return $this->custom_class->get_custom_class_text_meta( $product, $include_trade_items, $filter_mode, $filter_ids, $filter_codes );
 	}
+
+	/**
+	 * Get visibility map for custom class attributes.
+	 *
+	 * @param array  $product              Raw API product.
+	 * @param bool   $include_trade_items  Include trade-item custom classes.
+	 * @param string $sync_filter_mode     Sync filter mode.
+	 * @param array  $sync_filter_ids      Sync filter numeric class IDs.
+	 * @param array  $sync_filter_codes    Sync filter string class codes.
+	 * @param string $vis_mode             Visibility filter mode.
+	 * @param array  $vis_ids              Visibility filter numeric class IDs.
+	 * @param array  $vis_codes            Visibility filter string class codes.
+	 * @return array<string, bool>         label => visible
+	 */
+	public function get_custom_class_attribute_visibility(
+		array $product,
+		bool $include_trade_items,
+		string $sync_filter_mode,
+		array $sync_filter_ids,
+		array $sync_filter_codes,
+		string $vis_mode,
+		array $vis_ids,
+		array $vis_codes
+	): array {
+		return $this->custom_class->get_attribute_visibility_map(
+			$product,
+			$include_trade_items,
+			$sync_filter_mode,
+			$sync_filter_ids,
+			$sync_filter_codes,
+			$vis_mode,
+			$vis_ids,
+			$vis_codes
+		);
+	}
 }

@@ -29,6 +29,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	/** @var array<int, array<string, string[]>> Deferred non-variation attributes: parent_id => [label => [value, ...]] */
 	private array $deferred_parent_attrs = [];
 
+	/** @var array<int, array<string, bool>> Deferred attribute visibility: parent_id => [label => visible] */
+	private array $deferred_parent_attr_visibility = [];
+
 	/**
 	 *
 	 * @param Skwirrel_WC_Sync_Logger          $logger          Logger instance.
@@ -215,8 +218,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$attrs = $this->mapper->get_attributes( $product );
 
 		// Merge custom class attributes (if enabled)
-		$cc_options   = $this->get_options();
-		$cc_text_meta = [];
+		$cc_options    = $this->get_options();
+		$cc_text_meta  = [];
+		$cc_visibility = [];
 		if ( ! empty( $cc_options['sync_custom_classes'] ) || ! empty( $cc_options['sync_trade_item_custom_classes'] ) ) {
 			$cc_filter_mode = $cc_options['custom_class_filter_mode'] ?? '';
 			$cc_parsed      = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_options['custom_class_filter_ids'] ?? '' );
@@ -243,6 +247,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$cc_parsed['ids'],
 				$cc_parsed['codes']
 			);
+
+			$cc_visibility = $this->build_cc_visibility_map( $product, $cc_options );
 		}
 
 		$wc_product->save();
@@ -343,7 +349,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$attr->set_name( $tax );
 				$attr->set_options( [ $term_data['term_id'] ] );
 				$attr->set_position( $position++ );
-				$attr->set_visible( true );
+				$attr->set_visible( $this->get_cc_attribute_visibility( $name, $cc_visibility ) );
 				$attr->set_variation( false );
 				$wc_attrs[ $tax ] = $attr;
 			}
@@ -880,8 +886,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			return 'skipped';
 		}
 
-		$products     = $group['_products'] ?? $group['products'] ?? [];
-		$variant_skus = [];
+		$products       = $group['_products'] ?? $group['products'] ?? [];
+		$variant_labels = [];
 
 		foreach ( $products as $item ) {
 			$product_id = null;
@@ -896,7 +902,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$sku        = '';
 			}
 			if ( $product_id && $sku !== '' ) {
-				$variant_skus[] = $sku;
+				$variant_labels[] = is_array( $item ) ? $this->get_variant_label( $item ) : $sku;
 			}
 		}
 
@@ -978,7 +984,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$attr = new WC_Product_Attribute();
 			$attr->set_id( wc_attribute_taxonomy_id_by_name( 'skwirrel_variant' ) );
 			$attr->set_name( 'pa_skwirrel_variant' );
-			$attr->set_options( array_values( array_unique( $variant_skus ) ) );
+			$attr->set_options( array_values( array_unique( $variant_labels ) ) );
 			$attr->set_position( 0 );
 			$attr->set_visible( true );
 			$attr->set_variation( true );
@@ -1276,9 +1282,10 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					]
 				);
 			}
-			$term = get_term_by( 'name', $sku, 'pa_skwirrel_variant' ) ?: get_term_by( 'slug', sanitize_title( $sku ), 'pa_skwirrel_variant' );
+			$variant_label = $this->get_variant_label( $product );
+			$term          = get_term_by( 'name', $variant_label, 'pa_skwirrel_variant' ) ?: get_term_by( 'slug', sanitize_title( $variant_label ), 'pa_skwirrel_variant' );
 			if ( ! $term ) {
-				$insert = wp_insert_term( $sku, 'pa_skwirrel_variant' );
+				$insert = wp_insert_term( $variant_label, 'pa_skwirrel_variant' );
 				$term   = ! is_wp_error( $insert ) ? get_term( $insert['term_id'], 'pa_skwirrel_variant' ) : null;
 			}
 			if ( $term && ! is_wp_error( $term ) ) {
@@ -1366,9 +1373,10 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			return 0;
 		}
 
-		$attrs        = $this->mapper->get_attributes( $product );
-		$cc_options   = $this->get_options();
-		$cc_text_meta = [];
+		$attrs         = $this->mapper->get_attributes( $product );
+		$cc_options    = $this->get_options();
+		$cc_text_meta  = [];
+		$cc_visibility = [];
 
 		if ( ! empty( $cc_options['sync_custom_classes'] ) || ! empty( $cc_options['sync_trade_item_custom_classes'] ) ) {
 			$cc_filter_mode = $cc_options['custom_class_filter_mode'] ?? '';
@@ -1395,6 +1403,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$cc_parsed['ids'],
 				$cc_parsed['codes']
 			);
+
+			$cc_visibility = $this->build_cc_visibility_map( $product, $cc_options );
 		}
 
 		// For variations: remove variation-axis attrs, defer non-variation attrs to parent
@@ -1417,6 +1427,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			if ( $wc_variable_id && ! empty( $attrs ) ) {
 				foreach ( $attrs as $label => $value ) {
 					$this->deferred_parent_attrs[ $wc_variable_id ][ $label ][] = (string) $value;
+					if ( ! empty( $cc_visibility ) && ! isset( $this->deferred_parent_attr_visibility[ $wc_variable_id ][ $label ] ) ) {
+						$this->deferred_parent_attr_visibility[ $wc_variable_id ][ $label ] = $this->get_cc_attribute_visibility( $label, $cc_visibility );
+					}
 				}
 				return count( $attrs );
 			}
@@ -1455,7 +1468,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$attr->set_name( $tax );
 			$attr->set_options( [ $term_data['term_id'] ] );
 			$attr->set_position( $position++ );
-			$attr->set_visible( true );
+			$attr->set_visible( $this->get_cc_attribute_visibility( $name, $cc_visibility ) );
 			$attr->set_variation( false );
 			$wc_attrs[ $tax ] = $attr;
 		}
@@ -1704,7 +1717,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					continue;
 				}
 
-				$slug = $this->taxonomy_manager->get_attribute_slug( $label );
+				$slug    = $this->taxonomy_manager->get_attribute_slug( $label );
+				$visible = $this->deferred_parent_attr_visibility[ $parent_id ][ $label ] ?? true;
 				wp_set_object_terms( $parent_id, $term_ids, $tax, false );
 
 				$attr = new WC_Product_Attribute();
@@ -1712,7 +1726,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$attr->set_name( $tax );
 				$attr->set_options( $term_ids );
 				$attr->set_position( $position++ );
-				$attr->set_visible( true );
+				$attr->set_visible( $visible );
 				$attr->set_variation( false );
 				$attrs[ $tax ] = $attr;
 			}
@@ -1734,9 +1748,10 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			);
 		}
 
-		$parent_count                = count( $this->deferred_parent_terms ) + count( $this->deferred_parent_attrs );
-		$this->deferred_parent_terms = [];
-		$this->deferred_parent_attrs = [];
+		$parent_count                          = count( $this->deferred_parent_terms ) + count( $this->deferred_parent_attrs );
+		$this->deferred_parent_terms           = [];
+		$this->deferred_parent_attrs           = [];
+		$this->deferred_parent_attr_visibility = [];
 		$this->logger->info( 'Flushed parent attribute terms', [ 'parents_updated' => $parent_count ] );
 	}
 
@@ -1826,6 +1841,76 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		];
 		$saved    = get_option( 'skwirrel_wc_sync_settings', [] );
 		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );
+	}
+
+	/**
+	 * Get the variant label for a product based on the variant_label_field setting.
+	 *
+	 * Used when no ETIM variation axes are available, to determine the label
+	 * shown in the variant dropdown instead of the raw SKU.
+	 *
+	 * @param array $product Skwirrel product data (full product or group item).
+	 * @return string Variant label (falls back to internal_product_code).
+	 */
+	private function get_variant_label( array $product ): string {
+		$options = $this->get_options();
+		$field   = $options['variant_label_field'] ?? 'internal_product_code';
+
+		$label = '';
+		switch ( $field ) {
+			case 'product_erp_description':
+				$label = (string) ( $product['product_erp_description'] ?? '' );
+				break;
+			case 'product_name':
+				$label = $this->mapper->get_name( $product );
+				break;
+		}
+
+		return '' !== $label ? $label : (string) ( $product['internal_product_code'] ?? '' );
+	}
+
+	/**
+	 * Get the visibility for a custom class attribute label.
+	 *
+	 * @param string              $label          Attribute label.
+	 * @param array<string, bool> $visibility_map Visibility map (label => visible).
+	 * @return bool Whether the attribute should be visible on the product page.
+	 */
+	private function get_cc_attribute_visibility( string $label, array $visibility_map ): bool {
+		if ( empty( $visibility_map ) ) {
+			return true;
+		}
+		return $visibility_map[ $label ] ?? true;
+	}
+
+	/**
+	 * Build the custom class attribute visibility map for a product.
+	 *
+	 * @param array $product    Skwirrel product data.
+	 * @param array $cc_options Plugin settings.
+	 * @return array<string, bool> label => visible
+	 */
+	private function build_cc_visibility_map( array $product, array $cc_options ): array {
+		$vis_mode = $cc_options['custom_class_visibility_mode'] ?? '';
+		if ( '' === $vis_mode ) {
+			return [];
+		}
+
+		$cc_filter_mode = $cc_options['custom_class_filter_mode'] ?? '';
+		$cc_parsed      = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_options['custom_class_filter_ids'] ?? '' );
+		$vis_parsed     = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_options['custom_class_visibility_ids'] ?? '' );
+		$include_ti     = ! empty( $cc_options['sync_trade_item_custom_classes'] );
+
+		return $this->mapper->get_custom_class_attribute_visibility(
+			$product,
+			$include_ti,
+			$cc_filter_mode,
+			$cc_parsed['ids'],
+			$cc_parsed['codes'],
+			$vis_mode,
+			$vis_parsed['ids'],
+			$vis_parsed['codes']
+		);
 	}
 
 	/**

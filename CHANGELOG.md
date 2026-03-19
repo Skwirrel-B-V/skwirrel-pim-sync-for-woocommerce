@@ -2,6 +2,11 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.5.0]
+
+* **Variant label setting** — new "Variant label" dropdown in settings to choose which field is shown in the frontend variant dropdown when no ETIM variation axes are available: SKU (default), ERP description, or product name
+* **Custom class attribute visibility filter** — new "Attribute visibility filter" setting to control which custom class attributes are visible on the product page (whitelist/blacklist by class ID or code)
+
 ## [2.4.4]
 
 * Fix "Stop sync" button — abort check now runs every 25 products within each phase instead of only between phases

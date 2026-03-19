@@ -150,6 +150,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
         $out['sync_categories'] = !empty($input['sync_categories']);
         $out['super_category_id'] = isset($input['super_category_id']) ? sanitize_text_field(trim($input['super_category_id'])) : '';
         $out['sync_grouped_products'] = !empty($input['sync_grouped_products']);
+        $out['variant_label_field'] = in_array($input['variant_label_field'] ?? '', ['internal_product_code', 'product_erp_description', 'product_name'], true)
+            ? $input['variant_label_field']
+            : 'internal_product_code';
         $out['sync_images'] = ($input['sync_images'] ?? 'yes') === 'yes';
         // Image language: dropdown or custom
         $lang_select = $input['image_language_select'] ?? '';
@@ -194,6 +197,12 @@ class Skwirrel_WC_Sync_Admin_Settings {
         $raw_cc_filter = $input['custom_class_filter_ids'] ?? '';
         $cc_parts = preg_split('/[\s,]+/', is_string($raw_cc_filter) ? $raw_cc_filter : '', -1, PREG_SPLIT_NO_EMPTY);
         $out['custom_class_filter_ids'] = implode(', ', array_map('sanitize_text_field', array_map('trim', $cc_parts)));
+        $out['custom_class_visibility_mode'] = in_array($input['custom_class_visibility_mode'] ?? '', ['whitelist', 'blacklist'], true)
+            ? $input['custom_class_visibility_mode']
+            : '';
+        $raw_vis = $input['custom_class_visibility_ids'] ?? '';
+        $vis_parts = preg_split('/[\s,]+/', is_string($raw_vis) ? $raw_vis : '', -1, PREG_SPLIT_NO_EMPTY);
+        $out['custom_class_visibility_ids'] = implode(', ', array_map('sanitize_text_field', array_map('trim', $vis_parts)));
 
         $out['sync_manufacturers'] = !empty($input['sync_manufacturers']);
         $out['verbose_logging'] = !empty($input['verbose_logging']);
@@ -1061,6 +1070,18 @@ class Skwirrel_WC_Sync_Admin_Settings {
                     </td>
                 </tr>
                 <tr>
+                    <th scope="row"><label for="variant_label_field"><?php esc_html_e('Variant label', 'skwirrel-pim-sync'); ?></label></th>
+                    <td>
+                        <?php $vlf = $opts['variant_label_field'] ?? 'internal_product_code'; ?>
+                        <select id="variant_label_field" name="<?php echo esc_attr(self::OPTION_KEY); ?>[variant_label_field]">
+                            <option value="internal_product_code" <?php selected($vlf, 'internal_product_code'); ?>><?php esc_html_e('SKU (internal_product_code)', 'skwirrel-pim-sync'); ?></option>
+                            <option value="product_erp_description" <?php selected($vlf, 'product_erp_description'); ?>><?php esc_html_e('ERP description (product_erp_description)', 'skwirrel-pim-sync'); ?></option>
+                            <option value="product_name" <?php selected($vlf, 'product_name'); ?>><?php esc_html_e('Product name (translated)', 'skwirrel-pim-sync'); ?></option>
+                        </select>
+                        <p class="description"><?php esc_html_e('Label shown in the variant dropdown when no ETIM variation axes are available.', 'skwirrel-pim-sync'); ?></p>
+                    </td>
+                </tr>
+                <tr>
                     <th scope="row"><?php esc_html_e('Sync manufacturers', 'skwirrel-pim-sync'); ?></th>
                     <td>
                         <label><input type="checkbox" name="<?php echo esc_attr(self::OPTION_KEY); ?>[sync_manufacturers]" value="1" <?php checked(!empty($opts['sync_manufacturers'])); ?> /> <?php esc_html_e('Sync manufacturer_name to product_manufacturer taxonomy', 'skwirrel-pim-sync'); ?></label>
@@ -1087,6 +1108,20 @@ class Skwirrel_WC_Sync_Admin_Settings {
                         <br />
                         <input type="text" id="custom_class_filter_ids" name="<?php echo esc_attr(self::OPTION_KEY); ?>[custom_class_filter_ids]" value="<?php echo esc_attr($opts['custom_class_filter_ids'] ?? ''); ?>" class="regular-text" placeholder="<?php esc_attr_e('e.g. 12, 45, BUIS', 'skwirrel-pim-sync'); ?>" style="margin-top:6px;" />
                         <p class="description"><?php esc_html_e('Comma-separated class IDs or codes. Numeric values are used as ID, others as class code.', 'skwirrel-pim-sync'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="custom_class_visibility_mode"><?php esc_html_e('Attribute visibility filter', 'skwirrel-pim-sync'); ?></label></th>
+                    <td>
+                        <?php $vis_mode = $opts['custom_class_visibility_mode'] ?? ''; ?>
+                        <select id="custom_class_visibility_mode" name="<?php echo esc_attr(self::OPTION_KEY); ?>[custom_class_visibility_mode]">
+                            <option value="" <?php selected($vis_mode, ''); ?>><?php esc_html_e('No filter (all visible)', 'skwirrel-pim-sync'); ?></option>
+                            <option value="whitelist" <?php selected($vis_mode, 'whitelist'); ?>><?php esc_html_e('Whitelist (only these visible)', 'skwirrel-pim-sync'); ?></option>
+                            <option value="blacklist" <?php selected($vis_mode, 'blacklist'); ?>><?php esc_html_e('Blacklist (hide these)', 'skwirrel-pim-sync'); ?></option>
+                        </select>
+                        <br />
+                        <input type="text" id="custom_class_visibility_ids" name="<?php echo esc_attr(self::OPTION_KEY); ?>[custom_class_visibility_ids]" value="<?php echo esc_attr($opts['custom_class_visibility_ids'] ?? ''); ?>" class="regular-text" placeholder="<?php esc_attr_e('e.g. 12, 45, BUIS', 'skwirrel-pim-sync'); ?>" style="margin-top:6px;" />
+                        <p class="description"><?php esc_html_e('Controls the "Visible on the product page" flag for custom class attributes. Comma-separated class IDs or codes.', 'skwirrel-pim-sync'); ?></p>
                     </td>
                 </tr>
                 <tr>

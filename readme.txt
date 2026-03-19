@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 8.1
-Stable tag: 2.4.4
+Stable tag: 2.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,6 +62,10 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 2.5.0 =
+* Variant label setting — choose which field shows in the variant dropdown (SKU, ERP description, or product name)
+* Custom class attribute visibility filter — control which custom class attributes are visible on the product page
 
 = 2.4.4 =
 * Fix "Stop sync" button — now checks during phases, not just between them

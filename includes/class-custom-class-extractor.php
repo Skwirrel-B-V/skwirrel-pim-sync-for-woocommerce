@@ -170,6 +170,79 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	}
 
 	/**
+	 * Get visibility map for custom class attributes.
+	 *
+	 * Returns a map of attribute label => visible (bool) based on the
+	 * visibility filter settings. Labels not present in the map default
+	 * to visible.
+	 *
+	 * @param array  $product              Raw API product.
+	 * @param bool   $include_trade_items  Include trade-item custom classes.
+	 * @param string $sync_filter_mode     Sync filter mode ('whitelist'|'blacklist'|'').
+	 * @param array  $sync_filter_ids      Sync filter numeric class IDs.
+	 * @param array  $sync_filter_codes    Sync filter string class codes (lowercase).
+	 * @param string $vis_mode             Visibility filter mode ('whitelist'|'blacklist'|'').
+	 * @param array  $vis_ids              Visibility filter numeric class IDs.
+	 * @param array  $vis_codes            Visibility filter string class codes (lowercase).
+	 * @return array<string, bool>         label => visible
+	 */
+	public function get_attribute_visibility_map(
+		array $product,
+		bool $include_trade_items,
+		string $sync_filter_mode,
+		array $sync_filter_ids,
+		array $sync_filter_codes,
+		string $vis_mode,
+		array $vis_ids,
+		array $vis_codes
+	): array {
+		if ( '' === $vis_mode ) {
+			return [];
+		}
+
+		$lang    = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
+		$classes = $this->collect_custom_classes( $product, $include_trade_items );
+		$classes = $this->filter_custom_classes( $classes, $sync_filter_mode, $sync_filter_ids, $sync_filter_codes );
+
+		$visibility = [];
+		$seen       = [];
+		foreach ( $classes as $cc ) {
+			$class_id   = $cc['custom_class_id'] ?? null;
+			$class_code = $cc['custom_class_code'] ?? null;
+
+			$match   = ( null !== $class_id && in_array( (int) $class_id, $vis_ids, true ) )
+					|| ( null !== $class_code && in_array( strtolower( (string) $class_code ), $vis_codes, true ) );
+			$visible = 'whitelist' === $vis_mode ? $match : ! $match;
+
+			foreach ( $cc['_custom_features'] ?? [] as $feat ) {
+				if ( ! is_array( $feat ) ) {
+					continue;
+				}
+				$type = $feat['custom_feature_type'] ?? '';
+				if ( ! in_array( $type, self::CC_ATTRIBUTE_TYPES, true ) ) {
+					continue;
+				}
+				if ( ! empty( $feat['not_applicable'] ) ) {
+					continue;
+				}
+				$value = $this->format_custom_feature_value( $feat, $lang );
+				if ( $value === null || $value === '' ) {
+					continue;
+				}
+				$label = $this->resolve_custom_feature_label( $feat, $lang );
+				$key   = $feat['custom_feature_code'] ?? ( 'cc_' . ( $feat['custom_class_feature_id'] ?? ( $feat['custom_feature_id'] ?? '' ) ) );
+				if ( isset( $seen[ $key ] ) ) {
+					continue;
+				}
+				$seen[ $key ]         = true;
+				$visibility[ $label ] = $visible;
+			}
+		}
+
+		return $visibility;
+	}
+
+	/**
 	 * Get custom class long-text features as product meta.
 	 * Returns T and B type features as meta_key => value.
 	 *
