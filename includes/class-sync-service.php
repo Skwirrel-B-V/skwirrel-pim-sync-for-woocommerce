@@ -248,10 +248,7 @@ class Skwirrel_WC_Sync_Service {
 			$fetched     = 0;
 			$page        = 1;
 
-			// Use a small fetch batch to keep API responses and INSERT queries within memory limits.
-			$fetch_batch = min( $batch_size, 25 );
-
-			$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $fetch_batch, $page );
+			$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
 			if ( ! $result['success'] ) {
 				$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
 				$this->logger->error( 'Sync API error', $err );
@@ -336,12 +333,12 @@ class Skwirrel_WC_Sync_Service {
 					sprintf( __( 'Fetching products from API… (%d found)', 'skwirrel-pim-sync' ), $fetched )
 				);
 
-				if ( $page_count < $fetch_batch ) {
+				if ( $page_count < $batch_size ) {
 					break;
 				}
 
 				++$page;
-				$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $fetch_batch, $page );
+				$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
 				if ( ! $result['success'] ) {
 					$this->logger->error( 'Pagination failed', $result['error'] ?? [] );
 					break;
@@ -873,7 +870,7 @@ class Skwirrel_WC_Sync_Service {
 			'auth_token'            => '',
 			'timeout'               => 30,
 			'retries'               => 2,
-			'batch_size'            => 100,
+			'batch_size'            => 10,
 			'sync_categories'       => true,
 			'sync_grouped_products' => false,
 			'sync_images'           => true,
