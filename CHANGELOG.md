@@ -2,6 +2,10 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.4.1]
+
+* Fix OOM in grouped products pre-sync — flush wpdb memory after each API page in `sync_grouped_products_first()` and `fetch_product_ids_for_selection()`
+
 ## [2.4.0]
 
 * **Deferred attribute fetch** — ETIM and custom class data is no longer included in the main product fetch; instead it is fetched per-product during the attribute phase to drastically reduce memory usage during sync

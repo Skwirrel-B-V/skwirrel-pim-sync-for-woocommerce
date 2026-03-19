@@ -737,15 +737,16 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				break;
 			}
 
-			$data   = $result['result'] ?? [];
-			$groups = $data['grouped_products'] ?? $data['groups'] ?? $data['products'] ?? [];
-			if ( ! is_array( $groups ) ) {
-				$groups = [];
-			}
-
+			$data         = $result['result'] ?? [];
+			$groups       = $data['grouped_products'] ?? $data['groups'] ?? $data['products'] ?? [];
 			$page_info    = $data['page'] ?? [];
 			$current_page = (int) ( $page_info['current_page'] ?? $page );
 			$total_pages  = (int) ( $page_info['number_of_pages'] ?? 1 );
+			unset( $result, $data, $page_info );
+			self::free_wpdb_memory();
+			if ( ! is_array( $groups ) ) {
+				$groups = [];
+			}
 
 			foreach ( $groups as $group ) {
 				// Post-filter: skip groups with no members in the selection.
@@ -847,13 +848,16 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				break;
 			}
 			$products = $result['result']['products'] ?? [];
+			$count    = count( $products );
 			foreach ( $products as $p ) {
 				$pid = $p['product_id'] ?? $p['id'] ?? null;
 				if ( null !== $pid ) {
 					$ids[ (int) $pid ] = true;
 				}
 			}
-			if ( count( $products ) < $batch_size ) {
+			unset( $result, $products );
+			self::free_wpdb_memory();
+			if ( $count < $batch_size ) {
 				break;
 			}
 			++$page;
@@ -1835,5 +1839,14 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			return array_values( array_filter( array_map( 'sanitize_text_field', $langs ) ) );
 		}
 		return [ 'nl-NL', 'nl' ];
+	}
+
+	/**
+	 * Free accumulated wpdb memory between operations.
+	 */
+	private static function free_wpdb_memory(): void {
+		global $wpdb;
+		$wpdb->queries = [];
+		$wpdb->flush();
 	}
 }
