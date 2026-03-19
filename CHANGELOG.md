@@ -2,6 +2,10 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.3.5]
+
+* Aggressive memory management during sync — clear `$wpdb->queries[]` and flush after every product in all phases to prevent OOM from accumulated query log
+
 ## [2.3.4]
 
 * Fix OOM during fetch phase — flush wpdb query log between batches to prevent memory accumulation from LONGTEXT INSERT queries

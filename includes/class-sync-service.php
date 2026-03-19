@@ -113,6 +113,14 @@ class Skwirrel_WC_Sync_Service {
 		try {
 			global $wpdb;
 
+			// Disable query logging during sync to prevent $wpdb->queries[] from consuming all memory.
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.runtime_configuration_ini_set -- required to prevent OOM during long-running sync
+			$saved_savequeries = defined( 'SAVEQUERIES' ) && SAVEQUERIES;
+			if ( $saved_savequeries ) {
+				$wpdb->queries = [];
+			}
+			$wpdb->flush();
+
 			$client = $this->get_client();
 			if ( ! $client ) {
 				$this->logger->error( 'Sync aborted: invalid configuration' );
@@ -323,7 +331,7 @@ class Skwirrel_WC_Sync_Service {
 
 				// Free API response data and flush wpdb query log to reclaim memory.
 				unset( $products, $data, $result );
-				$wpdb->flush();
+				self::free_wpdb_memory();
 
 				Skwirrel_WC_Sync_History::update_phase_progress(
 					Skwirrel_WC_Sync_History::PHASE_FETCH,
@@ -398,6 +406,7 @@ class Skwirrel_WC_Sync_Service {
 				}
 
 				$queue->update_after_phase1( $row->id, $wc_id, $outcome );
+				self::free_wpdb_memory();
 				++$processed;
 
 				if ( 0 === $processed % 25 || $total === $processed ) {
@@ -445,6 +454,7 @@ class Skwirrel_WC_Sync_Service {
 				}
 
 				$queue->mark_phase_completed( $row->id, 2 );
+				self::free_wpdb_memory();
 				++$processed;
 
 				if ( 0 === $processed % 50 || $total === $processed ) {
@@ -494,6 +504,7 @@ class Skwirrel_WC_Sync_Service {
 				}
 
 				$queue->mark_phase_completed( $row->id, 3 );
+				self::free_wpdb_memory();
 				++$processed;
 
 				if ( 0 === $processed % 25 || $total === $processed ) {
@@ -540,6 +551,7 @@ class Skwirrel_WC_Sync_Service {
 				}
 
 				$queue->mark_phase_completed( $row->id, 4 );
+				self::free_wpdb_memory();
 				++$media_i;
 
 				if ( 0 === $media_i % 10 || $media_i === $media_total ) {
@@ -568,6 +580,7 @@ class Skwirrel_WC_Sync_Service {
 				}
 
 				$queue->mark_phase_completed( $row->id, 4 );
+				self::free_wpdb_memory();
 				++$media_i;
 
 				if ( 0 === $media_i % 10 || $media_i === $media_total ) {
@@ -914,5 +927,17 @@ class Skwirrel_WC_Sync_Service {
 			$this->logger->info( 'Sync aborted by user' );
 			throw new \RuntimeException( 'Sync aborted by user' );
 		}
+	}
+
+	/**
+	 * Free accumulated wpdb memory between operations.
+	 *
+	 * Clears $wpdb->queries[] (which stores every query when SAVEQUERIES is on)
+	 * and flushes last_result/last_query/col_info to reclaim memory.
+	 */
+	private static function free_wpdb_memory(): void {
+		global $wpdb;
+		$wpdb->queries = [];
+		$wpdb->flush();
 	}
 }
