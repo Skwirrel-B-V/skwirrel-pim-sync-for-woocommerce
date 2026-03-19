@@ -744,6 +744,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$total_pages  = (int) ( $page_info['number_of_pages'] ?? 1 );
 			unset( $result, $data, $page_info );
 			self::free_wpdb_memory();
+			wp_cache_flush();
 			if ( ! is_array( $groups ) ) {
 				$groups = [];
 			}

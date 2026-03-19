@@ -113,13 +113,13 @@ class Skwirrel_WC_Sync_Service {
 		try {
 			global $wpdb;
 
-			// Disable query logging during sync to prevent $wpdb->queries[] from consuming all memory.
-			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.runtime_configuration_ini_set -- required to prevent OOM during long-running sync
-			$saved_savequeries = defined( 'SAVEQUERIES' ) && SAVEQUERIES;
-			if ( $saved_savequeries ) {
-				$wpdb->queries = [];
-			}
-			$wpdb->flush();
+			// Free memory accumulated by WordPress/WooCommerce boot and clear query log.
+			self::free_wpdb_memory();
+			wp_cache_flush();
+			$this->logger->info(
+				'Sync memory baseline',
+				[ 'memory_mb' => round( memory_get_usage( true ) / 1048576, 1 ) ]
+			);
 
 			$client = $this->get_client();
 			if ( ! $client ) {
@@ -233,6 +233,10 @@ class Skwirrel_WC_Sync_Service {
 				$this->taxonomy_manager->sync_all_custom_classes( $client, $options, $this->get_include_languages() );
 			}
 
+			// Free object cache accumulated during pre-sync (categories, brands, custom classes).
+			self::free_wpdb_memory();
+			wp_cache_flush();
+
 			$product_to_group_map = [];
 			if ( ! empty( $options['sync_grouped_products'] ) ) {
 				$grouped_result       = $this->upserter->sync_grouped_products_first( $client, $options, $collection_ids );
@@ -240,6 +244,14 @@ class Skwirrel_WC_Sync_Service {
 				$created             += $grouped_result['created'];
 				$updated             += $grouped_result['updated'];
 			}
+
+			// Free object cache from grouped products phase.
+			self::free_wpdb_memory();
+			wp_cache_flush();
+			$this->logger->info(
+				'Pre-sync complete, starting fetch',
+				[ 'memory_mb' => round( memory_get_usage( true ) / 1048576, 1 ) ]
+			);
 
 			// =====================================================================
 			$this->check_abort();

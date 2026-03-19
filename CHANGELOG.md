@@ -2,6 +2,11 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.4.2]
+
+* Flush WordPress object cache (`wp_cache_flush()`) between all sync phases to free memory from accumulated term/meta lookups
+* Log memory usage at sync start and after pre-sync to diagnose OOM issues
+
 ## [2.4.1]
 
 * Fix OOM in grouped products pre-sync — flush wpdb memory after each API page in `sync_grouped_products_first()` and `fetch_product_ids_for_selection()`
