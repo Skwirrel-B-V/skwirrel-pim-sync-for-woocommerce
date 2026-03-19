@@ -2,6 +2,11 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.2.6]
+
+* Add `include_contexts` to getCategories API call (required by V2 API for translations)
+* Improved category sync diagnostics: log full request params, response structure, and categories without names
+
 ## [2.2.5]
 
 * Fix approved download directory: also enable existing disabled directories (WooCommerce could add the `/uploads` directory but leave it disabled)

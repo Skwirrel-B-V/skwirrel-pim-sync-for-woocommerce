@@ -165,11 +165,19 @@ class Skwirrel_WC_Sync_Category_Sync {
 		$params = [
 			'super_category_id'             => $super_id,
 			'include_category_translations' => true,
+			'include_contexts'              => [ 1 ],
 		];
 
 		if ( ! empty( $languages ) ) {
 			$params['include_languages'] = $languages;
 		}
+
+		$this->logger->info(
+			'getCategories request',
+			[
+				'params' => $params,
+			]
+		);
 
 		$result = $client->call( 'getCategories', $params );
 
@@ -188,16 +196,18 @@ class Skwirrel_WC_Sync_Category_Sync {
 		$data       = $result['result'] ?? [];
 		$categories = $data['categories'] ?? $data;
 
-		$this->logger->verbose(
+		$this->logger->info(
 			'getCategories response',
 			[
 				'super_category_id' => $super_id,
 				'result_keys'       => is_array( $data ) ? array_keys( $data ) : gettype( $data ),
 				'categories_count'  => is_array( $categories ) ? count( $categories ) : 0,
+				'first_category'    => is_array( $categories ) && ! empty( $categories ) ? array_keys( reset( $categories ) ) : null,
 			]
 		);
 
 		if ( ! is_array( $categories ) || empty( $categories ) ) {
+			$this->logger->warning( 'getCategories returned no categories', [ 'raw_result' => array_slice( (array) $data, 0, 5 ) ] );
 			return;
 		}
 
@@ -555,6 +565,15 @@ class Skwirrel_WC_Sync_Category_Sync {
 					'name'      => $name,
 					'parent_id' => $parent_id,
 				];
+			} else {
+				$this->logger->warning(
+					'Category has no name, skipping',
+					[
+						'product_category_id' => $cat_id,
+						'keys'                => array_keys( $cat ),
+						'has_translations'    => ! empty( $cat['_category_translations'] ) || ! empty( $cat['_translation'] ),
+					]
+				);
 			}
 
 			// Recurse into children
