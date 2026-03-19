@@ -2,6 +2,10 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.4.3]
+
+* Flush WordPress object cache after every product in all processing phases (1–4) to prevent WooCommerce product objects from accumulating in memory
+
 ## [2.4.2]
 
 * Flush WordPress object cache (`wp_cache_flush()`) between all sync phases to free memory from accumulated term/meta lookups

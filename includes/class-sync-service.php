@@ -425,6 +425,7 @@ class Skwirrel_WC_Sync_Service {
 
 				$queue->update_after_phase1( $row->id, $wc_id, $outcome );
 				self::free_wpdb_memory();
+				wp_cache_flush();
 				++$processed;
 
 				if ( 0 === $processed % 25 || $total === $processed ) {
@@ -473,6 +474,7 @@ class Skwirrel_WC_Sync_Service {
 
 				$queue->mark_phase_completed( $row->id, 2 );
 				self::free_wpdb_memory();
+				wp_cache_flush();
 				++$processed;
 
 				if ( 0 === $processed % 50 || $total === $processed ) {
@@ -526,6 +528,7 @@ class Skwirrel_WC_Sync_Service {
 
 				$queue->mark_phase_completed( $row->id, 3 );
 				self::free_wpdb_memory();
+				wp_cache_flush();
 				++$processed;
 
 				if ( 0 === $processed % 25 || $total === $processed ) {
@@ -573,6 +576,7 @@ class Skwirrel_WC_Sync_Service {
 
 				$queue->mark_phase_completed( $row->id, 4 );
 				self::free_wpdb_memory();
+				wp_cache_flush();
 				++$media_i;
 
 				if ( 0 === $media_i % 10 || $media_i === $media_total ) {
@@ -602,6 +606,7 @@ class Skwirrel_WC_Sync_Service {
 
 				$queue->mark_phase_completed( $row->id, 4 );
 				self::free_wpdb_memory();
+				wp_cache_flush();
 				++$media_i;
 
 				if ( 0 === $media_i % 10 || $media_i === $media_total ) {
