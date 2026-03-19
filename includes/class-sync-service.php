@@ -154,7 +154,8 @@ class Skwirrel_WC_Sync_Service {
 			}
 			$batch_size = (int) ( $options['batch_size'] ?? 10 );
 
-			// Build API include flags (used as top-level params for getProducts, nested 'options' for getProductsByFilter).
+			// Build API include flags — keep the fetch lightweight (no ETIM/custom classes).
+			// Attributes are fetched per-product in Phase 3 to avoid OOM on large catalogues.
 			$api_includes = [
 				'include_product_status'       => true,
 				'include_product_translations' => true,
@@ -164,31 +165,36 @@ class Skwirrel_WC_Sync_Service {
 				'include_categories'           => ! empty( $options['sync_categories'] ),
 				'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
 				'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
-				'include_etim'                 => true,
-				'include_etim_translations'    => true,
 				'include_languages'            => $this->get_include_languages(),
 				'include_contexts'             => [ 1 ],
 			];
 
-			// Custom classes
+			// Attribute includes — used in Phase 3 per-product fetch only.
+			$attr_includes = [
+				'include_etim'              => true,
+				'include_etim_translations' => true,
+				'include_languages'         => $this->get_include_languages(),
+				'include_contexts'          => [ 1 ],
+			];
+
 			$sync_cc    = ! empty( $options['sync_custom_classes'] );
 			$sync_ti_cc = ! empty( $options['sync_trade_item_custom_classes'] );
 			if ( $sync_cc ) {
-				$api_includes['include_custom_classes'] = true;
-				$cc_filter_mode                         = $options['custom_class_filter_mode'] ?? '';
-				$cc_raw                                 = $options['custom_class_filter_ids'] ?? '';
-				$cc_parsed                              = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_raw );
+				$attr_includes['include_custom_classes'] = true;
+				$cc_filter_mode                          = $options['custom_class_filter_mode'] ?? '';
+				$cc_raw                                  = $options['custom_class_filter_ids'] ?? '';
+				$cc_parsed                               = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_raw );
 				if ( 'whitelist' === $cc_filter_mode && ! empty( $cc_parsed['ids'] ) ) {
-					$api_includes['include_custom_class_id'] = $cc_parsed['ids'];
+					$attr_includes['include_custom_class_id'] = $cc_parsed['ids'];
 				}
 			}
 			if ( $sync_ti_cc ) {
-				$api_includes['include_trade_item_custom_classes'] = true;
-				$cc_filter_mode                                    = $cc_filter_mode ?? ( $options['custom_class_filter_mode'] ?? '' );
+				$attr_includes['include_trade_item_custom_classes'] = true;
+				$cc_filter_mode                                     = $cc_filter_mode ?? ( $options['custom_class_filter_mode'] ?? '' );
 				$cc_raw    = $cc_raw ?? ( $options['custom_class_filter_ids'] ?? '' );
 				$cc_parsed = $cc_parsed ?? Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_raw );
 				if ( 'whitelist' === $cc_filter_mode && ! empty( $cc_parsed['ids'] ) ) {
-					$api_includes['include_trade_item_custom_class_id'] = $cc_parsed['ids'];
+					$attr_includes['include_trade_item_custom_class_id'] = $cc_parsed['ids'];
 				}
 			}
 
@@ -478,7 +484,7 @@ class Skwirrel_WC_Sync_Service {
 				Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES,
 				0,
 				$total,
-				__( 'Connecting attributes…', 'skwirrel-pim-sync' )
+				__( 'Fetching & connecting attributes…', 'skwirrel-pim-sync' )
 			);
 
 			$processed = 0;
@@ -486,7 +492,10 @@ class Skwirrel_WC_Sync_Service {
 			while ( $row = $queue->get_next_for_phase( 3 ) ) {
 				if ( $row->wc_id && 'skipped' !== $row->outcome ) {
 					try {
-						$attr_count = $this->upserter->assign_attributes( $row->wc_id, $row->product, $row->group_info );
+						// Re-fetch this product with attribute includes (ETIM + custom classes).
+						$attr_product = $this->fetch_product_attributes( $client, $row->product, $attr_includes );
+						$attr_count   = $this->upserter->assign_attributes( $row->wc_id, $attr_product, $row->group_info );
+						unset( $attr_product );
 						if ( $attr_count > 0 ) {
 							++$with_attrs;
 						} else {
@@ -512,7 +521,7 @@ class Skwirrel_WC_Sync_Service {
 						Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES,
 						$processed,
 						$total,
-						__( 'Connecting attributes…', 'skwirrel-pim-sync' )
+						__( 'Fetching & connecting attributes…', 'skwirrel-pim-sync' )
 					);
 				}
 			}
@@ -922,6 +931,70 @@ class Skwirrel_WC_Sync_Service {
 	 *
 	 * @throws \RuntimeException When abort is requested.
 	 */
+	/**
+	 * Re-fetch a single product with attribute includes (ETIM + custom classes).
+	 *
+	 * Returns the original product array merged with the freshly fetched attribute data.
+	 * If the API call fails, returns the original product as-is (attributes will be empty).
+	 *
+	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client          API client.
+	 * @param array                           $product         Original product data (from queue).
+	 * @param array                           $attr_includes   Attribute-specific include flags.
+	 * @return array Product array with attribute data merged in.
+	 */
+	private function fetch_product_attributes( Skwirrel_WC_Sync_JsonRpc_Client $client, array $product, array $attr_includes ): array {
+		$product_id = $product['product_id'] ?? $product['id'] ?? null;
+		if ( null === $product_id ) {
+			return $product;
+		}
+
+		$result = $client->call(
+			'getProductsByFilter',
+			[
+				'filter'  => [
+					'code' => [
+						'type'  => 'product_id',
+						'codes' => [ (string) $product_id ],
+					],
+				],
+				'options' => $attr_includes,
+				'page'    => 1,
+				'limit'   => 1,
+			]
+		);
+
+		if ( ! $result['success'] ) {
+			$this->logger->warning( 'Attribute fetch failed for product', [ 'product_id' => $product_id ] );
+			return $product;
+		}
+
+		$fetched = $result['result']['products'][0] ?? null;
+		unset( $result );
+
+		if ( null === $fetched ) {
+			return $product;
+		}
+
+		// Merge attribute fields into the original product.
+		if ( isset( $fetched['_etim'] ) ) {
+			$product['_etim'] = $fetched['_etim'];
+		}
+		if ( isset( $fetched['_custom_classes'] ) ) {
+			$product['_custom_classes'] = $fetched['_custom_classes'];
+		}
+		if ( isset( $fetched['_trade_items'] ) ) {
+			// Trade item custom classes are nested inside _trade_items.
+			foreach ( $fetched['_trade_items'] as $i => $ti ) {
+				if ( isset( $ti['_custom_classes'] ) && isset( $product['_trade_items'][ $i ] ) ) {
+					$product['_trade_items'][ $i ]['_custom_classes'] = $ti['_custom_classes'];
+				}
+			}
+		}
+		unset( $fetched );
+
+		return $product;
+	}
+
 	private function check_abort(): void {
 		if ( Skwirrel_WC_Sync_History::is_abort_requested() ) {
 			$this->logger->info( 'Sync aborted by user' );

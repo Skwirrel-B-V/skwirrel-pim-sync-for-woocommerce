@@ -925,6 +925,42 @@ parameters:
 			path: includes/class-sync-service.php
 
 		-
+			message: '#^Method Skwirrel_WC_Sync_Service\:\:fetch_product_attributes\(\) has parameter \$attr_includes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Service\:\:fetch_product_attributes\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Service\:\:fetch_product_attributes\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Variable \$created might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Variable \$updated might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Variable \$failed might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: includes/class-sync-service.php
+
+		-
 			message: '#^Method Skwirrel_WC_Sync_Taxonomy_Manager\:\:sync_all_custom_classes\(\) has parameter \$languages with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
