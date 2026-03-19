@@ -2,6 +2,10 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.3.1]
+
+* Use WordPress timezone for log filenames instead of UTC
+
 ## [2.3.0]
 
 * **Database-backed sync queue** — product data is now stored in a temporary database table during sync instead of PHP memory, reducing memory usage from O(n) to O(1) regardless of product count

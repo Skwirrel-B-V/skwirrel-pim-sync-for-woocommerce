@@ -47,9 +47,9 @@ class Skwirrel_WC_Sync_Logger {
 		$prefix = 'scheduled' === $trigger ? 'sync-scheduled' : 'sync-manual';
 
 		if ( 'per_sync' === $log_mode ) {
-			$filename = $prefix . '-' . gmdate( 'Y-m-d-His' ) . '.log';
+			$filename = $prefix . '-' . wp_date( 'Y-m-d-His' ) . '.log';
 		} else {
-			$filename = $prefix . '-' . gmdate( 'Y-m-d' ) . '.log';
+			$filename = $prefix . '-' . wp_date( 'Y-m-d' ) . '.log';
 		}
 
 		$path = $dir . $filename;
