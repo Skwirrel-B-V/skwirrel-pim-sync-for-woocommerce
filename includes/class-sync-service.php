@@ -111,6 +111,7 @@ class Skwirrel_WC_Sync_Service {
 		);
 
 		try {
+			global $wpdb;
 
 			$client = $this->get_client();
 			if ( ! $client ) {
@@ -247,7 +248,10 @@ class Skwirrel_WC_Sync_Service {
 			$fetched     = 0;
 			$page        = 1;
 
-			$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
+			// Use a small fetch batch to keep API responses and INSERT queries within memory limits.
+			$fetch_batch = min( $batch_size, 25 );
+
+			$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $fetch_batch, $page );
 			if ( ! $result['success'] ) {
 				$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
 				$this->logger->error( 'Sync API error', $err );
@@ -320,8 +324,9 @@ class Skwirrel_WC_Sync_Service {
 					++$fetched;
 				}
 
-				// Free API response data immediately.
+				// Free API response data and flush wpdb query log to reclaim memory.
 				unset( $products, $data, $result );
+				$wpdb->flush();
 
 				Skwirrel_WC_Sync_History::update_phase_progress(
 					Skwirrel_WC_Sync_History::PHASE_FETCH,
@@ -331,12 +336,12 @@ class Skwirrel_WC_Sync_Service {
 					sprintf( __( 'Fetching products from API… (%d found)', 'skwirrel-pim-sync' ), $fetched )
 				);
 
-				if ( $page_count < $batch_size ) {
+				if ( $page_count < $fetch_batch ) {
 					break;
 				}
 
 				++$page;
-				$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
+				$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $fetch_batch, $page );
 				if ( ! $result['success'] ) {
 					$this->logger->error( 'Pagination failed', $result['error'] ?? [] );
 					break;

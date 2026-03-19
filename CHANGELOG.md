@@ -2,6 +2,10 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.3.3]
+
+* Fix OOM during fetch phase — cap API batch size to 25 products per page and flush wpdb query log between batches to prevent memory accumulation
+
 ## [2.3.2]
 
 * Fix unexpected output during plugin activation — use dbDelta-compatible SQL format for sync queue table
