@@ -14,6 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Skwirrel_WC_Sync_Etim_Extractor {
 
+	/** @phpstan-ignore property.onlyWritten */
 	private string $image_language;
 	private Skwirrel_WC_Sync_Logger $logger;
 

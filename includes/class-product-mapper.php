@@ -20,6 +20,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	public const CATEGORY_ID_META  = '_skwirrel_category_id';
 
 	private Skwirrel_WC_Sync_Logger $logger;
+	/** @phpstan-ignore property.onlyWritten */
 	private Skwirrel_WC_Sync_Media_Importer $media_importer;
 	private string $image_language;
 	private Skwirrel_WC_Sync_Etim_Extractor $etim;

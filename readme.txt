@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 8.1
-Stable tag: 2.2.6
+Stable tag: 2.2.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,6 +62,13 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 2.2.8 =
+* Simplify per-product category assignment — use resolved map from tree sync instead of recursive per-product resolution
+
+= 2.2.7 =
+* Add "Stop sync" button to progress banner — abort a running sync from the dashboard
+* Log timestamps now respect the WordPress timezone setting
 
 = 2.2.6 =
 * Add include_contexts to category API call, improve category sync diagnostics

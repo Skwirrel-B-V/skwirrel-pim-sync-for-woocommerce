@@ -82,7 +82,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 			IMAGETYPE_GIF  => 'gif',
 			IMAGETYPE_WEBP => 'webp',
 		];
-		$ext      = $ext_map[ $image_info[2] ?? 0 ] ?? 'jpg';
+		$ext      = $ext_map[ $image_info[2] ] ?? 'jpg';
 		$filename = 'skwirrel-' . substr( $hash, 0, 12 ) . '-' . time() . '.' . $ext;
 
 		$upload_dir = wp_upload_dir();
@@ -111,7 +111,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		];
 
 		$id = wp_insert_attachment( $attachment, $dest, $parent_id );
-		if ( is_wp_error( $id ) ) {
+		if ( is_wp_error( $id ) ) { // @phpstan-ignore function.impossibleType
 			wp_delete_file( $dest );
 			$this->logger->warning(
 				'Failed to create attachment',
@@ -129,7 +129,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 		require_once ABSPATH . 'wp-admin/includes/image.php';
 		$metadata = wp_generate_attachment_metadata( $id, $dest );
-		if ( ! is_wp_error( $metadata ) ) {
+		if ( ! is_wp_error( $metadata ) ) { // @phpstan-ignore function.impossibleType
 			wp_update_attachment_metadata( $id, $metadata );
 		}
 
@@ -188,7 +188,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$path     = wp_parse_url( $url, PHP_URL_PATH );
 		$basename = $name ? $name : ( $path ? basename( $path ) : '' );
 		$ext      = $basename ? pathinfo( $basename, PATHINFO_EXTENSION ) : '';
-		if ( ! is_string( $ext ) || ! preg_match( '/^[a-z0-9]{2,5}$/i', $ext ) ) {
+		if ( ! preg_match( '/^[a-z0-9]{2,5}$/i', $ext ) ) {
 			$ext = 'pdf';
 		}
 		$filename = 'skwirrel-' . substr( $hash, 0, 12 ) . '-' . time() . '.' . $ext;
@@ -216,7 +216,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		];
 
 		$id = wp_insert_attachment( $attachment, $dest, $parent_id );
-		if ( is_wp_error( $id ) ) {
+		if ( is_wp_error( $id ) ) { // @phpstan-ignore function.impossibleType
 			wp_delete_file( $dest );
 			$this->logger->warning(
 				'Failed to create attachment',
@@ -302,7 +302,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$body     = wp_remote_retrieve_body( $response );
 		$url_path = wp_parse_url( $url, PHP_URL_PATH );
 		$tmp      = wp_tempnam( basename( $url_path ? $url_path : 'download' ) );
-		if ( false === $tmp || false === file_put_contents( $tmp, $body ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- writing to wp_tempnam() temp file
+		if ( false === $tmp || false === file_put_contents( $tmp, $body ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- writing to wp_tempnam() temp file // @phpstan-ignore identical.alwaysFalse
 			return new WP_Error( 'temp', 'Failed to write temp file' );
 		}
 		return $tmp;

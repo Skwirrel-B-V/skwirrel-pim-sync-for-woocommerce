@@ -29,6 +29,9 @@ class Skwirrel_WC_Sync_History {
 	/** @var string Transient key indicating a sync is currently in progress. */
 	public const SYNC_IN_PROGRESS = 'skwirrel_wc_sync_in_progress';
 
+	/** @var string Transient key used to signal the running sync to abort. */
+	public const SYNC_ABORT = 'skwirrel_wc_sync_abort';
+
 	/** @var int Time-to-live in seconds for the sync-in-progress transient. */
 	public const HEARTBEAT_TTL = 60;
 
@@ -47,6 +50,33 @@ class Skwirrel_WC_Sync_History {
 	public const TRIGGER_MANUAL    = 'manual';
 	public const TRIGGER_SCHEDULED = 'scheduled';
 	public const TRIGGER_PURGE     = 'purge';
+
+	/**
+	 * Request the running sync to abort.
+	 */
+	public static function request_abort(): void {
+		set_transient( self::SYNC_ABORT, '1', 300 );
+	}
+
+	/**
+	 * Check if an abort has been requested and clear the flag.
+	 *
+	 * @return bool True if abort was requested.
+	 */
+	public static function is_abort_requested(): bool {
+		if ( get_transient( self::SYNC_ABORT ) ) {
+			delete_transient( self::SYNC_ABORT );
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Clear the abort flag (called at sync start).
+	 */
+	public static function clear_abort(): void {
+		delete_transient( self::SYNC_ABORT );
+	}
 
 	/**
 	 * Refresh the sync-in-progress transient so the UI knows the sync is still alive.

@@ -410,6 +410,30 @@
 	text-align: right;
 }
 
+.skw-btn-abort-sync {
+	margin-left: auto;
+	padding: 4px 12px;
+	font-size: 12px;
+	font-weight: 600;
+	color: #dc2626;
+	background: #fff;
+	border: 1px solid #fca5a5;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: all 0.15s ease;
+	line-height: 1.5;
+}
+
+.skw-btn-abort-sync:hover {
+	background: #fef2f2;
+	border-color: #dc2626;
+}
+
+.skw-btn-abort-sync:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
 .skw-progress-note {
 	font-size: 11px;
 	color: var(--skw-blue);

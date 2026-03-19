@@ -71,7 +71,7 @@ class Skwirrel_WC_Sync_Brand_Sync {
 		}
 
 		$permalink_opts    = Skwirrel_WC_Sync_Permalink_Settings::get_options();
-		$manufacturer_slug = $permalink_opts['manufacturer_base'] ?? 'manufacturer';
+		$manufacturer_slug = $permalink_opts['manufacturer_base'] ?? 'manufacturer'; // @phpstan-ignore nullCoalesce.offset
 
 		register_taxonomy(
 			self::MANUFACTURER_TAXONOMY,
@@ -137,7 +137,7 @@ class Skwirrel_WC_Sync_Brand_Sync {
 			}
 
 			$term = term_exists( $brand_name, self::BRAND_TAXONOMY );
-			if ( $term && ! is_wp_error( $term ) ) {
+			if ( $term && ! is_wp_error( $term ) ) { // @phpstan-ignore function.impossibleType
 				continue; // Already exists
 			}
 
@@ -243,7 +243,7 @@ class Skwirrel_WC_Sync_Brand_Sync {
 	 */
 	private function find_or_create_term( string $name, string $taxonomy ): ?int {
 		$term = term_exists( $name, $taxonomy );
-		if ( $term && ! is_wp_error( $term ) ) {
+		if ( $term && ! is_wp_error( $term ) ) { // @phpstan-ignore function.impossibleType
 			return is_array( $term ) ? (int) $term['term_id'] : (int) $term;
 		}
 

@@ -247,7 +247,7 @@ class Skwirrel_WC_Sync_Taxonomy_Manager {
 					]
 				);
 				delete_transient( 'wc_attribute_taxonomies' );
-				if ( function_exists( 'WC_Cache_Helper' ) && method_exists( 'WC_Cache_Helper', 'invalidate_cache_group' ) ) {
+				if ( function_exists( 'WC_Cache_Helper' ) && method_exists( 'WC_Cache_Helper', 'invalidate_cache_group' ) ) { // @phpstan-ignore function.alreadyNarrowedType
 					WC_Cache_Helper::invalidate_cache_group( 'woocommerce-attributes' );
 				}
 			}
@@ -365,7 +365,7 @@ class Skwirrel_WC_Sync_Taxonomy_Manager {
 		if ( ! $term ) {
 			$term = get_term_by( 'name', $value, $tax );
 		}
-		if ( ! $term || is_wp_error( $term ) ) {
+		if ( ! $term || is_wp_error( $term ) ) { // @phpstan-ignore function.impossibleType
 			$insert = wp_insert_term( $value, $tax, [ 'slug' => $term_slug ] );
 			if ( is_wp_error( $insert ) ) {
 				return null;

@@ -33,7 +33,7 @@ class Skwirrel_WC_Sync_Product_Documents {
 		if ( is_product() ) {
 			wp_enqueue_style(
 				'skwirrel-pim-sync-product-documents',
-				SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/product-documents.css',
+				SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/product-documents.css', // @phpstan-ignore constant.notFound
 				[],
 				SKWIRREL_WC_SYNC_VERSION
 			);

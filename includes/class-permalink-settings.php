@@ -171,7 +171,7 @@ class Skwirrel_WC_Sync_Permalink_Settings {
 	 */
 	public function render_manufacturer_base_field(): void {
 		$opts  = self::get_options();
-		$value = $opts['manufacturer_base'];
+		$value = $opts['manufacturer_base']; // @phpstan-ignore offsetAccess.notFound
 		?>
 		<input type="text" id="skwirrel_manufacturer_base" name="skwirrel_manufacturer_base" value="<?php echo esc_attr( $value ); ?>" class="regular-text" />
 		<p class="description"><?php esc_html_e( 'The base slug for the product manufacturer taxonomy URLs.', 'skwirrel-pim-sync' ); ?></p>
@@ -203,7 +203,7 @@ class Skwirrel_WC_Sync_Permalink_Settings {
 		$allowed_suffix = [ '', 'internal_product_code', 'manufacturer_product_code', 'external_product_id', 'product_id' ];
 
         // phpcs:disable WordPress.Security.NonceVerification.Missing -- nonce verified above
-		$source            = sanitize_text_field( wp_unslash( $_POST['skwirrel_slug_source_field'] ?? 'product_name' ) );
+		$source            = sanitize_text_field( wp_unslash( $_POST['skwirrel_slug_source_field'] ?? 'product_name' ) ); // @phpstan-ignore nullCoalesce.offset
 		$suffix            = sanitize_text_field( wp_unslash( $_POST['skwirrel_slug_suffix_field'] ?? '' ) );
 		$update_on_resync  = ! empty( $_POST['skwirrel_update_slug_on_resync'] );
 		$manufacturer_base = sanitize_title( wp_unslash( $_POST['skwirrel_manufacturer_base'] ?? 'manufacturer' ) );

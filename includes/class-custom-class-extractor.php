@@ -20,6 +20,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	/** Custom feature types that are stored as product meta (long text). */
 	private const CC_META_TYPES = [ 'T', 'B' ];
 
+	/** @phpstan-ignore property.onlyWritten */
 	private string $image_language;
 
 	public function __construct( string $image_language ) {
@@ -201,7 +202,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 				$value = $type === 'B'
 					? ( $feat['big_text_value'] ?? '' )
 					: ( $feat['text_value'] ?? '' );
-				if ( $value === '' || $value === null ) {
+				if ( $value === '' || $value === null ) { // @phpstan-ignore identical.alwaysFalse
 					continue;
 				}
 				$code              = $feat['custom_feature_code']

@@ -2,6 +2,15 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.2.8]
+
+* Simplify per-product category assignment — look up Skwirrel category IDs directly in the resolved map from tree sync instead of re-extracting and recursively resolving the category hierarchy per product
+
+## [2.2.7]
+
+* Add "Stop sync" button to progress banner — allows aborting a running sync from the dashboard
+* Log timestamps now respect the WordPress timezone setting (uses `wp_date()` instead of `gmdate()`)
+
 ## [2.2.6]
 
 * Add `include_contexts` to getCategories API call (required by V2 API for translations)

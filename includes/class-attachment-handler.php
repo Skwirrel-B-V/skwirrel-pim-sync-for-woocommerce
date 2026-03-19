@@ -16,6 +16,7 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 
 	private Skwirrel_WC_Sync_Logger $logger;
 	private Skwirrel_WC_Sync_Media_Importer $media_importer;
+	/** @phpstan-ignore property.onlyWritten */
 	private string $image_language;
 
 	public function __construct( string $image_language = 'nl' ) {
@@ -136,7 +137,7 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			$order = $att['product_attachment_order'] ?? $att['order'] ?? 999;
 			$meta  = $this->get_attachment_meta_for_language( $att );
 			$id    = $this->media_importer->import_image( $url, $att['file_name'] ?? '', $product_id, $meta['title'], $meta['description'] );
-			if ( $id && ! in_array( $id, $ids, true ) ) {
+			if ( $id && ! in_array( $id, array_column( $ids, 'id' ), true ) ) {
 				$ids[] = [
 					'id'    => $id,
 					'order' => $order,

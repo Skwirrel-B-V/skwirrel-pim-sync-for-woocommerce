@@ -13,9 +13,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Skwirrel_WC_Sync_Logger {
 
-	private const LOG_SOURCE      = 'skwirrel-pim-sync';
-	private const LOG_DIR_NAME    = 'skwirrel-pim-sync-logs';
-	private ?WC_Logger $wc_logger = null;
+	private const LOG_SOURCE                 = 'skwirrel-pim-sync';
+	private const LOG_DIR_NAME               = 'skwirrel-pim-sync-logs';
+	private ?\WC_Logger_Interface $wc_logger = null;
 
 	/** @var string|null Current sync log filename (basename only). */
 	private ?string $sync_log_filename = null;
@@ -61,7 +61,7 @@ class Skwirrel_WC_Sync_Logger {
 			$this->sync_log_handle   = $handle;
 
 			// Write separator for appended files.
-			$separator = "\n===== Sync started " . gmdate( 'Y-m-d H:i:s' ) . " =====\n";
+			$separator = "\n===== Sync started " . wp_date( 'Y-m-d H:i:s' ) . " =====\n";
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Direct file I/O for log performance
 			fwrite( $handle, $separator );
 		}
@@ -209,7 +209,7 @@ class Skwirrel_WC_Sync_Logger {
 
 		// Dual-write to per-sync log file.
 		if ( $this->sync_log_handle ) {
-			$line = sprintf( "[%s][%s] %s\n", gmdate( 'Y-m-d H:i:s' ), strtoupper( $level ), $full_message );
+			$line = sprintf( "[%s][%s] %s\n", wp_date( 'Y-m-d H:i:s' ), strtoupper( $level ), $full_message );
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Direct file I/O for log performance
 			fwrite( $this->sync_log_handle, $line );
 		}

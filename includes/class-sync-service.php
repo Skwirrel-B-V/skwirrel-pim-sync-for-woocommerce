@@ -68,6 +68,7 @@ class Skwirrel_WC_Sync_Service {
 
 		$sync_started_at = time();
 		$this->category_sync->reset_seen_category_ids();
+		Skwirrel_WC_Sync_History::clear_abort();
 		Skwirrel_WC_Sync_History::sync_heartbeat();
 		Skwirrel_WC_Sync_History::clear_sync_progress();
 
@@ -85,7 +86,7 @@ class Skwirrel_WC_Sync_Service {
 		$shutdown_registered = true;
 		register_shutdown_function(
 			static function () use ( $shutdown_trigger, $shutdown_log_file, &$shutdown_registered ): void {
-				if ( ! $shutdown_registered ) {
+				if ( ! $shutdown_registered ) { // @phpstan-ignore booleanNot.alwaysFalse (by-reference variable is set to false in finally block)
 					return; // Sync completed normally, nothing to do.
 				}
 				$error = error_get_last();
@@ -192,10 +193,8 @@ class Skwirrel_WC_Sync_Service {
 					'operator' => '>=',
 				];
 			}
-			if ( ! empty( $collection_ids ) ) {
-				$use_filter                     = true;
-				$filter['dynamic_selection_id'] = $collection_ids[0];
-			}
+			$use_filter                     = true;
+			$filter['dynamic_selection_id'] = $collection_ids[0];
 
 			$this->logger->verbose(
 				'Sync started',
@@ -203,13 +202,14 @@ class Skwirrel_WC_Sync_Service {
 					'delta'          => $delta,
 					'delta_since'    => $delta_since,
 					'batch_size'     => $batch_size,
-					'api_method'     => $use_filter ? 'getProductsByFilter' : 'getProducts',
-					'collection_ids' => $collection_ids ? $collection_ids : '(all)',
-					'filter'         => $filter ? $filter : '(none)',
+					'api_method'     => 'getProductsByFilter',
+					'collection_ids' => $collection_ids,
+					'filter'         => $filter,
 				]
 			);
 
 			// Pre-sync: category tree, brands, custom classes, grouped products
+			$this->check_abort();
 			if ( ! empty( $options['sync_categories'] ) && ! empty( $options['super_category_id'] ) ) {
 				$this->category_sync->sync_category_tree( $client, $options, $this->get_include_languages() );
 			}
@@ -227,6 +227,7 @@ class Skwirrel_WC_Sync_Service {
 			}
 
 			// =====================================================================
+			$this->check_abort();
 			// Phase: Fetch — paginate through API, collect all product data
 			// =====================================================================
 			Skwirrel_WC_Sync_History::update_phase_progress(
@@ -236,7 +237,8 @@ class Skwirrel_WC_Sync_Service {
 				__( 'Fetching products from API…', 'skwirrel-pim-sync' )
 			);
 
-			$sync_items    = []; // [{product, group_info, wc_id, outcome}]
+			/** @var array<int, array{product: array, group_info: array|null, wc_id: int, outcome: string}> $sync_items [{product, group_info, wc_id, outcome}] */
+			$sync_items    = [];
 			$virtual_items = []; // [{product, wc_variable_id}] — images for variable products
 			$page          = 1;
 
@@ -344,6 +346,7 @@ class Skwirrel_WC_Sync_Service {
 			$this->logger->info( "Fetch complete: {$total} products to process in phases" );
 
 			// =====================================================================
+			$this->check_abort();
 			// Phase 1: Products — create/update with basic fields
 			// =====================================================================
 			Skwirrel_WC_Sync_History::update_phase_progress(
@@ -395,6 +398,7 @@ class Skwirrel_WC_Sync_Service {
 			unset( $item );
 
 			// =====================================================================
+			$this->check_abort();
 			// Phase 2: Taxonomy — categories, brands, manufacturers
 			// =====================================================================
 			$taxonomy_label = ! empty( $options['sync_manufacturers'] )
@@ -437,6 +441,7 @@ class Skwirrel_WC_Sync_Service {
 			}
 
 			// =====================================================================
+			$this->check_abort();
 			// Phase 3: Attributes — ETIM + custom class
 			// =====================================================================
 			$with_attrs    = 0;
@@ -484,6 +489,7 @@ class Skwirrel_WC_Sync_Service {
 			$this->upserter->flush_parent_attribute_terms();
 
 			// =====================================================================
+			$this->check_abort();
 			// Phase 4: Media — images + documents (slowest phase)
 			// =====================================================================
 			$media_total = $total + count( $virtual_items );
@@ -553,6 +559,7 @@ class Skwirrel_WC_Sync_Service {
 			unset( $sync_items, $virtual_items );
 
 			// =====================================================================
+			$this->check_abort();
 			// Phase 5: Cleanup — purge stale, persist history
 			// =====================================================================
 			Skwirrel_WC_Sync_History::update_phase_progress(
@@ -600,6 +607,16 @@ class Skwirrel_WC_Sync_Service {
 				'categories_removed' => $categories_removed,
 			];
 
+		} catch ( \RuntimeException $e ) {
+			// Abort requested by user — record as a non-error cancellation.
+			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $e->getMessage(), 0, 0, 0, 0, $trigger, $log_filename );
+			return [
+				'success' => false,
+				'error'   => $e->getMessage(),
+				'created' => $created,
+				'updated' => $updated,
+				'failed'  => $failed,
+			];
 		} finally {
 			$shutdown_registered = false; // Disable shutdown handler — sync completed.
 			$this->logger->stop_sync_log();
@@ -690,7 +707,7 @@ class Skwirrel_WC_Sync_Service {
 			);
 			return [
 				'success' => false,
-				'error'   => $err['message'] ?? 'API error',
+				'error'   => $err['message'],
 			];
 		}
 
@@ -857,5 +874,17 @@ class Skwirrel_WC_Sync_Service {
 			return array_values( array_filter( array_map( 'sanitize_text_field', $langs ) ) );
 		}
 		return [ 'nl-NL', 'nl' ];
+	}
+
+	/**
+	 * Check if the user requested an abort. Throws RuntimeException to exit the sync.
+	 *
+	 * @throws \RuntimeException When abort is requested.
+	 */
+	private function check_abort(): void {
+		if ( Skwirrel_WC_Sync_History::is_abort_requested() ) {
+			$this->logger->info( 'Sync aborted by user' );
+			throw new \RuntimeException( 'Sync aborted by user' );
+		}
 	}
 }

@@ -94,7 +94,7 @@ class Skwirrel_WC_Sync_Slug_Resolver {
 				: $this->resolve_raw_value( $data, $suffix_field );
 			if ( $suffix_raw !== '' ) {
 				$candidate = $base . '-' . sanitize_title( $suffix_raw );
-				if ( $candidate !== $base && $candidate !== '' ) {
+				if ( $candidate !== $base ) {
 					return $candidate;
 				}
 			}

@@ -56,7 +56,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<div class="skw-header-inner">
 					<div class="skw-header-left">
 						<div class="skw-header-icon">
-							<img src="<?php echo esc_url( SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/s.png' ); ?>" alt="Skwirrel" width="28" height="28" />
+							<img src="<?php echo esc_url( SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/s.png' ); // @phpstan-ignore constant.notFound ?>" alt="Skwirrel" width="28" height="28" />
 						</div>
 						<div>
 							<h1 class="skw-header-title"><?php esc_html_e( 'Skwirrel PIM sync', 'skwirrel-pim-sync' ); ?></h1>
@@ -298,6 +298,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<div class="skw-progress-header">
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20" class="skw-spin"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182M21.015 4.356v4.992" stroke-linecap="round" stroke-linejoin="round" /></svg>
 				<span><?php esc_html_e( 'Sync in progress…', 'skwirrel-pim-sync' ); ?></span>
+				<button type="button" class="skw-btn skw-btn-abort-sync"><?php esc_html_e( 'Stop sync', 'skwirrel-pim-sync' ); ?></button>
 			</div>
 			<div class="skw-progress-phases">
 				<?php foreach ( $phases as $key => $label ) : ?>

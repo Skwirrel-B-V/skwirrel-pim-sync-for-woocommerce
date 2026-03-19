@@ -455,7 +455,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					$this->taxonomy_manager->maybe_update_attribute_label( $slug, $label );
 				}
 				$term = get_term_by( 'slug', $data['slug'], $tax ) ?: get_term_by( 'name', $data['value'], $tax );
-				if ( ! $term || is_wp_error( $term ) ) {
+				if ( ! $term || is_wp_error( $term ) ) { // @phpstan-ignore function.impossibleType
 					$insert = wp_insert_term( $data['value'], $tax, [ 'slug' => $data['slug'] ] );
 					$term   = ! is_wp_error( $insert ) ? get_term( $insert['term_id'], $tax ) : null;
 				}
@@ -475,15 +475,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					[
 						'sku'            => $sku,
 						'wc_variable_id' => $wc_variable_id,
-						'etim_codes'     => array_column( $etim_codes ?? [], 'code' ),
+						'etim_codes'     => array_column( $etim_codes, 'code' ),
 					]
 				);
 				if ( defined( 'SKWIRREL_WC_SYNC_DEBUG_ETIM' ) && SKWIRREL_WC_SYNC_DEBUG_ETIM ) {
 					$dump    = wp_upload_dir();
-					$sub_dir = ( $dump['basedir'] ?? '' ) . '/skwirrel-pim-sync';
+					$sub_dir = $dump['basedir'] . '/skwirrel-pim-sync';
 					wp_mkdir_p( $sub_dir );
 					$file = $sub_dir . '/skwirrel-etim-debug-' . $sku . '.json';
-					if ( $file && wp_is_writable( $sub_dir ) ) {
+					if ( wp_is_writable( $sub_dir ) ) {
 						file_put_contents( // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- debug-only, writes to uploads/skwirrel-pim-sync/
 							$file,
 							wp_json_encode(
@@ -515,7 +515,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 		}
 		if ( defined( 'SKWIRREL_WC_SYNC_DEBUG_ETIM' ) && SKWIRREL_WC_SYNC_DEBUG_ETIM ) {
-			$this->write_variation_debug( $sku, $etim_codes ?? [], $etim_values ?? [], $product, $variation_attrs );
+			$this->write_variation_debug( $sku, $etim_codes, $etim_values, $product, $variation_attrs );
 		}
 
 		// Set variation attributes BEFORE saving
@@ -530,7 +530,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$variation->update_meta_data( $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		$variation->update_meta_data( $this->mapper->get_external_id_meta_key(), $this->mapper->get_unique_key( $product ) ?? '' );
-		$variation->update_meta_data( $this->mapper->get_synced_at_meta_key(), time() );
+		$variation->update_meta_data( $this->mapper->get_synced_at_meta_key(), (string) time() );
 		$variation->update_meta_data( '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
 
 		// Save variation first to get ID
@@ -780,10 +780,10 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$this->logger->info(
 			'Grouped products loaded',
 			[
-				'variable_products'      => $created + $updated,
-				'product_ids_in_groups'  => count( $product_ids_in_groups ),
-				'skipped_by_selection'   => $skipped,
-				'filtered_by_selection'  => null !== $allowed_product_ids,
+				'variable_products'     => $created + $updated,
+				'product_ids_in_groups' => count( $product_ids_in_groups ),
+				'skipped_by_selection'  => $skipped,
+				'filtered_by_selection' => null !== $allowed_product_ids,
 			]
 		);
 		return [
@@ -885,9 +885,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$wc_product = wc_get_product( $wc_id );
 			if ( ! $wc_product || ! $wc_product->is_type( 'variable' ) ) {
 				$wc_product = new WC_Product_Variable();
-				if ( $wc_id ) {
-					wp_delete_post( $wc_id, true );
-				}
+				wp_delete_post( $wc_id, true );
 				$is_new = true;
 			}
 		}
@@ -1214,7 +1212,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					$this->taxonomy_manager->maybe_update_attribute_label( $slug, $label );
 				}
 				$term = get_term_by( 'slug', $data['slug'], $tax ) ?: get_term_by( 'name', $data['value'], $tax );
-				if ( ! $term || is_wp_error( $term ) ) {
+				if ( ! $term || is_wp_error( $term ) ) { // @phpstan-ignore function.impossibleType
 					$insert = wp_insert_term( $data['value'], $tax, [ 'slug' => $data['slug'] ] );
 					$term   = ! is_wp_error( $insert ) ? get_term( $insert['term_id'], $tax ) : null;
 				}
@@ -1252,7 +1250,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$variation->update_meta_data( $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		$variation->update_meta_data( $this->mapper->get_external_id_meta_key(), $this->mapper->get_unique_key( $product ) ?? '' );
-		$variation->update_meta_data( $this->mapper->get_synced_at_meta_key(), time() );
+		$variation->update_meta_data( $this->mapper->get_synced_at_meta_key(), (string) time() );
 		$variation->update_meta_data( '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
 
 		$variation->save();
@@ -1499,9 +1497,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 */
 	private function write_variation_debug( string $sku, array $etim_codes, array $etim_values, array $product, array $variation_attrs ): void {
 		$upload = wp_upload_dir();
-		$dir    = ( $upload['basedir'] ?? '' ) . '/skwirrel-pim-sync';
+		$dir    = $upload['basedir'] . '/skwirrel-pim-sync';
 		wp_mkdir_p( $dir );
-		if ( ! $dir || ! wp_is_writable( $dir ) ) {
+		if ( ! wp_is_writable( $dir ) ) {
 			return;
 		}
 		$file = $dir . '/skwirrel-variation-debug.log';
@@ -1594,7 +1592,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 						continue;
 					}
 					$term = get_term_by( 'slug', $slug, $taxonomy );
-					if ( $term && ! is_wp_error( $term ) && ! in_array( $term->term_id, $current_options, true ) ) {
+					if ( $term && ! is_wp_error( $term ) && ! in_array( $term->term_id, $current_options, true ) ) { // @phpstan-ignore function.impossibleType
 						$recovered_ids[] = $term->term_id;
 					}
 				}

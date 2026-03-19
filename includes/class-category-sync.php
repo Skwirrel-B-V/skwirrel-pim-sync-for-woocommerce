@@ -22,6 +22,9 @@ class Skwirrel_WC_Sync_Category_Sync {
 	/** @var string[] Skwirrel category IDs seen during current sync run. */
 	private array $seen_category_ids = [];
 
+	/** @var array<int, int> Skwirrel category ID → WC term_id, populated by sync_category_tree(). */
+	private array $resolved_map = [];
+
 	/**
 	 * @param Skwirrel_WC_Sync_Logger $logger Logger instance.
 	 */
@@ -45,6 +48,16 @@ class Skwirrel_WC_Sync_Category_Sync {
 	 */
 	public function reset_seen_category_ids(): void {
 		$this->seen_category_ids = [];
+		$this->resolved_map      = [];
+	}
+
+	/**
+	 * Get the resolved map from the last tree sync (Skwirrel category ID → WC term_id).
+	 *
+	 * @return array<int, int>
+	 */
+	public function get_resolved_map(): array {
+		return $this->resolved_map;
 	}
 
 	/**
@@ -134,6 +147,8 @@ class Skwirrel_WC_Sync_Category_Sync {
 			}
 		}
 
+		$this->resolved_map = $resolved;
+
 		$this->logger->info(
 			'Category tree synced',
 			[
@@ -217,121 +232,55 @@ class Skwirrel_WC_Sync_Category_Sync {
 	/**
 	 * Assign product categories to a WooCommerce product.
 	 *
-	 * Matches by Skwirrel category ID first (term meta), then by name.
-	 * Supports parent/child hierarchy from _categories data.
+	 * Looks up Skwirrel category IDs from the product's _categories array
+	 * in the resolved map (populated by sync_category_tree), falling back
+	 * to a term meta lookup when needed.
 	 *
 	 * @param int                              $wc_product_id WooCommerce product ID.
 	 * @param array                            $product       Skwirrel product data.
 	 * @param Skwirrel_WC_Sync_Product_Mapper  $mapper        Product mapper instance.
 	 */
 	public function assign_categories( int $wc_product_id, array $product, Skwirrel_WC_Sync_Product_Mapper $mapper ): void {
-		$categories = $mapper->get_categories( $product );
-		if ( empty( $categories ) ) {
+		$raw_cats = $product['_categories'] ?? [];
+		if ( empty( $raw_cats ) || ! is_array( $raw_cats ) ) {
 			return;
 		}
 
 		$tax         = 'product_cat';
-		$term_ids    = [];
 		$cat_id_meta = Skwirrel_WC_Sync_Product_Mapper::CATEGORY_ID_META;
+		$term_ids    = [];
 
-		// Build lookup: skwirrel_id → category entry (for parent resolution)
-		$by_skwirrel_id = [];
-		foreach ( $categories as $cat ) {
-			if ( $cat['id'] !== null ) {
-				$by_skwirrel_id[ $cat['id'] ] = $cat;
+		foreach ( $raw_cats as $cat ) {
+			$cat_id = $cat['category_id'] ?? $cat['product_category_id'] ?? $cat['id'] ?? null;
+			if ( $cat_id === null ) {
+				continue;
 			}
-		}
+			$cat_id = (int) $cat_id;
 
-		// Resolve the full tree in topological order (roots first).
-		$resolved = []; // skwirrel_id => wc_term_id
+			// 1. Check resolved map from tree sync.
+			$wc_term_id = $this->resolved_map[ $cat_id ] ?? 0;
 
-		// Recursive resolver — resolves parent chain before the category itself.
-		$resolve = function ( array $cat ) use (
-			&$resolve,
-			&$resolved,
-			&$term_ids,
-			$by_skwirrel_id,
-			$tax,
-			$cat_id_meta
-		): int {
-			$cat_id = $cat['id'] ?? null;
-
-			// Already resolved?
-			if ( $cat_id !== null && isset( $resolved[ $cat_id ] ) ) {
-				return $resolved[ $cat_id ];
-			}
-
-			// ID-only entry (no name): look up existing WC term by Skwirrel ID directly.
-			// The category tree sync should have already created these terms.
-			if ( ( $cat['name'] ?? '' ) === '' && $cat_id !== null ) {
+			// 2. Fallback: term meta lookup.
+			if ( ! $wc_term_id ) {
 				$wc_term_id = $this->find_term_by_skwirrel_id( $cat_id, $tax, $cat_id_meta );
-				if ( $wc_term_id ) {
-					$resolved[ $cat_id ] = $wc_term_id;
-					$term_ids[]          = $wc_term_id;
-					// Also include ancestors.
-					$ancestors = get_ancestors( $wc_term_id, $tax, 'taxonomy' );
-					foreach ( $ancestors as $ancestor_id ) {
-						$term_ids[] = $ancestor_id;
-					}
-				}
-				return $wc_term_id;
 			}
-
-			$parent_id         = $cat['parent_id'] ?? null;
-			$wc_parent_term_id = 0;
-
-			// Resolve parent first (if it exists in our tree)
-			if ( $parent_id !== null && isset( $by_skwirrel_id[ $parent_id ] ) ) {
-				$wc_parent_term_id = $resolve( $by_skwirrel_id[ $parent_id ] );
-			} elseif ( $parent_id !== null || ( $cat['parent_name'] ?? '' ) !== '' ) {
-				// Parent not in our tree — look up / create by ID+name
-				$wc_parent_term_id = $this->find_or_create_category_term(
-					$parent_id,
-					$cat['parent_name'] ?? '',
-					$tax,
-					$cat_id_meta,
-					0
-				);
-				if ( $wc_parent_term_id && $parent_id !== null ) {
-					$resolved[ $parent_id ] = $wc_parent_term_id;
-				}
-			}
-
-			// Resolve the category itself
-			$wc_term_id = $this->find_or_create_category_term(
-				$cat_id,
-				$cat['name'],
-				$tax,
-				$cat_id_meta,
-				$wc_parent_term_id
-			);
-
-			$this->logger->verbose(
-				'Category resolve step',
-				[
-					'skwirrel_id'    => $cat_id,
-					'name'           => $cat['name'],
-					'parent_term_id' => $wc_parent_term_id,
-					'wc_term_id'     => $wc_term_id,
-				]
-			);
 
 			if ( $wc_term_id ) {
 				$term_ids[] = $wc_term_id;
-				if ( $cat_id !== null ) {
-					$resolved[ $cat_id ] = $wc_term_id;
+				// Include ancestors so WooCommerce shows parent categories too.
+				$ancestors = get_ancestors( $wc_term_id, $tax, 'taxonomy' );
+				foreach ( $ancestors as $ancestor_id ) {
+					$term_ids[] = $ancestor_id;
 				}
-				// Include all ancestors in the product's terms
-				if ( $wc_parent_term_id ) {
-					$term_ids[] = $wc_parent_term_id;
-				}
+			} else {
+				$this->logger->warning(
+					'Category not found for product',
+					[
+						'wc_product_id'        => $wc_product_id,
+						'skwirrel_category_id' => $cat_id,
+					]
+				);
 			}
-
-			return $wc_term_id;
-		};
-
-		foreach ( $categories as $cat ) {
-			$resolve( $cat );
 		}
 
 		$term_ids = array_unique( array_map( 'intval', $term_ids ) );
@@ -342,7 +291,6 @@ class Skwirrel_WC_Sync_Category_Sync {
 					'wp_set_object_terms failed',
 					[
 						'wc_product_id' => $wc_product_id,
-						'term_ids'      => $term_ids,
 						'error'         => $result->get_error_message(),
 					]
 				);
@@ -352,28 +300,9 @@ class Skwirrel_WC_Sync_Category_Sync {
 					[
 						'wc_product_id' => $wc_product_id,
 						'term_ids'      => $term_ids,
-						'names'         => array_column( $categories, 'name' ),
 					]
 				);
 			}
-		} else {
-			$this->logger->warning(
-				'Category assignment produced no term IDs',
-				[
-					'wc_product_id'  => $wc_product_id,
-					'category_count' => count( $categories ),
-					'categories'     => array_map(
-						static function ( array $c ): array {
-							return [
-								'id'        => $c['id'] ?? null,
-								'name'      => $c['name'] ?? '',
-								'parent_id' => $c['parent_id'] ?? null,
-							];
-						},
-						$categories
-					),
-				]
-			);
 		}
 	}
 
@@ -441,7 +370,7 @@ class Skwirrel_WC_Sync_Category_Sync {
 		// 2. Fall back to name matching
 		if ( $name !== '' ) {
 			$term = term_exists( $name, $taxonomy, $parent_term_id ?: 0 );
-			if ( $term && ! is_wp_error( $term ) ) {
+			if ( $term && ! is_wp_error( $term ) ) { // @phpstan-ignore function.impossibleType
 				$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
 				// Store Skwirrel ID for next sync
 				if ( $skwirrel_id !== null ) {
@@ -552,6 +481,9 @@ class Skwirrel_WC_Sync_Category_Sync {
 			$name = $this->pick_category_name( $cat, $lang );
 			if ( $name === '' && isset( $cat['category_name'] ) ) {
 				$name = $cat['category_name'];
+			}
+			if ( $name === '' && isset( $cat['product_category_code'] ) && $cat['product_category_code'] !== '' ) {
+				$name = $cat['product_category_code'];
 			}
 
 			$parent_id = $cat['parent_category_id'] ?? null;

@@ -57,6 +57,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
         add_action('wp_ajax_nopriv_' . self::BG_PURGE_ACTION, [$this, 'handle_background_purge']);
         add_action('wp_ajax_skwirrel_wc_sync_save_slug_resync', [$this, 'handle_save_slug_resync']);
         add_action('wp_ajax_skwirrel_wc_sync_view_log', [$this, 'handle_view_log']);
+        add_action('wp_ajax_skwirrel_wc_sync_abort', [$this, 'handle_abort_sync']);
     }
 
     public function add_menu(): void {
@@ -479,6 +480,19 @@ class Skwirrel_WC_Sync_Admin_Settings {
         ]);
     }
 
+    /**
+     * AJAX handler: abort the running sync.
+     */
+    public function handle_abort_sync(): void {
+        check_ajax_referer('skwirrel_abort_sync_nonce', '_nonce');
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error('Access denied', 403);
+        }
+
+        Skwirrel_WC_Sync_History::request_abort();
+        wp_send_json_success();
+    }
+
     public function enqueue_assets(string $hook): void {
         // Spinner CSS on all admin pages when sync is in progress.
         if (get_transient(Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS)) {
@@ -497,8 +511,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
             return;
         }
 
-        wp_enqueue_style('skwirrel-pim-sync-admin', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/admin.css', [], SKWIRREL_WC_SYNC_VERSION);
-        wp_enqueue_style('skwirrel-pim-sync-dashboard', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/dashboard.css', [], SKWIRREL_WC_SYNC_VERSION);
+        wp_enqueue_style('skwirrel-pim-sync-admin', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/admin.css', [], SKWIRREL_WC_SYNC_VERSION); // @phpstan-ignore constant.notFound
+        wp_enqueue_style('skwirrel-pim-sync-dashboard', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/dashboard.css', [], SKWIRREL_WC_SYNC_VERSION); // @phpstan-ignore constant.notFound
         wp_enqueue_style('skwirrel-pim-sync-inter-font', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', [], null);
 
         // Admin page JS (purge confirmation + auto-reload).
@@ -512,6 +526,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
             'ajaxUrl'               => admin_url( 'admin-ajax.php' ),
             'slugResyncNonce'       => wp_create_nonce( 'skwirrel_slug_resync_nonce' ),
             'viewLogNonce'          => wp_create_nonce( 'skwirrel_view_log_nonce' ),
+            'abortSyncNonce'        => wp_create_nonce( 'skwirrel_abort_sync_nonce' ),
+            'abortSyncConfirm'      => __( 'Stop the running sync?', 'skwirrel-pim-sync' ),
         ]);
 
         wp_add_inline_script(
@@ -558,6 +574,17 @@ class Skwirrel_WC_Sync_Admin_Settings {
             . '   if (period === "all" && !confirm(skwirrelPimSync.clearHistoryConfirm)) { e.preventDefault(); }'
             . '  });'
             . ' }'
+            . ' document.querySelectorAll(".skw-btn-abort-sync").forEach(function(btn) {'
+            . '  btn.addEventListener("click", function(e) {'
+            . '   e.preventDefault();'
+            . '   if (!confirm(skwirrelPimSync.abortSyncConfirm)) return;'
+            . '   btn.disabled = true;'
+            . '   btn.textContent = "' . esc_js( __( 'Stopping…', 'skwirrel-pim-sync' ) ) . '";'
+            . '   fetch(skwirrelPimSync.ajaxUrl + "?action=skwirrel_wc_sync_abort&_nonce=" + encodeURIComponent(skwirrelPimSync.abortSyncNonce), {method:"POST"})'
+            . '    .then(function(r){ return r.json(); })'
+            . '    .then(function(d){ if(!d.success) btn.textContent = "' . esc_js( __( 'Error', 'skwirrel-pim-sync' ) ) . '"; });'
+            . '  });'
+            . ' });'
             . '})();'
         );
 
@@ -701,6 +728,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
         $dashboard->render($active_view);
     }
 
+    /** @phpstan-ignore method.unused */
     private function render_tab_sync(): void {
         $last_sync = Skwirrel_WC_Sync_History::get_last_sync();
         $last_result = Skwirrel_WC_Sync_History::get_last_result();
@@ -737,11 +765,11 @@ class Skwirrel_WC_Sync_Admin_Settings {
                 <tbody>
                     <tr>
                         <td><strong><?php esc_html_e('Created', 'skwirrel-pim-sync'); ?></strong></td>
-                        <td style="text-align: right;"><span style="color: #00a32a; font-weight: bold; font-size: 16px;"><?php echo esc_html( (int) ( $last_result['created'] ?? 0 ) ); ?></span></td>
+                        <td style="text-align: right;"><span style="color: #00a32a; font-weight: bold; font-size: 16px;"><?php echo esc_html( (string) (int) ( $last_result['created'] ?? 0 ) ); ?></span></td>
                     </tr>
                     <tr style="background-color: #f9f9f9;">
                         <td><strong><?php esc_html_e('Updated', 'skwirrel-pim-sync'); ?></strong></td>
-                        <td style="text-align: right;"><span style="color: #007cba; font-weight: bold; font-size: 16px;"><?php echo esc_html( (int) ( $last_result['updated'] ?? 0 ) ); ?></span></td>
+                        <td style="text-align: right;"><span style="color: #007cba; font-weight: bold; font-size: 16px;"><?php echo esc_html( (string) (int) ( $last_result['updated'] ?? 0 ) ); ?></span></td>
                     </tr>
                     <?php $failed_count = (int) ($last_result['failed'] ?? 0); ?>
                     <tr style="<?php echo esc_attr( $failed_count > 0 ? 'background-color: #f8d7da;' : '' ); ?>">
@@ -780,7 +808,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
                     <?php endif; ?>
                     <tr style="background-color: #e8f5e9; border-top: 2px solid #4caf50;">
                         <td><strong><?php esc_html_e('Total processed', 'skwirrel-pim-sync'); ?></strong></td>
-                        <td style="text-align: right;"><strong style="font-size: 16px;"><?php echo esc_html( (int) ( $last_result['created'] ?? 0 ) + (int) ( $last_result['updated'] ?? 0 ) + (int) ( $last_result['failed'] ?? 0 ) ); ?></strong></td>
+                        <td style="text-align: right;"><strong style="font-size: 16px;"><?php echo esc_html( (string) ( (int) ( $last_result['created'] ?? 0 ) + (int) ( $last_result['updated'] ?? 0 ) + (int) ( $last_result['failed'] ?? 0 ) ) ); ?></strong></td>
                     </tr>
                 </tbody>
             </table>
@@ -898,9 +926,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
         ?>
         <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
-            <h3 style="margin-top: 0; color: #0c5460;">
+            <h3 style="margin-top: 0; color: #0c5460; display: flex; align-items: center; gap: 10px;">
                 <span class="dashicons dashicons-update skwirrel-pim-sync-spinner" style="color: #0c5460;"></span>
                 <?php esc_html_e('Sync in progress…', 'skwirrel-pim-sync'); ?>
+                <button type="button" class="skw-btn skw-btn-abort-sync"><?php esc_html_e( 'Stop sync', 'skwirrel-pim-sync' ); ?></button>
             </h3>
 
             <table style="border-collapse: collapse; width: 100%; max-width: 500px;">
@@ -949,6 +978,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
         <?php
     }
 
+    /** @phpstan-ignore method.unused */
     private function render_tab_settings(): void {
         $opts = get_option(self::OPTION_KEY, []);
         $token_masked = self::get_auth_token() !== '' ? self::MASK : '';
@@ -1183,6 +1213,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
         <?php
     }
 
+    /** @phpstan-ignore method.unused */
     private function render_tab_logs(): void {
         $logger = new Skwirrel_WC_Sync_Logger();
         $log_url = $logger->get_log_file_url();

@@ -3,7 +3,7 @@
  * Plugin Name: Skwirrel PIM sync for WooCommerce
  * Plugin URI: https://github.com/Skwirrel-B-V/skwirrel-pim-sync-for-woocommerce
  * Description: Sync plugin for Skwirrel PIM via Skwirrel JSON-RPC API to WooCommerce.
- * Version: 2.2.6
+ * Version: 2.2.8
  * Author: Skwirrel B.V.
  * Author URI: https://skwirrel.eu
  * Requires at least: 6.0
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SKWIRREL_WC_SYNC_VERSION', '2.2.6' );
+define( 'SKWIRREL_WC_SYNC_VERSION', '2.2.8' );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_FILE', __FILE__ );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -131,12 +131,12 @@ final class Skwirrel_WC_Sync_Plugin {
 		// Add "Filter by manufacturer" dropdown on product list
 		if ( ! empty( $options['sync_manufacturers'] ) ) {
 			add_action( 'restrict_manage_posts', [ $this, 'add_manufacturer_filter_dropdown' ], 20 );
-			add_filter( 'parse_query', [ $this, 'filter_products_by_manufacturer' ] );
+			add_action( 'parse_query', [ $this, 'filter_products_by_manufacturer' ] );
 		}
 
 		// Add GTIN / Manufacturer code search on product list.
 		add_action( 'restrict_manage_posts', [ $this, 'add_identifier_search_input' ], 25 );
-		add_filter( 'parse_query', [ $this, 'filter_products_by_identifier' ] );
+		add_action( 'parse_query', [ $this, 'filter_products_by_identifier' ] );
 
 		Skwirrel_WC_Sync_Admin_Settings::instance();
 		Skwirrel_WC_Sync_Permalink_Settings::instance();

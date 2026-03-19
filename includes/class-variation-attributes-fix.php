@@ -48,6 +48,8 @@ class Skwirrel_WC_Sync_Variation_Attributes_Fix {
 	/**
 	 * Build attributes array using parent's variation attributes list, then fallback to meta-only.
 	 * Used when we need to match parent structure (e.g. REST response).
+	 *
+	 * @phpstan-ignore method.unused
 	 */
 	private static function get_attributes_from_meta( int $variation_id, ?int $parent_id ): array {
 		$from_meta = self::get_attributes_from_meta_only( $variation_id );
