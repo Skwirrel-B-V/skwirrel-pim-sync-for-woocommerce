@@ -72,9 +72,35 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 		$external_id         = get_post_meta( $post->ID, '_skwirrel_external_id', true );
 		$synced_at           = get_post_meta( $post->ID, '_skwirrel_synced_at', true );
 
+		$grouped_id = get_post_meta( $post->ID, '_skwirrel_grouped_product_id', true );
+
 		// Only show sync button for Skwirrel-managed products.
-		if ( empty( $skwirrel_product_id ) && empty( $external_id ) ) {
+		if ( empty( $skwirrel_product_id ) && empty( $external_id ) && empty( $grouped_id ) ) {
 			echo '<p class="description">' . esc_html__( 'This product is not managed by Skwirrel.', 'skwirrel-pim-sync' ) . '</p>';
+			return;
+		}
+
+		// Variable product shells (grouped products) cannot be synced individually.
+		if ( empty( $skwirrel_product_id ) && ! empty( $grouped_id ) ) {
+			?>
+			<div class="skwirrel-product-sync-box">
+				<p>
+					<strong><?php esc_html_e( 'Grouped product ID:', 'skwirrel-pim-sync' ); ?></strong>
+					<?php echo esc_html( (string) $grouped_id ); ?>
+				</p>
+				<?php if ( $synced_at ) : ?>
+					<p>
+						<strong><?php esc_html_e( 'Last synced:', 'skwirrel-pim-sync' ); ?></strong>
+						<?php
+						$date_format = get_option( 'date_format', 'Y-m-d' );
+						$time_format = get_option( 'time_format', 'H:i' );
+						echo esc_html( wp_date( $date_format . ' ' . $time_format, (int) $synced_at ) );
+						?>
+					</p>
+				<?php endif; ?>
+				<p class="description"><?php esc_html_e( 'This is a variable product managed by Skwirrel. Use the full sync to update it.', 'skwirrel-pim-sync' ); ?></p>
+			</div>
+			<?php
 			return;
 		}
 

@@ -2,6 +2,11 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.6.2]
+
+* Fix "This product is not managed by Skwirrel" false positive on variable products and products without `external_product_id`
+* Both `is_skwirrel_product()` and the Skwirrel meta box now also check `_skwirrel_product_id` and `_skwirrel_grouped_product_id`
+
 ## [2.6.1]
 
 * Fix related products sync — use correct API flag `include_related_products` (was `include_product_relations`)
