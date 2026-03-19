@@ -92,9 +92,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
         $out['super_category_id'] = isset($input['super_category_id']) ? sanitize_text_field(trim($input['super_category_id'])) : '';
         $out['sync_grouped_products'] = !empty($input['sync_grouped_products']);
         $out['sync_related_products'] = !empty($input['sync_related_products']);
-        $out['related_products_type'] = in_array($input['related_products_type'] ?? '', ['cross_sells', 'upsells', 'both'], true)
+        $out['related_products_type'] = in_array($input['related_products_type'] ?? '', ['auto', 'cross_sells', 'upsells', 'both'], true)
             ? $input['related_products_type']
-            : 'cross_sells';
+            : 'auto';
         $out['variant_label_field'] = in_array($input['variant_label_field'] ?? '', ['internal_product_code', 'product_erp_description', 'product_name'], true)
             ? $input['variant_label_field']
             : 'internal_product_code';

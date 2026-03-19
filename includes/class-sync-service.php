@@ -165,6 +165,7 @@ class Skwirrel_WC_Sync_Service {
 				'include_categories'           => ! empty( $options['sync_categories'] ),
 				'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
 				'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
+				'include_related_products'     => ! empty( $options['sync_related_products'] ),
 				'include_languages'            => $this->get_include_languages(),
 				'include_contexts'             => [ 1 ],
 			];
@@ -779,6 +780,7 @@ class Skwirrel_WC_Sync_Service {
 			'include_categories'           => ! empty( $options['sync_categories'] ),
 			'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
 			'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
+			'include_related_products'     => ! empty( $options['sync_related_products'] ),
 			'include_etim'                 => true,
 			'include_etim_translations'    => true,
 			'include_languages'            => $this->get_include_languages(),

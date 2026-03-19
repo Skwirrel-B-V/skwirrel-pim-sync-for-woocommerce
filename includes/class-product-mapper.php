@@ -179,61 +179,72 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	// ------------------------------------------------------------------
 
 	/**
+	 * Relation types that map to WooCommerce upsells.
+	 * All other types default to cross-sells.
+	 *
+	 * @var string[]
+	 */
+	private const UPSELL_TYPES = [ 'UPSELL', 'SUCCESSOR' ];
+
+	/**
 	 * Extract related product IDs from API data.
 	 *
-	 * Tries several candidate field names and returns Skwirrel product IDs
-	 * split into cross-sell and upsell buckets based on the plugin setting.
+	 * Uses the `_related_products` field (via `include_related_products` API flag).
+	 * Each relation has a `relation_type` that determines whether it maps to
+	 * WooCommerce cross-sells or upsells. The `related_products_type` setting
+	 * controls override behaviour: 'auto' uses the API relation types,
+	 * 'cross_sells'/'upsells'/'both' forces all relations into the chosen bucket.
 	 *
 	 * @param array<string, mixed> $product Raw API product data.
 	 * @return array{cross_sells: int[], upsells: int[]}
 	 */
 	public function get_related_product_ids( array $product ): array {
-		$candidates = [
-			'_related_products',
-			'related_products',
-			'_product_relations',
-			'product_relations',
-			'_accessories',
-			'accessories',
-		];
+		$relations = $product['_related_products'] ?? [];
+		if ( empty( $relations ) || ! is_array( $relations ) ) {
+			return [
+				'cross_sells' => [],
+				'upsells'     => [],
+			];
+		}
 
-		$raw_ids = [];
-		foreach ( $candidates as $field ) {
-			if ( ! empty( $product[ $field ] ) && is_array( $product[ $field ] ) ) {
-				foreach ( $product[ $field ] as $item ) {
-					if ( is_array( $item ) ) {
-						$id = $item['product_id'] ?? $item['related_product_id'] ?? $item['id'] ?? null;
-						if ( null !== $id ) {
-							$raw_ids[] = (int) $id;
-						}
-					} elseif ( is_numeric( $item ) ) {
-						$raw_ids[] = (int) $item;
-					}
+		$opts = get_option( 'skwirrel_wc_sync_settings', [] );
+		$type = $opts['related_products_type'] ?? 'auto';
+
+		$cross_sells = [];
+		$upsells     = [];
+
+		foreach ( $relations as $item ) {
+			if ( ! is_array( $item ) ) {
+				continue;
+			}
+			$id = $item['related_product_id'] ?? $item['product_id'] ?? $item['id'] ?? null;
+			if ( null === $id ) {
+				continue;
+			}
+			$id            = (int) $id;
+			$relation_type = strtoupper( (string) ( $item['relation_type'] ?? '' ) );
+
+			if ( 'cross_sells' === $type ) {
+				$cross_sells[] = $id;
+			} elseif ( 'upsells' === $type ) {
+				$upsells[] = $id;
+			} elseif ( 'both' === $type ) {
+				$cross_sells[] = $id;
+				$upsells[]     = $id;
+			} else {
+				// Auto: map based on Skwirrel relation_type.
+				if ( in_array( $relation_type, self::UPSELL_TYPES, true ) ) {
+					$upsells[] = $id;
+				} else {
+					// Default: cross-sell (CROSS_SELL, HAS_ACCESSORY, IS_SIMILAR_TO, etc.)
+					$cross_sells[] = $id;
 				}
-				break; // Use the first non-empty source
 			}
 		}
 
-		$raw_ids = array_values( array_unique( $raw_ids ) );
-
-		$opts = get_option( 'skwirrel_wc_sync_settings', [] );
-		$type = $opts['related_products_type'] ?? 'cross_sells';
-
-		if ( 'upsells' === $type ) {
-			return [
-				'cross_sells' => [],
-				'upsells'     => $raw_ids,
-			];
-		}
-		if ( 'both' === $type ) {
-			return [
-				'cross_sells' => $raw_ids,
-				'upsells'     => $raw_ids,
-			];
-		}
 		return [
-			'cross_sells' => $raw_ids,
-			'upsells'     => [],
+			'cross_sells' => array_values( array_unique( $cross_sells ) ),
+			'upsells'     => array_values( array_unique( $upsells ) ),
 		];
 	}
 

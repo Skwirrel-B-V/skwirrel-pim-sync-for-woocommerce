@@ -2,6 +2,13 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.6.1]
+
+* Fix related products sync — use correct API flag `include_related_products` (was `include_product_relations`)
+* Smart relation type mapping: UPSELL/SUCCESSOR → WC upsells, all others → WC cross-sells (auto mode)
+* New "Auto (use relation type)" default option respects Skwirrel's CROSS_SELL, UPSELL, HAS_ACCESSORY, etc. types
+* Override modes: force all relations to cross-sells, upsells, or both
+
 ## [2.6.0]
 
 * **Related products sync** — new Phase 5 "Relations" syncs Skwirrel related products to WooCommerce cross-sells, upsells, or both

@@ -577,14 +577,15 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					</div>
 					<div class="skw-field-row">
 						<div class="skw-field">
-							<?php $rpt = $opts['related_products_type'] ?? 'cross_sells'; ?>
+							<?php $rpt = $opts['related_products_type'] ?? 'auto'; ?>
 							<label for="related_products_type" class="skw-label"><?php esc_html_e( 'Related products mapping', 'skwirrel-pim-sync' ); ?></label>
 							<select id="related_products_type" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[related_products_type]" class="skw-select">
-								<option value="cross_sells" <?php selected( $rpt, 'cross_sells' ); ?>><?php esc_html_e( 'Cross-sells', 'skwirrel-pim-sync' ); ?></option>
-								<option value="upsells" <?php selected( $rpt, 'upsells' ); ?>><?php esc_html_e( 'Upsells', 'skwirrel-pim-sync' ); ?></option>
-								<option value="both" <?php selected( $rpt, 'both' ); ?>><?php esc_html_e( 'Both', 'skwirrel-pim-sync' ); ?></option>
+								<option value="auto" <?php selected( $rpt, 'auto' ); ?>><?php esc_html_e( 'Auto (use relation type)', 'skwirrel-pim-sync' ); ?></option>
+								<option value="cross_sells" <?php selected( $rpt, 'cross_sells' ); ?>><?php esc_html_e( 'All as cross-sells', 'skwirrel-pim-sync' ); ?></option>
+								<option value="upsells" <?php selected( $rpt, 'upsells' ); ?>><?php esc_html_e( 'All as upsells', 'skwirrel-pim-sync' ); ?></option>
+								<option value="both" <?php selected( $rpt, 'both' ); ?>><?php esc_html_e( 'All as both', 'skwirrel-pim-sync' ); ?></option>
 							</select>
-							<p class="skw-field-hint"><?php esc_html_e( 'Map Skwirrel related products to WooCommerce cross-sells, upsells, or both.', 'skwirrel-pim-sync' ); ?></p>
+							<p class="skw-field-hint"><?php esc_html_e( 'Auto maps UPSELL/SUCCESSOR types to upsells, all others to cross-sells.', 'skwirrel-pim-sync' ); ?></p>
 						</div>
 						<div class="skw-field">
 							<?php $vlf = $opts['variant_label_field'] ?? 'internal_product_code'; ?>
