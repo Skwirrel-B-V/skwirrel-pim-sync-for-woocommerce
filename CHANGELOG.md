@@ -2,6 +2,12 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.4.4]
+
+* Fix "Stop sync" button — abort check now runs every 25 products within each phase instead of only between phases
+* Heartbeat refresh during abort checks to keep the UI sync-in-progress indicator alive
+* Fix failed sync status card — show the failed sync timestamp and error message instead of the last successful sync time; display "Last successful sync" as a secondary line
+
 ## [2.4.3]
 
 * Flush WordPress object cache after every product in all processing phases (1–4) to prevent WooCommerce product objects from accumulating in memory

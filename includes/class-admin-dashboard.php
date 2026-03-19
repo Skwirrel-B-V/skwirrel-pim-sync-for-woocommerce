@@ -149,12 +149,20 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<?php echo $last_result['success'] ? esc_html__( 'Last sync successful', 'skwirrel-pim-sync' ) : esc_html__( 'Last sync failed', 'skwirrel-pim-sync' ); ?>
 					</p>
 					<p class="skw-status-meta">
-						<?php echo $last_sync ? esc_html( $this->format_datetime( $last_sync ) ) : ''; ?>
 						<?php if ( $last_result['success'] ) : ?>
+							<?php echo $last_sync ? esc_html( $this->format_datetime( $last_sync ) ) : ''; ?>
 							&mdash;
 							<span class="skw-c-green"><?php echo esc_html( (string) $created ); ?> <?php esc_html_e( 'created', 'skwirrel-pim-sync' ); ?></span>,
 							<span class="skw-c-blue"><?php echo esc_html( (string) $updated ); ?> <?php esc_html_e( 'updated', 'skwirrel-pim-sync' ); ?></span>,
 							<span class="skw-c-red"><?php echo esc_html( (string) $failed ); ?> <?php esc_html_e( 'failed', 'skwirrel-pim-sync' ); ?></span>
+						<?php else : ?>
+							<?php echo ! empty( $last_result['timestamp'] ) ? esc_html( $this->format_datetime( $last_result['timestamp'] ) ) : ''; ?>
+							<?php if ( ! empty( $last_result['error'] ) ) : ?>
+								&mdash; <?php echo esc_html( $last_result['error'] ); ?>
+							<?php endif; ?>
+							<?php if ( $last_sync ) : ?>
+								<br><small><?php esc_html_e( 'Last successful sync:', 'skwirrel-pim-sync' ); ?> <?php echo esc_html( $this->format_datetime( $last_sync ) ); ?></small>
+							<?php endif; ?>
 						<?php endif; ?>
 					</p>
 				</div>

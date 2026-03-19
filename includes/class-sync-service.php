@@ -435,6 +435,7 @@ class Skwirrel_WC_Sync_Service {
 						$total,
 						__( 'Creating & updating products…', 'skwirrel-pim-sync' )
 					);
+					$this->check_abort();
 				}
 			}
 
@@ -484,6 +485,7 @@ class Skwirrel_WC_Sync_Service {
 						$total,
 						$taxonomy_label
 					);
+					$this->check_abort();
 				}
 			}
 
@@ -538,6 +540,7 @@ class Skwirrel_WC_Sync_Service {
 						$total,
 						__( 'Fetching & connecting attributes…', 'skwirrel-pim-sync' )
 					);
+					$this->check_abort();
 				}
 			}
 
@@ -586,6 +589,7 @@ class Skwirrel_WC_Sync_Service {
 						$media_total,
 						__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
 					);
+					$this->check_abort();
 				}
 			}
 
@@ -616,6 +620,7 @@ class Skwirrel_WC_Sync_Service {
 						$media_total,
 						__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
 					);
+					$this->check_abort();
 				}
 			}
 
@@ -1013,6 +1018,7 @@ class Skwirrel_WC_Sync_Service {
 	}
 
 	private function check_abort(): void {
+		Skwirrel_WC_Sync_History::sync_heartbeat();
 		if ( Skwirrel_WC_Sync_History::is_abort_requested() ) {
 			$this->logger->info( 'Sync aborted by user' );
 			throw new \RuntimeException( 'Sync aborted by user' );
