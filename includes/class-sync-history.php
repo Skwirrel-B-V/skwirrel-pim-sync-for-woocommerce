@@ -44,6 +44,7 @@ class Skwirrel_WC_Sync_History {
 	public const PHASE_TAXONOMY   = 'taxonomy';
 	public const PHASE_ATTRIBUTES = 'attributes';
 	public const PHASE_MEDIA      = 'media';
+	public const PHASE_RELATIONS  = 'relations';
 	public const PHASE_CLEANUP    = 'cleanup';
 
 	/** Trigger types. */
@@ -306,7 +307,7 @@ class Skwirrel_WC_Sync_History {
 		];
 
 		// Mark earlier phases as completed
-		$phase_order = [ self::PHASE_FETCH, self::PHASE_PRODUCTS, self::PHASE_TAXONOMY, self::PHASE_ATTRIBUTES, self::PHASE_MEDIA, self::PHASE_CLEANUP ];
+		$phase_order = [ self::PHASE_FETCH, self::PHASE_PRODUCTS, self::PHASE_TAXONOMY, self::PHASE_ATTRIBUTES, self::PHASE_MEDIA, self::PHASE_RELATIONS, self::PHASE_CLEANUP ];
 		$reached     = false;
 		foreach ( $phase_order as $p ) {
 			if ( $p === $phase ) {

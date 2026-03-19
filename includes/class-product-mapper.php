@@ -175,6 +175,69 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	}
 
 	// ------------------------------------------------------------------
+	// Related products
+	// ------------------------------------------------------------------
+
+	/**
+	 * Extract related product IDs from API data.
+	 *
+	 * Tries several candidate field names and returns Skwirrel product IDs
+	 * split into cross-sell and upsell buckets based on the plugin setting.
+	 *
+	 * @param array<string, mixed> $product Raw API product data.
+	 * @return array{cross_sells: int[], upsells: int[]}
+	 */
+	public function get_related_product_ids( array $product ): array {
+		$candidates = [
+			'_related_products',
+			'related_products',
+			'_product_relations',
+			'product_relations',
+			'_accessories',
+			'accessories',
+		];
+
+		$raw_ids = [];
+		foreach ( $candidates as $field ) {
+			if ( ! empty( $product[ $field ] ) && is_array( $product[ $field ] ) ) {
+				foreach ( $product[ $field ] as $item ) {
+					if ( is_array( $item ) ) {
+						$id = $item['product_id'] ?? $item['related_product_id'] ?? $item['id'] ?? null;
+						if ( null !== $id ) {
+							$raw_ids[] = (int) $id;
+						}
+					} elseif ( is_numeric( $item ) ) {
+						$raw_ids[] = (int) $item;
+					}
+				}
+				break; // Use the first non-empty source
+			}
+		}
+
+		$raw_ids = array_values( array_unique( $raw_ids ) );
+
+		$opts = get_option( 'skwirrel_wc_sync_settings', [] );
+		$type = $opts['related_products_type'] ?? 'cross_sells';
+
+		if ( 'upsells' === $type ) {
+			return [
+				'cross_sells' => [],
+				'upsells'     => $raw_ids,
+			];
+		}
+		if ( 'both' === $type ) {
+			return [
+				'cross_sells' => $raw_ids,
+				'upsells'     => $raw_ids,
+			];
+		}
+		return [
+			'cross_sells' => $raw_ids,
+			'upsells'     => [],
+		];
+	}
+
+	// ------------------------------------------------------------------
 	// Attachment delegation (see Skwirrel_WC_Sync_Attachment_Handler)
 	// ------------------------------------------------------------------
 

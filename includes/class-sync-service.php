@@ -624,12 +624,58 @@ class Skwirrel_WC_Sync_Service {
 				}
 			}
 
+			// =====================================================================
+			$this->check_abort();
+			// Phase 5: Relations — cross-sells & upsells
+			// =====================================================================
+			if ( ! empty( $options['sync_related_products'] ) ) {
+				Skwirrel_WC_Sync_History::update_phase_progress(
+					Skwirrel_WC_Sync_History::PHASE_RELATIONS,
+					0,
+					$total,
+					__( 'Linking related products…', 'skwirrel-pim-sync' )
+				);
+
+				$rel_i = 0;
+				// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
+				while ( $row = $queue->get_next_for_phase( 5 ) ) {
+					if ( $row->wc_id && 'skipped' !== $row->outcome ) {
+						try {
+							$this->upserter->assign_relations( $row->wc_id, $row->product );
+						} catch ( Throwable $e ) {
+							$this->logger->warning(
+								'Relations assignment failed',
+								[
+									'wc_id' => $row->wc_id,
+									'error' => $e->getMessage(),
+								]
+							);
+						}
+					}
+
+					$queue->mark_phase_completed( $row->id, 5 );
+					self::free_wpdb_memory();
+					wp_cache_flush();
+					++$rel_i;
+
+					if ( 0 === $rel_i % 50 || $rel_i === $total ) {
+						Skwirrel_WC_Sync_History::update_phase_progress(
+							Skwirrel_WC_Sync_History::PHASE_RELATIONS,
+							$rel_i,
+							$total,
+							__( 'Linking related products…', 'skwirrel-pim-sync' )
+						);
+						$this->check_abort();
+					}
+				}
+			}
+
 			// Clean up queue — all products processed
 			$queue->cleanup();
 
 			// =====================================================================
 			$this->check_abort();
-			// Phase 5: Cleanup — purge stale, persist history
+			// Phase 6: Cleanup — purge stale, persist history
 			// =====================================================================
 			Skwirrel_WC_Sync_History::update_phase_progress(
 				Skwirrel_WC_Sync_History::PHASE_CLEANUP,
@@ -816,6 +862,15 @@ class Skwirrel_WC_Sync_Service {
 
 		try {
 			$outcome = $this->upserter->upsert_product( $product );
+
+			// Assign related products if enabled.
+			if ( ! empty( $options['sync_related_products'] ) && 'skipped' !== $outcome ) {
+				$lookup = new Skwirrel_WC_Sync_Product_Lookup( $this->mapper );
+				$wc_id  = $lookup->find_by_skwirrel_product_id( $skwirrel_product_id );
+				if ( $wc_id ) {
+					$this->upserter->assign_relations( $wc_id, $product );
+				}
+			}
 
 			$this->logger->info(
 				'Single product sync completed',

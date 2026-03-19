@@ -2,6 +2,14 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.6.0]
+
+* **Related products sync** — new Phase 5 "Relations" syncs Skwirrel related products to WooCommerce cross-sells, upsells, or both
+* New settings: "Sync related products" checkbox and "Related products mapping" dropdown (Cross-sells / Upsells / Both)
+* Batch lookup for resolving Skwirrel IDs to WooCommerce product IDs for efficient relation assignment
+* Unresolved relations are stored in `_skwirrel_pending_relations` meta and retried on the next sync
+* Variations automatically assign relations to their parent variable product
+
 ## [2.5.0]
 
 * **Variant label setting** — new "Variant label" dropdown in settings to choose which field is shown in the frontend variant dropdown when no ETIM variation axes are available: SKU (default), ERP description, or product name

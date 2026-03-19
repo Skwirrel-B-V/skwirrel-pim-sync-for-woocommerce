@@ -105,6 +105,46 @@ class Skwirrel_WC_Sync_Product_Lookup {
 	}
 
 	/**
+	 * Batch-resolve Skwirrel product IDs to WooCommerce post IDs.
+	 *
+	 * Queries _skwirrel_product_id meta for all given IDs in a single query.
+	 *
+	 * @param int[] $skwirrel_ids Skwirrel product IDs.
+	 * @return array<int, int> Map of skwirrel_id => wc_id (only found entries).
+	 */
+	public function find_wc_ids_by_skwirrel_ids( array $skwirrel_ids ): array {
+		if ( empty( $skwirrel_ids ) ) {
+			return [];
+		}
+
+		global $wpdb;
+		$meta_key     = $this->mapper->get_product_id_meta_key();
+		$placeholders = implode( ',', array_fill( 0, count( $skwirrel_ids ), '%s' ) );
+		$values       = array_map( 'strval', $skwirrel_ids );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- batch meta lookup not supported by WP API
+		$results = $wpdb->get_results(
+			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- dynamic placeholder count
+				"SELECT pm.meta_value AS skwirrel_id, pm.post_id FROM {$wpdb->postmeta} pm
+				INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+					AND p.post_type IN ('product', 'product_variation')
+					AND p.post_status NOT IN ('trash', 'auto-draft')
+				WHERE pm.meta_key = %s AND pm.meta_value IN ({$placeholders})",
+				array_merge( [ $meta_key ], $values )
+			)
+		);
+
+		$map = [];
+		if ( $results ) {
+			foreach ( $results as $row ) {
+				$map[ (int) $row->skwirrel_id ] = (int) $row->post_id;
+			}
+		}
+		return $map;
+	}
+
+	/**
 	 * Find a WooCommerce product variation by its parent product ID and SKU.
 	 *
 	 * Joins posts and postmeta on _sku, filtering on post_parent and post_type = 'product_variation'.

@@ -1541,6 +1541,129 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	}
 
 	/**
+	 * Assign related product relations (cross-sells and/or upsells) to a WC product.
+	 *
+	 * Resolves Skwirrel product IDs to WC IDs, filters self-references, and stores
+	 * unresolved IDs in meta for retry on the next sync run.
+	 *
+	 * @param int                  $wc_id   WooCommerce product ID.
+	 * @param array<string, mixed> $product Raw API product data.
+	 * @return void
+	 */
+	public function assign_relations( int $wc_id, array $product ): void {
+		if ( ! $wc_id ) {
+			return;
+		}
+
+		$relations        = $this->mapper->get_related_product_ids( $product );
+		$all_skwirrel_ids = array_values(
+			array_unique(
+				array_merge( $relations['cross_sells'], $relations['upsells'] )
+			)
+		);
+
+		// Also retry previously unresolved IDs.
+		$pending = get_post_meta( $wc_id, '_skwirrel_pending_relations', true );
+		if ( is_array( $pending ) && ! empty( $pending ) ) {
+			$all_skwirrel_ids = array_values(
+				array_unique(
+					array_merge( $all_skwirrel_ids, $pending )
+				)
+			);
+			// Merge pending IDs back into the relation buckets they belong to.
+			$pending_cross = array_values( array_unique( array_merge( $relations['cross_sells'], $pending ) ) );
+			$pending_up    = array_values( array_unique( array_merge( $relations['upsells'], $pending ) ) );
+			// Only add pending to buckets that are active (non-empty or setting matches).
+			$opts = get_option( 'skwirrel_wc_sync_settings', [] );
+			$type = $opts['related_products_type'] ?? 'cross_sells';
+			if ( 'upsells' === $type ) {
+				$relations['upsells'] = $pending_up;
+			} elseif ( 'both' === $type ) {
+				$relations['cross_sells'] = $pending_cross;
+				$relations['upsells']     = $pending_up;
+			} else {
+				$relations['cross_sells'] = $pending_cross;
+			}
+		}
+
+		if ( empty( $all_skwirrel_ids ) ) {
+			delete_post_meta( $wc_id, '_skwirrel_pending_relations' );
+			return;
+		}
+
+		// Batch resolve Skwirrel IDs → WC IDs.
+		$id_map = $this->lookup->find_wc_ids_by_skwirrel_ids( $all_skwirrel_ids );
+
+		// For variations, set relations on the parent variable product.
+		$target_id  = $wc_id;
+		$wc_product = wc_get_product( $wc_id );
+		if ( ! $wc_product ) {
+			return;
+		}
+		if ( $wc_product->is_type( 'variation' ) ) {
+			$parent_id = $wc_product->get_parent_id();
+			if ( $parent_id ) {
+				$target_id  = $parent_id;
+				$wc_product = wc_get_product( $parent_id );
+				if ( ! $wc_product ) {
+					return;
+				}
+			}
+		}
+
+		// Resolve IDs and filter self-references.
+		$resolve = function ( array $skwirrel_ids ) use ( $id_map, $target_id ): array {
+			$wc_ids = [];
+			foreach ( $skwirrel_ids as $sid ) {
+				if ( isset( $id_map[ $sid ] ) ) {
+					$resolved = $id_map[ $sid ];
+					// Resolve to parent if the matched product is a variation.
+					$matched = wc_get_product( $resolved );
+					if ( $matched && $matched->is_type( 'variation' ) && $matched->get_parent_id() ) {
+						$resolved = $matched->get_parent_id();
+					}
+					if ( $resolved !== $target_id ) {
+						$wc_ids[] = $resolved;
+					}
+				}
+			}
+			return array_values( array_unique( $wc_ids ) );
+		};
+
+		$cross_sell_wc_ids = $resolve( $relations['cross_sells'] );
+		$upsell_wc_ids     = $resolve( $relations['upsells'] );
+
+		if ( ! empty( $cross_sell_wc_ids ) ) {
+			$wc_product->set_cross_sell_ids( $cross_sell_wc_ids );
+		}
+		if ( ! empty( $upsell_wc_ids ) ) {
+			$wc_product->set_upsell_ids( $upsell_wc_ids );
+		}
+		if ( ! empty( $cross_sell_wc_ids ) || ! empty( $upsell_wc_ids ) ) {
+			$wc_product->save();
+		}
+
+		// Track unresolved IDs for retry on next sync.
+		$unresolved = array_values( array_diff( $all_skwirrel_ids, array_keys( $id_map ) ) );
+		if ( ! empty( $unresolved ) ) {
+			update_post_meta( $wc_id, '_skwirrel_pending_relations', $unresolved );
+		} else {
+			delete_post_meta( $wc_id, '_skwirrel_pending_relations' );
+		}
+
+		$this->logger->verbose(
+			'Relations assigned',
+			[
+				'wc_id'       => $wc_id,
+				'target_id'   => $target_id,
+				'cross_sells' => count( $cross_sell_wc_ids ),
+				'upsells'     => count( $upsell_wc_ids ),
+				'unresolved'  => count( $unresolved ),
+			]
+		);
+	}
+
+	/**
 	 * Write variation debug information to log file.
 	 *
 	 * @param string $sku             Product SKU.

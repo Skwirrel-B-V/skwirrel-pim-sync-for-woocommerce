@@ -298,6 +298,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			Skwirrel_WC_Sync_History::PHASE_TAXONOMY   => $taxonomy_label,
 			Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES => __( 'Connect attributes', 'skwirrel-pim-sync' ),
 			Skwirrel_WC_Sync_History::PHASE_MEDIA      => __( 'Download images & documents', 'skwirrel-pim-sync' ),
+			Skwirrel_WC_Sync_History::PHASE_RELATIONS  => __( 'Link related products', 'skwirrel-pim-sync' ),
 			Skwirrel_WC_Sync_History::PHASE_CLEANUP    => __( 'Cleanup & finalize', 'skwirrel-pim-sync' ),
 		);
 
@@ -569,9 +570,32 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<div class="skw-checkbox-group">
 						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_categories]" value="1" <?php checked( ! empty( $opts['sync_categories'] ) ); ?> /> <?php esc_html_e( 'Sync categories', 'skwirrel-pim-sync' ); ?></label>
 						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_grouped_products]" value="1" <?php checked( ! empty( $opts['sync_grouped_products'] ) ); ?> /> <?php esc_html_e( 'Sync grouped products (variable)', 'skwirrel-pim-sync' ); ?></label>
+						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_related_products]" value="1" <?php checked( ! empty( $opts['sync_related_products'] ) ); ?> /> <?php esc_html_e( 'Sync related products', 'skwirrel-pim-sync' ); ?></label>
 						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_manufacturers]" value="1" <?php checked( ! empty( $opts['sync_manufacturers'] ) ); ?> /> <?php esc_html_e( 'Sync manufacturers', 'skwirrel-pim-sync' ); ?></label>
 						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_custom_classes]" value="1" <?php checked( ! empty( $opts['sync_custom_classes'] ) ); ?> /> <?php esc_html_e( 'Sync custom classes', 'skwirrel-pim-sync' ); ?></label>
 						<label class="skw-checkbox skw-checkbox-indent"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_trade_item_custom_classes]" value="1" <?php checked( ! empty( $opts['sync_trade_item_custom_classes'] ) ); ?> /> <?php esc_html_e( 'Include trade item custom classes', 'skwirrel-pim-sync' ); ?></label>
+					</div>
+					<div class="skw-field-row">
+						<div class="skw-field">
+							<?php $rpt = $opts['related_products_type'] ?? 'cross_sells'; ?>
+							<label for="related_products_type" class="skw-label"><?php esc_html_e( 'Related products mapping', 'skwirrel-pim-sync' ); ?></label>
+							<select id="related_products_type" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[related_products_type]" class="skw-select">
+								<option value="cross_sells" <?php selected( $rpt, 'cross_sells' ); ?>><?php esc_html_e( 'Cross-sells', 'skwirrel-pim-sync' ); ?></option>
+								<option value="upsells" <?php selected( $rpt, 'upsells' ); ?>><?php esc_html_e( 'Upsells', 'skwirrel-pim-sync' ); ?></option>
+								<option value="both" <?php selected( $rpt, 'both' ); ?>><?php esc_html_e( 'Both', 'skwirrel-pim-sync' ); ?></option>
+							</select>
+							<p class="skw-field-hint"><?php esc_html_e( 'Map Skwirrel related products to WooCommerce cross-sells, upsells, or both.', 'skwirrel-pim-sync' ); ?></p>
+						</div>
+						<div class="skw-field">
+							<?php $vlf = $opts['variant_label_field'] ?? 'internal_product_code'; ?>
+							<label for="variant_label_field" class="skw-label"><?php esc_html_e( 'Variant label', 'skwirrel-pim-sync' ); ?></label>
+							<select id="variant_label_field" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[variant_label_field]" class="skw-select">
+								<option value="internal_product_code" <?php selected( $vlf, 'internal_product_code' ); ?>><?php esc_html_e( 'SKU (internal_product_code)', 'skwirrel-pim-sync' ); ?></option>
+								<option value="product_erp_description" <?php selected( $vlf, 'product_erp_description' ); ?>><?php esc_html_e( 'ERP description', 'skwirrel-pim-sync' ); ?></option>
+								<option value="product_name" <?php selected( $vlf, 'product_name' ); ?>><?php esc_html_e( 'Product name (translated)', 'skwirrel-pim-sync' ); ?></option>
+							</select>
+							<p class="skw-field-hint"><?php esc_html_e( 'Label shown in the variant dropdown when no ETIM variation axes are available.', 'skwirrel-pim-sync' ); ?></p>
+						</div>
 					</div>
 					<div class="skw-field-row">
 						<div class="skw-field">
