@@ -2,6 +2,11 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.2.9]
+
+* Convert existing simple products to variations when a grouped product sync encounters a duplicate SKU (trashes old simple, creates variation)
+* Reduce memory usage during phased sync by freeing heavy product data after each phase completes
+
 ## [2.2.8]
 
 * Simplify per-product category assignment — look up Skwirrel category IDs directly in the resolved map from tree sync instead of re-extracting and recursively resolving the category hierarchy per product

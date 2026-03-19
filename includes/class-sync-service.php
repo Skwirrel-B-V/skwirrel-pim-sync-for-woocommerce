@@ -343,6 +343,8 @@ class Skwirrel_WC_Sync_Service {
 			} while ( ! empty( $products ) );
 
 			$total = count( $sync_items );
+			// Free raw API data — products are now in $sync_items.
+			unset( $products, $data, $result );
 			$this->logger->info( "Fetch complete: {$total} products to process in phases" );
 
 			// =====================================================================
@@ -397,6 +399,21 @@ class Skwirrel_WC_Sync_Service {
 			}
 			unset( $item );
 
+			// Free heavy product data no longer needed after Phase 1.
+			// Keep only keys required by Phase 2 (taxonomy), 3 (attributes), 4 (media).
+			foreach ( $sync_items as &$item ) {
+				if ( ! isset( $item['product'] ) || ! is_array( $item['product'] ) ) {
+					continue;
+				}
+				unset(
+					$item['product']['_product_translations'],
+					$item['product']['_trade_items'],
+					$item['product']['_product_status'],
+					$item['product']['_product_groups']
+				);
+			}
+			unset( $item );
+
 			// =====================================================================
 			$this->check_abort();
 			// Phase 2: Taxonomy — categories, brands, manufacturers
@@ -439,6 +456,14 @@ class Skwirrel_WC_Sync_Service {
 					);
 				}
 			}
+
+			// Free taxonomy data no longer needed.
+			foreach ( $sync_items as &$item ) {
+				if ( isset( $item['product'] ) && is_array( $item['product'] ) ) {
+					unset( $item['product']['_categories'], $item['product']['brand_name'], $item['product']['manufacturer_name'] );
+				}
+			}
+			unset( $item );
 
 			// =====================================================================
 			$this->check_abort();
@@ -487,6 +512,14 @@ class Skwirrel_WC_Sync_Service {
 
 			// Flush deferred parent attribute terms
 			$this->upserter->flush_parent_attribute_terms();
+
+			// Free attribute data — Phase 4 only needs _attachments.
+			foreach ( $sync_items as &$item ) {
+				if ( isset( $item['product'] ) && is_array( $item['product'] ) ) {
+					unset( $item['product']['_etim'], $item['product']['_custom_classes'] );
+				}
+			}
+			unset( $item );
 
 			// =====================================================================
 			$this->check_abort();

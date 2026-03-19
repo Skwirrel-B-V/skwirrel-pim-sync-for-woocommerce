@@ -384,6 +384,22 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$variation_id = $this->lookup->find_variation_by_sku( $wc_variable_id, $sku );
 		if ( ! $variation_id ) {
+			// Check if a simple product with this SKU exists — convert it to a variation.
+			$existing_simple_id = wc_get_product_id_by_sku( $sku );
+			if ( $existing_simple_id ) {
+				$existing_simple = wc_get_product( $existing_simple_id );
+				if ( $existing_simple && $existing_simple->is_type( 'simple' ) ) {
+					// Clear SKU on the old simple product so the variation can use it.
+					$existing_simple->set_sku( '' );
+					$existing_simple->save();
+					wp_trash_post( $existing_simple_id );
+					$this->logger->info( 'Converted simple to variation (trashed old simple)', [
+						'old_simple_id' => $existing_simple_id,
+						'variable_id'   => $wc_variable_id,
+						'sku'           => $sku,
+					] );
+				}
+			}
 			$variation = new WC_Product_Variation();
 			$variation->set_parent_id( $wc_variable_id );
 		} else {
@@ -1156,6 +1172,21 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$variation_id = $this->lookup->find_variation_by_sku( $wc_variable_id, $sku );
 		if ( ! $variation_id ) {
+			// Check if a simple product with this SKU exists — convert it to a variation.
+			$existing_simple_id = wc_get_product_id_by_sku( $sku );
+			if ( $existing_simple_id ) {
+				$existing_simple = wc_get_product( $existing_simple_id );
+				if ( $existing_simple && $existing_simple->is_type( 'simple' ) ) {
+					$existing_simple->set_sku( '' );
+					$existing_simple->save();
+					wp_trash_post( $existing_simple_id );
+					$this->logger->info( 'Converted simple to variation (trashed old simple)', [
+						'old_simple_id' => $existing_simple_id,
+						'variable_id'   => $wc_variable_id,
+						'sku'           => $sku,
+					] );
+				}
+			}
 			$variation = new WC_Product_Variation();
 			$variation->set_parent_id( $wc_variable_id );
 		} else {
