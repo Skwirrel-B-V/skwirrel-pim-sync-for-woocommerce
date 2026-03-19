@@ -67,6 +67,10 @@ class Skwirrel_WC_Sync_Delete_Protection {
 		if ( ! empty( $ext_id ) ) {
 			return true;
 		}
+		$product_id = get_post_meta( $post_id, '_skwirrel_product_id', true );
+		if ( ! empty( $product_id ) ) {
+			return true;
+		}
 		$grouped_id = get_post_meta( $post_id, '_skwirrel_grouped_product_id', true );
 		return ! empty( $grouped_id );
 	}
