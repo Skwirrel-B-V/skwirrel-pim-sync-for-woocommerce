@@ -2,6 +2,10 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.3.2]
+
+* Fix unexpected output during plugin activation — use dbDelta-compatible SQL format for sync queue table
+
 ## [2.3.1]
 
 * Use WordPress timezone for log filenames instead of UTC

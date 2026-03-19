@@ -26,7 +26,7 @@ class Skwirrel_WC_Sync_Queue {
 		$charset = $wpdb->get_charset_collate();
 
 		$sql = "CREATE TABLE {$table} (
-			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 			sync_run_id VARCHAR(36) NOT NULL,
 			product_data LONGTEXT NOT NULL,
 			group_info TEXT DEFAULT NULL,
@@ -35,9 +35,10 @@ class Skwirrel_WC_Sync_Queue {
 			is_virtual TINYINT(1) DEFAULT 0,
 			virtual_parent_id BIGINT UNSIGNED DEFAULT 0,
 			phase_completed TINYINT UNSIGNED DEFAULT 0,
-			INDEX idx_sync_run (sync_run_id),
-			INDEX idx_phase (sync_run_id, is_virtual, phase_completed)
-		) ENGINE=InnoDB {$charset};";
+			PRIMARY KEY  (id),
+			KEY idx_sync_run (sync_run_id),
+			KEY idx_phase (sync_run_id, is_virtual, phase_completed)
+		) {$charset};";
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		dbDelta( $sql );
