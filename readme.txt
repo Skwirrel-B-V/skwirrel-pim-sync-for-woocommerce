@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 8.1
-Stable tag: 2.2.9
+Stable tag: 2.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,6 +62,10 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 2.3.0 =
+* Database-backed sync queue — product data stored in temporary DB table instead of memory, preventing OOM crashes on low-memory servers
+* Products processed one at a time per phase via cursor pattern (O(1) memory usage)
 
 = 2.2.9 =
 * Convert existing simple products to variations when a grouped product sync encounters a duplicate SKU

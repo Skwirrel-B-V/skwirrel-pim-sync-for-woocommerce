@@ -3,7 +3,7 @@
  * Plugin Name: Skwirrel PIM sync for WooCommerce
  * Plugin URI: https://github.com/Skwirrel-B-V/skwirrel-pim-sync-for-woocommerce
  * Description: Sync plugin for Skwirrel PIM via Skwirrel JSON-RPC API to WooCommerce.
- * Version: 2.2.9
+ * Version: 2.3.0
  * Author: Skwirrel B.V.
  * Author URI: https://skwirrel.eu
  * Requires at least: 6.0
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SKWIRREL_WC_SYNC_VERSION', '2.2.9' );
+define( 'SKWIRREL_WC_SYNC_VERSION', '2.3.0' );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_FILE', __FILE__ );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -51,6 +51,9 @@ register_activation_hook(
 				[ 'back_link' => true ]
 			);
 		}
+
+		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-sync-queue.php';
+		Skwirrel_WC_Sync_Queue::create_table();
 
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-action-scheduler.php';
 		Skwirrel_WC_Sync_Action_Scheduler::instance()->schedule();
@@ -102,6 +105,7 @@ final class Skwirrel_WC_Sync_Plugin {
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-slug-resolver.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-permalink-settings.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-product-upserter.php';
+		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-sync-queue.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-sync-service.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-action-scheduler.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-admin-settings.php';

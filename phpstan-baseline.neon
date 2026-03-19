@@ -925,12 +925,6 @@ parameters:
 			path: includes/class-sync-service.php
 
 		-
-			message: '#^PHPDoc tag @var for variable \$sync_items has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 2
-			path: includes/class-sync-service.php
-
-		-
 			message: '#^Method Skwirrel_WC_Sync_Taxonomy_Manager\:\:sync_all_custom_classes\(\) has parameter \$languages with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1

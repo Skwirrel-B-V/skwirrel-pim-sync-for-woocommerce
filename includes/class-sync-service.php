@@ -45,7 +45,7 @@ class Skwirrel_WC_Sync_Service {
 	 * Run sync in phases. Returns summary array.
 	 *
 	 * Phases:
-	 * 1. Fetch — paginate through API, collect all product data into memory
+	 * 1. Fetch — paginate through API, store product data in database queue
 	 * 2. Products — create/update WC products (basic fields only)
 	 * 3. Taxonomy — assign categories, brands, manufacturers
 	 * 4. Attributes — assign ETIM + custom class attributes
@@ -228,7 +228,7 @@ class Skwirrel_WC_Sync_Service {
 
 			// =====================================================================
 			$this->check_abort();
-			// Phase: Fetch — paginate through API, collect all product data
+			// Phase: Fetch — paginate through API, store in database queue
 			// =====================================================================
 			Skwirrel_WC_Sync_History::update_phase_progress(
 				Skwirrel_WC_Sync_History::PHASE_FETCH,
@@ -237,10 +237,15 @@ class Skwirrel_WC_Sync_Service {
 				__( 'Fetching products from API…', 'skwirrel-pim-sync' )
 			);
 
-			/** @var array<int, array{product: array, group_info: array|null, wc_id: int, outcome: string}> $sync_items [{product, group_info, wc_id, outcome}] */
-			$sync_items    = [];
-			$virtual_items = []; // [{product, wc_variable_id}] — images for variable products
-			$page          = 1;
+			// Ensure sync queue table exists and is clean.
+			if ( ! Skwirrel_WC_Sync_Queue::table_exists() ) {
+				Skwirrel_WC_Sync_Queue::create_table();
+			}
+			Skwirrel_WC_Sync_Queue::truncate();
+			$sync_run_id = wp_generate_uuid4();
+			$queue       = new Skwirrel_WC_Sync_Queue( $sync_run_id );
+			$fetched     = 0;
+			$page        = 1;
 
 			$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
 			if ( ! $result['success'] ) {
@@ -273,27 +278,26 @@ class Skwirrel_WC_Sync_Service {
 			}
 
 			do {
+				$page_count = count( $products );
 				$this->logger->verbose(
 					'Fetching batch',
 					[
 						'page'  => $page,
-						'count' => count( $products ),
+						'count' => $page_count,
 					]
 				);
 
 				foreach ( $products as $product ) {
 					$skwirrel_product_id = $product['product_id'] ?? $product['id'] ?? null;
 
-					// Virtual products → collect for phase 4 (media on parent)
+					// Virtual products → queue for phase 4 (media on parent)
 					$virtual_info = null;
 					if ( null !== $skwirrel_product_id ) {
 						$virtual_info = $product_to_group_map[ 'virtual:' . (int) $skwirrel_product_id ] ?? null;
 					}
 					if ( $virtual_info && ! empty( $virtual_info['is_virtual_for_variable'] ) ) {
-						$virtual_items[] = [
-							'product'        => $product,
-							'wc_variable_id' => $virtual_info['wc_variable_id'],
-						];
+						$queue->insert_virtual_item( $product, (int) $virtual_info['wc_variable_id'] );
+						++$fetched;
 						continue;
 					}
 
@@ -312,23 +316,22 @@ class Skwirrel_WC_Sync_Service {
 						$group_info = $product_to_group_map[ 'sku:' . $sku_for_lookup ] ?? null;
 					}
 
-					$sync_items[] = [
-						'product'    => $product,
-						'group_info' => $group_info,
-						'wc_id'      => 0,
-						'outcome'    => 'skipped',
-					];
+					$queue->insert_item( $product, $group_info );
+					++$fetched;
 				}
+
+				// Free API response data immediately.
+				unset( $products, $data, $result );
 
 				Skwirrel_WC_Sync_History::update_phase_progress(
 					Skwirrel_WC_Sync_History::PHASE_FETCH,
-					count( $sync_items ),
+					$fetched,
 					0,
 					/* translators: %d = number of products fetched so far */
-					sprintf( __( 'Fetching products from API… (%d found)', 'skwirrel-pim-sync' ), count( $sync_items ) )
+					sprintf( __( 'Fetching products from API… (%d found)', 'skwirrel-pim-sync' ), $fetched )
 				);
 
-				if ( count( $products ) < $batch_size ) {
+				if ( $page_count < $batch_size ) {
 					break;
 				}
 
@@ -342,10 +345,9 @@ class Skwirrel_WC_Sync_Service {
 				$products = $data['products'] ?? [];
 			} while ( ! empty( $products ) );
 
-			$total = count( $sync_items );
-			// Free raw API data — products are now in $sync_items.
-			unset( $products, $data, $result );
-			$this->logger->info( "Fetch complete: {$total} products to process in phases" );
+			$total         = $queue->count_items( false );
+			$virtual_total = $queue->count_items( true );
+			$this->logger->info( "Fetch complete: {$total} products + {$virtual_total} virtual items to process in phases" );
 
 			// =====================================================================
 			$this->check_abort();
@@ -358,61 +360,53 @@ class Skwirrel_WC_Sync_Service {
 				__( 'Creating & updating products…', 'skwirrel-pim-sync' )
 			);
 
-			foreach ( $sync_items as $i => &$item ) {
+			$processed = 0;
+			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
+			while ( $row = $queue->get_next_for_phase( 1 ) ) {
+				$outcome = 'skipped';
+				$wc_id   = 0;
 				try {
-					$result_item = $item['group_info']
-					? $this->upserter->create_or_update_variation(
-						apply_filters( 'skwirrel_wc_sync_product_before_variation', $item['product'], $item['group_info'] ),
-						$item['group_info']
-					)
-						: $this->upserter->create_or_update_product( $item['product'] );
+					$result_item = $row->group_info
+						? $this->upserter->create_or_update_variation(
+							apply_filters( 'skwirrel_wc_sync_product_before_variation', $row->product, $row->group_info ),
+							$row->group_info
+						)
+						: $this->upserter->create_or_update_product( $row->product );
 
-					$item['wc_id']   = $result_item['wc_id'];
-					$item['outcome'] = $result_item['outcome'];
+					$wc_id   = $result_item['wc_id'];
+					$outcome = $result_item['outcome'];
 
-					if ( 'created' === $result_item['outcome'] ) {
+					if ( 'created' === $outcome ) {
 						++$created;
-					} elseif ( 'updated' === $result_item['outcome'] ) {
+					} elseif ( 'updated' === $outcome ) {
 						++$updated;
 					} else {
 						++$failed;
 					}
 				} catch ( Throwable $e ) {
 					++$failed;
+					$outcome = 'failed';
 					$this->logger->error(
 						'Product create/update failed',
 						[
-							'product' => $item['product']['internal_product_code'] ?? $item['product']['product_id'] ?? '?',
+							'product' => $row->product['internal_product_code'] ?? $row->product['product_id'] ?? '?',
 							'error'   => $e->getMessage(),
 						]
 					);
 				}
 
-				if ( ( $i + 1 ) % 25 === 0 || $i === $total - 1 ) {
+				$queue->update_after_phase1( $row->id, $wc_id, $outcome );
+				++$processed;
+
+				if ( 0 === $processed % 25 || $total === $processed ) {
 					Skwirrel_WC_Sync_History::update_phase_progress(
 						Skwirrel_WC_Sync_History::PHASE_PRODUCTS,
-						$i + 1,
+						$processed,
 						$total,
 						__( 'Creating & updating products…', 'skwirrel-pim-sync' )
 					);
 				}
 			}
-			unset( $item );
-
-			// Free heavy product data no longer needed after Phase 1.
-			// Keep only keys required by Phase 2 (taxonomy), 3 (attributes), 4 (media).
-			foreach ( $sync_items as &$item ) {
-				if ( ! isset( $item['product'] ) || ! is_array( $item['product'] ) ) {
-					continue;
-				}
-				unset(
-					$item['product']['_product_translations'],
-					$item['product']['_trade_items'],
-					$item['product']['_product_status'],
-					$item['product']['_product_groups']
-				);
-			}
-			unset( $item );
 
 			// =====================================================================
 			$this->check_abort();
@@ -429,41 +423,37 @@ class Skwirrel_WC_Sync_Service {
 				$taxonomy_label
 			);
 
-			foreach ( $sync_items as $i => $item ) {
-				if ( ! $item['wc_id'] || 'skipped' === $item['outcome'] ) {
-					continue;
-				}
-				try {
-					// For variations, taxonomy goes to the parent variable product
-					$tax_target = $item['group_info']['wc_variable_id'] ?? $item['wc_id'];
-					$this->upserter->assign_taxonomy( $tax_target, $item['product'] );
-				} catch ( Throwable $e ) {
-					$this->logger->warning(
-						'Taxonomy assignment failed',
-						[
-							'wc_id' => $item['wc_id'],
-							'error' => $e->getMessage(),
-						]
-					);
+			$processed = 0;
+			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
+			while ( $row = $queue->get_next_for_phase( 2 ) ) {
+				if ( $row->wc_id && 'skipped' !== $row->outcome ) {
+					try {
+						// For variations, taxonomy goes to the parent variable product
+						$tax_target = $row->group_info['wc_variable_id'] ?? $row->wc_id;
+						$this->upserter->assign_taxonomy( $tax_target, $row->product );
+					} catch ( Throwable $e ) {
+						$this->logger->warning(
+							'Taxonomy assignment failed',
+							[
+								'wc_id' => $row->wc_id,
+								'error' => $e->getMessage(),
+							]
+						);
+					}
 				}
 
-				if ( ( $i + 1 ) % 50 === 0 || $i === $total - 1 ) {
+				$queue->mark_phase_completed( $row->id, 2 );
+				++$processed;
+
+				if ( 0 === $processed % 50 || $total === $processed ) {
 					Skwirrel_WC_Sync_History::update_phase_progress(
 						Skwirrel_WC_Sync_History::PHASE_TAXONOMY,
-						$i + 1,
+						$processed,
 						$total,
 						$taxonomy_label
 					);
 				}
 			}
-
-			// Free taxonomy data no longer needed.
-			foreach ( $sync_items as &$item ) {
-				if ( isset( $item['product'] ) && is_array( $item['product'] ) ) {
-					unset( $item['product']['_categories'], $item['product']['brand_name'], $item['product']['manufacturer_name'] );
-				}
-			}
-			unset( $item );
 
 			// =====================================================================
 			$this->check_abort();
@@ -479,31 +469,35 @@ class Skwirrel_WC_Sync_Service {
 				__( 'Connecting attributes…', 'skwirrel-pim-sync' )
 			);
 
-			foreach ( $sync_items as $i => $item ) {
-				if ( ! $item['wc_id'] || 'skipped' === $item['outcome'] ) {
-					continue;
-				}
-				try {
-					$attr_count = $this->upserter->assign_attributes( $item['wc_id'], $item['product'], $item['group_info'] );
-					if ( $attr_count > 0 ) {
-						++$with_attrs;
-					} else {
-						++$without_attrs;
+			$processed = 0;
+			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
+			while ( $row = $queue->get_next_for_phase( 3 ) ) {
+				if ( $row->wc_id && 'skipped' !== $row->outcome ) {
+					try {
+						$attr_count = $this->upserter->assign_attributes( $row->wc_id, $row->product, $row->group_info );
+						if ( $attr_count > 0 ) {
+							++$with_attrs;
+						} else {
+							++$without_attrs;
+						}
+					} catch ( Throwable $e ) {
+						$this->logger->warning(
+							'Attribute assignment failed',
+							[
+								'wc_id' => $row->wc_id,
+								'error' => $e->getMessage(),
+							]
+						);
 					}
-				} catch ( Throwable $e ) {
-					$this->logger->warning(
-						'Attribute assignment failed',
-						[
-							'wc_id' => $item['wc_id'],
-							'error' => $e->getMessage(),
-						]
-					);
 				}
 
-				if ( ( $i + 1 ) % 25 === 0 || $i === $total - 1 ) {
+				$queue->mark_phase_completed( $row->id, 3 );
+				++$processed;
+
+				if ( 0 === $processed % 25 || $total === $processed ) {
 					Skwirrel_WC_Sync_History::update_phase_progress(
 						Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES,
-						$i + 1,
+						$processed,
 						$total,
 						__( 'Connecting attributes…', 'skwirrel-pim-sync' )
 					);
@@ -513,19 +507,11 @@ class Skwirrel_WC_Sync_Service {
 			// Flush deferred parent attribute terms
 			$this->upserter->flush_parent_attribute_terms();
 
-			// Free attribute data — Phase 4 only needs _attachments.
-			foreach ( $sync_items as &$item ) {
-				if ( isset( $item['product'] ) && is_array( $item['product'] ) ) {
-					unset( $item['product']['_etim'], $item['product']['_custom_classes'] );
-				}
-			}
-			unset( $item );
-
 			// =====================================================================
 			$this->check_abort();
 			// Phase 4: Media — images + documents (slowest phase)
 			// =====================================================================
-			$media_total = $total + count( $virtual_items );
+			$media_total = $total + $virtual_total;
 
 			Skwirrel_WC_Sync_History::update_phase_progress(
 				Skwirrel_WC_Sync_History::PHASE_MEDIA,
@@ -535,22 +521,23 @@ class Skwirrel_WC_Sync_Service {
 			);
 
 			$media_i = 0;
-			foreach ( $sync_items as $item ) {
-				if ( ! $item['wc_id'] || 'skipped' === $item['outcome'] ) {
-					++$media_i;
-					continue;
+			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
+			while ( $row = $queue->get_next_for_phase( 4 ) ) {
+				if ( $row->wc_id && 'skipped' !== $row->outcome ) {
+					try {
+						$this->upserter->assign_media( $row->wc_id, $row->product );
+					} catch ( Throwable $e ) {
+						$this->logger->warning(
+							'Media assignment failed',
+							[
+								'wc_id' => $row->wc_id,
+								'error' => $e->getMessage(),
+							]
+						);
+					}
 				}
-				try {
-					$this->upserter->assign_media( $item['wc_id'], $item['product'] );
-				} catch ( Throwable $e ) {
-					$this->logger->warning(
-						'Media assignment failed',
-						[
-							'wc_id' => $item['wc_id'],
-							'error' => $e->getMessage(),
-						]
-					);
-				}
+
+				$queue->mark_phase_completed( $row->id, 4 );
 				++$media_i;
 
 				if ( 0 === $media_i % 10 || $media_i === $media_total ) {
@@ -564,18 +551,21 @@ class Skwirrel_WC_Sync_Service {
 			}
 
 			// Virtual products: assign images/documents to parent variable product
-			foreach ( $virtual_items as $vi ) {
+			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
+			while ( $row = $queue->get_next_virtual() ) {
 				try {
-					$this->upserter->assign_media( $vi['wc_variable_id'], $vi['product'] );
+					$this->upserter->assign_media( $row->virtual_parent_id, $row->product );
 				} catch ( Throwable $e ) {
 					$this->logger->warning(
 						'Virtual product media failed',
 						[
-							'wc_variable_id' => $vi['wc_variable_id'],
+							'wc_variable_id' => $row->virtual_parent_id,
 							'error'          => $e->getMessage(),
 						]
 					);
 				}
+
+				$queue->mark_phase_completed( $row->id, 4 );
 				++$media_i;
 
 				if ( 0 === $media_i % 10 || $media_i === $media_total ) {
@@ -588,8 +578,8 @@ class Skwirrel_WC_Sync_Service {
 				}
 			}
 
-			// Free memory — product data is no longer needed
-			unset( $sync_items, $virtual_items );
+			// Clean up queue — all products processed
+			$queue->cleanup();
 
 			// =====================================================================
 			$this->check_abort();
@@ -642,6 +632,9 @@ class Skwirrel_WC_Sync_Service {
 
 		} catch ( \RuntimeException $e ) {
 			// Abort requested by user — record as a non-error cancellation.
+			if ( isset( $queue ) ) {
+				$queue->cleanup();
+			}
 			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $e->getMessage(), 0, 0, 0, 0, $trigger, $log_filename );
 			return [
 				'success' => false,

@@ -393,11 +393,14 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					$existing_simple->set_sku( '' );
 					$existing_simple->save();
 					wp_trash_post( $existing_simple_id );
-					$this->logger->info( 'Converted simple to variation (trashed old simple)', [
-						'old_simple_id' => $existing_simple_id,
-						'variable_id'   => $wc_variable_id,
-						'sku'           => $sku,
-					] );
+					$this->logger->info(
+						'Converted simple to variation (trashed old simple)',
+						[
+							'old_simple_id' => $existing_simple_id,
+							'variable_id'   => $wc_variable_id,
+							'sku'           => $sku,
+						]
+					);
 				}
 			}
 			$variation = new WC_Product_Variation();
@@ -1180,11 +1183,14 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					$existing_simple->set_sku( '' );
 					$existing_simple->save();
 					wp_trash_post( $existing_simple_id );
-					$this->logger->info( 'Converted simple to variation (trashed old simple)', [
-						'old_simple_id' => $existing_simple_id,
-						'variable_id'   => $wc_variable_id,
-						'sku'           => $sku,
-					] );
+					$this->logger->info(
+						'Converted simple to variation (trashed old simple)',
+						[
+							'old_simple_id' => $existing_simple_id,
+							'variable_id'   => $wc_variable_id,
+							'sku'           => $sku,
+						]
+					);
 				}
 			}
 			$variation = new WC_Product_Variation();

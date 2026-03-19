@@ -2,6 +2,12 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [2.3.0]
+
+* **Database-backed sync queue** — product data is now stored in a temporary database table during sync instead of PHP memory, reducing memory usage from O(n) to O(1) regardless of product count
+* Products are processed one at a time per phase via cursor pattern, preventing OOM crashes on servers with low memory limits (e.g. 128MB)
+* Queue table is automatically created on plugin activation and cleaned up after each sync run
+
 ## [2.2.9]
 
 * Convert existing simple products to variations when a grouped product sync encounters a duplicate SKU (trashes old simple, creates variation)
