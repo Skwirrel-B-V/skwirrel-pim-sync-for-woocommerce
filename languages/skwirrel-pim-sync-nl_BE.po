@@ -1502,3 +1502,35 @@ msgstr ""
 #~ "aangemaakt bij de volgende sync.\n"
 #~ "\n"
 #~ "Weet u zeker dat u deze categorie wilt verwijderen?"
+
+#: includes/class-product-sync-meta-box.php
+msgid "content & images"
+msgstr "inhoud & afbeeldingen"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Virtual product ID:"
+msgstr "Virtueel product-ID:"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Variations:"
+msgstr "Variaties:"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Parent product:"
+msgstr "Bovenliggend product:"
+
+#: includes/class-admin-dashboard.php
+msgid "Use virtual product content for variable products"
+msgstr "Gebruik virtueel productinhoud voor variabele producten"
+
+#: includes/class-permalink-settings.php
+msgid "Variation permalinks"
+msgstr "Variatie-permalinks"
+
+#: includes/class-permalink-settings.php
+msgid "Enable clean variation URLs"
+msgstr "Schakel schone variatie-URLs in"
+
+#: includes/class-permalink-settings.php
+msgid "When enabled, variations are accessible at /product/{product-slug}/{variation-slug}/. Requires variation slugs to be generated during sync."
+msgstr "Indien ingeschakeld zijn variaties bereikbaar op /product/{product-slug}/{variatie-slug}/. Vereist dat variatie-slugs worden gegenereerd tijdens de sync."

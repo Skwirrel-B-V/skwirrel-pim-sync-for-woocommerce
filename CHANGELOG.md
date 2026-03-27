@@ -2,6 +2,18 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.0.0]
+
+* **Virtual product content** — variable products now inherit name, descriptions, categories, and brands from their virtual product (when available), replacing the raw grouped product code
+* New setting: "Use virtual product content for variable products" checkbox under Sync Options
+* New filter `skwirrel_wc_sync_before_virtual_content` for granular control over virtual product content application
+* **Variation slugs** — each variation gets a deterministic URL slug generated from its attribute values during sync (e.g. `blue-large`)
+* **Variation permalinks** — optional clean URLs: `/product/{product-slug}/{variation-slug}/` with automatic variation pre-selection
+* New permalink setting: "Enable clean variation URLs" on Settings > Permalinks
+* **Enhanced Skwirrel meta box** — variable products now show child variation links, virtual product ID, and variations show a link back to the parent product
+* **Theme API** — new helper functions for theme developers: `skwirrel_get_variation_url()`, `skwirrel_get_default_variation()`, `skwirrel_get_variation_thumbnail()`, `skwirrel_get_all_variations_with_urls()`, `skwirrel_is_skwirrel_product()`
+* New `snippets/` directory with example theme code for showing variation cards on archive pages
+
 ## [2.6.2]
 
 * Fix "This product is not managed by Skwirrel" false positive on variable products and products without `external_product_id`

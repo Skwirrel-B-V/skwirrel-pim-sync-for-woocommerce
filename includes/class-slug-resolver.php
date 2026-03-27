@@ -28,12 +28,12 @@ class Skwirrel_WC_Sync_Slug_Resolver {
 		$opts    = $this->get_settings();
 		$primary = $opts['slug_source_field'] ?? 'product_name';
 
-		if ( $primary === 'product_name' ) {
+		if ( 'product_name' === $primary ) {
 			return null;
 		}
 
 		$base = $this->sanitize_field( $this->resolve_raw_value( $product, $primary ) );
-		if ( $base === null ) {
+		if ( null === $base ) {
 			return null;
 		}
 
@@ -52,16 +52,56 @@ class Skwirrel_WC_Sync_Slug_Resolver {
 		$opts    = $this->get_settings();
 		$primary = $opts['slug_source_field'] ?? 'product_name';
 
-		if ( $primary === 'product_name' ) {
+		if ( 'product_name' === $primary ) {
 			return null;
 		}
 
 		$base = $this->sanitize_field( $this->resolve_group_raw_value( $group, $primary ) );
-		if ( $base === null ) {
+		if ( null === $base ) {
 			return null;
 		}
 
 		return $this->resolve_unique( $base, $group, $opts, true, $exclude_id );
+	}
+
+	/**
+	 * Resolve slug for a product variation.
+	 *
+	 * Builds a slug from the variation's attribute values (e.g. "blue-large").
+	 * Falls back to appending SKU on collision with a sibling variation.
+	 *
+	 * @param array  $variation_attrs Variation attributes as [taxonomy => term_slug].
+	 * @param string $sku             Variation SKU (used as collision suffix).
+	 * @param int    $parent_id       WC parent variable product ID.
+	 * @param int|null $exclude_id    WC variation ID to exclude from duplicate check (for updates).
+	 * @return string The resolved variation slug.
+	 */
+	public function resolve_for_variation( array $variation_attrs, string $sku, int $parent_id, ?int $exclude_id = null ): string {
+		$values = array_values( $variation_attrs );
+		$base   = sanitize_title( implode( '-', $values ) );
+
+		if ( '' === $base ) {
+			$base = sanitize_title( $sku );
+		}
+
+		if ( '' === $base ) {
+			return '';
+		}
+
+		if ( ! $this->variation_slug_exists( $base, $parent_id, $exclude_id ) ) {
+			return $base;
+		}
+
+		// Collision: append SKU as suffix.
+		if ( '' !== $sku ) {
+			$candidate = $base . '-' . sanitize_title( $sku );
+			if ( $candidate !== $base ) {
+				return $candidate;
+			}
+		}
+
+		// Let WordPress auto-number as last resort.
+		return $base;
 	}
 
 	/**
@@ -88,11 +128,11 @@ class Skwirrel_WC_Sync_Slug_Resolver {
 		}
 
 		$suffix_field = $opts['slug_suffix_field'] ?? '';
-		if ( $suffix_field !== '' ) {
+		if ( '' !== $suffix_field ) {
 			$suffix_raw = $is_group
 				? $this->resolve_group_raw_value( $data, $suffix_field )
 				: $this->resolve_raw_value( $data, $suffix_field );
-			if ( $suffix_raw !== '' ) {
+			if ( '' !== $suffix_raw ) {
 				$candidate = $base . '-' . sanitize_title( $suffix_raw );
 				if ( $candidate !== $base ) {
 					return $candidate;
@@ -107,11 +147,11 @@ class Skwirrel_WC_Sync_Slug_Resolver {
 	 * Sanitize a raw field value into a slug. Returns null if empty.
 	 */
 	private function sanitize_field( string $raw ): ?string {
-		if ( $raw === '' ) {
+		if ( '' === $raw ) {
 			return null;
 		}
 		$slug = sanitize_title( $raw );
-		return $slug !== '' ? $slug : null;
+		return '' !== $slug ? $slug : null;
 	}
 
 	/**
@@ -150,7 +190,7 @@ class Skwirrel_WC_Sync_Slug_Resolver {
 	private function slug_exists( string $slug, ?int $exclude_id = null ): bool {
 		global $wpdb;
 
-		if ( $exclude_id !== null ) {
+		if ( null !== $exclude_id ) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 			$count = $wpdb->get_var(
 				$wpdb->prepare(
@@ -165,6 +205,40 @@ class Skwirrel_WC_Sync_Slug_Resolver {
 				$wpdb->prepare(
 					"SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_name = %s AND post_type = 'product' AND post_status != 'trash'",
 					$slug
+				)
+			);
+		}
+
+		return (int) $count > 0;
+	}
+
+	/**
+	 * Check if a variation slug already exists among siblings of the same parent.
+	 *
+	 * @param string   $slug       Slug to check.
+	 * @param int      $parent_id  Parent variable product ID.
+	 * @param int|null $exclude_id Variation ID to exclude (for updates).
+	 */
+	private function variation_slug_exists( string $slug, int $parent_id, ?int $exclude_id = null ): bool {
+		global $wpdb;
+
+		if ( null !== $exclude_id ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$count = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_name = %s AND post_type = 'product_variation' AND post_parent = %d AND post_status != 'trash' AND ID != %d",
+					$slug,
+					$parent_id,
+					$exclude_id
+				)
+			);
+		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$count = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_name = %s AND post_type = 'product_variation' AND post_parent = %d AND post_status != 'trash'",
+					$slug,
+					$parent_id
 				)
 			);
 		}

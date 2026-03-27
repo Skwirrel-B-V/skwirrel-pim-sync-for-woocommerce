@@ -82,12 +82,20 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 
 		// Variable product shells (grouped products) cannot be synced individually.
 		if ( empty( $skwirrel_product_id ) && ! empty( $grouped_id ) ) {
+			$virtual_product_id = get_post_meta( $post->ID, '_skwirrel_virtual_product_id', true );
 			?>
 			<div class="skwirrel-product-sync-box">
 				<p>
 					<strong><?php esc_html_e( 'Grouped product ID:', 'skwirrel-pim-sync' ); ?></strong>
 					<?php echo esc_html( (string) $grouped_id ); ?>
 				</p>
+				<?php if ( $virtual_product_id ) : ?>
+					<p>
+						<strong><?php esc_html_e( 'Virtual product ID:', 'skwirrel-pim-sync' ); ?></strong>
+						<?php echo esc_html( (string) $virtual_product_id ); ?>
+						<span class="description">(<?php esc_html_e( 'content & images', 'skwirrel-pim-sync' ); ?>)</span>
+					</p>
+				<?php endif; ?>
 				<?php if ( $synced_at ) : ?>
 					<p>
 						<strong><?php esc_html_e( 'Last synced:', 'skwirrel-pim-sync' ); ?></strong>
@@ -98,7 +106,62 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 						?>
 					</p>
 				<?php endif; ?>
+				<?php
+				// List child variations with edit links.
+				$variation_ids = wc_get_products(
+					[
+						'parent' => $post->ID,
+						'type'   => 'variation',
+						'limit'  => 50,
+						'return' => 'ids',
+					]
+				);
+				if ( ! empty( $variation_ids ) ) :
+					?>
+					<p><strong><?php esc_html_e( 'Variations:', 'skwirrel-pim-sync' ); ?></strong></p>
+					<ul style="margin: 4px 0 8px; padding-left: 16px; list-style: disc;">
+						<?php foreach ( $variation_ids as $vid ) : ?>
+							<?php
+							$v_product = wc_get_product( $vid );
+							$v_label   = $v_product ? $v_product->get_sku() : '#' . $vid;
+							?>
+							<li>
+								<a href="<?php echo esc_url( get_edit_post_link( $vid ) ?? '' ); ?>"><?php echo esc_html( $v_label ); ?></a>
+							</li>
+						<?php endforeach; ?>
+					</ul>
+				<?php endif; ?>
 				<p class="description"><?php esc_html_e( 'This is a variable product managed by Skwirrel. Use the full sync to update it.', 'skwirrel-pim-sync' ); ?></p>
+			</div>
+			<?php
+			return;
+		}
+
+		// Variation: show link to parent variable product.
+		$parent_id = wp_get_post_parent_id( $post->ID );
+		if ( $parent_id && get_post_meta( $parent_id, '_skwirrel_grouped_product_id', true ) ) {
+			?>
+			<div class="skwirrel-product-sync-box">
+				<?php if ( $skwirrel_product_id ) : ?>
+					<p>
+						<strong><?php esc_html_e( 'Product ID:', 'skwirrel-pim-sync' ); ?></strong>
+						<?php echo esc_html( (string) $skwirrel_product_id ); ?>
+					</p>
+				<?php endif; ?>
+				<?php if ( $synced_at ) : ?>
+					<p>
+						<strong><?php esc_html_e( 'Last synced:', 'skwirrel-pim-sync' ); ?></strong>
+						<?php
+						$date_format = get_option( 'date_format', 'Y-m-d' );
+						$time_format = get_option( 'time_format', 'H:i' );
+						echo esc_html( wp_date( $date_format . ' ' . $time_format, (int) $synced_at ) );
+						?>
+					</p>
+				<?php endif; ?>
+				<p>
+					<strong><?php esc_html_e( 'Parent product:', 'skwirrel-pim-sync' ); ?></strong>
+					<a href="<?php echo esc_url( get_edit_post_link( $parent_id ) ?? '' ); ?>"><?php echo esc_html( get_the_title( $parent_id ) ); ?></a>
+				</p>
 			</div>
 			<?php
 			return;

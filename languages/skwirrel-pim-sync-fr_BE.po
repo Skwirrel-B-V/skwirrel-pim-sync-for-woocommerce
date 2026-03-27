@@ -1527,3 +1527,35 @@ msgstr ""
 #~ "prochaine synchronisation.\n"
 #~ "\n"
 #~ "Êtes-vous sûr de vouloir supprimer cette catégorie ?"
+
+#: includes/class-product-sync-meta-box.php
+msgid "content & images"
+msgstr "contenu & images"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Virtual product ID:"
+msgstr "ID du produit virtuel :"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Variations:"
+msgstr "Variations :"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Parent product:"
+msgstr "Produit parent :"
+
+#: includes/class-admin-dashboard.php
+msgid "Use virtual product content for variable products"
+msgstr "Utiliser le contenu du produit virtuel pour les produits variables"
+
+#: includes/class-permalink-settings.php
+msgid "Variation permalinks"
+msgstr "Permaliens des variations"
+
+#: includes/class-permalink-settings.php
+msgid "Enable clean variation URLs"
+msgstr "Activer les URLs propres pour les variations"
+
+#: includes/class-permalink-settings.php
+msgid "When enabled, variations are accessible at /product/{product-slug}/{variation-slug}/. Requires variation slugs to be generated during sync."
+msgstr "Lorsque activé, les variations sont accessibles à /product/{slug-produit}/{slug-variation}/. Nécessite que les slugs de variation soient générés lors de la synchronisation."

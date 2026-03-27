@@ -594,14 +594,17 @@ class Skwirrel_WC_Sync_Service {
 				}
 			}
 
-			// Virtual products: assign images/documents to parent variable product
+			// Virtual products: apply content & images/documents to parent variable product
 			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
 			while ( $row = $queue->get_next_virtual() ) {
 				try {
+					if ( ! empty( $options['use_virtual_product_content'] ) ) {
+						$this->upserter->apply_virtual_product_content( $row->virtual_parent_id, $row->product );
+					}
 					$this->upserter->assign_media( $row->virtual_parent_id, $row->product );
 				} catch ( Throwable $e ) {
 					$this->logger->warning(
-						'Virtual product media failed',
+						'Virtual product processing failed',
 						[
 							'wc_variable_id' => $row->virtual_parent_id,
 							'error'          => $e->getMessage(),

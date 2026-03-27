@@ -1436,3 +1436,35 @@ msgstr ""
 
 #~ msgid "Static token (X-Skwirrel-Api-Token)"
 #~ msgstr "Static token (X-Skwirrel-Api-Token)"
+
+#: includes/class-product-sync-meta-box.php
+msgid "content & images"
+msgstr "content & images"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Virtual product ID:"
+msgstr "Virtual product ID:"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Variations:"
+msgstr "Variations:"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Parent product:"
+msgstr "Parent product:"
+
+#: includes/class-admin-dashboard.php
+msgid "Use virtual product content for variable products"
+msgstr "Use virtual product content for variable products"
+
+#: includes/class-permalink-settings.php
+msgid "Variation permalinks"
+msgstr "Variation permalinks"
+
+#: includes/class-permalink-settings.php
+msgid "Enable clean variation URLs"
+msgstr "Enable clean variation URLs"
+
+#: includes/class-permalink-settings.php
+msgid "When enabled, variations are accessible at /product/{product-slug}/{variation-slug}/. Requires variation slugs to be generated during sync."
+msgstr "When enabled, variations are accessible at /product/{product-slug}/{variation-slug}/. Requires variation slugs to be generated during sync."

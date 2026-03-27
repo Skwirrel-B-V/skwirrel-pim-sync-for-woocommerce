@@ -106,7 +106,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 
 		// Stap 3: Zoek op _skwirrel_product_id meta (meest stabiele identifier)
-		if ( ! $wc_id && $skwirrel_product_id !== null && $skwirrel_product_id !== '' && $skwirrel_product_id !== 0 ) {
+		if ( ! $wc_id && null !== $skwirrel_product_id && '' !== $skwirrel_product_id && 0 !== $skwirrel_product_id ) {
 			$wc_id = $this->lookup->find_by_skwirrel_product_id( (int) $skwirrel_product_id );
 			if ( $wc_id ) {
 				$this->logger->info(
@@ -196,7 +196,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		if ( $is_new || $this->slug_resolver->should_update_on_resync() ) {
 			$exclude_id = $is_new ? null : $wc_product->get_id();
 			$slug       = $this->slug_resolver->resolve( $product, $exclude_id );
-			if ( $slug !== null ) {
+			if ( null !== $slug ) {
 				$wc_product->set_slug( $slug );
 			}
 		}
@@ -210,7 +210,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$wc_product->set_regular_price( '' );
 			$wc_product->set_price( '' );
 			$wc_product->set_sold_individually( false );
-		} elseif ( $price !== null ) {
+		} elseif ( null !== $price ) {
 			$wc_product->set_regular_price( (string) $price );
 			$wc_product->set_price( (string) $price );
 		}
@@ -427,7 +427,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$variation->set_regular_price( '' );
 			$variation->set_price( '' );
 			$variation->set_stock_status( 'outofstock' ); // Price on request = out of stock
-		} elseif ( $price !== null && $price > 0 ) {
+		} elseif ( null !== $price && $price > 0 ) {
 			$variation->set_regular_price( (string) $price );
 			$variation->set_price( (string) $price );
 			$variation->set_stock_status( 'instock' );
@@ -882,7 +882,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 */
 	public function create_variable_product_from_group( array $group, array &$product_to_group_map ): string {
 		$grouped_id = $group['grouped_product_id'] ?? $group['id'] ?? null;
-		if ( $grouped_id === null || $grouped_id === '' ) {
+		if ( null === $grouped_id || '' === $grouped_id ) {
 			return 'skipped';
 		}
 
@@ -901,7 +901,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$product_id = (int) $item;
 				$sku        = '';
 			}
-			if ( $product_id && $sku !== '' ) {
+			if ( $product_id && '' !== $sku ) {
 				$variant_labels[] = is_array( $item ) ? $this->get_variant_label( $item ) : $sku;
 			}
 		}
@@ -921,13 +921,13 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 
 		$name = (string) ( $group['grouped_product_name'] ?? $group['grouped_product_code'] ?? $group['name'] ?? '' );
-		if ( $name === '' ) {
+		if ( '' === $name ) {
 			/* translators: %s = grouped product ID */
 			$name = sprintf( __( 'Product %s', 'skwirrel-pim-sync' ), $grouped_id );
 		}
 
 		$group_sku = (string) ( $group['grouped_product_code'] ?? $group['internal_product_code'] ?? '' );
-		if ( $group_sku !== '' ) {
+		if ( '' !== $group_sku ) {
 			$wc_product->set_sku( $group_sku );
 		}
 		$wc_product->set_name( $name );
@@ -936,7 +936,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		if ( $is_new || $this->slug_resolver->should_update_on_resync() ) {
 			$exclude_id = $is_new ? null : $wc_product->get_id();
 			$slug       = $this->slug_resolver->resolve_for_group( $group, $exclude_id );
-			if ( $slug !== null ) {
+			if ( null !== $slug ) {
 				$wc_product->set_slug( $slug );
 			}
 		}
@@ -1013,7 +1013,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$sku        = (string) ( $item['internal_product_code'] ?? '' );
 				$order      = isset( $item['order'] ) ? (int) $item['order'] : 999;
 			}
-			if ( $product_id && $sku !== '' ) {
+			if ( $product_id && '' !== $sku ) {
 				$info                                      = [
 					'grouped_product_id'   => (int) $grouped_id,
 					'order'                => $order,
@@ -1297,6 +1297,18 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$variation->set_attributes( $variation_attrs );
 		}
 
+		// Generate a deterministic slug from attribute values.
+		if ( ! empty( $variation_attrs ) ) {
+			$is_new_variation = ! $variation->get_id();
+			if ( $is_new_variation || $this->slug_resolver->should_update_on_resync() ) {
+				$exclude_id     = $is_new_variation ? null : $variation->get_id();
+				$variation_slug = $this->slug_resolver->resolve_for_variation( $variation_attrs, $sku, $wc_variable_id, $exclude_id );
+				if ( '' !== $variation_slug ) {
+					$variation->set_slug( $variation_slug );
+				}
+			}
+		}
+
 		$variation->update_meta_data( $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		$variation->update_meta_data( $this->mapper->get_external_id_meta_key(), $this->mapper->get_unique_key( $product ) ?? '' );
 		$variation->update_meta_data( $this->mapper->get_synced_at_meta_key(), (string) time() );
@@ -1486,6 +1498,83 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 	/**
 	 * Phase 4: Download and assign images + documents to a product.
+	 *
+	 * @param int   $wc_id   WooCommerce product ID.
+	 * @param array $product Skwirrel product data.
+	 * @return void
+	 */
+	public function apply_virtual_product_content( int $wc_variable_id, array $virtual_product ): void {
+		if ( ! $wc_variable_id ) {
+			return;
+		}
+
+		$wc_product = wc_get_product( $wc_variable_id );
+		if ( ! $wc_product || ! $wc_product->is_type( 'variable' ) ) {
+			return;
+		}
+
+		/**
+		 * Filter virtual product data before applying to the variable product.
+		 *
+		 * Return false to skip applying virtual product content entirely.
+		 *
+		 * @param array              $virtual_product  Full virtual product API data.
+		 * @param int                $wc_variable_id   WC variable product ID.
+		 * @param WC_Product_Variable $wc_product      WC variable product object.
+		 */
+		$virtual_product = apply_filters( 'skwirrel_wc_sync_before_virtual_content', $virtual_product, $wc_variable_id, $wc_product );
+		if ( false === $virtual_product ) {
+			return;
+		}
+
+		$changed = false;
+
+		// Name: only overwrite if virtual product has a name.
+		$name = $this->mapper->get_name( $virtual_product );
+		if ( '' !== $name ) {
+			$wc_product->set_name( $name );
+			$changed = true;
+		}
+
+		// Short description.
+		$short_desc = $this->mapper->get_short_description( $virtual_product );
+		if ( '' !== $short_desc ) {
+			$wc_product->set_short_description( $short_desc );
+			$changed = true;
+		}
+
+		// Long description.
+		$long_desc = $this->mapper->get_long_description( $virtual_product );
+		if ( '' !== $long_desc ) {
+			$wc_product->set_description( $long_desc );
+			$changed = true;
+		}
+
+		if ( $changed ) {
+			$wc_product->save();
+		}
+
+		// Categories and brands from virtual product.
+		$this->category_sync->assign_categories( $wc_variable_id, $virtual_product, $this->mapper );
+		$this->brand_sync->assign_brand( $wc_variable_id, $virtual_product );
+
+		$options = $this->get_options();
+		if ( ! empty( $options['sync_manufacturers'] ) ) {
+			$this->brand_sync->assign_manufacturer( $wc_variable_id, $virtual_product );
+		}
+
+		$this->logger->info(
+			'Applied virtual product content to variable product',
+			[
+				'wc_variable_id'     => $wc_variable_id,
+				'virtual_product_id' => $virtual_product['product_id'] ?? '?',
+				'name'               => '' !== $name ? $name : '(kept existing)',
+			]
+		);
+	}
+
+	/**
+	 * Assign images, downloadable files, and documents to a WC product.
 	 *
 	 * @param int   $wc_id   WooCommerce product ID.
 	 * @param array $product Skwirrel product data.

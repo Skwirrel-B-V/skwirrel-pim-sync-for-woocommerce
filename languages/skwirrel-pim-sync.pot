@@ -1105,3 +1105,35 @@ msgid ""
 "WooCommerce is required. <a href=\"%1$s\">Install WooCommerce</a> or <a "
 "href=\"%2$s\">activate WooCommerce</a>."
 msgstr ""
+
+#: includes/class-product-sync-meta-box.php
+msgid "content & images"
+msgstr ""
+
+#: includes/class-product-sync-meta-box.php
+msgid "Virtual product ID:"
+msgstr ""
+
+#: includes/class-product-sync-meta-box.php
+msgid "Variations:"
+msgstr ""
+
+#: includes/class-product-sync-meta-box.php
+msgid "Parent product:"
+msgstr ""
+
+#: includes/class-admin-dashboard.php
+msgid "Use virtual product content for variable products"
+msgstr ""
+
+#: includes/class-permalink-settings.php
+msgid "Variation permalinks"
+msgstr ""
+
+#: includes/class-permalink-settings.php
+msgid "Enable clean variation URLs"
+msgstr ""
+
+#: includes/class-permalink-settings.php
+msgid "When enabled, variations are accessible at /product/{product-slug}/{variation-slug}/. Requires variation slugs to be generated during sync."
+msgstr ""

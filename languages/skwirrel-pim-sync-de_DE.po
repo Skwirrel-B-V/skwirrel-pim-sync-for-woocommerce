@@ -1482,3 +1482,35 @@ msgstr ""
 #~ msgstr ""
 #~ "Die Seite wird automatisch aktualisiert, wenn die Synchronisierung "
 #~ "abgeschlossen ist."
+
+#: includes/class-product-sync-meta-box.php
+msgid "content & images"
+msgstr "Inhalt & Bilder"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Virtual product ID:"
+msgstr "Virtuelles Produkt-ID:"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Variations:"
+msgstr "Varianten:"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Parent product:"
+msgstr "Übergeordnetes Produkt:"
+
+#: includes/class-admin-dashboard.php
+msgid "Use virtual product content for variable products"
+msgstr "Virtuellen Produktinhalt für variable Produkte verwenden"
+
+#: includes/class-permalink-settings.php
+msgid "Variation permalinks"
+msgstr "Varianten-Permalinks"
+
+#: includes/class-permalink-settings.php
+msgid "Enable clean variation URLs"
+msgstr "Saubere Varianten-URLs aktivieren"
+
+#: includes/class-permalink-settings.php
+msgid "When enabled, variations are accessible at /product/{product-slug}/{variation-slug}/. Requires variation slugs to be generated during sync."
+msgstr "Wenn aktiviert, sind Varianten unter /product/{Produkt-Slug}/{Varianten-Slug}/ erreichbar. Erfordert, dass Varianten-Slugs während der Synchronisierung generiert werden."

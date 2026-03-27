@@ -41,10 +41,11 @@ class Skwirrel_WC_Sync_Permalink_Settings {
 	 */
 	public static function get_options(): array {
 		$defaults = [
-			'slug_source_field'     => 'product_name',
-			'slug_suffix_field'     => '',
-			'update_slug_on_resync' => false,
-			'manufacturer_base'     => 'manufacturer',
+			'slug_source_field'           => 'product_name',
+			'slug_suffix_field'           => '',
+			'update_slug_on_resync'       => false,
+			'manufacturer_base'           => 'manufacturer',
+			'variation_permalink_enabled' => false,
 		];
 
 		$opts = get_option( self::OPTION_KEY, [] );
@@ -95,6 +96,14 @@ class Skwirrel_WC_Sync_Permalink_Settings {
 			'skwirrel_update_slug_on_resync',
 			__( 'Update slug on re-sync', 'skwirrel-pim-sync' ),
 			[ $this, 'render_update_slug_on_resync_field' ],
+			'permalink',
+			'skwirrel-product-permalink'
+		);
+
+		add_settings_field(
+			'skwirrel_variation_permalink_enabled',
+			__( 'Variation permalinks', 'skwirrel-pim-sync' ),
+			[ $this, 'render_variation_permalink_field' ],
 			'permalink',
 			'skwirrel-product-permalink'
 		);
@@ -167,6 +176,23 @@ class Skwirrel_WC_Sync_Permalink_Settings {
 	}
 
 	/**
+	 * Render variation permalink checkbox.
+	 */
+	public function render_variation_permalink_field(): void {
+		$opts    = self::get_options();
+		$checked = ! empty( $opts['variation_permalink_enabled'] );
+		?>
+		<label>
+			<input type="checkbox" name="skwirrel_variation_permalink_enabled" value="1" <?php checked( $checked ); ?> />
+			<?php esc_html_e( 'Enable clean variation URLs', 'skwirrel-pim-sync' ); ?>
+		</label>
+		<p class="description">
+			<?php esc_html_e( 'When enabled, variations are accessible at /product/{product-slug}/{variation-slug}/. Requires variation slugs to be generated during sync.', 'skwirrel-pim-sync' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
 	 * Render manufacturer base slug input.
 	 */
 	public function render_manufacturer_base_field(): void {
@@ -203,17 +229,19 @@ class Skwirrel_WC_Sync_Permalink_Settings {
 		$allowed_suffix = [ '', 'internal_product_code', 'manufacturer_product_code', 'external_product_id', 'product_id' ];
 
         // phpcs:disable WordPress.Security.NonceVerification.Missing -- nonce verified above
-		$source            = sanitize_text_field( wp_unslash( $_POST['skwirrel_slug_source_field'] ?? 'product_name' ) ); // @phpstan-ignore nullCoalesce.offset
-		$suffix            = sanitize_text_field( wp_unslash( $_POST['skwirrel_slug_suffix_field'] ?? '' ) );
-		$update_on_resync  = ! empty( $_POST['skwirrel_update_slug_on_resync'] );
-		$manufacturer_base = sanitize_title( wp_unslash( $_POST['skwirrel_manufacturer_base'] ?? 'manufacturer' ) );
+		$source                      = sanitize_text_field( wp_unslash( $_POST['skwirrel_slug_source_field'] ?? 'product_name' ) ); // @phpstan-ignore nullCoalesce.offset
+		$suffix                      = sanitize_text_field( wp_unslash( $_POST['skwirrel_slug_suffix_field'] ?? '' ) );
+		$update_on_resync            = ! empty( $_POST['skwirrel_update_slug_on_resync'] );
+		$manufacturer_base           = sanitize_title( wp_unslash( $_POST['skwirrel_manufacturer_base'] ?? 'manufacturer' ) );
+		$variation_permalink_enabled = ! empty( $_POST['skwirrel_variation_permalink_enabled'] );
         // phpcs:enable
 
 		$opts = [
-			'slug_source_field'     => in_array( $source, $allowed_source, true ) ? $source : 'product_name',
-			'slug_suffix_field'     => in_array( $suffix, $allowed_suffix, true ) ? $suffix : '',
-			'update_slug_on_resync' => $update_on_resync,
-			'manufacturer_base'     => '' !== $manufacturer_base ? $manufacturer_base : 'manufacturer',
+			'slug_source_field'           => in_array( $source, $allowed_source, true ) ? $source : 'product_name',
+			'slug_suffix_field'           => in_array( $suffix, $allowed_suffix, true ) ? $suffix : '',
+			'update_slug_on_resync'       => $update_on_resync,
+			'manufacturer_base'           => '' !== $manufacturer_base ? $manufacturer_base : 'manufacturer',
+			'variation_permalink_enabled' => $variation_permalink_enabled,
 		];
 
 		// Flag resync needed when slug-related settings change.
@@ -224,6 +252,12 @@ class Skwirrel_WC_Sync_Permalink_Settings {
 			|| ! empty( $old['update_slug_on_resync'] ) !== $opts['update_slug_on_resync']
 		) {
 			update_option( 'skwirrel_wc_sync_slug_resync_needed', true );
+		}
+
+		// Flush rewrite rules when variation permalink setting changes.
+		$old_variation = ! empty( $old['variation_permalink_enabled'] );
+		if ( $old_variation !== $opts['variation_permalink_enabled'] && class_exists( 'Skwirrel_WC_Sync_Variation_Permalinks' ) ) {
+			Skwirrel_WC_Sync_Variation_Permalinks::flush_rules();
 		}
 
 		update_option( self::OPTION_KEY, $opts );

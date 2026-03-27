@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 8.1
-Stable tag: 2.6.2
+Stable tag: 3.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,6 +62,14 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 3.0.0 =
+* Virtual product content — variable products inherit name, descriptions, categories from virtual products
+* Variation slugs — deterministic URL slugs generated from attribute values during sync
+* Variation permalinks — optional clean URLs: /product/{product-slug}/{variation-slug}/
+* Enhanced Skwirrel meta box — navigation links between parent and variation products
+* Theme API — helper functions for theme developers (variation URLs, thumbnails, default variations)
+* Example theme snippets in snippets/ directory
 
 = 2.6.2 =
 * Fix false "not managed by Skwirrel" message on variable products
