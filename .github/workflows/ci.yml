@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./skwirrel-pim-sync
+        working-directory: .
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-php8.1-composer-${{ hashFiles('skwirrel-pim-sync/composer.lock') }}
+          key: ${{ runner.os }}-php8.1-composer-${{ hashFiles('composer.lock') }}
           restore-keys: |
             ${{ runner.os }}-php8.1-composer-
 

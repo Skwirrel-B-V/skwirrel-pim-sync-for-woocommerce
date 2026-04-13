@@ -2,6 +2,19 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.3.0]
+
+* **Log viewer performance** — log modal now renders progressively in batches of 200 lines via `requestAnimationFrame`, eliminating UI freezes on large logs
+* **Download button** — new download button in the log modal header for direct raw log file download
+* **Chunked server loading** — log viewer loads 100 KB at a time with a "Load more" button for the remainder, reducing initial payload
+* **Progress indicator** — shows line count in the modal header during log display
+* **API Response meta box for grouped products** — the Skwirrel API Response meta box now appears on variable/grouped product edit pages, showing the grouped product response in a collapsible section with JSON syntax highlighting
+* **Lazy-loaded variation responses** — a "Load variation API responses" button fetches and displays each variation's stored API data via AJAX, with individual collapsible sections per variation
+* **Single grouped product sync** — the "Sync this product" button now works for grouped products, syncing the variable product shell and all its member variations in one operation
+* **Grouped product ID on variations** — each variation now stores `_skwirrel_grouped_product_id` meta for direct group membership lookup
+* **Price fix** — `prices_managed_outside_skwirrel` now also protects simple product prices; previously only variation prices were guarded
+* **Quick-scroll link** — Skwirrel sidebar meta box includes an anchor link to the API response section at the bottom of the page
+
 ## [3.2.2]
 
 * **Prices managed outside Skwirrel** — new setting (Advanced section, default off) for installations where product prices are synced from a separate system (e.g. an ERP). When enabled, the PIM sync no longer overwrites existing variation prices with `0` if the PIM payload contains no trade-item price; the existing price (set by the external system) is preserved. The `price_on_request` flag is still honoured when present in the PIM payload. Simple-product paths are unaffected — they already only update prices when one is provided.
@@ -23,17 +36,6 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 * **Text features as attributes** — custom class type T (text) features are now stored as visible product attributes instead of hidden meta
 * **GTIN / Variant visibility** — new checkboxes to show or hide GTIN and Variant as product attributes (default: hidden)
 * Sync aborts with a clear error when custom class collection ID is not configured
-
-## [3.1.0]
-
-* **Log viewer performance** — log modal now renders progressively in batches of 200 lines via `requestAnimationFrame`, eliminating UI freezes on large logs
-* **Download button** — new download button in the log modal header for direct raw log file download
-* **Chunked server loading** — log viewer loads 100 KB at a time with a "Load more" button for the remainder, reducing initial payload by 80%
-* **Progress indicator** — shows line rendering progress in the modal header during log display
-* **API Response meta box for grouped products** — the Skwirrel API Response meta box now appears on variable/grouped product edit pages, showing the grouped product response in a collapsible section with JSON syntax highlighting
-* **Lazy-loaded variation responses** — a "Load variation API responses" button fetches and displays each variation's stored API data via AJAX, with individual collapsible sections per variation
-* **Single grouped product sync** — the "Sync this product" button now works for grouped products, syncing the variable product shell and all its member variations in one operation
-* **Grouped product ID on variations** — each variation now stores `_skwirrel_grouped_product_id` meta for direct group membership lookup
 
 ## [3.0.0]
 

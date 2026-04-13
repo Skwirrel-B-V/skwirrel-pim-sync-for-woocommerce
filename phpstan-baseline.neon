@@ -283,12 +283,6 @@ parameters:
 			path: plugin/skwirrel-pim-sync/includes/class-custom-class-extractor.php
 
 		-
-			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:resolve_custom_feature_label\(\) has parameter \$feat with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: plugin/skwirrel-pim-sync/includes/class-custom-class-extractor.php
-
-		-
 			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:resolve_custom_unit\(\) has parameter \$feat with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
