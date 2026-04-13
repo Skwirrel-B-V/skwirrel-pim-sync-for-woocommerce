@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./plugin/skwirrel-pim-sync
+        working-directory: plugin/skwirrel-pim-sync
     steps:
       - name: Checkout
         uses: actions/checkout@v4
