@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Skwirrel PIM sync for WooCommerce 1.7.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-30 11:12+0200\n"
+"POT-Creation-Date: 2026-04-13 16:09+0200\n"
 "PO-Revision-Date: 2026-02-26 12:00+0000\n"
 "Last-Translator: Skwirrel Sync <info@skwirrel.eu>\n"
 "Language-Team: Nederlands (Nederland)\n"
@@ -16,157 +16,26 @@ msgstr ""
 "X-Generator: Skwirrel PIM sync for WooCommerce 1.7.0\n"
 "X-Domain: skwirrel-pim-sync\n"
 
-#: skwirrel-pim-sync.php:47
-msgid "Skwirrel PIM sync for WooCommerce requires WooCommerce to function."
-msgstr ""
-"Skwirrel PIM sync for WooCommerce vereist WooCommerce om te functioneren."
+#: includes/class-action-scheduler.php:94
+#: includes/class-action-scheduler.php:114
+msgid "Twice daily"
+msgstr "Twee keer per dag"
 
-#: skwirrel-pim-sync.php:49
-msgid "Install WooCommerce"
-msgstr "WooCommerce installeren"
+#: includes/class-action-scheduler.php:112
+msgid "Disabled"
+msgstr "Uitgeschakeld"
 
-#: skwirrel-pim-sync.php:214
-msgid "Filter by manufacturer"
-msgstr "Filteren op fabrikant"
+#: includes/class-action-scheduler.php:113
+msgid "Hourly"
+msgstr "Elk uur"
 
-#: skwirrel-pim-sync.php:264
-msgid "GTIN / Manufacturer code"
-msgstr "GTIN / Fabrikant artikelcode"
+#: includes/class-action-scheduler.php:115
+msgid "Daily"
+msgstr "Dagelijks"
 
-#: skwirrel-pim-sync.php:338
-#, php-format
-msgid ""
-"WooCommerce is required. <a href=\"%1$s\">Install WooCommerce</a> or <a "
-"href=\"%2$s\">activate WooCommerce</a>."
-msgstr ""
-"WooCommerce is vereist. <a href=\"%1$s\">Installeer WooCommerce</a> of <a "
-"href=\"%2$s\">activeer WooCommerce</a>."
-
-#: includes/class-sync-service.php:281
-msgid "Fetching products from API…"
-msgstr "Producten ophalen via API…"
-
-#: includes/class-sync-service.php:376
-#, php-format
-msgid "Fetching products from API… (%d found)"
-msgstr "Producten ophalen via API… (%d gevonden)"
-
-#: includes/class-sync-service.php:405 includes/class-sync-service.php:453
-msgid "Creating & updating products…"
-msgstr "Producten aanmaken & bijwerken…"
-
-#: includes/class-sync-service.php:464
-msgid "Assigning categories, brands & manufacturers…"
-msgstr "Categorieën, merken & fabrikanten toewijzen…"
-
-#: includes/class-sync-service.php:465
-msgid "Assigning categories & brands…"
-msgstr "Categorieën & merken toewijzen…"
-
-#: includes/class-sync-service.php:520 includes/class-sync-service.php:558
-msgid "Fetching & connecting attributes…"
-msgstr "Attributen ophalen & koppelen…"
-
-#: includes/class-sync-service.php:577 includes/class-sync-service.php:607
-#: includes/class-sync-service.php:641
-msgid "Downloading images & documents…"
-msgstr "Afbeeldingen & documenten downloaden…"
-
-#: includes/class-sync-service.php:656 includes/class-sync-service.php:686
-msgid "Linking related products…"
-msgstr "Gerelateerde producten koppelen…"
-
-#: includes/class-sync-service.php:704
-msgid "Cleaning up…"
-msgstr "Opruimen…"
-
-#: includes/class-product-sync-meta-box.php:41
-msgid "Skwirrel"
-msgstr "Skwirrel"
-
-#: includes/class-product-sync-meta-box.php:53
-msgid "Skwirrel API Response"
-msgstr "Skwirrel API Respons"
-
-#: includes/class-product-sync-meta-box.php:79
-msgid "This product is not managed by Skwirrel."
-msgstr "Dit product wordt niet beheerd door Skwirrel."
-
-#: includes/class-product-sync-meta-box.php:89
-msgid "Grouped product ID:"
-msgstr "Gegroepeerd product ID:"
-
-#: includes/class-product-sync-meta-box.php:94
-msgid "Virtual product ID:"
-msgstr "Virtueel product-ID:"
-
-#: includes/class-product-sync-meta-box.php:96
-msgid "content & images"
-msgstr "inhoud & afbeeldingen"
-
-#: includes/class-product-sync-meta-box.php:101
-#: includes/class-product-sync-meta-box.php:153
-#: includes/class-product-sync-meta-box.php:181
-msgid "Last synced:"
-msgstr "Laatst gesynchroniseerd:"
-
-#: includes/class-product-sync-meta-box.php:121
-msgid "Variations:"
-msgstr "Variaties:"
-
-#: includes/class-product-sync-meta-box.php:134
-msgid ""
-"This is a variable product managed by Skwirrel. Use the full sync to update "
-"it."
-msgstr ""
-"Dit is een variabel product beheerd door Skwirrel. Gebruik de volledige sync "
-"om het bij te werken."
-
-#: includes/class-product-sync-meta-box.php:147
-#: includes/class-product-sync-meta-box.php:175
-msgid "Product ID:"
-msgstr "Product-ID:"
-
-#: includes/class-product-sync-meta-box.php:162
-msgid "Parent product:"
-msgstr "Bovenliggend product:"
-
-#: includes/class-product-sync-meta-box.php:191
-msgid "Sync this product"
-msgstr "Dit product synchroniseren"
-
-#: includes/class-product-sync-meta-box.php:228
-#: includes/class-product-sync-meta-box.php:304
-msgid "Sync failed."
-msgstr "Synchronisatie mislukt."
-
-#: includes/class-product-sync-meta-box.php:236
-msgid "Network error. Please try again."
-msgstr "Netwerkfout. Probeer het opnieuw."
-
-#: includes/class-product-sync-meta-box.php:255
-msgid "No API response stored yet. Sync this product first."
-msgstr "Nog geen API-respons opgeslagen. Synchroniseer dit product eerst."
-
-#: includes/class-product-sync-meta-box.php:275
-#: includes/class-admin-settings.php:186 includes/class-admin-settings.php:214
-#: includes/class-admin-settings.php:269 includes/class-admin-settings.php:327
-#: includes/class-admin-settings.php:657
-msgid "Access denied."
-msgstr "Geen toegang."
-
-#: includes/class-product-sync-meta-box.php:282
-msgid "Invalid product ID."
-msgstr "Ongeldig product-ID."
-
-#: includes/class-product-sync-meta-box.php:287
-msgid "No Skwirrel product ID found for this product."
-msgstr "Geen Skwirrel product-ID gevonden voor dit product."
-
-#: includes/class-product-sync-meta-box.php:296
-#, php-format
-msgid "Product synced successfully (%s)."
-msgstr "Product succesvol gesynchroniseerd (%s)."
+#: includes/class-action-scheduler.php:116
+msgid "Weekly"
+msgstr "Wekelijks"
 
 #: includes/class-admin-dashboard.php:62
 msgid "Skwirrel PIM sync"
@@ -180,373 +49,385 @@ msgstr "Dashboard"
 msgid "Sync Log"
 msgstr "Sync log"
 
-#: includes/class-admin-dashboard.php:149
-msgid "Last sync successful"
-msgstr "Laatste sync geslaagd"
+#: includes/class-admin-dashboard.php:110
+msgid "Download"
+msgstr "Downloaden"
 
-#: includes/class-admin-dashboard.php:149
+#: includes/class-admin-dashboard.php:110
+msgid "Download log file"
+msgstr "Logbestand downloaden"
+
+#: includes/class-admin-dashboard.php:116
+msgid "Load more"
+msgstr "Meer laden"
+
+#: includes/class-admin-dashboard.php:157
 msgid "Last sync failed"
 msgstr "Laatste sync mislukt"
 
-#: includes/class-admin-dashboard.php:155
+#: includes/class-admin-dashboard.php:157
+msgid "Last sync successful"
+msgstr "Laatste sync geslaagd"
+
+#: includes/class-admin-dashboard.php:163
 msgid "created"
 msgstr "aangemaakt"
 
-#: includes/class-admin-dashboard.php:156
+#: includes/class-admin-dashboard.php:164
 msgid "updated"
 msgstr "bijgewerkt"
 
-#: includes/class-admin-dashboard.php:157
+#: includes/class-admin-dashboard.php:165
 msgid "failed"
 msgstr "mislukt"
 
-#: includes/class-admin-dashboard.php:164
+#: includes/class-admin-dashboard.php:172
 msgid "Last successful sync:"
 msgstr "Laatste succesvolle sync:"
 
-#: includes/class-admin-dashboard.php:182
-#: includes/class-admin-dashboard.php:309
+#: includes/class-admin-dashboard.php:190
+#: includes/class-admin-dashboard.php:317
 msgid "Sync in progress…"
 msgstr "Sync wordt uitgevoerd…"
 
-#: includes/class-admin-dashboard.php:183
+#: includes/class-admin-dashboard.php:191
 msgid "Products are being synchronized. This page refreshes automatically."
 msgstr "Producten worden gesynchroniseerd. Deze pagina ververst automatisch."
 
-#: includes/class-admin-dashboard.php:192
+#: includes/class-admin-dashboard.php:200
 msgid "Sync Now"
 msgstr "Nu synchroniseren"
 
-#: includes/class-admin-dashboard.php:193
+#: includes/class-admin-dashboard.php:201
 msgid "Start a full product synchronization from Skwirrel PIM."
 msgstr "Start een volledige productsynchronisatie vanuit Skwirrel PIM."
 
-#: includes/class-admin-dashboard.php:205
-#: includes/class-admin-dashboard.php:359
+#: includes/class-admin-dashboard.php:213
+#: includes/class-admin-dashboard.php:367
 msgid "Sync History"
 msgstr "Synchronisatiegeschiedenis"
 
-#: includes/class-admin-dashboard.php:209
+#: includes/class-admin-dashboard.php:217
 #, php-format
 msgid "%d sync runs recorded."
 msgstr "%d synchronisaties uitgevoerd."
 
-#: includes/class-admin-dashboard.php:222
-#: includes/class-admin-dashboard.php:492
+#: includes/class-admin-dashboard.php:230
+#: includes/class-admin-dashboard.php:500
 msgid "Settings"
 msgstr "Instellingen"
 
-#: includes/class-admin-dashboard.php:223
+#: includes/class-admin-dashboard.php:231
 msgid "Configure API connection, sync options, and scheduling."
 msgstr "API-verbinding, synchronisatie-opties en planning instellen."
 
-#: includes/class-admin-dashboard.php:238
-#: includes/class-admin-dashboard.php:773
+#: includes/class-admin-dashboard.php:246
+#: includes/class-admin-dashboard.php:781
 msgid "Sync Logs"
 msgstr "Sync-logboeken"
 
-#: includes/class-admin-dashboard.php:239
+#: includes/class-admin-dashboard.php:247
 msgid "View detailed sync log files in WooCommerce."
 msgstr "Bekijk gedetailleerde sync-logbestanden in WooCommerce."
 
-#: includes/class-admin-dashboard.php:250
+#: includes/class-admin-dashboard.php:258
 msgid "Debug"
 msgstr "Debug"
 
-#: includes/class-admin-dashboard.php:251
+#: includes/class-admin-dashboard.php:259
 msgid "Troubleshoot variation attribute issues."
 msgstr "Problemen met variatie-attributen oplossen."
 
-#: includes/class-admin-dashboard.php:262
+#: includes/class-admin-dashboard.php:270
 msgid "Danger Zone"
 msgstr "Gevarenzone"
 
-#: includes/class-admin-dashboard.php:263
+#: includes/class-admin-dashboard.php:271
 msgid "Delete all synced products and start fresh."
 msgstr "Verwijder alle gesynchroniseerde producten en begin opnieuw."
 
-#: includes/class-admin-dashboard.php:275
+#: includes/class-admin-dashboard.php:283
 msgid "Recent syncs"
 msgstr "Recente syncs"
 
-#: includes/class-admin-dashboard.php:276
+#: includes/class-admin-dashboard.php:284
 msgid "View all"
 msgstr "Alles bekijken"
 
-#: includes/class-admin-dashboard.php:292
+#: includes/class-admin-dashboard.php:300
 msgid "Assign categories, brands & manufacturers"
 msgstr "Categorieën, merken & fabrikanten toewijzen"
 
-#: includes/class-admin-dashboard.php:293
+#: includes/class-admin-dashboard.php:301
 msgid "Assign categories & brands"
 msgstr "Categorieën & merken toewijzen"
 
-#: includes/class-admin-dashboard.php:296
+#: includes/class-admin-dashboard.php:304
 msgid "Fetch products from API"
 msgstr "Producten ophalen via API"
 
-#: includes/class-admin-dashboard.php:297
+#: includes/class-admin-dashboard.php:305
 msgid "Create & update products"
 msgstr "Producten aanmaken & bijwerken"
 
-#: includes/class-admin-dashboard.php:299
+#: includes/class-admin-dashboard.php:307
 msgid "Connect attributes"
 msgstr "Attributen koppelen"
 
-#: includes/class-admin-dashboard.php:300
+#: includes/class-admin-dashboard.php:308
 msgid "Download images & documents"
 msgstr "Afbeeldingen & documenten downloaden"
 
-#: includes/class-admin-dashboard.php:301
+#: includes/class-admin-dashboard.php:309
 msgid "Link related products"
 msgstr "Gerelateerde producten koppelen"
 
-#: includes/class-admin-dashboard.php:302
+#: includes/class-admin-dashboard.php:310
 msgid "Cleanup & finalize"
 msgstr "Opruimen & afronden"
 
-#: includes/class-admin-dashboard.php:310
+#: includes/class-admin-dashboard.php:318
 msgid "Stop sync"
 msgstr "Sync stoppen"
 
-#: includes/class-admin-dashboard.php:325
+#: includes/class-admin-dashboard.php:333
 #, php-format
 msgid "%d fetched"
 msgstr "%d opgehaald"
 
-#: includes/class-admin-dashboard.php:345
+#: includes/class-admin-dashboard.php:353
 msgid "This page refreshes automatically every 5 seconds."
 msgstr "Deze pagina ververst automatisch elke 5 seconden."
 
-#: includes/class-admin-dashboard.php:360
+#: includes/class-admin-dashboard.php:368
 msgid "Overview of all synchronization runs, grouped by date."
 msgstr "Overzicht van alle synchronisaties, gegroepeerd op datum."
 
-#: includes/class-admin-dashboard.php:366
+#: includes/class-admin-dashboard.php:374
 msgid "All"
 msgstr "Alles"
 
-#: includes/class-admin-dashboard.php:367
+#: includes/class-admin-dashboard.php:375
 msgid "Older than 7 days"
 msgstr "Ouder dan 7 dagen"
 
-#: includes/class-admin-dashboard.php:368
+#: includes/class-admin-dashboard.php:376
 msgid "Older than 30 days"
 msgstr "Ouder dan 30 dagen"
 
-#: includes/class-admin-dashboard.php:369
+#: includes/class-admin-dashboard.php:377
 msgid "Older than 90 days"
 msgstr "Ouder dan 90 dagen"
 
-#: includes/class-admin-dashboard.php:371
+#: includes/class-admin-dashboard.php:379
 msgid "Delete history"
 msgstr "Geschiedenis verwijderen"
 
-#: includes/class-admin-dashboard.php:375
+#: includes/class-admin-dashboard.php:383
 msgid "No sync history available."
 msgstr "Geen synchronisatiegeschiedenis beschikbaar."
 
-#: includes/class-admin-dashboard.php:391
+#: includes/class-admin-dashboard.php:399
 msgctxt "sync trigger"
 msgid "Manual"
 msgstr "Handmatig"
 
-#: includes/class-admin-dashboard.php:392
+#: includes/class-admin-dashboard.php:400
 msgid "Scheduled"
 msgstr "Gepland"
 
-#: includes/class-admin-dashboard.php:393
+#: includes/class-admin-dashboard.php:401
 msgid "Purge"
 msgstr "Opschonen"
 
-#: includes/class-admin-dashboard.php:406
+#: includes/class-admin-dashboard.php:414
 msgid "Time"
 msgstr "Tijd"
 
-#: includes/class-admin-dashboard.php:407
+#: includes/class-admin-dashboard.php:415
 msgid "Trigger"
 msgstr "Trigger"
 
-#: includes/class-admin-dashboard.php:408
+#: includes/class-admin-dashboard.php:416
 msgid "Status"
 msgstr "Status"
 
-#: includes/class-admin-dashboard.php:409
+#: includes/class-admin-dashboard.php:417
 msgid "Created"
 msgstr "Aangemaakt"
 
-#: includes/class-admin-dashboard.php:410
+#: includes/class-admin-dashboard.php:418
 msgid "Updated"
 msgstr "Bijgewerkt"
 
-#: includes/class-admin-dashboard.php:411
-#: includes/class-admin-dashboard.php:462
+#: includes/class-admin-dashboard.php:419
+#: includes/class-admin-dashboard.php:470
 msgid "Failed"
 msgstr "Mislukt"
 
-#: includes/class-admin-dashboard.php:412
+#: includes/class-admin-dashboard.php:420
 msgid "Deleted"
 msgstr "Verwijderd"
 
-#: includes/class-admin-dashboard.php:413
+#: includes/class-admin-dashboard.php:421
 msgid "Total"
 msgstr "Totaal"
 
-#: includes/class-admin-dashboard.php:414
+#: includes/class-admin-dashboard.php:422
 msgid "Log"
 msgstr "Log"
 
-#: includes/class-admin-dashboard.php:440
+#: includes/class-admin-dashboard.php:448
 msgid "Today"
 msgstr "Vandaag"
 
-#: includes/class-admin-dashboard.php:442
+#: includes/class-admin-dashboard.php:450
 msgid "Yesterday"
 msgstr "Gisteren"
 
-#: includes/class-admin-dashboard.php:458
+#: includes/class-admin-dashboard.php:466
 msgid "Purged"
 msgstr "Opgeschoond"
 
-#: includes/class-admin-dashboard.php:460
+#: includes/class-admin-dashboard.php:468
 msgid "Success"
 msgstr "Succesvol"
 
-#: includes/class-admin-dashboard.php:472
+#: includes/class-admin-dashboard.php:480
 msgid "View"
 msgstr "Bekijken"
 
-#: includes/class-admin-dashboard.php:493
+#: includes/class-admin-dashboard.php:501
 msgid "Configure your Skwirrel PIM API connection and synchronization options."
 msgstr "Configureer je Skwirrel PIM API-verbinding en synchronisatie-opties."
 
-#: includes/class-admin-dashboard.php:501
+#: includes/class-admin-dashboard.php:509
 msgid "API Connection"
 msgstr "API-verbinding"
 
-#: includes/class-admin-dashboard.php:510
+#: includes/class-admin-dashboard.php:518
 msgid "Skwirrel subdomain"
 msgstr "Skwirrel-subdomein"
 
-#: includes/class-admin-dashboard.php:520
+#: includes/class-admin-dashboard.php:528
 msgid "API Token"
 msgstr "API-token"
 
-#: includes/class-admin-dashboard.php:526
+#: includes/class-admin-dashboard.php:534
 #, php-format
 msgid "Create a static API token at %s."
 msgstr "Maak een statisch API-token aan op %s."
 
-#: includes/class-admin-dashboard.php:534
+#: includes/class-admin-dashboard.php:542
 msgid "Timeout (seconds)"
 msgstr "Timeout (seconden)"
 
-#: includes/class-admin-dashboard.php:538
+#: includes/class-admin-dashboard.php:546
 msgid "Retries"
 msgstr "Nieuwe pogingen"
 
-#: includes/class-admin-dashboard.php:543
+#: includes/class-admin-dashboard.php:551
 msgid "Test connection"
 msgstr "Test verbinding"
 
-#: includes/class-admin-dashboard.php:549
+#: includes/class-admin-dashboard.php:557
 msgid "Scheduling"
 msgstr "Planning"
 
-#: includes/class-admin-dashboard.php:552
+#: includes/class-admin-dashboard.php:560
 msgid "Sync interval"
 msgstr "Sync interval"
 
-#: includes/class-admin-dashboard.php:560
+#: includes/class-admin-dashboard.php:568
 msgid "Batch size"
 msgstr "Batch size"
 
-#: includes/class-admin-dashboard.php:562
+#: includes/class-admin-dashboard.php:570
 msgid "Products per API request (1–50)."
 msgstr "Producten per API-verzoek (1–50)."
 
-#: includes/class-admin-dashboard.php:569
+#: includes/class-admin-dashboard.php:577
 msgid "Sync Options"
 msgstr "Synchronisatie-opties"
 
-#: includes/class-admin-dashboard.php:571
+#: includes/class-admin-dashboard.php:579
 msgid "Sync categories"
 msgstr "Categorieën synchroniseren"
 
-#: includes/class-admin-dashboard.php:572
+#: includes/class-admin-dashboard.php:580
 msgid "Sync grouped products (variable)"
 msgstr "Gegroepeerde producten synchroniseren (variabel)"
 
-#: includes/class-admin-dashboard.php:573
+#: includes/class-admin-dashboard.php:581
 msgid "Use virtual product content for variable products"
 msgstr "Gebruik virtueel productinhoud voor variabele producten"
 
-#: includes/class-admin-dashboard.php:574
+#: includes/class-admin-dashboard.php:582
 msgid "Sync related products"
 msgstr "Gerelateerde producten synchroniseren"
 
-#: includes/class-admin-dashboard.php:575
+#: includes/class-admin-dashboard.php:583
 msgid "Sync manufacturers"
 msgstr "Fabrikanten synchroniseren"
 
-#: includes/class-admin-dashboard.php:576
+#: includes/class-admin-dashboard.php:584
 msgid "Sync custom classes"
 msgstr "Custom classes synchroniseren"
 
-#: includes/class-admin-dashboard.php:577
+#: includes/class-admin-dashboard.php:585
 msgid "Include trade item custom classes"
 msgstr "Trade item custom classes opnemen"
 
-#: includes/class-admin-dashboard.php:578
+#: includes/class-admin-dashboard.php:586
 msgid "Show GTIN as product attribute"
 msgstr "Toon GTIN als productattribuut"
 
-#: includes/class-admin-dashboard.php:579
+#: includes/class-admin-dashboard.php:587
 msgid "Show Variant as product attribute"
 msgstr "Toon Variant als productattribuut"
 
-#: includes/class-admin-dashboard.php:584
+#: includes/class-admin-dashboard.php:592
 msgid "Related products mapping"
 msgstr "Gerelateerde producten toewijzing"
 
-#: includes/class-admin-dashboard.php:586
+#: includes/class-admin-dashboard.php:594
 msgid "Auto (use relation type)"
 msgstr "Automatisch (op basis van relatietype)"
 
-#: includes/class-admin-dashboard.php:587
+#: includes/class-admin-dashboard.php:595
 msgid "All as cross-sells"
 msgstr "Alles als cross-sells"
 
-#: includes/class-admin-dashboard.php:588
+#: includes/class-admin-dashboard.php:596
 msgid "All as upsells"
 msgstr "Alles als upsells"
 
-#: includes/class-admin-dashboard.php:589
+#: includes/class-admin-dashboard.php:597
 msgid "All as both"
 msgstr "Alles als beide"
 
-#: includes/class-admin-dashboard.php:591
+#: includes/class-admin-dashboard.php:599
 msgid "Auto maps UPSELL/SUCCESSOR types to upsells, all others to cross-sells."
 msgstr ""
 "Automatisch: UPSELL/SUCCESSOR types worden upsells, alle andere cross-sells."
 
-#: includes/class-admin-dashboard.php:595
+#: includes/class-admin-dashboard.php:603
 msgid "Variant label"
 msgstr "Variant label"
 
-#: includes/class-admin-dashboard.php:597
+#: includes/class-admin-dashboard.php:605
 msgid "SKU (internal_product_code)"
 msgstr "SKU (internal_product_code)"
 
-#: includes/class-admin-dashboard.php:598
+#: includes/class-admin-dashboard.php:606
 msgid "ERP description"
 msgstr "ERP omschrijving"
 
-#: includes/class-admin-dashboard.php:599
+#: includes/class-admin-dashboard.php:607
 msgid "Product name (translated)"
 msgstr "Productnaam (vertaald)"
 
-#: includes/class-admin-dashboard.php:601
+#: includes/class-admin-dashboard.php:609
 msgid ""
 "Label shown in the variant dropdown when no ETIM variation axes are "
 "available."
@@ -554,148 +435,148 @@ msgstr ""
 "Label dat wordt getoond in de variant dropdown wanneer er geen ETIM variatie-"
 "assen beschikbaar zijn."
 
-#: includes/class-admin-dashboard.php:606
+#: includes/class-admin-dashboard.php:614
 msgid "Super category ID"
 msgstr "Supercategorie ID"
 
-#: includes/class-admin-dashboard.php:607
+#: includes/class-admin-dashboard.php:615
 msgid "e.g. 42"
 msgstr "bijv. 42"
 
-#: includes/class-admin-dashboard.php:612
+#: includes/class-admin-dashboard.php:620
 #, php-format
 msgid "Find your category IDs at %s."
 msgstr "Vind je categorie-ID's op %s."
 
-#: includes/class-admin-dashboard.php:619
+#: includes/class-admin-dashboard.php:627
 msgid "Selection IDs"
 msgstr "Selectie-ID's"
 
-#: includes/class-admin-dashboard.php:620
+#: includes/class-admin-dashboard.php:628
 msgid "e.g. 123, 456"
 msgstr "bijv. 123, 456"
 
-#: includes/class-admin-dashboard.php:625
+#: includes/class-admin-dashboard.php:633
 #, php-format
 msgid "Find your selection IDs at %s."
 msgstr "Vind je categorie-ID's op %s."
 
-#: includes/class-admin-dashboard.php:632
+#: includes/class-admin-dashboard.php:640
 msgid "Custom class collection ID"
 msgstr "Aangepaste klasse collectie ID"
 
-#: includes/class-admin-dashboard.php:633
+#: includes/class-admin-dashboard.php:641
 msgid "e.g. 5"
 msgstr "bijv. 5"
 
-#: includes/class-admin-dashboard.php:638
+#: includes/class-admin-dashboard.php:646
 #, php-format
 msgid "Find your collection IDs at %s."
 msgstr "Vind je collectie ID's op %s."
 
-#: includes/class-admin-dashboard.php:648
+#: includes/class-admin-dashboard.php:656
 msgid "Custom class filter"
 msgstr "Custom class filter"
 
-#: includes/class-admin-dashboard.php:650
+#: includes/class-admin-dashboard.php:658
 msgid "No filter"
 msgstr "Geen filter"
 
-#: includes/class-admin-dashboard.php:651
+#: includes/class-admin-dashboard.php:659
 msgid "Whitelist"
 msgstr "Whitelist"
 
-#: includes/class-admin-dashboard.php:652
+#: includes/class-admin-dashboard.php:660
 msgid "Blacklist"
 msgstr "Blacklist"
 
-#: includes/class-admin-dashboard.php:656
+#: includes/class-admin-dashboard.php:664
 msgid "Class IDs / codes"
 msgstr "Class-ID's / codes"
 
-#: includes/class-admin-dashboard.php:657
+#: includes/class-admin-dashboard.php:665
 msgid "e.g. 12, 45, BUIS"
 msgstr "bijv. 12, 45, BUIS"
 
-#: includes/class-admin-dashboard.php:664
+#: includes/class-admin-dashboard.php:672
 msgid "Media & Language"
 msgstr "Media & Taal"
 
-#: includes/class-admin-dashboard.php:667
+#: includes/class-admin-dashboard.php:675
 msgid "Import images"
 msgstr "Afbeeldingen importeren"
 
-#: includes/class-admin-dashboard.php:669
-#: includes/class-admin-dashboard.php:757
+#: includes/class-admin-dashboard.php:677
+#: includes/class-admin-dashboard.php:765
 msgid "Yes"
 msgstr "Ja"
 
-#: includes/class-admin-dashboard.php:670
-#: includes/class-admin-dashboard.php:756
+#: includes/class-admin-dashboard.php:678
+#: includes/class-admin-dashboard.php:764
 msgid "No"
 msgstr "Nee"
 
-#: includes/class-admin-dashboard.php:674
+#: includes/class-admin-dashboard.php:682
 msgid "SKU field"
 msgstr "SKU veld"
 
-#: includes/class-admin-dashboard.php:687
+#: includes/class-admin-dashboard.php:695
 msgid "Content language"
 msgstr "Contenttaal"
 
-#: includes/class-admin-dashboard.php:692
+#: includes/class-admin-dashboard.php:700
 msgid "Other…"
 msgstr "Anders…"
 
-#: includes/class-admin-dashboard.php:700
+#: includes/class-admin-dashboard.php:708
 msgid "API languages (include_languages)"
 msgstr "API-talen (include_languages)"
 
-#: includes/class-admin-dashboard.php:711
+#: includes/class-admin-dashboard.php:719
 msgid "Additional: e.g. es, pt-BR"
 msgstr "Extra: bijv. es, pt-BR"
 
-#: includes/class-admin-dashboard.php:719
+#: includes/class-admin-dashboard.php:727
 msgid "Product name"
 msgstr "Productnaam"
 
-#: includes/class-admin-dashboard.php:720
+#: includes/class-admin-dashboard.php:728
 #: includes/class-permalink-settings.php:136
 #: includes/class-permalink-settings.php:154
 msgid "Internal product code (SKU)"
 msgstr "Intern artikelcode (SKU)"
 
-#: includes/class-admin-dashboard.php:721
+#: includes/class-admin-dashboard.php:729
 #: includes/class-permalink-settings.php:137
 #: includes/class-permalink-settings.php:155
 msgid "Manufacturer product code"
 msgstr "Fabrikant artikelcode"
 
-#: includes/class-admin-dashboard.php:722
+#: includes/class-admin-dashboard.php:730
 #: includes/class-permalink-settings.php:138
 #: includes/class-permalink-settings.php:156
 msgid "External product ID"
 msgstr "Extern product-ID"
 
-#: includes/class-admin-dashboard.php:723
+#: includes/class-admin-dashboard.php:731
 #: includes/class-permalink-settings.php:139
 #: includes/class-permalink-settings.php:157
 msgid "Skwirrel product ID"
 msgstr "Skwirrel product-ID"
 
-#: includes/class-admin-dashboard.php:728
+#: includes/class-admin-dashboard.php:736
 msgid "None (auto-number)"
 msgstr "Geen (automatisch nummeren)"
 
-#: includes/class-admin-dashboard.php:734
+#: includes/class-admin-dashboard.php:742
 msgid "Permalinks"
 msgstr "Permalinks"
 
-#: includes/class-admin-dashboard.php:738
+#: includes/class-admin-dashboard.php:746
 msgid "Slug settings have changed."
 msgstr "Slug-instellingen zijn gewijzigd."
 
-#: includes/class-admin-dashboard.php:739
+#: includes/class-admin-dashboard.php:747
 msgid ""
 "Run a full sync to update product URLs. Changing slugs may break existing "
 "links and SEO rankings."
@@ -703,20 +584,20 @@ msgstr ""
 "Voer een volledige synchronisatie uit om product-URL's bij te werken. Het "
 "wijzigen van slugs kan bestaande links en SEO-posities breken."
 
-#: includes/class-admin-dashboard.php:745
+#: includes/class-admin-dashboard.php:753
 #: includes/class-permalink-settings.php:81
 msgid "Slug source"
 msgstr "Slug bron"
 
-#: includes/class-admin-dashboard.php:749
+#: includes/class-admin-dashboard.php:757
 msgid "Suffix on duplicate"
 msgstr "Achtervoegsel bij duplicaat"
 
-#: includes/class-admin-dashboard.php:753
+#: includes/class-admin-dashboard.php:761
 msgid "Update on re-sync"
 msgstr "Bijwerken bij hersynchronisatie"
 
-#: includes/class-admin-dashboard.php:764
+#: includes/class-admin-dashboard.php:772
 msgid ""
 "Existing product URLs will be overwritten on the next sync. This may break "
 "existing links and SEO rankings."
@@ -724,57 +605,57 @@ msgstr ""
 "Bestaande product-URL's worden overschreven bij de volgende synchronisatie. "
 "Dit kan bestaande links en SEO-posities breken."
 
-#: includes/class-admin-dashboard.php:767
+#: includes/class-admin-dashboard.php:775
 msgid "Edit permalink settings"
 msgstr "Permalink-instellingen bewerken"
 
-#: includes/class-admin-dashboard.php:781
+#: includes/class-admin-dashboard.php:789
 msgid "Manual sync logs"
 msgstr "Handmatige sync logs"
 
-#: includes/class-admin-dashboard.php:783
-#: includes/class-admin-dashboard.php:790
+#: includes/class-admin-dashboard.php:791
+#: includes/class-admin-dashboard.php:798
 msgid "One file per sync"
 msgstr "Eén bestand per sync"
 
-#: includes/class-admin-dashboard.php:784
-#: includes/class-admin-dashboard.php:791
+#: includes/class-admin-dashboard.php:792
+#: includes/class-admin-dashboard.php:799
 msgid "One file per day"
 msgstr "Eén bestand per dag"
 
-#: includes/class-admin-dashboard.php:788
+#: includes/class-admin-dashboard.php:796
 msgid "Scheduled sync logs"
 msgstr "Geplande sync logs"
 
-#: includes/class-admin-dashboard.php:796
+#: includes/class-admin-dashboard.php:804
 msgid "Log file retention"
 msgstr "Logbestanden bewaren"
 
-#: includes/class-admin-dashboard.php:798
+#: includes/class-admin-dashboard.php:806
 msgid "12 hours"
 msgstr "12 uur"
 
-#: includes/class-admin-dashboard.php:799
+#: includes/class-admin-dashboard.php:807
 msgid "1 day"
 msgstr "1 dag"
 
-#: includes/class-admin-dashboard.php:800
+#: includes/class-admin-dashboard.php:808
 msgid "2 days"
 msgstr "2 dagen"
 
-#: includes/class-admin-dashboard.php:801
+#: includes/class-admin-dashboard.php:809
 msgid "7 days"
 msgstr "7 dagen"
 
-#: includes/class-admin-dashboard.php:802
+#: includes/class-admin-dashboard.php:810
 msgid "30 days"
 msgstr "30 dagen"
 
-#: includes/class-admin-dashboard.php:803
+#: includes/class-admin-dashboard.php:811
 msgid "Manual (no auto-delete)"
 msgstr "Handmatig (niet automatisch verwijderen)"
 
-#: includes/class-admin-dashboard.php:805
+#: includes/class-admin-dashboard.php:813
 msgid ""
 "How long to keep per-sync log files. Old files are cleaned up at the start "
 "of each sync."
@@ -782,27 +663,27 @@ msgstr ""
 "Hoe lang per-sync logbestanden bewaard worden. Oude bestanden worden "
 "opgeruimd aan het begin van elke sync."
 
-#: includes/class-admin-dashboard.php:811
+#: includes/class-admin-dashboard.php:819
 msgid "Advanced"
 msgstr "Geavanceerd"
 
-#: includes/class-admin-dashboard.php:813
+#: includes/class-admin-dashboard.php:821
 msgid "Verbose logging"
 msgstr "Uitgebreide logging"
 
-#: includes/class-admin-dashboard.php:814
+#: includes/class-admin-dashboard.php:822
 msgid "Clean up deleted products after full sync"
 msgstr "Verwijderde producten opruimen na volledige sync"
 
-#: includes/class-admin-dashboard.php:815
+#: includes/class-admin-dashboard.php:823
 msgid "Show delete warning on Skwirrel products"
 msgstr "Verwijderwaarschuwing tonen bij Skwirrel-producten"
 
-#: includes/class-admin-dashboard.php:816
+#: includes/class-admin-dashboard.php:824
 msgid "Prices managed outside Skwirrel"
 msgstr "Prijzen worden buiten Skwirrel beheerd"
 
-#: includes/class-admin-dashboard.php:817
+#: includes/class-admin-dashboard.php:825
 msgid ""
 "Enable this when product prices are synced from a separate system (e.g. "
 "ERP). When enabled, the PIM sync will not overwrite existing variation "
@@ -812,15 +693,15 @@ msgstr ""
 "worden gesynchroniseerd. Wanneer ingeschakeld zal de PIM-sync bestaande "
 "variatieprijzen niet overschrijven als er geen prijs in de PIM-data zit."
 
-#: includes/class-admin-dashboard.php:822
+#: includes/class-admin-dashboard.php:830
 msgid "Save settings"
 msgstr "Instellingen opslaan"
 
-#: includes/class-admin-dashboard.php:827
+#: includes/class-admin-dashboard.php:837
 msgid "Danger zone"
 msgstr "Gevarenzone"
 
-#: includes/class-admin-dashboard.php:828
+#: includes/class-admin-dashboard.php:838
 msgid ""
 "Delete all products created or synced by Skwirrel. This cannot be undone if "
 "you empty the trash."
@@ -828,19 +709,19 @@ msgstr ""
 "Verwijder alle producten die door Skwirrel zijn aangemaakt of "
 "gesynchroniseerd. Dit kan niet ongedaan worden als je de prullenbak leegt."
 
-#: includes/class-admin-dashboard.php:832
+#: includes/class-admin-dashboard.php:842
 msgid "Also empty the trash (permanently delete)"
 msgstr "Ook de prullenbak legen (permanent verwijderen)"
 
-#: includes/class-admin-dashboard.php:834
+#: includes/class-admin-dashboard.php:844
 msgid "Delete all Skwirrel products"
 msgstr "Alle Skwirrel producten verwijderen"
 
-#: includes/class-admin-dashboard.php:847
+#: includes/class-admin-dashboard.php:857
 msgid "Debug Variation Attributes"
 msgstr "Debug variatie-attributen"
 
-#: includes/class-admin-dashboard.php:848
+#: includes/class-admin-dashboard.php:858
 msgid ""
 "If variations show \"Any Colour\" or \"Any Number of cups\" instead of real "
 "values:"
@@ -848,34 +729,50 @@ msgstr ""
 "Als variaties \"Elke Kleur\" of \"Elk Aantal kopjes\" tonen in plaats van "
 "echte waarden:"
 
-#: includes/class-admin-dashboard.php:850
+#: includes/class-admin-dashboard.php:860
 msgid "Add to wp-config.php:"
 msgstr "Voeg toe aan wp-config.php:"
 
-#: includes/class-admin-dashboard.php:851
+#: includes/class-admin-dashboard.php:861
 msgid "Run \"Sync Now\" from the dashboard."
 msgstr "Voer \"Nu synchroniseren\" uit vanuit het dashboard."
 
-#: includes/class-admin-dashboard.php:852
+#: includes/class-admin-dashboard.php:862
 msgid "Check:"
 msgstr "Controleer:"
 
-#: includes/class-admin-dashboard.php:853
+#: includes/class-admin-dashboard.php:863
 msgid ""
 "If etim_values_found is empty: API languages must match (e.g. en, en-GB)."
 msgstr ""
 "Als etim_values_found leeg is: API-talen moeten overeenkomen (bijv. en, en-"
 "GB)."
 
-#: includes/class-admin-dashboard.php:854
+#: includes/class-admin-dashboard.php:864
 msgid "If ATTR VERIFY FAIL: check wp_postmeta for attribute_pa_ entries."
 msgstr "Bij ATTR VERIFY FAIL: controleer wp_postmeta op attribute_pa_ items."
 
-#: includes/class-admin-settings.php:55 includes/class-admin-settings.php:56
+#: includes/class-admin-settings.php:56 includes/class-admin-settings.php:57
 msgid "Skwirrel Sync"
 msgstr "Skwirrel Sync"
 
-#: includes/class-admin-settings.php:469
+#: includes/class-admin-settings.php:192 includes/class-admin-settings.php:223
+#: includes/class-admin-settings.php:287 includes/class-admin-settings.php:354
+#: includes/class-admin-settings.php:482 includes/class-admin-settings.php:756
+#: includes/class-product-sync-meta-box.php:507
+#: includes/class-product-sync-meta-box.php:556
+msgid "Access denied."
+msgstr "Geen toegang."
+
+#: includes/class-admin-settings.php:488
+msgid "Invalid filename."
+msgstr "Ongeldige bestandsnaam."
+
+#: includes/class-admin-settings.php:493
+msgid "Log file not found."
+msgstr "Logbestand niet gevonden."
+
+#: includes/class-admin-settings.php:535
 msgid ""
 "WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be "
 "undone!\\n\\nAre you sure?"
@@ -883,37 +780,49 @@ msgstr ""
 "WAARSCHUWING: Alle Skwirrel-producten worden PERMANENT verwijderd. Dit kan "
 "niet ongedaan worden gemaakt!\\n\\nWeet je het zeker?"
 
-#: includes/class-admin-settings.php:470
+#: includes/class-admin-settings.php:536
 msgid "All Skwirrel products will be moved to the trash.\\n\\nAre you sure?"
 msgstr ""
 "Alle Skwirrel-producten worden naar de prullenbak verplaatst.\\n\\nWeet je "
 "het zeker?"
 
-#: includes/class-admin-settings.php:471
+#: includes/class-admin-settings.php:537
 msgid "Delete all sync history?"
 msgstr "Alle synchronisatiegeschiedenis verwijderen?"
 
-#: includes/class-admin-settings.php:476
+#: includes/class-admin-settings.php:543
 msgid "Stop the running sync?"
 msgstr "De lopende sync stoppen?"
 
-#: includes/class-admin-settings.php:528
+#: includes/class-admin-settings.php:596
 msgid "Stopping…"
 msgstr "Stoppen…"
 
-#: includes/class-admin-settings.php:531
+#: includes/class-admin-settings.php:599
 msgid "Error"
 msgstr "Fout"
 
-#: includes/class-admin-settings.php:682
+#: includes/class-admin-settings.php:666
+msgid "lines"
+msgstr "regels"
+
+#: includes/class-admin-settings.php:681
+msgid "Could not load log"
+msgstr "Kan log niet laden"
+
+#: includes/class-admin-settings.php:687
+msgid "Network error"
+msgstr "Netwerkfout"
+
+#: includes/class-admin-settings.php:781
 msgid "Connection test successful."
 msgstr "Verbinding test geslaagd."
 
-#: includes/class-admin-settings.php:685
+#: includes/class-admin-settings.php:784
 msgid "Connection failed."
 msgstr "Verbinding mislukt."
 
-#: includes/class-admin-settings.php:691
+#: includes/class-admin-settings.php:790
 msgid ""
 "Sync started in the background. Results will appear here once the sync is "
 "completed. Refresh the page to check the status."
@@ -921,11 +830,11 @@ msgstr ""
 "Sync is gestart op de achtergrond. De resultaten verschijnen hier zodra de "
 "sync is voltooid. Vernieuw de pagina om de status te controleren."
 
-#: includes/class-admin-settings.php:695
+#: includes/class-admin-settings.php:794
 msgid "Sync history deleted."
 msgstr "Synchronisatiegeschiedenis verwijderd."
 
-#: includes/class-admin-settings.php:699
+#: includes/class-admin-settings.php:798
 msgid ""
 "Purge started in the background. All Skwirrel products, imported media, "
 "categories and attributes will be deleted. Refresh the page to check the "
@@ -935,35 +844,39 @@ msgstr ""
 "geïmporteerde media, categorieën en attributen worden verwijderd. Vernieuw "
 "de pagina om de status te controleren."
 
-#: includes/class-admin-settings.php:709
+#: includes/class-admin-settings.php:808
 #, php-format
 msgid "Sync completed. Created: %1$d, Updated: %2$d, Failed: %3$d"
 msgstr "Sync voltooid. Aangemaakt: %1$d, bijgewerkt: %2$d, mislukt: %3$d"
 
-#: includes/class-admin-settings.php:717
+#: includes/class-admin-settings.php:816
 #, php-format
 msgid "(with attributes: %1$d, without: %2$d)"
 msgstr "(met kenmerken: %1$d, zonder: %2$d)"
 
-#: includes/class-admin-settings.php:724
+#: includes/class-admin-settings.php:823
 msgid "Sync completed. Check the logs for details."
 msgstr "Sync voltooid. Controleer de logs voor details."
 
-#: includes/class-product-documents.php:56
-msgid "Documents"
-msgstr "Documenten"
+#: includes/class-attachment-handler.php:248
+msgid "Manual"
+msgstr "Handleiding"
 
-#: includes/class-product-documents.php:100
-msgid "Skwirrel documents"
-msgstr "Skwirrel documenten"
+#: includes/class-attachment-handler.php:249
+msgid "Datasheet"
+msgstr "Datasheet"
 
-#: includes/class-product-documents.php:118
-msgid "No documents linked to this product."
-msgstr "Geen documenten gekoppeld aan dit product."
+#: includes/class-attachment-handler.php:250
+msgid "Certificate"
+msgstr "Certificaat"
 
-#: includes/class-product-documents.php:129
-msgid "Edit"
-msgstr "Bewerken"
+#: includes/class-attachment-handler.php:251
+msgid "Warranty"
+msgstr "Garantie"
+
+#: includes/class-attachment-handler.php:252
+msgid "Other document"
+msgstr "Overig document"
 
 #: includes/class-brand-sync.php:44 includes/class-brand-sync.php:52
 msgid "Brands"
@@ -1029,46 +942,44 @@ msgstr "Nieuwe fabrikant toevoegen"
 msgid "New manufacturer name"
 msgstr "Nieuwe fabrikantnaam"
 
-#: includes/class-attachment-handler.php:248
-msgid "Manual"
-msgstr "Handleiding"
+#: includes/class-delete-protection.php:116
+msgid ""
+"This product is managed by Skwirrel. Changes to product data should be made "
+"in Skwirrel."
+msgstr ""
+"Dit product wordt beheerd door Skwirrel. Wijzigingen aan productgegevens "
+"dienen in Skwirrel te worden gemaakt."
 
-#: includes/class-attachment-handler.php:249
-msgid "Datasheet"
-msgstr "Datasheet"
+#: includes/class-delete-protection.php:119
+msgid ""
+"If you delete or trash this product, it will be automatically recreated "
+"during the next sync."
+msgstr ""
+"Als u dit product verwijdert, wordt het automatisch opnieuw aangemaakt bij "
+"de volgende sync."
 
-#: includes/class-attachment-handler.php:250
-msgid "Certificate"
-msgstr "Certificaat"
+#: includes/class-delete-protection.php:122
+#, php-format
+msgid "Last synced: %s"
+msgstr "Laatst gesynchroniseerd: %s"
 
-#: includes/class-attachment-handler.php:251
-msgid "Warranty"
-msgstr "Garantie"
+#: includes/class-delete-protection.php:193
+msgid ""
+"This product is managed by Skwirrel and will be recreated during the next "
+"sync.\\n\\nAre you sure you want to trash this product?"
+msgstr ""
+"Dit product wordt beheerd door Skwirrel en wordt opnieuw aangemaakt bij de "
+"volgende sync.\\n\\nWeet je zeker dat je dit product naar de prullenbak wilt "
+"verplaatsen?"
 
-#: includes/class-attachment-handler.php:252
-msgid "Other document"
-msgstr "Overig document"
-
-#: includes/class-action-scheduler.php:94
-#: includes/class-action-scheduler.php:114
-msgid "Twice daily"
-msgstr "Twee keer per dag"
-
-#: includes/class-action-scheduler.php:112
-msgid "Disabled"
-msgstr "Uitgeschakeld"
-
-#: includes/class-action-scheduler.php:113
-msgid "Hourly"
-msgstr "Elk uur"
-
-#: includes/class-action-scheduler.php:115
-msgid "Daily"
-msgstr "Dagelijks"
-
-#: includes/class-action-scheduler.php:116
-msgid "Weekly"
-msgstr "Wekelijks"
+#: includes/class-delete-protection.php:210
+msgid ""
+"This category was created by Skwirrel Sync and will be recreated during the "
+"next sync.\\n\\nAre you sure you want to delete this category?"
+msgstr ""
+"Deze categorie is aangemaakt door Skwirrel Sync en wordt opnieuw aangemaakt "
+"bij de volgende sync.\\n\\nWeet je zeker dat je deze categorie wilt "
+"verwijderen?"
 
 #: includes/class-permalink-settings.php:74
 msgid "Skwirrel product slugs"
@@ -1146,84 +1057,242 @@ msgstr ""
 msgid "The base slug for the product manufacturer taxonomy URLs."
 msgstr "De basis-slug voor de URL's van de productfabrikant-taxonomie."
 
-#: includes/class-product-upserter.php:947
+#: includes/class-product-documents.php:56
+msgid "Documents"
+msgstr "Documenten"
+
+#: includes/class-product-documents.php:100
+msgid "Skwirrel documents"
+msgstr "Skwirrel documenten"
+
+#: includes/class-product-documents.php:118
+msgid "No documents linked to this product."
+msgstr "Geen documenten gekoppeld aan dit product."
+
+#: includes/class-product-documents.php:129
+msgid "Edit"
+msgstr "Bewerken"
+
+#: includes/class-product-sync-meta-box.php:48
+msgid "Skwirrel"
+msgstr "Skwirrel"
+
+#: includes/class-product-sync-meta-box.php:64
+msgid "Skwirrel API Response"
+msgstr "Skwirrel API Respons"
+
+#: includes/class-product-sync-meta-box.php:90
+msgid "This product is not managed by Skwirrel."
+msgstr "Dit product wordt niet beheerd door Skwirrel."
+
+#: includes/class-product-sync-meta-box.php:101
+msgid "Grouped product ID:"
+msgstr "Gegroepeerd product ID:"
+
+#: includes/class-product-sync-meta-box.php:106
+msgid "Virtual product ID:"
+msgstr "Virtueel product-ID:"
+
+#: includes/class-product-sync-meta-box.php:108
+msgid "content & images"
+msgstr "inhoud & afbeeldingen"
+
+#: includes/class-product-sync-meta-box.php:113
+#: includes/class-product-sync-meta-box.php:203
+#: includes/class-product-sync-meta-box.php:231
+msgid "Last synced:"
+msgstr "Laatst gesynchroniseerd:"
+
+#: includes/class-product-sync-meta-box.php:123
+#: includes/class-product-sync-meta-box.php:241
+msgid "Sync this product"
+msgstr "Dit product synchroniseren"
+
+#: includes/class-product-sync-meta-box.php:129
+msgid "View API response"
+msgstr "Bekijk API-respons"
+
+#: includes/class-product-sync-meta-box.php:173
+#: includes/class-product-sync-meta-box.php:288
+#: includes/class-product-sync-meta-box.php:581
+#: includes/class-product-sync-meta-box.php:603
+msgid "Sync failed."
+msgstr "Synchronisatie mislukt."
+
+#: includes/class-product-sync-meta-box.php:181
+#: includes/class-product-sync-meta-box.php:296
+msgid "Network error. Please try again."
+msgstr "Netwerkfout. Probeer het opnieuw."
+
+#: includes/class-product-sync-meta-box.php:197
+#: includes/class-product-sync-meta-box.php:225
+msgid "Product ID:"
+msgstr "Product-ID:"
+
+#: includes/class-product-sync-meta-box.php:212
+msgid "Parent product:"
+msgstr "Bovenliggend product:"
+
+#: includes/class-product-sync-meta-box.php:318
+msgid "No API response stored yet. Sync this product first."
+msgstr "Nog geen API-respons opgeslagen. Synchroniseer dit product eerst."
+
+#: includes/class-product-sync-meta-box.php:331
+msgid "Grouped Product Response"
+msgstr "Gegroepeerde productrespons"
+
+#: includes/class-product-sync-meta-box.php:336
+msgid "Variation Responses"
+msgstr "Variantresponsen"
+
+#: includes/class-product-sync-meta-box.php:339
+msgid "Load variation API responses"
+msgstr "Variant-API-responsen laden"
+
+#: includes/class-product-sync-meta-box.php:478
+msgid "No variation API responses found."
+msgstr "Geen variant-API-responsen gevonden."
+
+#: includes/class-product-sync-meta-box.php:485
+msgid "Variation:"
+msgstr "Variant:"
+
+#: includes/class-product-sync-meta-box.php:494
+msgid "Failed to load variation responses."
+msgstr "Kan variantresponsen niet laden."
+
+#: includes/class-product-sync-meta-box.php:514
+#: includes/class-product-sync-meta-box.php:563
+msgid "Invalid product ID."
+msgstr "Ongeldig product-ID."
+
+#: includes/class-product-sync-meta-box.php:577
+#, php-format
+msgid "Grouped product synced successfully (%1$d created, %2$d updated)."
+msgstr "Gegroepeerd product gesynchroniseerd (%1$d aangemaakt, %2$d bijgewerkt)."
+
+#: includes/class-product-sync-meta-box.php:586
+msgid "No Skwirrel product ID found for this product."
+msgstr "Geen Skwirrel product-ID gevonden voor dit product."
+
+#: includes/class-product-sync-meta-box.php:594
+#, php-format
+msgid "Product synced successfully (%s)."
+msgstr "Product succesvol gesynchroniseerd (%s)."
+
+#: includes/class-product-upserter.php:989
 #, php-format
 msgid "Product %s"
 msgstr "Product %s"
 
-#: includes/class-delete-protection.php:116
-msgid ""
-"This product is managed by Skwirrel. Changes to product data should be made "
-"in Skwirrel."
-msgstr ""
-"Dit product wordt beheerd door Skwirrel. Wijzigingen aan productgegevens "
-"dienen in Skwirrel te worden gemaakt."
+#: includes/class-sync-service.php:287
+msgid "Fetching products from API…"
+msgstr "Producten ophalen via API…"
 
-#: includes/class-delete-protection.php:119
-msgid ""
-"If you delete or trash this product, it will be automatically recreated "
-"during the next sync."
-msgstr ""
-"Als u dit product verwijdert, wordt het automatisch opnieuw aangemaakt bij "
-"de volgende sync."
-
-#: includes/class-delete-protection.php:122
+#: includes/class-sync-service.php:382
 #, php-format
-msgid "Last synced: %s"
-msgstr "Laatst gesynchroniseerd: %s"
+msgid "Fetching products from API… (%d found)"
+msgstr "Producten ophalen via API… (%d gevonden)"
 
-#: includes/class-delete-protection.php:193
-msgid ""
-"This product is managed by Skwirrel and will be recreated during the next "
-"sync.\\n\\nAre you sure you want to trash this product?"
-msgstr ""
-"Dit product wordt beheerd door Skwirrel en wordt opnieuw aangemaakt bij de "
-"volgende sync.\\n\\nWeet je zeker dat je dit product naar de prullenbak wilt "
-"verplaatsen?"
+#: includes/class-sync-service.php:411 includes/class-sync-service.php:459
+msgid "Creating & updating products…"
+msgstr "Producten aanmaken & bijwerken…"
 
-#: includes/class-delete-protection.php:210
-msgid ""
-"This category was created by Skwirrel Sync and will be recreated during the "
-"next sync.\\n\\nAre you sure you want to delete this category?"
-msgstr ""
-"Deze categorie is aangemaakt door Skwirrel Sync en wordt opnieuw aangemaakt "
-"bij de volgende sync.\\n\\nWeet je zeker dat je deze categorie wilt "
-"verwijderen?"
+#: includes/class-sync-service.php:470
+msgid "Assigning categories, brands & manufacturers…"
+msgstr "Categorieën, merken & fabrikanten toewijzen…"
+
+#: includes/class-sync-service.php:471
+msgid "Assigning categories & brands…"
+msgstr "Categorieën & merken toewijzen…"
+
+#: includes/class-sync-service.php:526 includes/class-sync-service.php:564
+msgid "Fetching & connecting attributes…"
+msgstr "Attributen ophalen & koppelen…"
+
+#: includes/class-sync-service.php:583 includes/class-sync-service.php:613
+#: includes/class-sync-service.php:647
+msgid "Downloading images & documents…"
+msgstr "Afbeeldingen & documenten downloaden…"
+
+#: includes/class-sync-service.php:662 includes/class-sync-service.php:692
+msgid "Linking related products…"
+msgstr "Gerelateerde producten koppelen…"
+
+#: includes/class-sync-service.php:710
+msgid "Cleaning up…"
+msgstr "Opruimen…"
 
 #: includes/class-taxonomy-manager.php:141
 #: includes/class-taxonomy-manager.php:153
 msgid "Variant"
 msgstr "Variant"
 
-#: includes/class-taxonomy-manager.php:282
+#: includes/class-taxonomy-manager.php:294
 #, php-format
 msgid "Search %s"
 msgstr "%s zoeken"
 
-#: includes/class-taxonomy-manager.php:284
+#: includes/class-taxonomy-manager.php:296
 #, php-format
 msgid "All %s"
 msgstr "Alle %s"
 
-#: includes/class-taxonomy-manager.php:286
+#: includes/class-taxonomy-manager.php:298
 #, php-format
 msgid "Edit %s"
 msgstr "%s bewerken"
 
-#: includes/class-taxonomy-manager.php:288
+#: includes/class-taxonomy-manager.php:300
 #, php-format
 msgid "Update %s"
 msgstr "%s bijwerken"
 
-#: includes/class-taxonomy-manager.php:290
+#: includes/class-taxonomy-manager.php:302
 #, php-format
 msgid "Add new %s"
 msgstr "Nieuwe %s toevoegen"
 
-#: includes/class-taxonomy-manager.php:292
+#: includes/class-taxonomy-manager.php:304
 #, php-format
 msgid "New %s"
 msgstr "Nieuwe %s"
+
+#: skwirrel-pim-sync.php:47
+msgid "Skwirrel PIM sync for WooCommerce requires WooCommerce to function."
+msgstr ""
+"Skwirrel PIM sync for WooCommerce vereist WooCommerce om te functioneren."
+
+#: skwirrel-pim-sync.php:49
+msgid "Install WooCommerce"
+msgstr "WooCommerce installeren"
+
+#: skwirrel-pim-sync.php:214
+msgid "Filter by manufacturer"
+msgstr "Filteren op fabrikant"
+
+#: skwirrel-pim-sync.php:265
+msgid "GTIN / Manufacturer code"
+msgstr "GTIN / Fabrikant artikelcode"
+
+#: skwirrel-pim-sync.php:339
+#, php-format
+msgid ""
+"WooCommerce is required. <a href=\"%1$s\">Install WooCommerce</a> or <a "
+"href=\"%2$s\">activate WooCommerce</a>."
+msgstr ""
+"WooCommerce is vereist. <a href=\"%1$s\">Installeer WooCommerce</a> of <a "
+"href=\"%2$s\">activeer WooCommerce</a>."
+
+#~ msgid "Variations:"
+#~ msgstr "Variaties:"
+
+#~ msgid ""
+#~ "This is a variable product managed by Skwirrel. Use the full sync to "
+#~ "update it."
+#~ msgstr ""
+#~ "Dit is een variabel product beheerd door Skwirrel. Gebruik de volledige "
+#~ "sync om het bij te werken."
 
 #~ msgid "Cross-sells"
 #~ msgstr "Cross-sells"

@@ -46,6 +46,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		add_action( 'wp_ajax_nopriv_' . self::BG_PURGE_ACTION, [ $this, 'handle_background_purge' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_save_slug_resync', [ $this, 'handle_save_slug_resync' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_view_log', [ $this, 'handle_view_log' ] );
+		add_action( 'wp_ajax_skwirrel_wc_sync_download_log', [ $this, 'handle_download_log' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_abort', [ $this, 'handle_abort_sync' ] );
 	}
 
@@ -439,36 +440,65 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			wp_send_json_error( 'Log file not found' );
 		}
 
-		$max_bytes = 500 * 1024; // 500 KB
-		$size = filesize( $path );
-		$truncated = false;
+		$chunk_size = 100 * 1024; // 100 KB per chunk
+		$size       = filesize( $path );
+		$offset     = isset( $_POST['offset'] ) ? absint( $_POST['offset'] ) : 0;
 
-		if ( $size > $max_bytes ) {
-			// Read the last 500 KB of the file.
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Direct read of log file
-			$fh = fopen( $path, 'r' );
-			if ( $fh ) {
-				fseek( $fh, -$max_bytes, SEEK_END );
-				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Direct read of log file
-				$content = fread( $fh, $max_bytes );
-				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Direct read of log file
-				fclose( $fh );
-				$truncated = true;
-			} else {
-				$content = '';
-			}
-		} else {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local log file read
-			$content = file_get_contents( $path );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Direct read of log file
+		$fh = fopen( $path, 'r' );
+		if ( ! $fh ) {
+			wp_send_json_error( 'Could not open log file' );
 		}
+
+		if ( $offset > 0 ) {
+			fseek( $fh, $offset );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Direct read of log file
+		$content = fread( $fh, $chunk_size );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Direct read of log file
+		fclose( $fh );
+
+		$bytes_read = strlen( $content );
+		$new_offset = $offset + $bytes_read;
+		$has_more   = $new_offset < $size;
 
 		wp_send_json_success(
 			[
-				'content'   => $content,
-				'truncated' => $truncated,
-				'size'      => $size,
+				'content'  => $content,
+				'offset'   => $new_offset,
+				'size'     => $size,
+				'has_more' => $has_more,
 			]
 		);
+	}
+
+	/**
+	 * AJAX handler: download a sync log file.
+	 */
+	public function handle_download_log(): void {
+		check_ajax_referer( 'skwirrel_download_log_nonce', '_nonce' );
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( esc_html__( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified above
+		$filename = isset( $_GET['filename'] ) ? sanitize_text_field( wp_unslash( $_GET['filename'] ) ) : '';
+		if ( ! preg_match( '/^sync-(manual|scheduled)-[\d-]+\.log$/', $filename ) ) {
+			wp_die( esc_html__( 'Invalid filename.', 'skwirrel-pim-sync' ), 400 );
+		}
+
+		$path = Skwirrel_WC_Sync_Logger::get_log_directory() . $filename;
+		if ( ! file_exists( $path ) ) {
+			wp_die( esc_html__( 'Log file not found.', 'skwirrel-pim-sync' ), 404 );
+		}
+
+		header( 'Content-Type: text/plain; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+		header( 'Content-Length: ' . filesize( $path ) );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Direct file download
+		readfile( $path );
+		exit;
 	}
 
 	/**
@@ -508,6 +538,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'ajaxUrl'               => admin_url( 'admin-ajax.php' ),
 				'slugResyncNonce'       => wp_create_nonce( 'skwirrel_slug_resync_nonce' ),
 				'viewLogNonce'          => wp_create_nonce( 'skwirrel_view_log_nonce' ),
+				'downloadLogNonce'      => wp_create_nonce( 'skwirrel_download_log_nonce' ),
 				'abortSyncNonce'        => wp_create_nonce( 'skwirrel_abort_sync_nonce' ),
 				'abortSyncConfirm'      => __( 'Stop the running sync?', 'skwirrel-pim-sync' ),
 			]
@@ -609,75 +640,106 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '})();'
 		);
 
-		// Log viewer modal with syntax highlighting.
+		// Log viewer modal with chunked rendering + download.
 		wp_add_inline_script(
 			'skwirrel-pim-sync-admin',
 			'(function() {'
-			. ' function formatLog(raw, truncated) {'
-			. '  var html = "";'
-			. '  if (truncated) html += "<span class=\"skw-log-truncated\">[… truncated — showing last 500 KB …]</span>";'
-			. '  var lines = raw.split("\\n");'
-			. '  for (var i = 0; i < lines.length; i++) {'
-			. '   var line = lines[i];'
-			. '   var esc = line.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");'
-				 // Separator lines
-			. '   if (/^={3,}/.test(line)) { html += "<span class=\"skw-log-separator\">" + esc + "</span>"; continue; }'
-				 // Timestamp + level pattern: [2026-03-18 16:22:56][LEVEL]
-			. '   var m = esc.match(/^(\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\])\\[(INFO|WARNING|ERROR|DEBUG)\\](.*)/);'
-			. '   if (m) {'
-			. '    var cls = "skw-log-" + m[2].toLowerCase();'
-			. '    var msg = m[3];'
-				   // Highlight JSON objects in the message
-			. '    msg = msg.replace(/(\\{[^}]+\\})/g, "<span class=\"skw-log-json\">$1</span>");'
-			. '    html += "<span class=\"skw-log-ts\">" + m[1] + "</span>"'
-			. '     + "<span class=\"" + cls + "\">[" + m[2] + "]</span>"'
-			. '     + msg + "\\n";'
-			. '    continue;'
-			. '   }'
-			. '   html += esc + "\\n";'
+			. ' var rafId = null, logFile = "", logOffset = 0, logSize = 0, lineCount = 0;'
+			. ' function fmtLine(line) {'
+			. '  var e = line.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");'
+			. '  if (/^={3,}/.test(line)) return "<span class=\"skw-log-separator\">" + e + "</span>";'
+			. '  var m = e.match(/^(\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\])\\[(INFO|WARNING|ERROR|DEBUG)\\](.*)/);'
+			. '  if (m) {'
+			. '   var msg = m[3].replace(/(\\{[^}]+\\})/g, "<span class=\"skw-log-json\">$1</span>");'
+			. '   return "<span class=\"skw-log-ts\">" + m[1] + "</span><span class=\"skw-log-" + m[2].toLowerCase() + "\">[" + m[2] + "]</span>" + msg;'
 			. '  }'
-			. '  return html;'
+			. '  return e;'
 			. ' }'
-			. ' document.addEventListener("click", function(e) {'
-			. '  var btn = e.target.closest(".skw-btn-log-view");'
-			. '  if (!btn) return;'
-			. '  e.preventDefault();'
-			. '  var filename = btn.dataset.logFile;'
-			. '  var modal = document.getElementById("skwirrel-log-modal");'
-			. '  var content = document.getElementById("skwirrel-log-content");'
-			. '  var title = document.getElementById("skwirrel-log-title");'
-			. '  if (!modal || !content) return;'
-			. '  content.innerHTML = "<span class=\"skw-log-debug\">Loading…</span>";'
-			. '  if (title) title.textContent = filename;'
-			. '  modal.style.display = "flex";'
+			. ' function renderChunked(raw, pre, onDone) {'
+			. '  var lines = raw.split("\\n"), i = 0, batch = 200;'
+			. '  var progress = document.getElementById("skwirrel-log-progress");'
+			. '  lineCount += lines.length;'
+			. '  function step() {'
+			. '   var end = Math.min(i + batch, lines.length), html = "";'
+			. '   for (; i < end; i++) html += fmtLine(lines[i]) + "\\n";'
+			. '   pre.insertAdjacentHTML("beforeend", html);'
+			. '   if (progress) progress.textContent = lineCount + " ' . esc_js( __( 'lines', 'skwirrel-pim-sync' ) ) . '";'
+			. '   if (i < lines.length) { rafId = requestAnimationFrame(step); }'
+			. '   else { rafId = null; if (onDone) onDone(); }'
+			. '  }'
+			. '  rafId = requestAnimationFrame(step);'
+			. ' }'
+			. ' function fetchChunk(filename, offset, pre) {'
 			. '  var fd = new FormData();'
 			. '  fd.append("action", "skwirrel_wc_sync_view_log");'
 			. '  fd.append("_nonce", skwirrelPimSync.viewLogNonce);'
 			. '  fd.append("filename", filename);'
-			. '  fetch(skwirrelPimSync.ajaxUrl, { method: "POST", body: fd })'
+			. '  fd.append("offset", offset);'
+			. '  return fetch(skwirrelPimSync.ajaxUrl, { method: "POST", body: fd })'
 			. '   .then(function(r) { return r.json(); })'
 			. '   .then(function(r) {'
-			. '    if (r.success) {'
-			. '     content.innerHTML = formatLog(r.data.content, r.data.truncated);'
-			. '     content.scrollTop = content.scrollHeight;'
-			. '    } else {'
-			. '     content.innerHTML = "<span class=\"skw-log-error\">Error: " + (r.data || "Could not load log") + "</span>";'
-			. '    }'
+			. '    if (!r.success) { pre.textContent = r.data || "' . esc_js( __( 'Could not load log', 'skwirrel-pim-sync' ) ) . '"; return; }'
+			. '    logOffset = r.data.offset; logSize = r.data.size;'
+			. '    var footer = document.getElementById("skwirrel-log-footer");'
+			. '    if (footer) footer.style.display = r.data.has_more ? "block" : "none";'
+			. '    renderChunked(r.data.content, pre, function() { pre.scrollTop = pre.scrollHeight; });'
 			. '   })'
-			. '   .catch(function() { content.innerHTML = "<span class=\"skw-log-error\">Network error</span>"; });'
-			. ' });'
+			. '   .catch(function() { pre.textContent = "' . esc_js( __( 'Network error', 'skwirrel-pim-sync' ) ) . '"; });'
+			. ' }'
+			 // Open modal on View button click
 			. ' document.addEventListener("click", function(e) {'
-			. '  if (e.target.id === "skwirrel-log-modal" || e.target.closest(".skw-modal-close")) {'
-			. '   var modal = document.getElementById("skwirrel-log-modal");'
-			. '   if (modal) modal.style.display = "none";'
-			. '  }'
+			. '  var btn = e.target.closest(".skw-btn-log-view");'
+			. '  if (!btn) return;'
+			. '  e.preventDefault();'
+			. '  logFile = btn.dataset.logFile; logOffset = 0; lineCount = 0;'
+			. '  var modal = document.getElementById("skwirrel-log-modal");'
+			. '  var pre = document.getElementById("skwirrel-log-content");'
+			. '  var title = document.getElementById("skwirrel-log-title");'
+			. '  var dlBtn = document.getElementById("skwirrel-log-download");'
+			. '  if (!modal || !pre) return;'
+			. '  pre.innerHTML = "";'
+			. '  if (title) title.textContent = logFile;'
+			. '  if (dlBtn) { dlBtn.style.display = "inline-block"; dlBtn.dataset.logFile = logFile; }'
+			. '  modal.style.display = "flex";'
+			. '  fetchChunk(logFile, 0, pre);'
 			. ' });'
-			. ' document.addEventListener("keydown", function(e) {'
-			. '  if (e.key === "Escape") {'
-			. '   var modal = document.getElementById("skwirrel-log-modal");'
-			. '   if (modal) modal.style.display = "none";'
-			. '  }'
+			 // Load more button
+			. ' var moreBtn = document.getElementById("skwirrel-log-more");'
+			. ' if (moreBtn) {'
+			. '  moreBtn.addEventListener("click", function() {'
+			. '   var pre = document.getElementById("skwirrel-log-content");'
+			. '   var spinner = document.getElementById("skwirrel-log-spinner");'
+			. '   if (!pre) return;'
+			. '   if (spinner) spinner.classList.add("is-active");'
+			. '   moreBtn.disabled = true;'
+			. '   fetchChunk(logFile, logOffset, pre).then(function() {'
+			. '    moreBtn.disabled = false;'
+			. '    if (spinner) spinner.classList.remove("is-active");'
+			. '   });'
+			. '  });'
+			. ' }'
+			 // Download button
+			. ' var dlBtn = document.getElementById("skwirrel-log-download");'
+			. ' if (dlBtn) {'
+			. '  dlBtn.addEventListener("click", function() {'
+			. '   var f = this.dataset.logFile;'
+			. '   if (!f) return;'
+			. '   window.location.href = skwirrelPimSync.ajaxUrl'
+			. '    + "?action=skwirrel_wc_sync_download_log"'
+			. '    + "&_nonce=" + encodeURIComponent(skwirrelPimSync.downloadLogNonce)'
+			. '    + "&filename=" + encodeURIComponent(f);'
+			. '  });'
+			. ' }'
+			 // Close modal + cancel rendering
+			. ' function closeModal() {'
+			. '  var modal = document.getElementById("skwirrel-log-modal");'
+			. '  if (modal) modal.style.display = "none";'
+			. '  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }'
+			. ' }'
+			. ' document.addEventListener("click", function(e) {'
+			. '  if (e.target.id === "skwirrel-log-modal" || e.target.closest(".skw-modal-close")) closeModal();'
 			. ' });'
+			. ' document.addEventListener("keydown", function(e) { if (e.key === "Escape") closeModal(); });'
 			. '})();'
 		);
 

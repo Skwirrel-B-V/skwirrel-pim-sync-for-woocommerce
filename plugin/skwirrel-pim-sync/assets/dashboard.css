@@ -1052,6 +1052,53 @@
 	tab-size: 4;
 }
 
+/* Modal header actions (download, progress) */
+.skw-modal-actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.skw-log-progress {
+	font-size: 11px;
+	color: #6c7086;
+	font-family: ui-monospace, "SF Mono", Monaco, "Cascadia Code", monospace;
+}
+
+.skw-btn-log-download {
+	font-size: 11px !important;
+	padding: 2px 10px !important;
+	color: #cdd6f4 !important;
+	background: #313244 !important;
+	border-color: #45475a !important;
+}
+
+.skw-btn-log-download:hover {
+	background: #45475a !important;
+	color: #fff !important;
+}
+
+/* Modal footer (load more) */
+.skw-modal-footer {
+	padding: 8px 20px;
+	border-top: 1px solid #313244;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.skw-modal-footer .button {
+	font-size: 11px !important;
+	color: #cdd6f4 !important;
+	background: #313244 !important;
+	border-color: #45475a !important;
+}
+
+.skw-modal-footer .button:hover {
+	background: #45475a !important;
+}
+
 /* Log level coloring */
 #skwirrel-log-content .skw-log-ts { color: #585b70; }
 #skwirrel-log-content .skw-log-info { color: #89b4fa; }

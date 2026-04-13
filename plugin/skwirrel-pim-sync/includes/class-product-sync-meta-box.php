@@ -118,31 +118,6 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 						?>
 					</p>
 				<?php endif; ?>
-				<?php
-				// List child variations with edit links.
-				$variation_ids = wc_get_products(
-					[
-						'parent' => $post->ID,
-						'type'   => 'variation',
-						'limit'  => 50,
-						'return' => 'ids',
-					]
-				);
-				if ( ! empty( $variation_ids ) ) :
-					?>
-					<p><strong><?php esc_html_e( 'Variations:', 'skwirrel-pim-sync' ); ?></strong></p>
-					<ul style="margin: 4px 0 8px; padding-left: 16px; list-style: disc;">
-						<?php foreach ( $variation_ids as $vid ) : ?>
-							<?php
-							$v_product = wc_get_product( $vid );
-							$v_label   = $v_product ? $v_product->get_sku() : '#' . $vid;
-							?>
-							<li>
-								<a href="<?php echo esc_url( get_edit_post_link( $vid ) ?? '' ); ?>"><?php echo esc_html( $v_label ); ?></a>
-							</li>
-						<?php endforeach; ?>
-					</ul>
-				<?php endif; ?>
 				<p>
 					<button type="button" class="button button-primary" id="skwirrel-sync-product-btn">
 						<?php esc_html_e( 'Sync this product', 'skwirrel-pim-sync' ); ?>
@@ -150,6 +125,9 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 					<span class="spinner" id="skwirrel-sync-spinner" style="float: none; margin-top: 0;"></span>
 				</p>
 				<div id="skwirrel-sync-result" style="display: none; margin-top: 8px;"></div>
+				<p class="description" style="margin-top: 8px;">
+					<a href="#skwirrel-api-response" onclick="document.getElementById('skwirrel-api-response').scrollIntoView({behavior:'smooth'});return false;"><?php esc_html_e( 'View API response', 'skwirrel-pim-sync' ); ?> &darr;</a>
+				</p>
 			</div>
 			<script>
 			(function() {

@@ -213,6 +213,28 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		} elseif ( null !== $price ) {
 			$wc_product->set_regular_price( (string) $price );
 			$wc_product->set_price( (string) $price );
+		} elseif ( ! empty( $this->get_options()['prices_managed_outside_skwirrel'] ) ) {
+			// No PIM price; prices are managed by an external system (e.g. ERP).
+			// Leave price fields untouched so the external sync's values survive.
+			$this->logger->verbose(
+				'Product has no PIM price, preserving existing (external price sync)',
+				[
+					'sku'        => $sku,
+					'product_id' => $product['product_id'] ?? '?',
+				]
+			);
+		} else {
+			// No price available - set to 0 and log warning.
+			$this->logger->warning(
+				'Product has no price, setting to 0',
+				[
+					'sku'             => $sku,
+					'product_id'      => $product['product_id'] ?? '?',
+					'has_trade_items' => ! empty( $product['_trade_items'] ?? [] ),
+				]
+			);
+			$wc_product->set_regular_price( '0' );
+			$wc_product->set_price( '0' );
 		}
 
 		$attrs = $this->mapper->get_attributes( $product );
@@ -1217,6 +1239,28 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		} elseif ( null !== $price ) {
 			$wc_product->set_regular_price( (string) $price );
 			$wc_product->set_price( (string) $price );
+		} elseif ( ! empty( $this->get_options()['prices_managed_outside_skwirrel'] ) ) {
+			// No PIM price; prices are managed by an external system (e.g. ERP).
+			// Leave price fields untouched so the external sync's values survive.
+			$this->logger->verbose(
+				'Product has no PIM price, preserving existing (external price sync)',
+				[
+					'sku'        => $sku,
+					'product_id' => $product['product_id'] ?? '?',
+				]
+			);
+		} else {
+			// No price available - set to 0 and log warning.
+			$this->logger->warning(
+				'Product has no price, setting to 0',
+				[
+					'sku'             => $sku,
+					'product_id'      => $product['product_id'] ?? '?',
+					'has_trade_items' => ! empty( $product['_trade_items'] ?? [] ),
+				]
+			);
+			$wc_product->set_regular_price( '0' );
+			$wc_product->set_price( '0' );
 		}
 
 		$wc_product->save();
