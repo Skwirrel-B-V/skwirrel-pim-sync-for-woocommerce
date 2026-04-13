@@ -1534,3 +1534,43 @@ msgstr "Schakel schone variatie-URLs in"
 #: includes/class-permalink-settings.php
 msgid "When enabled, variations are accessible at /product/{product-slug}/{variation-slug}/. Requires variation slugs to be generated during sync."
 msgstr "Indien ingeschakeld zijn variaties bereikbaar op /product/{product-slug}/{variatie-slug}/. Vereist dat variatie-slugs worden gegenereerd tijdens de sync."
+
+#: includes/class-admin-dashboard.php:110
+msgid "Download"
+msgstr "Downloaden"
+
+#: includes/class-admin-dashboard.php:110
+msgid "Download log file"
+msgstr "Logbestand downloaden"
+
+#: includes/class-admin-dashboard.php:114
+msgid "Load more"
+msgstr "Meer laden"
+
+#: includes/class-admin-settings.php
+msgid "lines"
+msgstr "regels"
+
+#: includes/class-admin-settings.php
+msgid "Loading…"
+msgstr "Laden…"
+
+#: includes/class-admin-settings.php
+msgid "Could not load log"
+msgstr "Kan logbestand niet laden"
+
+#: includes/class-admin-settings.php
+msgid "Network error"
+msgstr "Netwerkfout"
+
+#: includes/class-admin-settings.php
+msgid "Security check failed."
+msgstr "Beveiligingscontrole mislukt."
+
+#: includes/class-admin-settings.php
+msgid "Invalid filename."
+msgstr "Ongeldige bestandsnaam."
+
+#: includes/class-admin-settings.php
+msgid "Log file not found."
+msgstr "Logbestand niet gevonden."

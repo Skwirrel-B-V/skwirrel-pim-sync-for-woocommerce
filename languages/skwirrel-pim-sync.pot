@@ -1137,3 +1137,43 @@ msgstr ""
 #: includes/class-permalink-settings.php
 msgid "When enabled, variations are accessible at /product/{product-slug}/{variation-slug}/. Requires variation slugs to be generated during sync."
 msgstr ""
+
+#: includes/class-admin-dashboard.php:110
+msgid "Download"
+msgstr ""
+
+#: includes/class-admin-dashboard.php:110
+msgid "Download log file"
+msgstr ""
+
+#: includes/class-admin-dashboard.php:114
+msgid "Load more"
+msgstr ""
+
+#: includes/class-admin-settings.php
+msgid "lines"
+msgstr ""
+
+#: includes/class-admin-settings.php
+msgid "Loading…"
+msgstr ""
+
+#: includes/class-admin-settings.php
+msgid "Could not load log"
+msgstr ""
+
+#: includes/class-admin-settings.php
+msgid "Network error"
+msgstr ""
+
+#: includes/class-admin-settings.php
+msgid "Security check failed."
+msgstr ""
+
+#: includes/class-admin-settings.php
+msgid "Invalid filename."
+msgstr ""
+
+#: includes/class-admin-settings.php
+msgid "Log file not found."
+msgstr ""

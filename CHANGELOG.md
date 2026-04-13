@@ -2,6 +2,13 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.1.0]
+
+* **Log viewer performance** — log modal now renders progressively in batches of 200 lines via `requestAnimationFrame`, eliminating UI freezes on large logs
+* **Download button** — new download button in the log modal header for direct raw log file download
+* **Chunked server loading** — log viewer loads 100 KB at a time with a "Load more" button for the remainder, reducing initial payload by 80%
+* **Progress indicator** — shows line rendering progress in the modal header during log display
+
 ## [3.0.0]
 
 * **Virtual product content** — variable products now inherit name, descriptions, categories, and brands from their virtual product (when available), replacing the raw grouped product code

@@ -105,9 +105,16 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<div class="skw-modal-content">
 					<div class="skw-modal-header">
 						<h3 class="skw-modal-title" id="skwirrel-log-title"><?php esc_html_e( 'Sync Log', 'skwirrel-pim-sync' ); ?></h3>
-						<button type="button" class="skw-modal-close">&times;</button>
+						<div class="skw-modal-actions">
+							<span id="skwirrel-log-progress" class="skw-log-progress" style="display:none;"></span>
+							<button type="button" class="skw-btn-log-download" id="skwirrel-log-download" title="<?php esc_attr_e( 'Download log file', 'skwirrel-pim-sync' ); ?>"><?php esc_html_e( 'Download', 'skwirrel-pim-sync' ); ?></button>
+							<button type="button" class="skw-modal-close">&times;</button>
+						</div>
 					</div>
 					<pre id="skwirrel-log-content"></pre>
+					<div id="skwirrel-log-footer" class="skw-modal-footer" style="display:none;">
+						<button type="button" class="skw-btn skw-btn-secondary" id="skwirrel-log-load-more"><?php esc_html_e( 'Load more', 'skwirrel-pim-sync' ); ?></button>
+					</div>
 				</div>
 			</div>
 		</div>
