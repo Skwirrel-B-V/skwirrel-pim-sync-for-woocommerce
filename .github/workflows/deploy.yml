@@ -38,35 +38,35 @@ jobs:
 
       - name: Check plugin header version
         run: |
-          HEADER_VERSION=$(grep -oP '^\s*\*\s*Version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' skwirrel-pim-sync/skwirrel-pim-sync.php | head -1)
+          HEADER_VERSION=$(grep -oP '^\s*\*\s*Version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' plugin/skwirrel-pim-sync/skwirrel-pim-sync.php | head -1)
           echo "Plugin header Version: $HEADER_VERSION"
           if [[ "$HEADER_VERSION" != "${{ steps.resolve.outputs.version }}" ]]; then
-            echo "::error file=skwirrel-pim-sync/skwirrel-pim-sync.php::Plugin header Version ($HEADER_VERSION) does not match release version (${{ steps.resolve.outputs.version }})"
+            echo "::error file=plugin/skwirrel-pim-sync/skwirrel-pim-sync.php::Plugin header Version ($HEADER_VERSION) does not match release version (${{ steps.resolve.outputs.version }})"
             exit 1
           fi
 
       - name: Check SKWIRREL_WC_SYNC_VERSION constant
         run: |
-          CONST_VERSION=$(grep -oP "SKWIRREL_WC_SYNC_VERSION', '\K[0-9]+\.[0-9]+\.[0-9]+" skwirrel-pim-sync/skwirrel-pim-sync.php | head -1)
+          CONST_VERSION=$(grep -oP "SKWIRREL_WC_SYNC_VERSION', '\K[0-9]+\.[0-9]+\.[0-9]+" plugin/skwirrel-pim-sync/skwirrel-pim-sync.php | head -1)
           echo "SKWIRREL_WC_SYNC_VERSION constant: $CONST_VERSION"
           if [[ "$CONST_VERSION" != "${{ steps.resolve.outputs.version }}" ]]; then
-            echo "::error file=skwirrel-pim-sync/skwirrel-pim-sync.php::SKWIRREL_WC_SYNC_VERSION constant ($CONST_VERSION) does not match release version (${{ steps.resolve.outputs.version }})"
+            echo "::error file=plugin/skwirrel-pim-sync/skwirrel-pim-sync.php::SKWIRREL_WC_SYNC_VERSION constant ($CONST_VERSION) does not match release version (${{ steps.resolve.outputs.version }})"
             exit 1
           fi
 
       - name: Check readme.txt Stable tag
         run: |
-          STABLE_TAG=$(grep -oP '^Stable tag:\s*\K[0-9]+\.[0-9]+\.[0-9]+' skwirrel-pim-sync/readme.txt | head -1)
+          STABLE_TAG=$(grep -oP '^Stable tag:\s*\K[0-9]+\.[0-9]+\.[0-9]+' plugin/skwirrel-pim-sync/readme.txt | head -1)
           echo "readme.txt Stable tag: $STABLE_TAG"
           if [[ "$STABLE_TAG" != "${{ steps.resolve.outputs.version }}" ]]; then
-            echo "::error file=skwirrel-pim-sync/readme.txt::readme.txt Stable tag ($STABLE_TAG) does not match release version (${{ steps.resolve.outputs.version }})"
+            echo "::error file=plugin/skwirrel-pim-sync/readme.txt::readme.txt Stable tag ($STABLE_TAG) does not match release version (${{ steps.resolve.outputs.version }})"
             exit 1
           fi
 
       - name: Check changelog entry exists in readme.txt
         run: |
-          if ! grep -q "^= ${{ steps.resolve.outputs.version }} =" skwirrel-pim-sync/readme.txt; then
-            echo "::error file=skwirrel-pim-sync/readme.txt::No changelog entry '= ${{ steps.resolve.outputs.version }} =' found in readme.txt"
+          if ! grep -q "^= ${{ steps.resolve.outputs.version }} =" plugin/skwirrel-pim-sync/readme.txt; then
+            echo "::error file=plugin/skwirrel-pim-sync/readme.txt::No changelog entry '= ${{ steps.resolve.outputs.version }} =' found in readme.txt"
             exit 1
           fi
           echo "Changelog entry for ${{ steps.resolve.outputs.version }} found."
@@ -89,8 +89,8 @@ jobs:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
           SLUG: skwirrel-pim-sync
-          BUILD_DIR: ./skwirrel-pim-sync
-          ASSETS_DIR: ./assets
+          BUILD_DIR: ./plugin/skwirrel-pim-sync
+          ASSETS_DIR: ./plugin/assets
           VERSION: ${{ needs.verify-version.outputs.version }}
 
       - name: Upload built ZIP as workflow artifact
