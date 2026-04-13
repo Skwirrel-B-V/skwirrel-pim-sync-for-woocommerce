@@ -1,0 +1,144 @@
+name: Deploy to WordPress.org
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (e.g. 3.2.3) — must already match plugin header, constant, and readme.txt Stable tag'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  verify-version:
+    name: Verify version consistency
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version from tag or input
+        id: resolve
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved release version: $VERSION"
+
+      - name: Check plugin header version
+        run: |
+          HEADER_VERSION=$(grep -oP '^\s*\*\s*Version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' skwirrel-pim-sync/skwirrel-pim-sync.php | head -1)
+          echo "Plugin header Version: $HEADER_VERSION"
+          if [[ "$HEADER_VERSION" != "${{ steps.resolve.outputs.version }}" ]]; then
+            echo "::error file=skwirrel-pim-sync/skwirrel-pim-sync.php::Plugin header Version ($HEADER_VERSION) does not match release version (${{ steps.resolve.outputs.version }})"
+            exit 1
+          fi
+
+      - name: Check SKWIRREL_WC_SYNC_VERSION constant
+        run: |
+          CONST_VERSION=$(grep -oP "SKWIRREL_WC_SYNC_VERSION', '\K[0-9]+\.[0-9]+\.[0-9]+" skwirrel-pim-sync/skwirrel-pim-sync.php | head -1)
+          echo "SKWIRREL_WC_SYNC_VERSION constant: $CONST_VERSION"
+          if [[ "$CONST_VERSION" != "${{ steps.resolve.outputs.version }}" ]]; then
+            echo "::error file=skwirrel-pim-sync/skwirrel-pim-sync.php::SKWIRREL_WC_SYNC_VERSION constant ($CONST_VERSION) does not match release version (${{ steps.resolve.outputs.version }})"
+            exit 1
+          fi
+
+      - name: Check readme.txt Stable tag
+        run: |
+          STABLE_TAG=$(grep -oP '^Stable tag:\s*\K[0-9]+\.[0-9]+\.[0-9]+' skwirrel-pim-sync/readme.txt | head -1)
+          echo "readme.txt Stable tag: $STABLE_TAG"
+          if [[ "$STABLE_TAG" != "${{ steps.resolve.outputs.version }}" ]]; then
+            echo "::error file=skwirrel-pim-sync/readme.txt::readme.txt Stable tag ($STABLE_TAG) does not match release version (${{ steps.resolve.outputs.version }})"
+            exit 1
+          fi
+
+      - name: Check changelog entry exists in readme.txt
+        run: |
+          if ! grep -q "^= ${{ steps.resolve.outputs.version }} =" skwirrel-pim-sync/readme.txt; then
+            echo "::error file=skwirrel-pim-sync/readme.txt::No changelog entry '= ${{ steps.resolve.outputs.version }} =' found in readme.txt"
+            exit 1
+          fi
+          echo "Changelog entry for ${{ steps.resolve.outputs.version }} found."
+
+  deploy:
+    name: Deploy to WordPress.org SVN
+    needs: verify-version
+    runs-on: ubuntu-latest
+    environment: wordpress-org
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: WordPress Plugin Deploy
+        id: deploy
+        uses: 10up/action-wordpress-plugin-deploy@stable
+        with:
+          generate-zip: true
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          SLUG: skwirrel-pim-sync
+          BUILD_DIR: ./skwirrel-pim-sync
+          ASSETS_DIR: ./assets
+          VERSION: ${{ needs.verify-version.outputs.version }}
+
+      - name: Upload built ZIP as workflow artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skwirrel-pim-sync-${{ needs.verify-version.outputs.version }}
+          path: ${{ github.workspace }}/skwirrel-pim-sync.zip
+          if-no-files-found: warn
+
+  notify-failure:
+    name: Open issue on deploy failure
+    needs: [verify-version, deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve version (best effort)
+        id: ver
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create failure issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.ver.outputs.version }}';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Release ${version} failed to deploy to WordPress.org`,
+              body: [
+                `The deploy workflow for version **${version}** failed.`,
+                ``,
+                `**Workflow run:** ${runUrl}`,
+                ``,
+                `### Common causes`,
+                ``,
+                `- Version mismatch between plugin header / SKWIRREL_WC_SYNC_VERSION constant / readme.txt Stable tag / git tag`,
+                `- Missing changelog entry in readme.txt for this version (\`= ${version} =\`)`,
+                `- SVN credentials missing or rotated — check the \`SVN_USERNAME\` and \`SVN_PASSWORD\` secrets`,
+                `- WordPress.org rejected the upload (e.g. duplicate version already exists in SVN)`,
+                ``,
+                `Check the workflow logs at the link above for the exact failure reason.`,
+              ].join('\n'),
+              labels: ['release-failure'],
+            });

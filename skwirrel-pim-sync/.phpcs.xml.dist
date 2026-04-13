@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<ruleset name="Skwirrel PIM sync for WooCommerce">
+    <description>Code style rules for Skwirrel PIM sync for WooCommerce plugin.</description>
+
+    <!-- Scan these files -->
+    <file>skwirrel-pim-sync.php</file>
+    <file>includes/</file>
+
+    <!-- Exclude vendor -->
+    <exclude-pattern>vendor/</exclude-pattern>
+    <exclude-pattern>tests/</exclude-pattern>
+    <exclude-pattern>node_modules/</exclude-pattern>
+
+    <!-- Use WordPress Extra standard (includes Core + Docs subset) -->
+    <rule ref="WordPress-Extra">
+        <!-- Allow short array syntax [] instead of array() -->
+        <exclude name="Universal.Arrays.DisallowShortArraySyntax"/>
+        <!-- Project convention: lowercase-hyphenated class file names (class-foo.php) instead of WordPress's class-foo-bar-baz.php -->
+        <exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+        <!-- Project convention: do not enforce Yoda conditions -->
+        <exclude name="WordPress.PHP.YodaConditions.NotYoda"/>
+        <!-- Plugin defines its own custom capability ("manage_woocommerce") and other WC caps -->
+        <exclude name="WordPress.WP.Capabilities.Unknown"/>
+        <!-- camelCase variables are used in places where they map to JSON-RPC API field names -->
+        <exclude name="WordPress.NamingConventions.ValidVariableName.VariableNotSnakeCase"/>
+    </rule>
+
+    <!-- Check text domain -->
+    <rule ref="WordPress.WP.I18n">
+        <properties>
+            <property name="text_domain" type="array">
+                <element value="skwirrel-pim-sync"/>
+            </property>
+        </properties>
+    </rule>
+
+    <!-- Minimum supported WordPress version -->
+    <config name="minimum_wp_version" value="6.0"/>
+
+    <!-- PHP compatibility -->
+    <arg name="extensions" value="php"/>
+    <arg value="sp"/>
+    <arg name="colors"/>
+</ruleset>

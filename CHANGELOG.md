@@ -2,6 +2,28 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.2.2]
+
+* **Prices managed outside Skwirrel** — new setting (Advanced section, default off) for installations where product prices are synced from a separate system (e.g. an ERP). When enabled, the PIM sync no longer overwrites existing variation prices with `0` if the PIM payload contains no trade-item price; the existing price (set by the external system) is preserved. The `price_on_request` flag is still honoured when present in the PIM payload. Simple-product paths are unaffected — they already only update prices when one is provided.
+
+## [3.2.1]
+
+* **Single-variant groups as simple products** — grouped products with only 1 variant are now synced as simple products instead of variable products with a single variation
+* **Custom features as variation axes** — grouped products can now use custom features (from `getGroupedProducts` `include_custom_features`) to define variation attributes, alongside ETIM features
+* **Custom feature matching by ID** — variation attributes are matched by `custom_feature_id` (as per API schema), with labels resolved from product-level translations in Phase 3
+* **Attribute label auto-update** — `maybe_update_attribute_label()` now also replaces numeric IDs and `cc_` prefixed labels with proper translated names
+* **No duplicate attributes** — custom feature variation-axis attributes are correctly excluded from regular product attributes to prevent duplication
+* **Phase 3 custom class fetch** — `include_custom_classes` is now included in the Phase 3 per-product attribute fetch when grouped products are enabled, ensuring custom feature values are available for variation attribute assignment
+* Fix PHPDoc issues in `apply_virtual_product_content()` (parameter names, type hints)
+
+## [3.2.0]
+
+* **Custom class collection ID** — new required setting that passes `include_custom_collection_id` to the API when fetching products
+* **Custom classes in bulk fetch** — custom class data is now included in the main product fetch instead of a separate Phase 3 call
+* **Text features as attributes** — custom class type T (text) features are now stored as visible product attributes instead of hidden meta
+* **GTIN / Variant visibility** — new checkboxes to show or hide GTIN and Variant as product attributes (default: hidden)
+* Sync aborts with a clear error when custom class collection ID is not configured
+
 ## [3.0.0]
 
 * **Virtual product content** — variable products now inherit name, descriptions, categories, and brands from their virtual product (when available), replacing the raw grouped product code

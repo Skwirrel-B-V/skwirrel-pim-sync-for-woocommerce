@@ -1,0 +1,1076 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Method Skwirrel_WC_Sync_Action_Scheduler\:\:add_cron_schedules\(\) has parameter \$schedules with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-action-scheduler.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Action_Scheduler\:\:add_cron_schedules\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-action-scheduler.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Action_Scheduler\:\:get_interval_options\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-action-scheduler.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Action_Scheduler\:\:run_scheduled_sync\(\) has parameter \$args with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-action-scheduler.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Admin_Dashboard\:\:render_history_table\(\) has parameter \$entries with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-admin-dashboard.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Admin_Settings\:\:on_settings_updated\(\) has parameter \$old_value with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: includes/class-admin-settings.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Admin_Settings\:\:on_settings_updated\(\) has parameter \$option with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: includes/class-admin-settings.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Admin_Settings\:\:on_settings_updated\(\) has parameter \$value with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: includes/class-admin-settings.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Admin_Settings\:\:sanitize_settings\(\) has parameter \$input with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-admin-settings.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Admin_Settings\:\:sanitize_settings\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-admin-settings.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Attachment_Handler\:\:get_attachment_meta_for_language\(\) has parameter \$att with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-attachment-handler.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Attachment_Handler\:\:get_attachment_meta_for_language\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-attachment-handler.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Attachment_Handler\:\:get_document_attachments\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-attachment-handler.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Attachment_Handler\:\:get_downloadable_files\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-attachment-handler.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Attachment_Handler\:\:get_downloadable_files\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-attachment-handler.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Attachment_Handler\:\:get_image_attachment_ids\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-attachment-handler.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Attachment_Handler\:\:get_image_attachment_ids\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-attachment-handler.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Brand_Sync\:\:assign_brand\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-brand-sync.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Brand_Sync\:\:assign_manufacturer\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-brand-sync.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Category_Sync\:\:assign_categories\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-category-sync.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Category_Sync\:\:fetch_categories_for_super\(\) has parameter \$flat with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-category-sync.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Category_Sync\:\:fetch_categories_for_super\(\) has parameter \$languages with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-category-sync.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Category_Sync\:\:flatten_category_tree\(\) has parameter \$categories with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-category-sync.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Category_Sync\:\:flatten_category_tree\(\) has parameter \$flat with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-category-sync.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Category_Sync\:\:pick_category_name\(\) has parameter \$cat with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-category-sync.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Category_Sync\:\:sync_category_tree\(\) has parameter \$languages with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-category-sync.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Category_Sync\:\:sync_category_tree\(\) has parameter \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-category-sync.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:collect_custom_classes\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:collect_custom_classes\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:filter_custom_classes\(\) has parameter \$classes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:filter_custom_classes\(\) has parameter \$filter_codes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:filter_custom_classes\(\) has parameter \$filter_ids with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:filter_custom_classes\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:format_custom_feature_value\(\) has parameter \$feat with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:get_attribute_visibility_map\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:get_attribute_visibility_map\(\) has parameter \$sync_filter_codes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:get_attribute_visibility_map\(\) has parameter \$sync_filter_ids with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:get_attribute_visibility_map\(\) has parameter \$vis_codes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:get_attribute_visibility_map\(\) has parameter \$vis_ids with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:get_custom_class_attributes\(\) has parameter \$filter_codes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:get_custom_class_attributes\(\) has parameter \$filter_ids with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:get_custom_class_attributes\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:get_custom_class_text_meta\(\) has parameter \$filter_codes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:get_custom_class_text_meta\(\) has parameter \$filter_ids with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:get_custom_class_text_meta\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:pick_custom_translation\(\) has parameter \$translations with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:pick_custom_value_translation\(\) has parameter \$value with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Custom_Class_Extractor\:\:resolve_custom_unit\(\) has parameter \$feat with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-custom-class-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Delete_Protection\:\:modify_category_row_actions\(\) has parameter \$actions with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-delete-protection.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Delete_Protection\:\:modify_category_row_actions\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-delete-protection.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Delete_Protection\:\:modify_product_row_actions\(\) has parameter \$actions with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-delete-protection.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Delete_Protection\:\:modify_product_row_actions\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-delete-protection.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:collect_etim_items\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:collect_etim_items\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:find_etim_features_recursive\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:find_etim_features_recursive\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:format_etim_feature_value\(\) has parameter \$feat with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:get_etim_attributes\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:get_etim_attributes\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:get_etim_feature_values_for_codes\(\) has parameter \$etim_codes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:get_etim_feature_values_for_codes\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:get_etim_feature_values_for_codes\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:normalize_etim_features\(\) has parameter \$features with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:normalize_etim_features\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:normalize_etim_translations\(\) has parameter \$trans with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:normalize_etim_translations\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:pick_etim_translation\(\) has parameter \$translations with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Etim_Extractor\:\:resolve_etim_feature_label\(\) has parameter \$feature with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-etim-extractor.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_JsonRpc_Client\:\:test_connection\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-jsonrpc-client.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Logger\:\:debug\(\) has parameter \$context with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-logger.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Logger\:\:error\(\) has parameter \$context with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-logger.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Logger\:\:info\(\) has parameter \$context with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-logger.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Logger\:\:log\(\) has parameter \$context with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-logger.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Logger\:\:verbose\(\) has parameter \$context with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-logger.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Logger\:\:warning\(\) has parameter \$context with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-logger.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Documents\:\:add_product_tab\(\) has parameter \$tabs with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-documents.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Documents\:\:add_product_tab\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-documents.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Documents\:\:get_documents_for_product\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-documents.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:extract_ancestor_chain\(\) has parameter \$cat with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:extract_ancestor_chain\(\) has parameter \$categories with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_attributes\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_attributes\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_categories\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_categories\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_category_names\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_category_names\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_custom_class_attribute_visibility\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_custom_class_attribute_visibility\(\) has parameter \$sync_filter_codes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_custom_class_attribute_visibility\(\) has parameter \$sync_filter_ids with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_custom_class_attribute_visibility\(\) has parameter \$vis_codes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_custom_class_attribute_visibility\(\) has parameter \$vis_ids with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_custom_class_attributes\(\) has parameter \$filter_codes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_custom_class_attributes\(\) has parameter \$filter_ids with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_custom_class_attributes\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_custom_class_attributes\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_custom_class_text_meta\(\) has parameter \$filter_codes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_custom_class_text_meta\(\) has parameter \$filter_ids with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_custom_class_text_meta\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_custom_class_text_meta\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_document_attachments\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_document_attachments\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_downloadable_files\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_downloadable_files\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_etim_feature_values_for_codes\(\) has parameter \$etim_codes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_etim_feature_values_for_codes\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_etim_feature_values_for_codes\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_image_attachment_ids\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_image_attachment_ids\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_long_description\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_name\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_price\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_regular_price\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_short_description\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_sku\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_status\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_unique_key\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:is_price_on_request\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:parse_custom_class_filter\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:pick_category_translation\(\) has parameter \$cat with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:pick_translation\(\) has parameter \$translations with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:pick_translation\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:resolve_etim_feature_label\(\) has parameter \$feature with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-mapper.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:assign_attributes\(\) has parameter \$group_info with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:assign_attributes\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:assign_media\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:assign_taxonomy\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:build_cc_visibility_map\(\) has parameter \$cc_options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:build_cc_visibility_map\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:create_or_update_product\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:create_or_update_variation\(\) has parameter \$group_info with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:create_or_update_variation\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:create_variable_product_from_group\(\) has parameter \$group with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:create_variable_product_from_group\(\) has parameter \$product_to_group_map with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:format_downloads\(\) has parameter \$files with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:format_downloads\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:get_options\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:get_variant_label\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:sync_grouped_products_first\(\) has parameter \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:sync_grouped_products_first\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:upsert_product\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:upsert_product_as_variation\(\) has parameter \$group_info with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:upsert_product_as_variation\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:write_variation_debug\(\) has parameter \$etim_codes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:write_variation_debug\(\) has parameter \$etim_values with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:write_variation_debug\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:write_variation_debug\(\) has parameter \$variation_attrs with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-product-upserter.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Slug_Resolver\:\:get_settings\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-slug-resolver.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Slug_Resolver\:\:resolve\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-slug-resolver.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Slug_Resolver\:\:resolve_for_group\(\) has parameter \$group with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-slug-resolver.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Slug_Resolver\:\:resolve_group_raw_value\(\) has parameter \$group with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-slug-resolver.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Slug_Resolver\:\:resolve_raw_value\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-slug-resolver.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Slug_Resolver\:\:resolve_unique\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-slug-resolver.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Slug_Resolver\:\:resolve_unique\(\) has parameter \$opts with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-slug-resolver.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_History\:\:add_history_entry\(\) has parameter \$entry with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-history.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_History\:\:append_to_history\(\) has parameter \$entry with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-history.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_History\:\:delete_log_files_for_entries\(\) has parameter \$entries with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-history.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_History\:\:get_last_result\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-history.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_History\:\:get_sync_history\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-history.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_History\:\:get_sync_progress\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-history.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Service\:\:fetch_product_attributes\(\) has parameter \$attr_includes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Service\:\:fetch_product_attributes\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Service\:\:fetch_product_attributes\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Service\:\:fetch_products_page\(\) has parameter \$api_includes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Service\:\:fetch_products_page\(\) has parameter \$filter with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Service\:\:fetch_products_page\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Service\:\:get_collection_ids\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Service\:\:get_include_languages\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Service\:\:get_options\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Service\:\:upsert_product\(\) has parameter \$product with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Variable \$created might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Variable \$failed might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Variable \$updated might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: includes/class-sync-service.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Taxonomy_Manager\:\:sync_all_custom_classes\(\) has parameter \$languages with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-taxonomy-manager.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Taxonomy_Manager\:\:sync_all_custom_classes\(\) has parameter \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-taxonomy-manager.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Variation_Attributes_Fix\:\:ensure_attributes_from_meta\(\) has parameter \$attributes with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-variation-attributes-fix.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Variation_Attributes_Fix\:\:ensure_attributes_from_meta\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-variation-attributes-fix.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Variation_Attributes_Fix\:\:fix_rest_response_attributes\(\) has parameter \$object with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: includes/class-variation-attributes-fix.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Variation_Attributes_Fix\:\:get_attributes_from_meta\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-variation-attributes-fix.php
+
+		-
+			message: '#^Method Skwirrel_WC_Sync_Variation_Attributes_Fix\:\:get_attributes_from_meta_only\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: includes/class-variation-attributes-fix.php

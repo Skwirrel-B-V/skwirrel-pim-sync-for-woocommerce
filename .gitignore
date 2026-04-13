@@ -25,5 +25,10 @@ phpunit.xml
 .phpunit.cache/
 .pest/
 
-# Node (if ever added)
+# Node (wp-env)
 node_modules/
+package-lock.json
+
+# wp-env local overrides + uploads fixture dir
+.wp-env.override.json
+tests/fixtures/uploads/

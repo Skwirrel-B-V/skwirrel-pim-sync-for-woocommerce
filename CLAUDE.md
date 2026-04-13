@@ -146,13 +146,32 @@ Authentication: Bearer token or `X-Skwirrel-Api-Token` header.
 
 ```bash
 # All three must pass before committing:
-vendor/bin/pest            # Unit tests
+vendor/bin/pest            # Unit tests (stub bootstrap, no Docker)
 vendor/bin/phpstan analyse # Static analysis (level 6)
 vendor/bin/phpcs           # Code style (WordPress standards)
 
 # Auto-fix code style issues:
 vendor/bin/phpcbf
 ```
+
+### Integration tests (wp-env)
+
+Integration tests run against a real WordPress + WooCommerce stack inside
+Docker via `@wordpress/env`. They live in `tests/Integration/` and use the
+real `$wpdb`, real WC data stores, and real term/post APIs.
+
+```bash
+npm install            # one-time
+npm run env:start      # boot wp-env (Docker)
+npm run composer:install  # install composer deps inside the tests container
+npm run test:integration  # run tests/Integration/* against real WP
+
+# Stop / reset
+npm run env:stop
+npm run env:clean      # drop both DBs
+```
+
+See `tests/Integration/README.md` for the full guide.
 
 ## Development Notes
 
@@ -164,4 +183,6 @@ vendor/bin/phpcbf
 - See `ASSUMPTIONS.md` for design decisions where the Skwirrel API docs were ambiguous
 - Static analysis: `vendor/bin/phpstan analyse` (config in `phpstan.neon.dist`)
 - Code style: `vendor/bin/phpcs` (config in `.phpcs.xml.dist`)
-- Tests: `vendor/bin/pest` (Pest PHP, config in `phpunit.xml.dist`)
+- Unit tests: `vendor/bin/pest` (Pest PHP, config in `phpunit.xml.dist`, stub bootstrap in `tests/bootstrap.php`)
+- Integration tests: `npm run test:integration` (Pest + real WP via wp-env, config in `phpunit-integration.xml.dist`, bootstrap in `tests/Integration/bootstrap.php`)
+- Local environment: `.wp-env.json` provisions WordPress 6.6 + WooCommerce + this plugin in Docker. See `tests/Integration/README.md`.

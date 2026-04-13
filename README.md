@@ -1,6 +1,6 @@
 # Skwirrel PIM sync for WooCommerce
 
-**Version 2.6.2** — WordPress plugin that synchronises products from the Skwirrel PIM system to WooCommerce via a JSON-RPC 2.0 API.
+**Version 3.2.2** — WordPress plugin that synchronises products from the Skwirrel PIM system to WooCommerce via a JSON-RPC 2.0 API.
 
 ## Description
 
@@ -151,38 +151,124 @@ The plugin includes translations for the following languages:
 
 ## Development
 
+### Repository structure
+
+This repository is laid out to mirror the WordPress.org SVN structure used by
+the automated deploy workflow:
+
+```
+plugin/                          ← git repo root
+├── .github/workflows/           ← CI + wp.org deploy workflows
+├── assets/                      ← wp.org store assets (banners, icons)
+│                                  → uploaded to SVN /assets/
+├── RELEASING.md                 ← release flow
+└── skwirrel-pim-sync/           ← the actual plugin code
+    │                              → uploaded to SVN /trunk/ + /tags/X.Y.Z/
+    ├── skwirrel-pim-sync.php    ← plugin bootstrap
+    ├── readme.txt               ← wp.org readme (Stable tag lives here)
+    ├── includes/                ← class files
+    ├── templates/               ← WooCommerce template overrides
+    ├── languages/               ← .pot / .po / .mo translation files
+    ├── tests/                   ← Pest unit + integration tests
+    ├── composer.json            ← dev dependencies
+    └── package.json             ← wp-env dev environment
+```
+
+All development commands below are run from inside `skwirrel-pim-sync/` unless
+noted otherwise.
+
 ### Prerequisites
 
+- **PHP 8.1+** with the standard WordPress extensions
+- **Composer 2.x**
+- **Node.js 18+** and **npm** (only needed for integration tests via wp-env)
+- **Docker Desktop** (only needed for integration tests via wp-env)
+
+### First-time setup
+
 ```bash
+# 1. Clone the repository
+git clone https://github.com/Skwirrel-B-V/skwirrel-pim-wp-sync.git plugin
+cd plugin/skwirrel-pim-sync
+
+# 2. Install PHP dev dependencies (Pest, PHPStan, PHPCS, WP stubs)
 composer install
+
+# 3. (Optional) Install Node deps for the wp-env Docker environment
+npm install
 ```
 
-### Running tests
+After step 2 you can run unit tests and static analysis. Step 3 is only
+required if you want to run integration tests against a real WordPress +
+WooCommerce stack.
+
+### Unit tests (fast, no Docker)
 
 ```bash
-vendor/bin/pest
+cd skwirrel-pim-sync
+vendor/bin/pest                  # all unit tests
+vendor/bin/pest --filter Mapper  # single test file / pattern
 ```
 
-### Static analysis
+Unit tests use a stub bootstrap (`tests/bootstrap.php`) and do not require
+WordPress or WooCommerce to be installed — they run in seconds.
+
+### Integration tests (wp-env + Docker)
+
+Integration tests run against a real WordPress + WooCommerce stack inside
+Docker. They exercise the real `$wpdb`, real WC data stores, and real term /
+post APIs.
 
 ```bash
-vendor/bin/phpstan analyse
+cd skwirrel-pim-sync
+npm run env:start           # boot WordPress + WooCommerce in Docker
+npm run composer:install    # install composer deps inside the tests container
+npm run test:integration    # run tests/Integration/* against real WP
+
+# Stop / reset
+npm run env:stop            # stop the container
+npm run env:clean           # drop both test DBs
+npm run env:destroy         # nuke everything
 ```
 
-### Code style
+Once wp-env is running you can log in to either instance with the default
+`@wordpress/env` credentials:
+
+| | URL | User | Password |
+|---|---|---|---|
+| Dev site | http://localhost:8888/wp-admin | `admin` | `password` |
+| Tests site | http://localhost:8889/wp-admin | `admin` | `password` |
+
+The wp-env instance is configured in `.wp-env.json` (WordPress 6.6 + PHP 8.1 +
+WooCommerce from the plugin directory). See `tests/Integration/README.md` for
+the full guide on writing integration tests.
+
+### Static analysis and code style
 
 ```bash
-vendor/bin/phpcs        # check
-vendor/bin/phpcbf       # auto-fix
+cd skwirrel-pim-sync
+vendor/bin/phpstan analyse       # PHPStan level 6
+vendor/bin/phpcs                 # WordPress coding standards
+vendor/bin/phpcbf                # auto-fix code style issues
 ```
 
-### Quality checks (run before every commit)
+### Pre-commit quality checks
+
+All three must pass before every commit. The CI workflow re-runs them on push
+and pull request.
 
 ```bash
-vendor/bin/pest            # Unit tests
-vendor/bin/phpstan analyse # Static analysis (level 6)
-vendor/bin/phpcs           # Code style (WordPress standards)
+cd skwirrel-pim-sync
+vendor/bin/pest              # Unit tests
+vendor/bin/phpstan analyse   # Static analysis (level 6)
+vendor/bin/phpcs             # Code style (WordPress standards)
 ```
+
+### Releasing
+
+Releases are automated. Push a git tag in the format `X.Y.Z` and the GitHub
+Actions deploy workflow publishes the plugin to the WordPress.org SVN repo.
+See [RELEASING.md](RELEASING.md) for the full step-by-step.
 
 ## License
 
