@@ -904,6 +904,330 @@ class Skwirrel_WC_Sync_Service {
 		}
 	}
 
+	/**
+	 * Sync a single grouped product (variable product) and all its member variations.
+	 *
+	 * Paginates through getGroupedProducts to find the group definition, then fetches
+	 * all member products via getProductsByFilter and upserts them as variations.
+	 *
+	 * @param int $grouped_product_id Skwirrel grouped_product_id.
+	 * @return array{success: bool, created?: int, updated?: int, failed?: int, error?: string}
+	 */
+	public function sync_single_grouped_product( int $grouped_product_id ): array {
+		$client = $this->get_client();
+		if ( ! $client ) {
+			return [
+				'success' => false,
+				'error'   => 'Invalid API configuration',
+			];
+		}
+
+		$options = $this->get_options();
+
+		$this->logger->info(
+			'Single grouped product sync: searching for group in API',
+			[ 'grouped_product_id' => $grouped_product_id ]
+		);
+
+		// Phase 1: Find the group definition by paginating through getGroupedProducts.
+		$group      = null;
+		$batch_size = (int) ( $options['batch_size'] ?? 10 );
+		$page       = 1;
+		$params     = [
+			'include_products'          => true,
+			'include_etim_features'     => true,
+			'include_etim_translations' => true,
+			'include_languages'         => $this->get_include_languages(),
+		];
+
+		do {
+			$params['page']  = $page;
+			$params['limit'] = $batch_size;
+			$result          = $client->call( 'getGroupedProducts', $params );
+
+			if ( ! $result['success'] ) {
+				$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
+				$this->logger->error(
+					'Single grouped product sync: getGroupedProducts failed',
+					[
+						'grouped_product_id' => $grouped_product_id,
+						'error'              => $err,
+					]
+				);
+				return [
+					'success' => false,
+					'error'   => $err['message'],
+				];
+			}
+
+			$data        = $result['result'] ?? [];
+			$groups      = $data['grouped_products'] ?? $data['groups'] ?? $data['products'] ?? [];
+			$page_info   = $data['page'] ?? [];
+			$total_pages = (int) ( $page_info['number_of_pages'] ?? 1 );
+			unset( $result, $data, $page_info );
+
+			if ( is_array( $groups ) ) {
+				foreach ( $groups as $g ) {
+					$gid = $g['grouped_product_id'] ?? $g['id'] ?? null;
+					if ( null !== $gid && (int) $gid === $grouped_product_id ) {
+						$group = $g;
+						break 2;
+					}
+				}
+			}
+
+			if ( $page >= $total_pages ) {
+				break;
+			}
+			++$page;
+		} while ( true );
+
+		if ( null === $group ) {
+			return [
+				'success' => false,
+				'error'   => 'Grouped product not found in Skwirrel API',
+			];
+		}
+
+		$this->logger->info(
+			'Single grouped product sync: group found, updating variable product shell',
+			[ 'grouped_product_id' => $grouped_product_id ]
+		);
+
+		// Phase 2: Update the variable product shell.
+		$product_to_group_map = [];
+		try {
+			$this->upserter->create_variable_product_from_group( $group, $product_to_group_map );
+		} catch ( Throwable $e ) {
+			$this->logger->error(
+				'Single grouped product sync: variable product creation failed',
+				[
+					'grouped_product_id' => $grouped_product_id,
+					'error'              => $e->getMessage(),
+				]
+			);
+			return [
+				'success' => false,
+				'error'   => $e->getMessage(),
+			];
+		}
+
+		// Phase 3: Collect member product IDs and fetch them from the API.
+		$member_product_ids = [];
+		$virtual_product_id = $group['virtual_product_id'] ?? null;
+		$members            = $group['_products'] ?? $group['products'] ?? [];
+		foreach ( $members as $item ) {
+			$pid = is_array( $item ) ? ( $item['product_id'] ?? null ) : (int) $item;
+			if ( null !== $pid ) {
+				$member_product_ids[] = (string) $pid;
+			}
+		}
+
+		// Include virtual product in fetch if present.
+		if ( $virtual_product_id && ! in_array( (string) $virtual_product_id, $member_product_ids, true ) ) {
+			$member_product_ids[] = (string) $virtual_product_id;
+		}
+
+		if ( empty( $member_product_ids ) ) {
+			$this->logger->info(
+				'Single grouped product sync: no member products in group',
+				[ 'grouped_product_id' => $grouped_product_id ]
+			);
+			return [
+				'success' => true,
+				'created' => 0,
+				'updated' => 0,
+				'failed'  => 0,
+			];
+		}
+
+		$req_options = [
+			'include_product_status'       => true,
+			'include_product_translations' => true,
+			'include_attachments'          => true,
+			'include_trade_items'          => true,
+			'include_trade_item_prices'    => true,
+			'include_categories'           => ! empty( $options['sync_categories'] ),
+			'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
+			'include_grouped_products'     => true,
+			'include_related_products'     => ! empty( $options['sync_related_products'] ),
+			'include_etim'                 => true,
+			'include_etim_translations'    => true,
+			'include_languages'            => $this->get_include_languages(),
+			'include_contexts'             => [ 1 ],
+		];
+		if ( ! empty( $options['sync_custom_classes'] ) ) {
+			$req_options['include_custom_classes'] = true;
+		}
+		if ( ! empty( $options['sync_trade_item_custom_classes'] ) ) {
+			$req_options['include_trade_item_custom_classes'] = true;
+		}
+
+		$this->logger->info(
+			'Single grouped product sync: fetching member products',
+			[
+				'grouped_product_id' => $grouped_product_id,
+				'member_count'       => count( $member_product_ids ),
+			]
+		);
+
+		$result = $client->call(
+			'getProductsByFilter',
+			[
+				'filter'  => [
+					'code' => [
+						'type'  => 'product_id',
+						'codes' => $member_product_ids,
+					],
+				],
+				'options' => $req_options,
+				'page'    => 1,
+				'limit'   => count( $member_product_ids ),
+			]
+		);
+
+		if ( ! $result['success'] ) {
+			$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
+			$this->logger->error(
+				'Single grouped product sync: member products fetch failed',
+				[
+					'grouped_product_id' => $grouped_product_id,
+					'error'              => $err,
+				]
+			);
+			return [
+				'success' => false,
+				'error'   => $err['message'],
+			];
+		}
+
+		$products = $result['result']['products'] ?? [];
+		unset( $result );
+
+		// Phase 4: Upsert each member product as a variation.
+		$created = 0;
+		$updated = 0;
+		$failed  = 0;
+
+		foreach ( $products as $product ) {
+			$skwirrel_product_id = $product['product_id'] ?? $product['id'] ?? null;
+
+			// Handle virtual product: apply content & media to the parent variable product.
+			if ( null !== $skwirrel_product_id && null !== $virtual_product_id
+				&& (int) $skwirrel_product_id === (int) $virtual_product_id
+			) {
+				$virtual_info = $product_to_group_map[ 'virtual:' . (int) $virtual_product_id ] ?? null;
+				if ( $virtual_info && ! empty( $virtual_info['wc_variable_id'] ) ) {
+					try {
+						if ( ! empty( $options['use_virtual_product_content'] ) ) {
+							$this->upserter->apply_virtual_product_content( (int) $virtual_info['wc_variable_id'], $product );
+						}
+						$this->upserter->assign_media( (int) $virtual_info['wc_variable_id'], $product );
+					} catch ( Throwable $e ) {
+						$this->logger->warning(
+							'Single grouped product sync: virtual product processing failed',
+							[ 'error' => $e->getMessage() ]
+						);
+					}
+				}
+				continue;
+			}
+
+			// Look up group_info for this product.
+			$group_info = null;
+			if ( null !== $skwirrel_product_id ) {
+				$group_info = $product_to_group_map[ (int) $skwirrel_product_id ] ?? null;
+			}
+			if ( ! $group_info ) {
+				$sku = (string) ( $product['internal_product_code'] ?? $product['manufacturer_product_code'] ?? '' );
+				if ( '' !== $sku ) {
+					$group_info = $product_to_group_map[ 'sku:' . $sku ] ?? null;
+				}
+			}
+
+			if ( ! $group_info ) {
+				$this->logger->warning(
+					'Single grouped product sync: product not in group map, skipping',
+					[ 'product_id' => $skwirrel_product_id ]
+				);
+				++$failed;
+				continue;
+			}
+
+			try {
+				$result_item = $this->upserter->create_or_update_variation( $product, $group_info );
+				$wc_id       = $result_item['wc_id'];
+				$outcome     = $result_item['outcome'];
+
+				if ( 'created' === $outcome ) {
+					++$created;
+				} elseif ( 'updated' === $outcome ) {
+					++$updated;
+				}
+
+				// Taxonomy: assign to parent variable product.
+				$tax_target = $group_info['wc_variable_id'] ?? $wc_id;
+				$this->upserter->assign_taxonomy( $tax_target, $product );
+
+				// Attributes.
+				$attr_includes = [];
+				if ( ! empty( $options['sync_custom_classes'] ) ) {
+					$attr_includes['include_custom_classes'] = true;
+				}
+				if ( ! empty( $options['sync_trade_item_custom_classes'] ) ) {
+					$attr_includes['include_trade_item_custom_classes'] = true;
+				}
+				if ( ! empty( $attr_includes ) ) {
+					$attr_includes['include_etim']              = true;
+					$attr_includes['include_etim_translations'] = true;
+					$attr_includes['include_languages']         = $this->get_include_languages();
+					$attr_includes['include_contexts']          = [ 1 ];
+					$attr_product                               = $this->fetch_product_attributes( $client, $product, $attr_includes );
+				} else {
+					$attr_product = $product;
+				}
+				$this->upserter->assign_attributes( $wc_id, $attr_product, $group_info );
+
+				// Media.
+				$this->upserter->assign_media( $wc_id, $product );
+
+				// Relations.
+				if ( ! empty( $options['sync_related_products'] ) ) {
+					$this->upserter->assign_relations( $wc_id, $product );
+				}
+			} catch ( Throwable $e ) {
+				++$failed;
+				$this->logger->error(
+					'Single grouped product sync: variation upsert failed',
+					[
+						'product_id' => $skwirrel_product_id,
+						'error'      => $e->getMessage(),
+					]
+				);
+			}
+		}
+
+		// Flush deferred parent attribute terms.
+		$this->upserter->flush_parent_attribute_terms();
+
+		$this->logger->info(
+			'Single grouped product sync completed',
+			[
+				'grouped_product_id' => $grouped_product_id,
+				'created'            => $created,
+				'updated'            => $updated,
+				'failed'             => $failed,
+			]
+		);
+
+		return [
+			'success' => true,
+			'created' => $created,
+			'updated' => $updated,
+			'failed'  => $failed,
+		];
+	}
+
 	private function get_client(): ?Skwirrel_WC_Sync_JsonRpc_Client {
 		$opts  = $this->get_options();
 		$url   = $opts['endpoint_url'] ?? '';

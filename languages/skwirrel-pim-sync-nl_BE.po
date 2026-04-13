@@ -1534,3 +1534,31 @@ msgstr "Schakel schone variatie-URLs in"
 #: includes/class-permalink-settings.php
 msgid "When enabled, variations are accessible at /product/{product-slug}/{variation-slug}/. Requires variation slugs to be generated during sync."
 msgstr "Indien ingeschakeld zijn variaties bereikbaar op /product/{product-slug}/{variatie-slug}/. Vereist dat variatie-slugs worden gegenereerd tijdens de sync."
+
+#: includes/class-product-sync-meta-box.php
+msgid "Grouped Product Response"
+msgstr "Gegroepeerd product response"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Variation Responses"
+msgstr "Variatie responses"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Load variation API responses"
+msgstr "Laad variatie API responses"
+
+#: includes/class-product-sync-meta-box.php
+msgid "No variation API responses found."
+msgstr "Geen variatie API responses gevonden."
+
+#: includes/class-product-sync-meta-box.php
+msgid "Variation:"
+msgstr "Variatie:"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Failed to load variation responses."
+msgstr "Laden van variatie responses mislukt."
+
+#: includes/class-product-sync-meta-box.php
+msgid "Grouped product synced successfully (%1$d created, %2$d updated)."
+msgstr "Gegroepeerd product succesvol gesynchroniseerd (%1$d aangemaakt, %2$d bijgewerkt)."

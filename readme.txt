@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 8.1
-Stable tag: 3.0.0
+Stable tag: 3.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,6 +62,12 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 3.1.0 =
+* API Response meta box for grouped products — view stored API data on variable product edit pages
+* Lazy-loaded variation API responses with collapsible accordion UI and JSON syntax highlighting
+* Single grouped product sync — sync button now works for grouped products including all variations
+* Grouped product ID stored on variations for direct group membership lookup
 
 = 3.0.0 =
 * Virtual product content — variable products inherit name, descriptions, categories from virtual products

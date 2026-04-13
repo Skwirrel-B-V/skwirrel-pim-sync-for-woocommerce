@@ -1559,3 +1559,31 @@ msgstr "Activer les URLs propres pour les variations"
 #: includes/class-permalink-settings.php
 msgid "When enabled, variations are accessible at /product/{product-slug}/{variation-slug}/. Requires variation slugs to be generated during sync."
 msgstr "Lorsque activé, les variations sont accessibles à /product/{slug-produit}/{slug-variation}/. Nécessite que les slugs de variation soient générés lors de la synchronisation."
+
+#: includes/class-product-sync-meta-box.php
+msgid "Grouped Product Response"
+msgstr "Réponse du produit groupé"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Variation Responses"
+msgstr "Réponses des variantes"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Load variation API responses"
+msgstr "Charger les réponses API des variantes"
+
+#: includes/class-product-sync-meta-box.php
+msgid "No variation API responses found."
+msgstr "Aucune réponse API de variante trouvée."
+
+#: includes/class-product-sync-meta-box.php
+msgid "Variation:"
+msgstr "Variante :"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Failed to load variation responses."
+msgstr "Échec du chargement des réponses des variantes."
+
+#: includes/class-product-sync-meta-box.php
+msgid "Grouped product synced successfully (%1$d created, %2$d updated)."
+msgstr "Produit groupé synchronisé avec succès (%1$d créé(s), %2$d mis à jour)."

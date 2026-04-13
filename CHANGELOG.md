@@ -2,6 +2,13 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.1.0]
+
+* **API Response meta box for grouped products** — the Skwirrel API Response meta box now appears on variable/grouped product edit pages, showing the grouped product response in a collapsible section with JSON syntax highlighting
+* **Lazy-loaded variation responses** — a "Load variation API responses" button fetches and displays each variation's stored API data via AJAX, with individual collapsible sections per variation
+* **Single grouped product sync** — the "Sync this product" button now works for grouped products, syncing the variable product shell and all its member variations in one operation
+* **Grouped product ID on variations** — each variation now stores `_skwirrel_grouped_product_id` meta for direct group membership lookup
+
 ## [3.0.0]
 
 * **Virtual product content** — variable products now inherit name, descriptions, categories, and brands from their virtual product (when available), replacing the raw grouped product code

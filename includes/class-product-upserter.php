@@ -1313,6 +1313,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$variation->update_meta_data( $this->mapper->get_external_id_meta_key(), $this->mapper->get_unique_key( $product ) ?? '' );
 		$variation->update_meta_data( $this->mapper->get_synced_at_meta_key(), (string) time() );
 		$variation->update_meta_data( '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
+		$variation->update_meta_data( Skwirrel_WC_Sync_Product_Lookup::GROUPED_PRODUCT_ID_META, $group_info['grouped_product_id'] ?? 0 );
 
 		$variation->save();
 		$vid = $variation->get_id();
