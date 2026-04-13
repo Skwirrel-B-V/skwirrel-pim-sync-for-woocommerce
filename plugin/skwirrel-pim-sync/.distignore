@@ -1,0 +1,8 @@
+.DS_Store
+.phpunit.cache
+node_modules/
+snippets/
+composer.json
+composer.lock
+package.json
+package-lock.json
