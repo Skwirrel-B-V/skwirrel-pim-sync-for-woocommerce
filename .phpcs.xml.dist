@@ -3,11 +3,12 @@
     <description>Code style rules for Skwirrel PIM sync for WooCommerce plugin.</description>
 
     <!-- Scan these files -->
-    <file>skwirrel-pim-sync.php</file>
-    <file>includes/</file>
+    <file>plugin/skwirrel-pim-sync/skwirrel-pim-sync.php</file>
+    <file>plugin/skwirrel-pim-sync/includes/</file>
 
     <!-- Exclude vendor -->
     <exclude-pattern>vendor/</exclude-pattern>
+    <exclude-pattern>plugin/skwirrel-pim-sync/vendor/</exclude-pattern>
     <exclude-pattern>tests/</exclude-pattern>
     <exclude-pattern>node_modules/</exclude-pattern>
 

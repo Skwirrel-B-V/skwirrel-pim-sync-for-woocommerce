@@ -6,12 +6,13 @@ parameters:
   parallel:
     maximumNumberOfProcesses: 1
   paths:
-    - skwirrel-pim-sync.php
-    - includes/
+    - plugin/skwirrel-pim-sync/skwirrel-pim-sync.php
+    - plugin/skwirrel-pim-sync/includes/
   excludePaths:
     - vendor/
+    - plugin/skwirrel-pim-sync/vendor/
   bootstrapFiles:
     - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
     - vendor/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php
   scanFiles:
-    - skwirrel-pim-sync.php
+    - plugin/skwirrel-pim-sync/skwirrel-pim-sync.php

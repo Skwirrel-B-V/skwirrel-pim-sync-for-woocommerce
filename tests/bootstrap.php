@@ -320,13 +320,13 @@ if (!class_exists('WC_Product_Variable')) {
 }
 
 // Load plugin classes (order matters — dependencies first).
-require_once __DIR__ . '/../includes/class-logger.php';
-require_once __DIR__ . '/../includes/class-media-importer.php';
-require_once __DIR__ . '/../includes/class-etim-extractor.php';
-require_once __DIR__ . '/../includes/class-custom-class-extractor.php';
-require_once __DIR__ . '/../includes/class-attachment-handler.php';
-require_once __DIR__ . '/../includes/class-product-mapper.php';
-require_once __DIR__ . '/../includes/class-permalink-settings.php';
-require_once __DIR__ . '/../includes/class-slug-resolver.php';
-require_once __DIR__ . '/../includes/class-theme-api.php';
-require_once __DIR__ . '/../includes/class-variation-permalinks.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-logger.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-media-importer.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-etim-extractor.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-custom-class-extractor.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-attachment-handler.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-product-mapper.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-permalink-settings.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-slug-resolver.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-theme-api.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-variation-permalinks.php';

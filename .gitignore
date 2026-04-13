@@ -9,12 +9,9 @@ Thumbs.db
 *~
 .vscode/
 
-# Debug
-debug-variations.php
-
 # Composer (dev stubs only, not shipped)
-vendor/
 composer.lock
+vendor/
 
 # Local config overrides
 phpstan.neon
@@ -25,5 +22,5 @@ phpunit.xml
 .phpunit.cache/
 .pest/
 
-# Node (if ever added)
-node_modules/
+# Skwirrel ERP reference
+skwirrel/
