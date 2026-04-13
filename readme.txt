@@ -1,0 +1,415 @@
+=== Skwirrel PIM sync for WooCommerce ===
+Contributors: jkoomen
+Tags: woocommerce, sync, pim, skwirrel, product-sync
+Requires at least: 6.0
+Tested up to: 6.9.4
+Requires PHP: 8.1
+Stable tag: 3.1.0
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+
+Synchronises products from the Skwirrel PIM system to WooCommerce via a JSON-RPC 2.0 API.
+
+== Description ==
+
+Skwirrel PIM sync for WooCommerce connects your WooCommerce webshop to the Skwirrel PIM system. Products, variations, categories, brands, manufacturers, images, and documents are synchronised automatically or on demand.
+
+**Features:**
+
+* Full and delta (incremental) product synchronisation
+* Simple and variable product support with ETIM classification for variation axes
+* Automatic category tree sync with parent-child hierarchy
+* Brand sync via WooCommerce native product_brand taxonomy
+* Manufacturer sync with dedicated product_manufacturer taxonomy
+* Product image and document import into the WordPress media library
+* Custom class attributes (alphanumeric, logical, numeric, range, date, multi)
+* Configurable product URL slugs (source field, suffix, update on re-sync)
+* GTIN and manufacturer product code search filter on the product list page
+* Scheduled synchronisation via WP-Cron or Action Scheduler
+* Manual synchronisation from the admin dashboard with live progress tracking
+* Date-grouped sync history (last 20 runs)
+* Stale product and category purge after full sync
+* Delete protection with warnings and automatic full re-sync
+* Multilingual support with 7 locales (nl_NL, nl_BE, de_DE, fr_FR, fr_BE, en_US, en_GB)
+
+**Requirements:**
+
+* WordPress 6.0 or higher
+* WooCommerce 8.0 or higher (9.6+ recommended for native brand support; tested up to 10.6)
+* PHP 8.1 or higher
+* An active Skwirrel account with API access
+
+== Installation ==
+
+1. Upload the plugin files to `/wp-content/plugins/skwirrel-pim-sync/`, or install the plugin directly through the WordPress plugin screen.
+2. Activate the plugin through the 'Plugins' screen in WordPress.
+3. Navigate to WooCommerce > Skwirrel Sync to configure the plugin.
+4. Enter your Skwirrel API URL and authentication token.
+5. Click 'Sync now' to start the first synchronisation.
+
+== Frequently Asked Questions ==
+
+= Which Skwirrel API version is supported? =
+
+The plugin works with the Skwirrel JSON-RPC 2.0 API.
+
+= How often are products synchronised? =
+
+You can set an automatic schedule (hourly, twice daily, or daily) or synchronise manually from the settings page.
+
+= Are existing products overwritten? =
+
+The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
+
+== Changelog ==
+
+= 3.1.0 =
+* API Response meta box for grouped products — view stored API data on variable product edit pages
+* Lazy-loaded variation API responses with collapsible accordion UI and JSON syntax highlighting
+* Single grouped product sync — sync button now works for grouped products including all variations
+* Grouped product ID stored on variations for direct group membership lookup
+
+= 3.0.0 =
+* Virtual product content — variable products inherit name, descriptions, categories from virtual products
+* Variation slugs — deterministic URL slugs generated from attribute values during sync
+* Variation permalinks — optional clean URLs: /product/{product-slug}/{variation-slug}/
+* Enhanced Skwirrel meta box — navigation links between parent and variation products
+* Theme API — helper functions for theme developers (variation URLs, thumbnails, default variations)
+* Example theme snippets in snippets/ directory
+
+= 2.6.2 =
+* Fix false "not managed by Skwirrel" message on variable products
+
+= 2.6.1 =
+* Fix related products API flag and add smart relation type mapping (auto/cross-sells/upsells/both)
+
+= 2.6.0 =
+* Related products sync — sync Skwirrel related products as WooCommerce cross-sells, upsells, or both
+* New settings for related products mapping type
+
+= 2.5.0 =
+* Variant label setting — choose which field shows in the variant dropdown (SKU, ERP description, or product name)
+* Custom class attribute visibility filter — control which custom class attributes are visible on the product page
+
+= 2.4.4 =
+* Fix "Stop sync" button — now checks during phases, not just between them
+* Show failed sync timestamp and error in status card
+
+= 2.4.3 =
+* Flush WooCommerce object cache after every product in all processing phases
+
+= 2.4.2 =
+* Flush WordPress object cache between sync phases to reclaim memory
+
+= 2.4.1 =
+* Fix OOM in grouped products pre-sync phase — flush wpdb memory between API pages
+
+= 2.4.0 =
+* Deferred attribute fetch — ETIM and custom classes fetched per-product in attribute phase instead of bulk fetch
+
+= 2.3.5 =
+* Aggressive wpdb memory cleanup after every product in all sync phases
+
+= 2.3.4 =
+* Fix OOM during fetch — flush wpdb between batches, default batch size 10
+
+= 2.3.3 =
+* Fix OOM during fetch phase — smaller API batches + wpdb memory flush between pages
+
+= 2.3.2 =
+* Fix unexpected output during plugin activation
+
+= 2.3.1 =
+* Use WordPress timezone for log filenames instead of UTC
+
+= 2.3.0 =
+* Database-backed sync queue — product data stored in temporary DB table instead of memory, preventing OOM crashes on low-memory servers
+* Products processed one at a time per phase via cursor pattern (O(1) memory usage)
+
+= 2.2.9 =
+* Convert existing simple products to variations when a grouped product sync encounters a duplicate SKU
+* Reduce memory usage during phased sync by freeing heavy product data after each phase
+
+= 2.2.8 =
+* Simplify per-product category assignment — use resolved map from tree sync instead of recursive per-product resolution
+
+= 2.2.7 =
+* Add "Stop sync" button to progress banner — abort a running sync from the dashboard
+* Log timestamps now respect the WordPress timezone setting
+
+= 2.2.6 =
+* Add include_contexts to category API call, improve category sync diagnostics
+
+= 2.2.5 =
+* Fix approved download directory: enable existing disabled directories during sync
+
+= 2.2.4 =
+* Fix category sync — use correct API parameter name for fetching categories
+* Fix per-product category assignment when API returns ID-only category data
+
+= 2.2.3 =
+* Dark terminal-style log viewer with syntax highlighting for log levels
+* JSON objects and sync separators styled for readability
+
+= 2.2.2 =
+* Raise PHP memory limit at sync start to prevent OOM crashes on large API responses
+* Detect fatal errors (OOM) during sync and record them as failed results
+* Fixes silent sync failures showing stale success status
+
+= 2.2.1 =
+* Separate "Sync Logs" settings section with per-trigger log mode (per sync or per day)
+* Add "Manual (no auto-delete)" option to log retention
+* Fix super category ID field width to match selection IDs field
+
+= 2.2.0 =
+* Per-sync log files — each sync run writes to its own log file for easy debugging
+* Manual syncs get a unique log file; scheduled syncs share a daily log file (appended)
+* Log viewer modal in sync history — click "View" to read log contents inline
+* Configurable log retention (12h, 1d, 2d, 7d, 30d) — old files cleaned up automatically
+
+= 2.1.5 =
+* Recursively fetch full category tree from API — all depth levels are now synced, not just direct children of the super category
+
+= 2.1.4 =
+* Auto-register WP uploads directory as WooCommerce approved download directory during sync
+* Fixes "downloadable file not in approved folder" errors for imported PDFs
+
+= 2.1.3 =
+* Store Skwirrel API response for all product types: variations and variable product shells now also save _skwirrel_api_response
+
+= 2.1.2 =
+* Fix grouped products ignoring dynamic selection ID — post-filter groups against selection product list
+* Fetch allowed product IDs from selection before processing groups, skip groups with no matching members
+
+= 2.1.1 =
+* Fix grouped products ignoring selection ID filter — pass dynamic_selection_id to getGroupedProducts
+* Store raw Skwirrel API response as _skwirrel_api_response post meta during sync
+* Add dedicated "Skwirrel API Response" meta box on the product edit screen showing the stored JSON
+
+= 2.1.0 =
+* Selection ID is now required — sync aborts if no selection ID is configured
+* Add "Show API response" button in the Skwirrel product meta box to view raw JSON from the API
+* Reduce batch size maximum from 500 to 50, default from 100 to 10
+* Fix translation: selection ID hint incorrectly said "category IDs" in all locales
+
+= 2.0.8 =
+* Add raw API response logging for getCategories and per-product _categories data (verbose mode)
+
+= 2.0.7 =
+* Fix category tree sync failing when API returns single root category object instead of array
+* Categories from getCategories are now correctly extracted from root _children when super category ID is used
+
+= 2.0.6 =
+* Add diagnostic logging for category-to-product assignment to trace resolution failures
+* Log each category resolve step (meta lookup, name fallback, creation) when verbose logging is enabled
+* Warn when categories are extracted from API but no WooCommerce term IDs could be resolved
+* Check and log wp_set_object_terms errors instead of silently ignoring failures
+
+= 2.0.5 =
+* Update README and plugin description to reflect current feature set
+* Replace "ERP/PIM" references with "PIM" throughout
+* Update WooCommerce minimum to 8.0 (9.6+ recommended for native brand support)
+* Update WooCommerce tested up to 10.6
+* Update WordPress tested up to 6.9.4
+
+= 2.0.4 =
+* Inline "Update on re-sync" toggle in Permalinks section — saves instantly via AJAX
+* Slug warning only shown when "Update on re-sync" is enabled and settings have changed
+* Persistent hint when re-sync is enabled warning about URL overwrite and SEO impact
+* Add batch size hint text (1–500)
+
+= 2.0.3 =
+* Add Permalinks section in Settings showing current slug configuration with link to Permalinks page
+* Show warning when slug settings change, advising a full resync and potential link breakage
+* Add Selection IDs hint link to Skwirrel selections page (dynamic subdomain URL)
+
+= 2.0.2 =
+* Add GTIN / Manufacturer product code search filter on product list page
+* Store product GTIN and manufacturer product code as dedicated meta during sync
+* Add subtitles to Debug and Danger Zone dashboard blocks
+
+= 2.0.1 =
+* Rename "Collection IDs" to "Selection IDs"
+* Add API token creation link with dynamic subdomain URL
+* Add category finder link on Super category ID field
+* Move WordPress admin notices below the Skwirrel header
+
+= 2.0.0 =
+* New admin dashboard with block-grid layout replacing the tab-based UI
+* Sync progress banner with 6-phase checklist and live counters
+* Date-grouped sync history table (Today, Yesterday, day name, or date)
+* Settings page redesigned with grouped fieldsets and Tailwind-inspired styling
+* Simplified API connection: subdomain-only input with visual prefix/suffix
+* Remove auth type selector (always uses static token)
+* Sync Logs block links directly to WooCommerce logs
+* Debug and Danger Zone inline in the dashboard grid
+* Full translation update for all 7 locales (nl_NL, nl_BE, de_DE, fr_FR, fr_BE, en_US, en_GB)
+
+= 1.10.1 =
+* Add Domain Path header for automatic translation loading on WordPress 6.7+
+* Add load_plugin_textdomain() fallback for older WordPress versions
+* Add nl.mo/nl.po locale files for sites using "nl" instead of "nl_NL"
+* Fix Danger Zone purge not removing all product attribute taxonomies — now cleans up all orphaned attributes, not just etim_* and skwirrel_variant
+
+= 1.10.0 =
+* Phased sync architecture — sync now runs in 5 sequential phases (fetch, products, taxonomy, attributes, media) instead of processing everything per product
+* Live progress checklist on the sync tab — shows current phase, status icon, and counter (e.g. "247 / 500")
+* Performance fix: restore getProducts API call for full sync (faster than getProductsByFilter with empty filter)
+* Auto-refresh now only fires on the sync tab, not on other admin pages
+
+= 1.9.9 =
+* Fix Danger Zone purge silently timing out on large datasets — add set_time_limit(0) to prevent PHP timeout
+* Rewrite Danger Zone purge to use bulk SQL — orders of magnitude faster on large stores
+
+= 1.9.8 =
+* Add "Skwirrel" meta box on product edit screen with single-product sync button
+
+= 1.9.7 =
+* Add configurable "Product manufacturer base" slug on Settings → Permalinks page
+
+= 1.9.6 =
+* Fix product sync failing when downloadable files are not in WooCommerce's approved directory
+* Downloads/documents errors no longer block category, brand and manufacturer assignment
+
+= 1.9.5 =
+* Brand sync always active (uses WooCommerce native product_brand taxonomy)
+* Add "Sync manufacturers" setting with product_manufacturer taxonomy
+* Default product list columns: hide Tags, show Manufacturers
+* Add "Filter by manufacturer" dropdown on product list page
+* Manufacturers column ordered after Brands, before Date
+
+= 1.9.3 =
+* Fix variable product variation attributes: recover parent attribute options from child variation post meta when deferred terms are empty
+* Convert non-variation parent attributes to global WooCommerce taxonomy-based attributes
+* Fix brand not assigned to variable products: propagate brand from child variations to parent
+* Fix categories not assigned to variable products: propagate categories from child variations to parent
+
+= 1.9.2 =
+* Remove legacy pa_variant migration code (no live installs to migrate)
+* Fix simple product attributes: save as global WooCommerce taxonomy-based attributes instead of custom text attributes, so they appear in layered navigation and product filters
+
+= 1.9.1 =
+* Remove legacy pre-1.8.0 Action Scheduler cleanup code (old slug reference)
+
+= 1.9.0 =
+* Move remaining inline event handlers (onchange, onclick) to enqueued inline script for WordPress.org compliance
+* Fix stale debug log path in admin help text
+
+= 1.8.4 =
+* Add non-variation ETIM and custom class attributes to parent variable products during sync
+
+= 1.8.3 =
+* Fix empty variation attribute dropdowns on variable products by deferring parent attribute term updates to a single batch flush after all variations are processed
+
+= 1.8.2 =
+* Replace all inline `<script>` and `<style>` tags with proper wp_enqueue_script/wp_add_inline_script/wp_add_inline_style calls
+* Rename plugin display name to "Skwirrel PIM sync for WooCommerce"
+
+= 1.8.1 =
+* Fix variation attribute labels showing raw ETIM codes (e.g. "EF002671") instead of human-readable names
+* Add missing `include_etim_translations` and `include_languages` to `getGroupedProducts` API call
+
+= 1.8.0 =
+* Rename plugin slug from `skwirrel-pim-wp-sync` to `skwirrel-pim-sync` (WordPress.org restricts "wp" in plugin slugs)
+* Update text domain, Action Scheduler group, logger source, and admin page slug
+* Rename main plugin file and all language files to match new slug
+* Add activation cleanup for old Action Scheduler group from pre-1.8.0
+* Existing settings, synced products, and translations are fully preserved
+
+= 1.7.1 =
+* Remove deprecated load_plugin_textdomain() call (WordPress 4.6+ auto-loads translations)
+* Fix unescaped SQL parameters in purge handler with proper $wpdb->prepare() placeholders
+* Fix direct database query caching warning in taxonomy manager
+* WordPress Plugin Check compliance improvements
+
+= 1.7.0 =
+* Slug settings moved to Settings → Permalinks page (alongside WooCommerce product permalinks)
+* New "Update slug on re-sync" option: update existing product slugs during sync
+* Sync history: new "Trigger" column showing Manual, Scheduled, or Purge
+* Purge (delete all) now adds an entry to sync history and preserves last sync status
+* Backward compatible slug settings migration from plugin settings to Permalinks page
+* New unit tests for slug resolver (16 tests)
+* Updated translations (all languages)
+
+= 1.6.0 =
+* Product slug configuration: choose slug source field (product name, SKU, manufacturer code, external ID, Skwirrel ID)
+* Slug suffix on duplicate: configurable fallback field appended when slug already exists
+* New class: Slug Resolver for deterministic product URL slugs
+
+= 1.5.0 =
+* Major refactoring: SyncService split from ~2200 lines into focused sub-classes
+* New classes: ProductUpserter, ProductLookup, SyncHistory, PurgeHandler, CategorySync, BrandSync, TaxonomyManager, EtimExtractor, CustomClassExtractor, AttachmentHandler
+* SyncService reduced to ~480 lines (pure orchestrator)
+* ProductMapper reduced to ~460 lines (delegates to focused sub-classes)
+* All existing public APIs preserved — no breaking changes
+
+= 1.4.0 =
+* Brand sync: Skwirrel brands synced into WooCommerce product_brand taxonomy
+* Category tree sync: sync full category tree from a configurable super category ID
+* Sync progress indicator: spinning icon on menu item, blue status bar with auto-refresh
+* Sync button disabled while sync is in progress
+* Heartbeat mechanism: sync status auto-expires after 60s without activity
+* Purge: danger zone now also deletes product brands
+* Settings save clears sync-in-progress state
+* i18n: all UI strings switched to English source text
+* Updated translation files (POT + nl_NL, nl_BE, de_DE, fr_FR, fr_BE, en_US, en_GB)
+
+= 1.3.2 =
+* i18n: all UI strings switched to English source text
+* Updated translation files (POT + nl_NL, nl_BE, de_DE, fr_FR, fr_BE, en_US, en_GB)
+* Added new translation entries for tabbed UI, custom classes, danger zone and delete protection
+* Recompiled all .mo binary translation files
+
+= 1.3.1 =
+* Deep category tree sync: full ancestor chain from nested _parent_category (unlimited depth)
+* Custom Class sync: product-level and trade-item-level custom classes as WooCommerce attributes
+* Custom Class feature types: A (alphanumeric), M (multi), L (logical), N (numeric), R (range), D (date), I (internationalized)
+* Custom Class text types T and B stored as product meta (_skwirrel_cc_* prefix)
+* Whitelist/blacklist filtering on custom class ID or code
+* New settings: sync_custom_classes, sync_trade_item_custom_classes, custom_class_filter_mode, custom_class_filter_ids
+
+= 1.3.0 =
+* Admin UI: tabbed layout (Sync Products, Instellingen, Logs)
+* Sync status and history now shown on the default Sync Products tab
+* Sync button moved to page title, visible on all tabs
+* Logs and variation debug instructions on dedicated Logs tab
+* Fixed GitHub release workflow: version is read from plugin file, no more auto-incrementing
+
+= 1.2.3 =
+* WordPress Plugin Check compliance: translators comments, ordered placeholders, escape output
+* WordPress Plugin Check compliance: phpcs:ignore for direct DB queries, non-prefixed WooCommerce globals, nonce verification
+* Use WordPress alternative functions (wp_parse_url, wp_delete_file, wp_is_writable)
+* Translate readme.txt to English
+
+= 1.2.2 =
+* Version bump in preparation for release
+
+= 1.2.1 =
+* Update text domain and constants for Skwirrel PIM Sync rebranding
+
+= 1.2.0 =
+* Rebranded to Skwirrel PIM Sync
+* Added unit tests for MediaImporter, ProductMapper, and related components
+* Added WordPress.org auto-deploy workflow
+* Added automated versioning, tagging, and release workflow
+
+= 1.1.2 =
+* Version bump
+* Fix duplicate products during sync: 3-step lookup chain + SKU conflict prevention
+
+= 1.1.1 =
+* Delete protection: warning banners on Skwirrel-managed products and categories
+* Purge stale products and categories after full sync
+* Category sync with parent-child hierarchy support
+* Collection ID filter for selective synchronisation
+* Translation files (POT + nl_NL, nl_BE, en_US, en_GB, de_DE, fr_FR, fr_BE)
+* New settings: purge_stale_products, show_delete_warning, collection_ids, sync_categories, include_languages, image_language
+* PHPStan, PHP_CodeSniffer, and Pest PHP test framework
+* WooCommerce 10.5 compatibility
+
+= 1.0.0 =
+* Initial release
+* Full product synchronisation
+* Variable products with ETIM variation axes
+* Image and document import
+* Delta synchronisation support

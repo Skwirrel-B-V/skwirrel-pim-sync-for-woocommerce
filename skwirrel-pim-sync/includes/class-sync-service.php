@@ -1,0 +1,1423 @@
+<?php
+/**
+ * Skwirrel Sync Service.
+ *
+ * Orchestrates product sync: fetches from API, maps, upserts to WooCommerce.
+ * Supports full sync and delta sync (updated_on filter).
+ */
+
+declare(strict_types=1);
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+class Skwirrel_WC_Sync_Service {
+
+	private Skwirrel_WC_Sync_Logger $logger;
+	private Skwirrel_WC_Sync_Product_Mapper $mapper;
+	private Skwirrel_WC_Sync_Purge_Handler $purge_handler;
+	private Skwirrel_WC_Sync_Category_Sync $category_sync;
+	private Skwirrel_WC_Sync_Brand_Sync $brand_sync;
+	private Skwirrel_WC_Sync_Taxonomy_Manager $taxonomy_manager;
+	private Skwirrel_WC_Sync_Product_Upserter $upserter;
+
+	public function __construct() {
+		$this->logger           = new Skwirrel_WC_Sync_Logger();
+		$this->mapper           = new Skwirrel_WC_Sync_Product_Mapper();
+		$lookup                 = new Skwirrel_WC_Sync_Product_Lookup( $this->mapper );
+		$this->purge_handler    = new Skwirrel_WC_Sync_Purge_Handler( $this->logger );
+		$this->category_sync    = new Skwirrel_WC_Sync_Category_Sync( $this->logger );
+		$this->brand_sync       = new Skwirrel_WC_Sync_Brand_Sync( $this->logger );
+		$this->taxonomy_manager = new Skwirrel_WC_Sync_Taxonomy_Manager( $this->logger );
+		$this->upserter         = new Skwirrel_WC_Sync_Product_Upserter(
+			$this->logger,
+			$this->mapper,
+			$lookup,
+			$this->category_sync,
+			$this->brand_sync,
+			$this->taxonomy_manager,
+			new Skwirrel_WC_Sync_Slug_Resolver()
+		);
+	}
+
+	/**
+	 * Run sync in phases. Returns summary array.
+	 *
+	 * Phases:
+	 * 1. Fetch — paginate through API, store product data in database queue
+	 * 2. Products — create/update WC products (basic fields only)
+	 * 3. Taxonomy — assign categories, brands, manufacturers
+	 * 4. Attributes — assign ETIM + custom class attributes
+	 * 5. Media — download images + documents (slowest phase)
+	 * 6. Cleanup — flush deferred attrs, purge stale, persist history
+	 *
+	 * @param bool   $delta   Use delta sync (updated_on >= last sync) if possible.
+	 * @param string $trigger What initiated the sync: 'manual' or 'scheduled'.
+	 * @return array{success: bool, created: int, updated: int, failed: int, error?: string}
+	 */
+	public function run_sync( bool $delta = false, string $trigger = Skwirrel_WC_Sync_History::TRIGGER_MANUAL ): array {
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( 0 ); // phpcs:ignore Generic.PHP.NoSilencedErrors.Discouraged,Squiz.PHP.DiscouragedFunctions.Discouraged -- long-running sync requires no time limit
+		}
+
+		// Raise PHP memory limit — API responses with all includes can be very large.
+		if ( function_exists( 'wp_raise_memory_limit' ) ) {
+			wp_raise_memory_limit( 'admin' );
+		}
+
+		$sync_started_at = time();
+		$this->category_sync->reset_seen_category_ids();
+		Skwirrel_WC_Sync_History::clear_abort();
+		Skwirrel_WC_Sync_History::sync_heartbeat();
+		Skwirrel_WC_Sync_History::clear_sync_progress();
+
+		// Per-sync log file: cleanup old logs, then start a new one.
+		$options_for_log = $this->get_options();
+		Skwirrel_WC_Sync_Logger::cleanup_old_logs( $options_for_log['log_retention'] ?? '7days' );
+		$log_mode     = Skwirrel_WC_Sync_History::TRIGGER_SCHEDULED === $trigger
+			? ( $options_for_log['log_mode_scheduled'] ?? 'per_day' )
+			: ( $options_for_log['log_mode_manual'] ?? 'per_sync' );
+		$log_filename = $this->logger->start_sync_log( $trigger, $log_mode );
+
+		// Register shutdown handler to catch fatal errors (e.g. OOM) and record them.
+		$shutdown_trigger    = $trigger;
+		$shutdown_log_file   = $log_filename;
+		$shutdown_registered = true;
+		register_shutdown_function(
+			static function () use ( $shutdown_trigger, $shutdown_log_file, &$shutdown_registered ): void {
+				if ( ! $shutdown_registered ) { // @phpstan-ignore booleanNot.alwaysFalse (by-reference variable is set to false in finally block)
+					return; // Sync completed normally, nothing to do.
+				}
+				$error = error_get_last();
+				if ( null === $error || ! in_array( $error['type'], [ E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR ], true ) ) {
+					return;
+				}
+				// Record a failed sync so the dashboard shows the crash.
+				Skwirrel_WC_Sync_History::update_last_result(
+					false,
+					0,
+					0,
+					0,
+					$error['message'],
+					0,
+					0,
+					0,
+					0,
+					$shutdown_trigger,
+					$shutdown_log_file
+				);
+			}
+		);
+
+		try {
+			global $wpdb;
+
+			// Free memory accumulated by WordPress/WooCommerce boot and clear query log.
+			self::free_wpdb_memory();
+			wp_cache_flush();
+			$this->logger->info(
+				'Sync memory baseline',
+				[ 'memory_mb' => round( memory_get_usage( true ) / 1048576, 1 ) ]
+			);
+
+			$client = $this->get_client();
+			if ( ! $client ) {
+				$this->logger->error( 'Sync aborted: invalid configuration' );
+				$this->logger->stop_sync_log();
+				return [
+					'success' => false,
+					'error'   => 'Invalid configuration',
+					'created' => 0,
+					'updated' => 0,
+					'failed'  => 0,
+				];
+			}
+
+			$options     = $this->get_options();
+			$created     = 0;
+			$updated     = 0;
+			$failed      = 0;
+			$delta_since = get_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, '' );
+
+			$collection_ids = $this->get_collection_ids();
+			if ( empty( $collection_ids ) ) {
+				$this->logger->error( 'Sync aborted: no selection IDs configured' );
+				$this->logger->stop_sync_log();
+				return [
+					'success' => false,
+					'error'   => 'No selection IDs configured. A selection ID is required.',
+					'created' => 0,
+					'updated' => 0,
+					'failed'  => 0,
+				];
+			}
+			$batch_size = (int) ( $options['batch_size'] ?? 10 );
+
+			// Build API include flags — keep the fetch lightweight (no ETIM/custom classes).
+			// Attributes are fetched per-product in Phase 3 to avoid OOM on large catalogues.
+			$api_includes = [
+				'include_product_status'       => true,
+				'include_product_translations' => true,
+				'include_attachments'          => true,
+				'include_trade_items'          => true,
+				'include_trade_item_prices'    => true,
+				'include_categories'           => ! empty( $options['sync_categories'] ),
+				'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
+				'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
+				'include_related_products'     => ! empty( $options['sync_related_products'] ),
+				'include_languages'            => $this->get_include_languages(),
+				'include_contexts'             => [ 1 ],
+			];
+
+			// Attribute includes — used in Phase 3 per-product fetch only.
+			$attr_includes = [
+				'include_etim'              => true,
+				'include_etim_translations' => true,
+				'include_languages'         => $this->get_include_languages(),
+				'include_contexts'          => [ 1 ],
+			];
+
+			$sync_cc    = ! empty( $options['sync_custom_classes'] );
+			$sync_ti_cc = ! empty( $options['sync_trade_item_custom_classes'] );
+			if ( $sync_cc ) {
+				$attr_includes['include_custom_classes'] = true;
+				$cc_filter_mode                          = $options['custom_class_filter_mode'] ?? '';
+				$cc_raw                                  = $options['custom_class_filter_ids'] ?? '';
+				$cc_parsed                               = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_raw );
+				if ( 'whitelist' === $cc_filter_mode && ! empty( $cc_parsed['ids'] ) ) {
+					$attr_includes['include_custom_class_id'] = $cc_parsed['ids'];
+				}
+			}
+			if ( $sync_ti_cc ) {
+				$attr_includes['include_trade_item_custom_classes'] = true;
+				$cc_filter_mode                                     = $cc_filter_mode ?? ( $options['custom_class_filter_mode'] ?? '' );
+				$cc_raw    = $cc_raw ?? ( $options['custom_class_filter_ids'] ?? '' );
+				$cc_parsed = $cc_parsed ?? Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_raw );
+				if ( 'whitelist' === $cc_filter_mode && ! empty( $cc_parsed['ids'] ) ) {
+					$attr_includes['include_trade_item_custom_class_id'] = $cc_parsed['ids'];
+				}
+			}
+
+			// Determine whether to use getProducts (fast, full sync) or getProductsByFilter (filtered).
+			$use_filter = false;
+			$filter     = [];
+			if ( $delta && ! empty( $delta_since ) ) {
+				$use_filter           = true;
+				$filter['updated_on'] = [
+					'datetime' => $delta_since,
+					'operator' => '>=',
+				];
+			}
+			$use_filter                     = true;
+			$filter['dynamic_selection_id'] = $collection_ids[0];
+
+			$this->logger->verbose(
+				'Sync started',
+				[
+					'delta'          => $delta,
+					'delta_since'    => $delta_since,
+					'batch_size'     => $batch_size,
+					'api_method'     => 'getProductsByFilter',
+					'collection_ids' => $collection_ids,
+					'filter'         => $filter,
+				]
+			);
+
+			// Pre-sync: category tree, brands, custom classes, grouped products
+			$this->check_abort();
+			if ( ! empty( $options['sync_categories'] ) && ! empty( $options['super_category_id'] ) ) {
+				$this->category_sync->sync_category_tree( $client, $options, $this->get_include_languages() );
+			}
+			$this->brand_sync->sync_all_brands( $client );
+			if ( ! empty( $options['sync_custom_classes'] ) || ! empty( $options['sync_trade_item_custom_classes'] ) ) {
+				$this->taxonomy_manager->sync_all_custom_classes( $client, $options, $this->get_include_languages() );
+			}
+
+			// Free object cache accumulated during pre-sync (categories, brands, custom classes).
+			self::free_wpdb_memory();
+			wp_cache_flush();
+
+			$product_to_group_map = [];
+			if ( ! empty( $options['sync_grouped_products'] ) ) {
+				$grouped_result       = $this->upserter->sync_grouped_products_first( $client, $options, $collection_ids );
+				$product_to_group_map = $grouped_result['map'];
+				$created             += $grouped_result['created'];
+				$updated             += $grouped_result['updated'];
+			}
+
+			// Free object cache from grouped products phase.
+			self::free_wpdb_memory();
+			wp_cache_flush();
+			$this->logger->info(
+				'Pre-sync complete, starting fetch',
+				[ 'memory_mb' => round( memory_get_usage( true ) / 1048576, 1 ) ]
+			);
+
+			// =====================================================================
+			$this->check_abort();
+			// Phase: Fetch — paginate through API, store in database queue
+			// =====================================================================
+			Skwirrel_WC_Sync_History::update_phase_progress(
+				Skwirrel_WC_Sync_History::PHASE_FETCH,
+				0,
+				0,
+				__( 'Fetching products from API…', 'skwirrel-pim-sync' )
+			);
+
+			// Ensure sync queue table exists and is clean.
+			if ( ! Skwirrel_WC_Sync_Queue::table_exists() ) {
+				Skwirrel_WC_Sync_Queue::create_table();
+			}
+			Skwirrel_WC_Sync_Queue::truncate();
+			$sync_run_id = wp_generate_uuid4();
+			$queue       = new Skwirrel_WC_Sync_Queue( $sync_run_id );
+			$fetched     = 0;
+			$page        = 1;
+
+			$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
+			if ( ! $result['success'] ) {
+				$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
+				$this->logger->error( 'Sync API error', $err );
+				$this->logger->stop_sync_log();
+				Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $err['message'] ?? '', 0, 0, 0, 0, $trigger, $log_filename );
+				return [
+					'success' => false,
+					'error'   => $err['message'] ?? 'API error',
+					'created' => 0,
+					'updated' => 0,
+					'failed'  => 0,
+				];
+			}
+
+			$data     = $result['result'] ?? [];
+			$products = $data['products'] ?? [];
+
+			if ( $delta && empty( $products ) ) {
+				$this->logger->info( 'Delta sync: no products updated since last sync' );
+				$this->logger->stop_sync_log();
+				Skwirrel_WC_Sync_History::update_last_result( true, 0, 0, 0, '', 0, 0, 0, 0, $trigger, $log_filename );
+				return [
+					'success' => true,
+					'created' => 0,
+					'updated' => 0,
+					'failed'  => 0,
+				];
+			}
+
+			do {
+				$page_count = count( $products );
+				$this->logger->verbose(
+					'Fetching batch',
+					[
+						'page'  => $page,
+						'count' => $page_count,
+					]
+				);
+
+				foreach ( $products as $product ) {
+					$skwirrel_product_id = $product['product_id'] ?? $product['id'] ?? null;
+
+					// Virtual products → queue for phase 4 (media on parent)
+					$virtual_info = null;
+					if ( null !== $skwirrel_product_id ) {
+						$virtual_info = $product_to_group_map[ 'virtual:' . (int) $skwirrel_product_id ] ?? null;
+					}
+					if ( $virtual_info && ! empty( $virtual_info['is_virtual_for_variable'] ) ) {
+						$queue->insert_virtual_item( $product, (int) $virtual_info['wc_variable_id'] );
+						++$fetched;
+						continue;
+					}
+
+					// Skip non-grouped VIRTUAL products
+					if ( ( $product['product_type'] ?? '' ) === 'VIRTUAL' ) {
+						continue;
+					}
+
+					// Resolve group info
+					$sku_for_lookup = (string) ( $product['internal_product_code'] ?? $product['manufacturer_product_code'] ?? $this->mapper->get_sku( $product ) );
+					$group_info     = null;
+					if ( null !== $skwirrel_product_id && '' !== $skwirrel_product_id ) {
+						$group_info = $product_to_group_map[ (int) $skwirrel_product_id ] ?? null;
+					}
+					if ( ! $group_info && '' !== $sku_for_lookup ) {
+						$group_info = $product_to_group_map[ 'sku:' . $sku_for_lookup ] ?? null;
+					}
+
+					$queue->insert_item( $product, $group_info );
+					++$fetched;
+				}
+
+				// Free API response data and flush wpdb query log to reclaim memory.
+				unset( $products, $data, $result );
+				self::free_wpdb_memory();
+
+				Skwirrel_WC_Sync_History::update_phase_progress(
+					Skwirrel_WC_Sync_History::PHASE_FETCH,
+					$fetched,
+					0,
+					/* translators: %d = number of products fetched so far */
+					sprintf( __( 'Fetching products from API… (%d found)', 'skwirrel-pim-sync' ), $fetched )
+				);
+
+				if ( $page_count < $batch_size ) {
+					break;
+				}
+
+				++$page;
+				$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
+				if ( ! $result['success'] ) {
+					$this->logger->error( 'Pagination failed', $result['error'] ?? [] );
+					break;
+				}
+				$data     = $result['result'] ?? [];
+				$products = $data['products'] ?? [];
+			} while ( ! empty( $products ) );
+
+			$total         = $queue->count_items( false );
+			$virtual_total = $queue->count_items( true );
+			$this->logger->info( "Fetch complete: {$total} products + {$virtual_total} virtual items to process in phases" );
+
+			// =====================================================================
+			$this->check_abort();
+			// Phase 1: Products — create/update with basic fields
+			// =====================================================================
+			Skwirrel_WC_Sync_History::update_phase_progress(
+				Skwirrel_WC_Sync_History::PHASE_PRODUCTS,
+				0,
+				$total,
+				__( 'Creating & updating products…', 'skwirrel-pim-sync' )
+			);
+
+			$processed = 0;
+			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
+			while ( $row = $queue->get_next_for_phase( 1 ) ) {
+				$outcome = 'skipped';
+				$wc_id   = 0;
+				try {
+					$result_item = $row->group_info
+						? $this->upserter->create_or_update_variation(
+							apply_filters( 'skwirrel_wc_sync_product_before_variation', $row->product, $row->group_info ),
+							$row->group_info
+						)
+						: $this->upserter->create_or_update_product( $row->product );
+
+					$wc_id   = $result_item['wc_id'];
+					$outcome = $result_item['outcome'];
+
+					if ( 'created' === $outcome ) {
+						++$created;
+					} elseif ( 'updated' === $outcome ) {
+						++$updated;
+					} else {
+						++$failed;
+					}
+				} catch ( Throwable $e ) {
+					++$failed;
+					$outcome = 'failed';
+					$this->logger->error(
+						'Product create/update failed',
+						[
+							'product' => $row->product['internal_product_code'] ?? $row->product['product_id'] ?? '?',
+							'error'   => $e->getMessage(),
+						]
+					);
+				}
+
+				$queue->update_after_phase1( $row->id, $wc_id, $outcome );
+				self::free_wpdb_memory();
+				wp_cache_flush();
+				++$processed;
+
+				if ( 0 === $processed % 25 || $total === $processed ) {
+					Skwirrel_WC_Sync_History::update_phase_progress(
+						Skwirrel_WC_Sync_History::PHASE_PRODUCTS,
+						$processed,
+						$total,
+						__( 'Creating & updating products…', 'skwirrel-pim-sync' )
+					);
+					$this->check_abort();
+				}
+			}
+
+			// =====================================================================
+			$this->check_abort();
+			// Phase 2: Taxonomy — categories, brands, manufacturers
+			// =====================================================================
+			$taxonomy_label = ! empty( $options['sync_manufacturers'] )
+			? __( 'Assigning categories, brands & manufacturers…', 'skwirrel-pim-sync' )
+			: __( 'Assigning categories & brands…', 'skwirrel-pim-sync' );
+
+			Skwirrel_WC_Sync_History::update_phase_progress(
+				Skwirrel_WC_Sync_History::PHASE_TAXONOMY,
+				0,
+				$total,
+				$taxonomy_label
+			);
+
+			$processed = 0;
+			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
+			while ( $row = $queue->get_next_for_phase( 2 ) ) {
+				if ( $row->wc_id && 'skipped' !== $row->outcome ) {
+					try {
+						// For variations, taxonomy goes to the parent variable product
+						$tax_target = $row->group_info['wc_variable_id'] ?? $row->wc_id;
+						$this->upserter->assign_taxonomy( $tax_target, $row->product );
+					} catch ( Throwable $e ) {
+						$this->logger->warning(
+							'Taxonomy assignment failed',
+							[
+								'wc_id' => $row->wc_id,
+								'error' => $e->getMessage(),
+							]
+						);
+					}
+				}
+
+				$queue->mark_phase_completed( $row->id, 2 );
+				self::free_wpdb_memory();
+				wp_cache_flush();
+				++$processed;
+
+				if ( 0 === $processed % 50 || $total === $processed ) {
+					Skwirrel_WC_Sync_History::update_phase_progress(
+						Skwirrel_WC_Sync_History::PHASE_TAXONOMY,
+						$processed,
+						$total,
+						$taxonomy_label
+					);
+					$this->check_abort();
+				}
+			}
+
+			// =====================================================================
+			$this->check_abort();
+			// Phase 3: Attributes — ETIM + custom class
+			// =====================================================================
+			$with_attrs    = 0;
+			$without_attrs = 0;
+
+			Skwirrel_WC_Sync_History::update_phase_progress(
+				Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES,
+				0,
+				$total,
+				__( 'Fetching & connecting attributes…', 'skwirrel-pim-sync' )
+			);
+
+			$processed = 0;
+			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
+			while ( $row = $queue->get_next_for_phase( 3 ) ) {
+				if ( $row->wc_id && 'skipped' !== $row->outcome ) {
+					try {
+						// Re-fetch this product with attribute includes (ETIM + custom classes).
+						$attr_product = $this->fetch_product_attributes( $client, $row->product, $attr_includes );
+						$attr_count   = $this->upserter->assign_attributes( $row->wc_id, $attr_product, $row->group_info );
+						unset( $attr_product );
+						if ( $attr_count > 0 ) {
+							++$with_attrs;
+						} else {
+							++$without_attrs;
+						}
+					} catch ( Throwable $e ) {
+						$this->logger->warning(
+							'Attribute assignment failed',
+							[
+								'wc_id' => $row->wc_id,
+								'error' => $e->getMessage(),
+							]
+						);
+					}
+				}
+
+				$queue->mark_phase_completed( $row->id, 3 );
+				self::free_wpdb_memory();
+				wp_cache_flush();
+				++$processed;
+
+				if ( 0 === $processed % 25 || $total === $processed ) {
+					Skwirrel_WC_Sync_History::update_phase_progress(
+						Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES,
+						$processed,
+						$total,
+						__( 'Fetching & connecting attributes…', 'skwirrel-pim-sync' )
+					);
+					$this->check_abort();
+				}
+			}
+
+			// Flush deferred parent attribute terms
+			$this->upserter->flush_parent_attribute_terms();
+
+			// =====================================================================
+			$this->check_abort();
+			// Phase 4: Media — images + documents (slowest phase)
+			// =====================================================================
+			$media_total = $total + $virtual_total;
+
+			Skwirrel_WC_Sync_History::update_phase_progress(
+				Skwirrel_WC_Sync_History::PHASE_MEDIA,
+				0,
+				$media_total,
+				__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
+			);
+
+			$media_i = 0;
+			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
+			while ( $row = $queue->get_next_for_phase( 4 ) ) {
+				if ( $row->wc_id && 'skipped' !== $row->outcome ) {
+					try {
+						$this->upserter->assign_media( $row->wc_id, $row->product );
+					} catch ( Throwable $e ) {
+						$this->logger->warning(
+							'Media assignment failed',
+							[
+								'wc_id' => $row->wc_id,
+								'error' => $e->getMessage(),
+							]
+						);
+					}
+				}
+
+				$queue->mark_phase_completed( $row->id, 4 );
+				self::free_wpdb_memory();
+				wp_cache_flush();
+				++$media_i;
+
+				if ( 0 === $media_i % 10 || $media_i === $media_total ) {
+					Skwirrel_WC_Sync_History::update_phase_progress(
+						Skwirrel_WC_Sync_History::PHASE_MEDIA,
+						$media_i,
+						$media_total,
+						__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
+					);
+					$this->check_abort();
+				}
+			}
+
+			// Virtual products: apply content & images/documents to parent variable product
+			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
+			while ( $row = $queue->get_next_virtual() ) {
+				try {
+					if ( ! empty( $options['use_virtual_product_content'] ) ) {
+						$this->upserter->apply_virtual_product_content( $row->virtual_parent_id, $row->product );
+					}
+					$this->upserter->assign_media( $row->virtual_parent_id, $row->product );
+				} catch ( Throwable $e ) {
+					$this->logger->warning(
+						'Virtual product processing failed',
+						[
+							'wc_variable_id' => $row->virtual_parent_id,
+							'error'          => $e->getMessage(),
+						]
+					);
+				}
+
+				$queue->mark_phase_completed( $row->id, 4 );
+				self::free_wpdb_memory();
+				wp_cache_flush();
+				++$media_i;
+
+				if ( 0 === $media_i % 10 || $media_i === $media_total ) {
+					Skwirrel_WC_Sync_History::update_phase_progress(
+						Skwirrel_WC_Sync_History::PHASE_MEDIA,
+						$media_i,
+						$media_total,
+						__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
+					);
+					$this->check_abort();
+				}
+			}
+
+			// =====================================================================
+			$this->check_abort();
+			// Phase 5: Relations — cross-sells & upsells
+			// =====================================================================
+			if ( ! empty( $options['sync_related_products'] ) ) {
+				Skwirrel_WC_Sync_History::update_phase_progress(
+					Skwirrel_WC_Sync_History::PHASE_RELATIONS,
+					0,
+					$total,
+					__( 'Linking related products…', 'skwirrel-pim-sync' )
+				);
+
+				$rel_i = 0;
+				// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
+				while ( $row = $queue->get_next_for_phase( 5 ) ) {
+					if ( $row->wc_id && 'skipped' !== $row->outcome ) {
+						try {
+							$this->upserter->assign_relations( $row->wc_id, $row->product );
+						} catch ( Throwable $e ) {
+							$this->logger->warning(
+								'Relations assignment failed',
+								[
+									'wc_id' => $row->wc_id,
+									'error' => $e->getMessage(),
+								]
+							);
+						}
+					}
+
+					$queue->mark_phase_completed( $row->id, 5 );
+					self::free_wpdb_memory();
+					wp_cache_flush();
+					++$rel_i;
+
+					if ( 0 === $rel_i % 50 || $rel_i === $total ) {
+						Skwirrel_WC_Sync_History::update_phase_progress(
+							Skwirrel_WC_Sync_History::PHASE_RELATIONS,
+							$rel_i,
+							$total,
+							__( 'Linking related products…', 'skwirrel-pim-sync' )
+						);
+						$this->check_abort();
+					}
+				}
+			}
+
+			// Clean up queue — all products processed
+			$queue->cleanup();
+
+			// =====================================================================
+			$this->check_abort();
+			// Phase 6: Cleanup — purge stale, persist history
+			// =====================================================================
+			Skwirrel_WC_Sync_History::update_phase_progress(
+				Skwirrel_WC_Sync_History::PHASE_CLEANUP,
+				0,
+				1,
+				__( 'Cleaning up…', 'skwirrel-pim-sync' )
+			);
+
+			$trashed            = 0;
+			$categories_removed = 0;
+			if ( ! empty( $options['purge_stale_products'] ) ) {
+				if ( $delta ) {
+					$this->logger->verbose( 'Purge skipped: delta sync (only during full sync)' );
+				} else {
+					$trashed = $this->purge_handler->purge_stale_products( $sync_started_at, $this->mapper );
+					if ( ! empty( $options['sync_categories'] ) ) {
+						$categories_removed = $this->purge_handler->purge_stale_categories( $this->category_sync->get_seen_category_ids() );
+					}
+				}
+			}
+
+			update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z' ) );
+			Skwirrel_WC_Sync_History::update_last_result( true, $created, $updated, $failed, '', $with_attrs, $without_attrs, $trashed, $categories_removed, $trigger, $log_filename );
+
+			$this->logger->info(
+				'Sync completed',
+				[
+					'created'            => $created,
+					'updated'            => $updated,
+					'failed'             => $failed,
+					'trashed'            => $trashed,
+					'categories_removed' => $categories_removed,
+					'with_attributes'    => $with_attrs,
+					'without_attributes' => $without_attrs,
+				]
+			);
+
+			return [
+				'success'            => true,
+				'created'            => $created,
+				'updated'            => $updated,
+				'failed'             => $failed,
+				'trashed'            => $trashed,
+				'categories_removed' => $categories_removed,
+			];
+
+		} catch ( \RuntimeException $e ) {
+			// Abort requested by user — record as a non-error cancellation.
+			if ( isset( $queue ) ) {
+				$queue->cleanup();
+			}
+			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $e->getMessage(), 0, 0, 0, 0, $trigger, $log_filename );
+			return [
+				'success' => false,
+				'error'   => $e->getMessage(),
+				'created' => $created,
+				'updated' => $updated,
+				'failed'  => $failed,
+			];
+		} finally {
+			$shutdown_registered = false; // Disable shutdown handler — sync completed.
+			$this->logger->stop_sync_log();
+		}
+	}
+
+	/**
+	 * Upsert single product. Delegates to ProductUpserter.
+	 *
+	 * @param array $product Skwirrel product data.
+	 * @return string 'created'|'updated'|'skipped'
+	 */
+	public function upsert_product( array $product ): string {
+		return $this->upserter->upsert_product( $product );
+	}
+
+	/**
+	 * Sync a single product by its Skwirrel product_id.
+	 *
+	 * Fetches the product from the API using getProducts with a product_ids filter,
+	 * then upserts it into WooCommerce including categories, brands, and attributes.
+	 *
+	 * @param int $skwirrel_product_id Skwirrel product_id.
+	 * @return array{success: bool, outcome?: string, error?: string}
+	 */
+	public function sync_single_product( int $skwirrel_product_id ): array {
+		$client = $this->get_client();
+		if ( ! $client ) {
+			return [
+				'success' => false,
+				'error'   => 'Invalid API configuration',
+			];
+		}
+
+		$options     = $this->get_options();
+		$req_options = [
+			'include_product_status'       => true,
+			'include_product_translations' => true,
+			'include_attachments'          => true,
+			'include_trade_items'          => true,
+			'include_trade_item_prices'    => true,
+			'include_categories'           => ! empty( $options['sync_categories'] ),
+			'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
+			'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
+			'include_related_products'     => ! empty( $options['sync_related_products'] ),
+			'include_etim'                 => true,
+			'include_etim_translations'    => true,
+			'include_languages'            => $this->get_include_languages(),
+			'include_contexts'             => [ 1 ],
+		];
+
+		$sync_cc    = ! empty( $options['sync_custom_classes'] );
+		$sync_ti_cc = ! empty( $options['sync_trade_item_custom_classes'] );
+		if ( $sync_cc ) {
+			$req_options['include_custom_classes'] = true;
+		}
+		if ( $sync_ti_cc ) {
+			$req_options['include_trade_item_custom_classes'] = true;
+		}
+
+		$this->logger->info(
+			'Single product sync: fetching product from API',
+			[ 'skwirrel_product_id' => $skwirrel_product_id ]
+		);
+
+		$result = $client->call(
+			'getProductsByFilter',
+			[
+				'filter'  => [
+					'code' => [
+						'type'  => 'product_id',
+						'codes' => [ (string) $skwirrel_product_id ],
+					],
+				],
+				'options' => $req_options,
+				'page'    => 1,
+				'limit'   => 1,
+			]
+		);
+
+		if ( ! $result['success'] ) {
+			$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
+			$this->logger->error(
+				'Single product sync: API error',
+				[
+					'skwirrel_product_id' => $skwirrel_product_id,
+					'error'               => $err,
+				]
+			);
+			return [
+				'success' => false,
+				'error'   => $err['message'],
+			];
+		}
+
+		$data     = $result['result'] ?? [];
+		$products = $data['products'] ?? [];
+
+		$this->logger->info(
+			'Single product sync: API returned products',
+			[
+				'skwirrel_product_id' => $skwirrel_product_id,
+				'products_returned'   => count( $products ),
+			]
+		);
+
+		$product = $products[0] ?? null;
+
+		if ( null === $product ) {
+			return [
+				'success' => false,
+				'error'   => 'Product not found in Skwirrel API',
+			];
+		}
+
+		// Log raw category data from API response for diagnostics.
+		$this->logger->verbose(
+			'Single product raw API _categories',
+			[
+				'product_id'      => $product['product_id'] ?? '?',
+				'has__categories' => isset( $product['_categories'] ),
+				'_categories'     => $product['_categories'] ?? null,
+				'_product_groups' => $product['_product_groups'] ?? null,
+			]
+		);
+
+		try {
+			$outcome = $this->upserter->upsert_product( $product );
+
+			// Assign related products if enabled.
+			if ( ! empty( $options['sync_related_products'] ) && 'skipped' !== $outcome ) {
+				$lookup = new Skwirrel_WC_Sync_Product_Lookup( $this->mapper );
+				$wc_id  = $lookup->find_by_skwirrel_product_id( $skwirrel_product_id );
+				if ( $wc_id ) {
+					$this->upserter->assign_relations( $wc_id, $product );
+				}
+			}
+
+			$this->logger->info(
+				'Single product sync completed',
+				[
+					'skwirrel_product_id' => $skwirrel_product_id,
+					'outcome'             => $outcome,
+				]
+			);
+
+			return [
+				'success' => true,
+				'outcome' => $outcome,
+			];
+		} catch ( Throwable $e ) {
+			$this->logger->error(
+				'Single product sync failed',
+				[
+					'skwirrel_product_id' => $skwirrel_product_id,
+					'error'               => $e->getMessage(),
+				]
+			);
+			return [
+				'success' => false,
+				'error'   => $e->getMessage(),
+			];
+		}
+	}
+
+	/**
+	 * Sync a single grouped product (variable product) and all its member variations.
+	 *
+	 * Paginates through getGroupedProducts to find the group definition, then fetches
+	 * all member products via getProductsByFilter and upserts them as variations.
+	 *
+	 * @param int $grouped_product_id Skwirrel grouped_product_id.
+	 * @return array{success: bool, created?: int, updated?: int, failed?: int, error?: string}
+	 */
+	public function sync_single_grouped_product( int $grouped_product_id ): array {
+		$client = $this->get_client();
+		if ( ! $client ) {
+			return [
+				'success' => false,
+				'error'   => 'Invalid API configuration',
+			];
+		}
+
+		$options = $this->get_options();
+
+		$this->logger->info(
+			'Single grouped product sync: searching for group in API',
+			[ 'grouped_product_id' => $grouped_product_id ]
+		);
+
+		// Phase 1: Find the group definition by paginating through getGroupedProducts.
+		$group      = null;
+		$batch_size = (int) ( $options['batch_size'] ?? 10 );
+		$page       = 1;
+		$params     = [
+			'include_products'          => true,
+			'include_etim_features'     => true,
+			'include_etim_translations' => true,
+			'include_languages'         => $this->get_include_languages(),
+		];
+
+		do {
+			$params['page']  = $page;
+			$params['limit'] = $batch_size;
+			$result          = $client->call( 'getGroupedProducts', $params );
+
+			if ( ! $result['success'] ) {
+				$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
+				$this->logger->error(
+					'Single grouped product sync: getGroupedProducts failed',
+					[
+						'grouped_product_id' => $grouped_product_id,
+						'error'              => $err,
+					]
+				);
+				return [
+					'success' => false,
+					'error'   => $err['message'],
+				];
+			}
+
+			$data        = $result['result'] ?? [];
+			$groups      = $data['grouped_products'] ?? $data['groups'] ?? $data['products'] ?? [];
+			$page_info   = $data['page'] ?? [];
+			$total_pages = (int) ( $page_info['number_of_pages'] ?? 1 );
+			unset( $result, $data, $page_info );
+
+			if ( is_array( $groups ) ) {
+				foreach ( $groups as $g ) {
+					$gid = $g['grouped_product_id'] ?? $g['id'] ?? null;
+					if ( null !== $gid && (int) $gid === $grouped_product_id ) {
+						$group = $g;
+						break 2;
+					}
+				}
+			}
+
+			if ( $page >= $total_pages ) {
+				break;
+			}
+			++$page;
+		} while ( true );
+
+		if ( null === $group ) {
+			return [
+				'success' => false,
+				'error'   => 'Grouped product not found in Skwirrel API',
+			];
+		}
+
+		$this->logger->info(
+			'Single grouped product sync: group found, updating variable product shell',
+			[ 'grouped_product_id' => $grouped_product_id ]
+		);
+
+		// Phase 2: Update the variable product shell.
+		$product_to_group_map = [];
+		try {
+			$this->upserter->create_variable_product_from_group( $group, $product_to_group_map );
+		} catch ( Throwable $e ) {
+			$this->logger->error(
+				'Single grouped product sync: variable product creation failed',
+				[
+					'grouped_product_id' => $grouped_product_id,
+					'error'              => $e->getMessage(),
+				]
+			);
+			return [
+				'success' => false,
+				'error'   => $e->getMessage(),
+			];
+		}
+
+		// Phase 3: Collect member product IDs and fetch them from the API.
+		$member_product_ids = [];
+		$virtual_product_id = $group['virtual_product_id'] ?? null;
+		$members            = $group['_products'] ?? $group['products'] ?? [];
+		foreach ( $members as $item ) {
+			$pid = is_array( $item ) ? ( $item['product_id'] ?? null ) : (int) $item;
+			if ( null !== $pid ) {
+				$member_product_ids[] = (string) $pid;
+			}
+		}
+
+		// Include virtual product in fetch if present.
+		if ( $virtual_product_id && ! in_array( (string) $virtual_product_id, $member_product_ids, true ) ) {
+			$member_product_ids[] = (string) $virtual_product_id;
+		}
+
+		if ( empty( $member_product_ids ) ) {
+			$this->logger->info(
+				'Single grouped product sync: no member products in group',
+				[ 'grouped_product_id' => $grouped_product_id ]
+			);
+			return [
+				'success' => true,
+				'created' => 0,
+				'updated' => 0,
+				'failed'  => 0,
+			];
+		}
+
+		$req_options = [
+			'include_product_status'       => true,
+			'include_product_translations' => true,
+			'include_attachments'          => true,
+			'include_trade_items'          => true,
+			'include_trade_item_prices'    => true,
+			'include_categories'           => ! empty( $options['sync_categories'] ),
+			'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
+			'include_grouped_products'     => true,
+			'include_related_products'     => ! empty( $options['sync_related_products'] ),
+			'include_etim'                 => true,
+			'include_etim_translations'    => true,
+			'include_languages'            => $this->get_include_languages(),
+			'include_contexts'             => [ 1 ],
+		];
+		if ( ! empty( $options['sync_custom_classes'] ) ) {
+			$req_options['include_custom_classes'] = true;
+		}
+		if ( ! empty( $options['sync_trade_item_custom_classes'] ) ) {
+			$req_options['include_trade_item_custom_classes'] = true;
+		}
+
+		$this->logger->info(
+			'Single grouped product sync: fetching member products',
+			[
+				'grouped_product_id' => $grouped_product_id,
+				'member_count'       => count( $member_product_ids ),
+			]
+		);
+
+		$result = $client->call(
+			'getProductsByFilter',
+			[
+				'filter'  => [
+					'code' => [
+						'type'  => 'product_id',
+						'codes' => $member_product_ids,
+					],
+				],
+				'options' => $req_options,
+				'page'    => 1,
+				'limit'   => count( $member_product_ids ),
+			]
+		);
+
+		if ( ! $result['success'] ) {
+			$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
+			$this->logger->error(
+				'Single grouped product sync: member products fetch failed',
+				[
+					'grouped_product_id' => $grouped_product_id,
+					'error'              => $err,
+				]
+			);
+			return [
+				'success' => false,
+				'error'   => $err['message'],
+			];
+		}
+
+		$products = $result['result']['products'] ?? [];
+		unset( $result );
+
+		// Phase 4: Upsert each member product as a variation.
+		$created = 0;
+		$updated = 0;
+		$failed  = 0;
+
+		foreach ( $products as $product ) {
+			$skwirrel_product_id = $product['product_id'] ?? $product['id'] ?? null;
+
+			// Handle virtual product: apply content & media to the parent variable product.
+			if ( null !== $skwirrel_product_id && null !== $virtual_product_id
+				&& (int) $skwirrel_product_id === (int) $virtual_product_id
+			) {
+				$virtual_info = $product_to_group_map[ 'virtual:' . (int) $virtual_product_id ] ?? null;
+				if ( $virtual_info && ! empty( $virtual_info['wc_variable_id'] ) ) {
+					try {
+						if ( ! empty( $options['use_virtual_product_content'] ) ) {
+							$this->upserter->apply_virtual_product_content( (int) $virtual_info['wc_variable_id'], $product );
+						}
+						$this->upserter->assign_media( (int) $virtual_info['wc_variable_id'], $product );
+					} catch ( Throwable $e ) {
+						$this->logger->warning(
+							'Single grouped product sync: virtual product processing failed',
+							[ 'error' => $e->getMessage() ]
+						);
+					}
+				}
+				continue;
+			}
+
+			// Look up group_info for this product.
+			$group_info = null;
+			if ( null !== $skwirrel_product_id ) {
+				$group_info = $product_to_group_map[ (int) $skwirrel_product_id ] ?? null;
+			}
+			if ( ! $group_info ) {
+				$sku = (string) ( $product['internal_product_code'] ?? $product['manufacturer_product_code'] ?? '' );
+				if ( '' !== $sku ) {
+					$group_info = $product_to_group_map[ 'sku:' . $sku ] ?? null;
+				}
+			}
+
+			if ( ! $group_info ) {
+				$this->logger->warning(
+					'Single grouped product sync: product not in group map, skipping',
+					[ 'product_id' => $skwirrel_product_id ]
+				);
+				++$failed;
+				continue;
+			}
+
+			try {
+				$result_item = $this->upserter->create_or_update_variation( $product, $group_info );
+				$wc_id       = $result_item['wc_id'];
+				$outcome     = $result_item['outcome'];
+
+				if ( 'created' === $outcome ) {
+					++$created;
+				} elseif ( 'updated' === $outcome ) {
+					++$updated;
+				}
+
+				// Taxonomy: assign to parent variable product.
+				$tax_target = $group_info['wc_variable_id'] ?? $wc_id;
+				$this->upserter->assign_taxonomy( $tax_target, $product );
+
+				// Attributes.
+				$attr_includes = [];
+				if ( ! empty( $options['sync_custom_classes'] ) ) {
+					$attr_includes['include_custom_classes'] = true;
+				}
+				if ( ! empty( $options['sync_trade_item_custom_classes'] ) ) {
+					$attr_includes['include_trade_item_custom_classes'] = true;
+				}
+				if ( ! empty( $attr_includes ) ) {
+					$attr_includes['include_etim']              = true;
+					$attr_includes['include_etim_translations'] = true;
+					$attr_includes['include_languages']         = $this->get_include_languages();
+					$attr_includes['include_contexts']          = [ 1 ];
+					$attr_product                               = $this->fetch_product_attributes( $client, $product, $attr_includes );
+				} else {
+					$attr_product = $product;
+				}
+				$this->upserter->assign_attributes( $wc_id, $attr_product, $group_info );
+
+				// Media.
+				$this->upserter->assign_media( $wc_id, $product );
+
+				// Relations.
+				if ( ! empty( $options['sync_related_products'] ) ) {
+					$this->upserter->assign_relations( $wc_id, $product );
+				}
+			} catch ( Throwable $e ) {
+				++$failed;
+				$this->logger->error(
+					'Single grouped product sync: variation upsert failed',
+					[
+						'product_id' => $skwirrel_product_id,
+						'error'      => $e->getMessage(),
+					]
+				);
+			}
+		}
+
+		// Flush deferred parent attribute terms.
+		$this->upserter->flush_parent_attribute_terms();
+
+		$this->logger->info(
+			'Single grouped product sync completed',
+			[
+				'grouped_product_id' => $grouped_product_id,
+				'created'            => $created,
+				'updated'            => $updated,
+				'failed'             => $failed,
+			]
+		);
+
+		return [
+			'success' => true,
+			'created' => $created,
+			'updated' => $updated,
+			'failed'  => $failed,
+		];
+	}
+
+	private function get_client(): ?Skwirrel_WC_Sync_JsonRpc_Client {
+		$opts  = $this->get_options();
+		$url   = $opts['endpoint_url'] ?? '';
+		$auth  = $opts['auth_type'] ?? 'bearer';
+		$token = Skwirrel_WC_Sync_Admin_Settings::get_auth_token();
+		if ( empty( $url ) || empty( $token ) ) {
+			return null;
+		}
+		return new Skwirrel_WC_Sync_JsonRpc_Client(
+			$url,
+			$auth,
+			$token,
+			(int) ( $opts['timeout'] ?? 30 ),
+			(int) ( $opts['retries'] ?? 2 )
+		);
+	}
+
+	/**
+	 * Fetch a page of products from the API.
+	 *
+	 * Uses getProducts (faster) for full sync or getProductsByFilter when a filter is needed.
+	 *
+	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client       API client.
+	 * @param bool                            $use_filter   Whether to use getProductsByFilter.
+	 * @param array                           $filter       Filter params for getProductsByFilter.
+	 * @param array                           $api_includes Include flags.
+	 * @param int                             $batch_size   Products per page.
+	 * @param int                             $page         Page number.
+	 * @return array API result array.
+	 */
+	private function fetch_products_page(
+		Skwirrel_WC_Sync_JsonRpc_Client $client,
+		bool $use_filter,
+		array $filter,
+		array $api_includes,
+		int $batch_size,
+		int $page
+	): array {
+		if ( $use_filter ) {
+			return $client->call(
+				'getProductsByFilter',
+				[
+					'filter'  => $filter,
+					'options' => $api_includes,
+					'page'    => $page,
+					'limit'   => $batch_size,
+				]
+			);
+		}
+
+		// Full sync: use getProducts with include flags as top-level params (faster API endpoint).
+		return $client->call(
+			'getProducts',
+			array_merge(
+				$api_includes,
+				[
+					'page'  => $page,
+					'limit' => $batch_size,
+				]
+			)
+		);
+	}
+
+	private function get_options(): array {
+		$defaults = [
+			'endpoint_url'          => '',
+			'auth_type'             => 'bearer',
+			'auth_token'            => '',
+			'timeout'               => 30,
+			'retries'               => 2,
+			'batch_size'            => 10,
+			'sync_categories'       => true,
+			'sync_grouped_products' => false,
+			'sync_images'           => true,
+			'image_language'        => 'nl',
+			'include_languages'     => [ 'nl-NL', 'nl' ],
+			'verbose_logging'       => false,
+		];
+		$saved    = get_option( 'skwirrel_wc_sync_settings', [] );
+		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );
+	}
+
+	/**
+	 * Get collection IDs from settings. Returns array of int IDs, or empty array for "sync all".
+	 */
+	private function get_collection_ids(): array {
+		$opts = get_option( 'skwirrel_wc_sync_settings', [] );
+		$raw  = $opts['collection_ids'] ?? '';
+		if ( '' === $raw || ! is_string( $raw ) ) {
+			return [];
+		}
+		$parts = preg_split( '/[\s,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY );
+		return array_values( array_map( 'intval', array_filter( $parts, 'is_numeric' ) ) );
+	}
+
+	private function get_include_languages(): array {
+		$opts  = get_option( 'skwirrel_wc_sync_settings', [] );
+		$langs = $opts['include_languages'] ?? [ 'nl-NL', 'nl' ];
+		if ( ! empty( $langs ) && is_array( $langs ) ) {
+			return array_values( array_filter( array_map( 'sanitize_text_field', $langs ) ) );
+		}
+		return [ 'nl-NL', 'nl' ];
+	}
+
+	/**
+	 * Check if the user requested an abort. Throws RuntimeException to exit the sync.
+	 *
+	 * @throws \RuntimeException When abort is requested.
+	 */
+	/**
+	 * Re-fetch a single product with attribute includes (ETIM + custom classes).
+	 *
+	 * Returns the original product array merged with the freshly fetched attribute data.
+	 * If the API call fails, returns the original product as-is (attributes will be empty).
+	 *
+	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client          API client.
+	 * @param array                           $product         Original product data (from queue).
+	 * @param array                           $attr_includes   Attribute-specific include flags.
+	 * @return array Product array with attribute data merged in.
+	 */
+	private function fetch_product_attributes( Skwirrel_WC_Sync_JsonRpc_Client $client, array $product, array $attr_includes ): array {
+		$product_id = $product['product_id'] ?? $product['id'] ?? null;
+		if ( null === $product_id ) {
+			return $product;
+		}
+
+		$result = $client->call(
+			'getProductsByFilter',
+			[
+				'filter'  => [
+					'code' => [
+						'type'  => 'product_id',
+						'codes' => [ (string) $product_id ],
+					],
+				],
+				'options' => $attr_includes,
+				'page'    => 1,
+				'limit'   => 1,
+			]
+		);
+
+		if ( ! $result['success'] ) {
+			$this->logger->warning( 'Attribute fetch failed for product', [ 'product_id' => $product_id ] );
+			return $product;
+		}
+
+		$fetched = $result['result']['products'][0] ?? null;
+		unset( $result );
+
+		if ( null === $fetched ) {
+			return $product;
+		}
+
+		// Merge attribute fields into the original product.
+		if ( isset( $fetched['_etim'] ) ) {
+			$product['_etim'] = $fetched['_etim'];
+		}
+		if ( isset( $fetched['_custom_classes'] ) ) {
+			$product['_custom_classes'] = $fetched['_custom_classes'];
+		}
+		if ( isset( $fetched['_trade_items'] ) ) {
+			// Trade item custom classes are nested inside _trade_items.
+			foreach ( $fetched['_trade_items'] as $i => $ti ) {
+				if ( isset( $ti['_custom_classes'] ) && isset( $product['_trade_items'][ $i ] ) ) {
+					$product['_trade_items'][ $i ]['_custom_classes'] = $ti['_custom_classes'];
+				}
+			}
+		}
+		unset( $fetched );
+
+		return $product;
+	}
+
+	private function check_abort(): void {
+		Skwirrel_WC_Sync_History::sync_heartbeat();
+		if ( Skwirrel_WC_Sync_History::is_abort_requested() ) {
+			$this->logger->info( 'Sync aborted by user' );
+			throw new \RuntimeException( 'Sync aborted by user' );
+		}
+	}
+
+	/**
+	 * Free accumulated wpdb memory between operations.
+	 *
+	 * Clears $wpdb->queries[] (which stores every query when SAVEQUERIES is on)
+	 * and flushes last_result/last_query/col_info to reclaim memory.
+	 */
+	private static function free_wpdb_memory(): void {
+		global $wpdb;
+		$wpdb->queries = [];
+		$wpdb->flush();
+	}
+}
