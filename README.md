@@ -186,7 +186,10 @@ vendor/bin/phpcs           # Code style (WordPress standards)
 
 ### Local WordPress environment (wp-env)
 
+Run the following from `plugin/skwirrel-pim-sync/`:
+
 ```bash
+cd plugin/skwirrel-pim-sync
 npm install                # one-time
 npm run env:start          # boot WordPress + WooCommerce in Docker
 npm run composer:install   # install composer deps in the tests container
