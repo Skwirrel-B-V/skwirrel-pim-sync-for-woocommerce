@@ -10,7 +10,6 @@ Thumbs.db
 .vscode/
 
 # Composer (dev stubs only, not shipped)
-composer.lock
 vendor/
 
 # Local config overrides
