@@ -184,6 +184,24 @@ vendor/bin/phpstan analyse # Static analysis (level 6)
 vendor/bin/phpcs           # Code style (WordPress standards)
 ```
 
+### Local WordPress environment (wp-env)
+
+```bash
+npm install                # one-time
+npm run env:start          # boot WordPress + WooCommerce in Docker
+npm run composer:install   # install composer deps in the tests container
+npm run test:integration   # run integration tests against real WP
+npm run env:stop           # stop (keeps DB)
+npm run env:clean          # drop both DBs
+```
+
+Admin login (default `@wordpress/env` credentials):
+
+| | URL | User | Password |
+|---|---|---|---|
+| Dev site | http://localhost:8888/wp-admin | `admin` | `password` |
+| Tests site | http://localhost:8889/wp-admin | `admin` | `password` |
+
 ## License
 
 GPL v2 or later. See [LICENSE](https://www.gnu.org/licenses/gpl-2.0.html).
