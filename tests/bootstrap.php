@@ -167,6 +167,92 @@ if (!isset($GLOBALS['wpdb'])) {
     };
 }
 
+// Stub WordPress hook functions.
+if (!function_exists('add_action')) {
+    function add_action(string $hook, $callback, int $priority = 10, int $accepted_args = 1): void {}
+}
+
+if (!function_exists('add_filter')) {
+    function add_filter(string $hook, $callback, int $priority = 10, int $accepted_args = 1): void {}
+}
+
+if (!function_exists('add_rewrite_rule')) {
+    function add_rewrite_rule(string $regex, string $query, string $after = 'bottom'): void {}
+}
+
+if (!function_exists('flush_rewrite_rules')) {
+    function flush_rewrite_rules(bool $hard = true): void {}
+}
+
+// Stub get_post_meta() — tests can set $GLOBALS['_test_post_meta'][$post_id][$key].
+if (!function_exists('get_post_meta')) {
+    function get_post_meta(int $post_id, string $key = '', bool $single = false) {
+        if (isset($GLOBALS['_test_post_meta'][$post_id][$key])) {
+            return $single ? $GLOBALS['_test_post_meta'][$post_id][$key] : [$GLOBALS['_test_post_meta'][$post_id][$key]];
+        }
+        return $single ? '' : [];
+    }
+}
+
+// Stub get_post_field() — tests can set $GLOBALS['_test_post_fields'][$post_id][$field].
+if (!function_exists('get_post_field')) {
+    function get_post_field(string $field, int $post_id = 0) {
+        return $GLOBALS['_test_post_fields'][$post_id][$field] ?? '';
+    }
+}
+
+// Stub get_permalink() — tests can set $GLOBALS['_test_permalinks'][$post_id].
+if (!function_exists('get_permalink')) {
+    function get_permalink(int $post_id = 0) {
+        return $GLOBALS['_test_permalinks'][$post_id] ?? '';
+    }
+}
+
+// Stub add_query_arg().
+if (!function_exists('add_query_arg')) {
+    function add_query_arg($args, string $url = ''): string {
+        if (is_array($args)) {
+            $url .= (strpos($url, '?') !== false ? '&' : '?') . http_build_query($args);
+        }
+        return $url;
+    }
+}
+
+// Stub trailingslashit().
+if (!function_exists('trailingslashit')) {
+    function trailingslashit(string $value): string {
+        return rtrim($value, '/') . '/';
+    }
+}
+
+// Stub wc_get_product() — tests can set $GLOBALS['_test_wc_products'][$product_id].
+if (!function_exists('wc_get_product')) {
+    function wc_get_product(int $product_id) {
+        return $GLOBALS['_test_wc_products'][$product_id] ?? null;
+    }
+}
+
+// Stub wc_placeholder_img().
+if (!function_exists('wc_placeholder_img')) {
+    function wc_placeholder_img(string $size = 'woocommerce_thumbnail'): string {
+        return '<img src="placeholder.png" />';
+    }
+}
+
+// Stub wp_get_attachment_image().
+if (!function_exists('wp_get_attachment_image')) {
+    function wp_get_attachment_image(int $attachment_id, $size = 'thumbnail'): string {
+        return '<img src="attachment-' . $attachment_id . '.png" />';
+    }
+}
+
+// Stub wc_get_permalink_structure().
+if (!function_exists('wc_get_permalink_structure')) {
+    function wc_get_permalink_structure(): array {
+        return $GLOBALS['_test_wc_permalink_structure'] ?? ['product_base' => 'product'];
+    }
+}
+
 // Stub WC_Logger to prevent fatal errors in Logger constructor.
 if (!class_exists('WC_Logger')) {
     class WC_Logger {
@@ -174,12 +260,73 @@ if (!class_exists('WC_Logger')) {
     }
 }
 
+// Stub WC_Product for tests.
+if (!class_exists('WC_Product')) {
+    class WC_Product {
+        protected int $id = 0;
+        protected string $type = 'simple';
+        protected array $attributes = [];
+        protected int $parent_id = 0;
+        protected int $image_id = 0;
+        protected string $sku = '';
+        protected array $children = [];
+
+        public function __construct(int $id = 0) {
+            $this->id = $id;
+        }
+
+        public function get_id(): int {
+            return $this->id;
+        }
+
+        public function is_type(string $type): bool {
+            return $this->type === $type;
+        }
+
+        public function get_parent_id(): int {
+            return $this->parent_id;
+        }
+
+        public function get_attributes(): array {
+            return $this->attributes;
+        }
+
+        public function get_image_id(): int {
+            return $this->image_id;
+        }
+
+        public function get_sku(): string {
+            return $this->sku;
+        }
+
+        public function get_children(): array {
+            return $this->children;
+        }
+    }
+}
+
+// Stub WC_Product_Variation for tests.
+if (!class_exists('WC_Product_Variation')) {
+    class WC_Product_Variation extends WC_Product {
+        protected string $type = 'variation';
+    }
+}
+
+// Stub WC_Product_Variable for tests.
+if (!class_exists('WC_Product_Variable')) {
+    class WC_Product_Variable extends WC_Product {
+        protected string $type = 'variable';
+    }
+}
+
 // Load plugin classes (order matters — dependencies first).
-require_once __DIR__ . '/../includes/class-logger.php';
-require_once __DIR__ . '/../includes/class-media-importer.php';
-require_once __DIR__ . '/../includes/class-etim-extractor.php';
-require_once __DIR__ . '/../includes/class-custom-class-extractor.php';
-require_once __DIR__ . '/../includes/class-attachment-handler.php';
-require_once __DIR__ . '/../includes/class-product-mapper.php';
-require_once __DIR__ . '/../includes/class-permalink-settings.php';
-require_once __DIR__ . '/../includes/class-slug-resolver.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-logger.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-media-importer.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-etim-extractor.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-custom-class-extractor.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-attachment-handler.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-product-mapper.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-permalink-settings.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-slug-resolver.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-theme-api.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-variation-permalinks.php';

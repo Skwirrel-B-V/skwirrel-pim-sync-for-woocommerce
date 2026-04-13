@@ -216,3 +216,135 @@ test('get_options prefers dedicated option over main settings', function () {
 	expect($opts['slug_suffix_field'])->toBe('product_id');
 	expect($opts['update_slug_on_resync'])->toBeTrue();
 });
+
+// ------------------------------------------------------------------
+// resolve_for_variation() — variation slug resolution
+// ------------------------------------------------------------------
+
+test('resolve_for_variation returns joined attribute values as slug', function () {
+	$attrs = ['pa_color' => 'blue', 'pa_size' => 'large'];
+
+	$result = $this->resolver->resolve_for_variation($attrs, 'SKU-001', 100);
+
+	expect($result)->toBe('blue-large');
+});
+
+test('resolve_for_variation returns single attribute value as slug', function () {
+	$attrs = ['pa_color' => 'red'];
+
+	$result = $this->resolver->resolve_for_variation($attrs, 'SKU-002', 100);
+
+	expect($result)->toBe('red');
+});
+
+test('resolve_for_variation falls back to SKU when attributes are empty', function () {
+	$result = $this->resolver->resolve_for_variation([], 'SKU-123', 100);
+
+	expect($result)->toBe('sku-123');
+});
+
+test('resolve_for_variation returns empty string when attributes and SKU are empty', function () {
+	$result = $this->resolver->resolve_for_variation([], '', 100);
+
+	expect($result)->toBe('');
+});
+
+test('resolve_for_variation sanitizes attribute values into slug', function () {
+	$attrs = ['pa_color' => 'Blauw Groen', 'pa_size' => 'Extra Large'];
+
+	$result = $this->resolver->resolve_for_variation($attrs, 'SKU-001', 100);
+
+	expect($result)->toBe('blauw-groen-extra-large');
+});
+
+test('resolve_for_variation appends SKU suffix on slug collision', function () {
+	// Override $wpdb->get_var to simulate a collision on the first slug.
+	$GLOBALS['_wpdb_call_count'] = 0;
+	$GLOBALS['wpdb'] = new class {
+		public string $posts = 'wp_posts';
+
+		public function prepare(string $query, ...$args): string {
+			return vsprintf(str_replace('%s', "'%s'", str_replace('%d', '%d', $query)), $args);
+		}
+
+		public function get_var(string $query) {
+			$GLOBALS['_wpdb_call_count']++;
+			// First call: slug "blue-large" exists (collision).
+			if ($GLOBALS['_wpdb_call_count'] === 1) {
+				return '1';
+			}
+			return '0';
+		}
+	};
+
+	$attrs  = ['pa_color' => 'blue', 'pa_size' => 'large'];
+	$result = $this->resolver->resolve_for_variation($attrs, 'ITEM-99', 100);
+
+	expect($result)->toBe('blue-large-item-99');
+
+	// Restore default wpdb stub.
+	unset($GLOBALS['_wpdb_call_count']);
+	$GLOBALS['wpdb'] = new class {
+		public string $posts = 'wp_posts';
+		public string $postmeta = 'wp_postmeta';
+		public string $terms = 'wp_terms';
+		public string $term_taxonomy = 'wp_term_taxonomy';
+		public string $term_relationships = 'wp_term_relationships';
+		public string $termmeta = 'wp_termmeta';
+
+		public function prepare(string $query, ...$args): string {
+			return vsprintf(str_replace('%s', "'%s'", str_replace('%d', '%d', $query)), $args);
+		}
+
+		public function get_var(string $query) {
+			return '0';
+		}
+
+		public function get_results(string $query, $output = 'OBJECT') {
+			return [];
+		}
+	};
+});
+
+test('resolve_for_variation returns base slug when collision but SKU is empty', function () {
+	// Override $wpdb->get_var to simulate a collision.
+	$GLOBALS['wpdb'] = new class {
+		public string $posts = 'wp_posts';
+
+		public function prepare(string $query, ...$args): string {
+			return vsprintf(str_replace('%s', "'%s'", str_replace('%d', '%d', $query)), $args);
+		}
+
+		public function get_var(string $query) {
+			return '1'; // Always exists (collision).
+		}
+	};
+
+	$attrs  = ['pa_color' => 'blue'];
+	$result = $this->resolver->resolve_for_variation($attrs, '', 100);
+
+	// Falls back to base slug (WP will auto-number).
+	expect($result)->toBe('blue');
+
+	// Restore default wpdb stub.
+	$GLOBALS['wpdb'] = new class {
+		public string $posts = 'wp_posts';
+		public string $postmeta = 'wp_postmeta';
+		public string $terms = 'wp_terms';
+		public string $term_taxonomy = 'wp_term_taxonomy';
+		public string $term_relationships = 'wp_term_relationships';
+		public string $termmeta = 'wp_termmeta';
+
+		public function prepare(string $query, ...$args): string {
+			return vsprintf(str_replace('%s', "'%s'", str_replace('%d', '%d', $query)), $args);
+		}
+
+		public function get_var(string $query) {
+			return '0';
+		}
+
+		public function get_results(string $query, $output = 'OBJECT') {
+			return [];
+		}
+	};
+});

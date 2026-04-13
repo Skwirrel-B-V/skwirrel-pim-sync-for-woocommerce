@@ -1,14 +1,18 @@
+includes:
+  - vendor/szepeviktor/phpstan-wordpress/extension.neon
+  - phpstan-baseline.neon
 parameters:
   level: 6
+  parallel:
+    maximumNumberOfProcesses: 1
   paths:
-    - skwirrel-pim-sync.php
-    - includes/
+    - plugin/skwirrel-pim-sync/skwirrel-pim-sync.php
+    - plugin/skwirrel-pim-sync/includes/
   excludePaths:
     - vendor/
-  scanDirectories:
-    - vendor/php-stubs/wordpress-stubs/
-    - vendor/php-stubs/woocommerce-stubs/
-  ignoreErrors:
-    # WordPress global functions not in stubs
-    - '#Function apply_filters invoked with#'
-    - '#Function do_action invoked with#'
+    - plugin/skwirrel-pim-sync/vendor/
+  bootstrapFiles:
+    - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
+    - vendor/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php
+  scanFiles:
+    - plugin/skwirrel-pim-sync/skwirrel-pim-sync.php

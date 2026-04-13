@@ -13,8 +13,8 @@
 
     <source>
         <include>
-            <directory>includes</directory>
-            <file>skwirrel-pim-sync.php</file>
+            <directory>plugin/skwirrel-pim-sync/includes</directory>
+            <file>plugin/skwirrel-pim-sync/skwirrel-pim-sync.php</file>
         </include>
     </source>
 </phpunit>

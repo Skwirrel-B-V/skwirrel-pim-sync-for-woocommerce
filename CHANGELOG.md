@@ -2,6 +2,216 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.1.0]
+
+* **Log viewer performance** — log modal now renders progressively in batches of 200 lines via `requestAnimationFrame`, eliminating UI freezes on large logs
+* **Download button** — new download button in the log modal header for direct raw log file download
+* **Chunked server loading** — log viewer loads 100 KB at a time with a "Load more" button for the remainder, reducing initial payload by 80%
+* **Progress indicator** — shows line rendering progress in the modal header during log display
+
+## [3.0.0]
+
+* **Virtual product content** — variable products now inherit name, descriptions, categories, and brands from their virtual product (when available), replacing the raw grouped product code
+* New setting: "Use virtual product content for variable products" checkbox under Sync Options
+* New filter `skwirrel_wc_sync_before_virtual_content` for granular control over virtual product content application
+* **Variation slugs** — each variation gets a deterministic URL slug generated from its attribute values during sync (e.g. `blue-large`)
+* **Variation permalinks** — optional clean URLs: `/product/{product-slug}/{variation-slug}/` with automatic variation pre-selection
+* New permalink setting: "Enable clean variation URLs" on Settings > Permalinks
+* **Enhanced Skwirrel meta box** — variable products now show child variation links, virtual product ID, and variations show a link back to the parent product
+* **Theme API** — new helper functions for theme developers: `skwirrel_get_variation_url()`, `skwirrel_get_default_variation()`, `skwirrel_get_variation_thumbnail()`, `skwirrel_get_all_variations_with_urls()`, `skwirrel_is_skwirrel_product()`
+* New `snippets/` directory with example theme code for showing variation cards on archive pages
+
+## [2.6.2]
+
+* Fix "This product is not managed by Skwirrel" false positive on variable products and products without `external_product_id`
+* Both `is_skwirrel_product()` and the Skwirrel meta box now also check `_skwirrel_product_id` and `_skwirrel_grouped_product_id`
+
+## [2.6.1]
+
+* Fix related products sync — use correct API flag `include_related_products` (was `include_product_relations`)
+* Smart relation type mapping: UPSELL/SUCCESSOR → WC upsells, all others → WC cross-sells (auto mode)
+* New "Auto (use relation type)" default option respects Skwirrel's CROSS_SELL, UPSELL, HAS_ACCESSORY, etc. types
+* Override modes: force all relations to cross-sells, upsells, or both
+
+## [2.6.0]
+
+* **Related products sync** — new Phase 5 "Relations" syncs Skwirrel related products to WooCommerce cross-sells, upsells, or both
+* New settings: "Sync related products" checkbox and "Related products mapping" dropdown (Cross-sells / Upsells / Both)
+* Batch lookup for resolving Skwirrel IDs to WooCommerce product IDs for efficient relation assignment
+* Unresolved relations are stored in `_skwirrel_pending_relations` meta and retried on the next sync
+* Variations automatically assign relations to their parent variable product
+
+## [2.5.0]
+
+* **Variant label setting** — new "Variant label" dropdown in settings to choose which field is shown in the frontend variant dropdown when no ETIM variation axes are available: SKU (default), ERP description, or product name
+* **Custom class attribute visibility filter** — new "Attribute visibility filter" setting to control which custom class attributes are visible on the product page (whitelist/blacklist by class ID or code)
+
+## [2.4.4]
+
+* Fix "Stop sync" button — abort check now runs every 25 products within each phase instead of only between phases
+* Heartbeat refresh during abort checks to keep the UI sync-in-progress indicator alive
+* Fix failed sync status card — show the failed sync timestamp and error message instead of the last successful sync time; display "Last successful sync" as a secondary line
+
+## [2.4.3]
+
+* Flush WordPress object cache after every product in all processing phases (1–4) to prevent WooCommerce product objects from accumulating in memory
+
+## [2.4.2]
+
+* Flush WordPress object cache (`wp_cache_flush()`) between all sync phases to free memory from accumulated term/meta lookups
+* Log memory usage at sync start and after pre-sync to diagnose OOM issues
+
+## [2.4.1]
+
+* Fix OOM in grouped products pre-sync — flush wpdb memory after each API page in `sync_grouped_products_first()` and `fetch_product_ids_for_selection()`
+
+## [2.4.0]
+
+* **Deferred attribute fetch** — ETIM and custom class data is no longer included in the main product fetch; instead it is fetched per-product during the attribute phase to drastically reduce memory usage during sync
+
+## [2.3.5]
+
+* Aggressive memory management during sync — clear `$wpdb->queries[]` and flush after every product in all phases to prevent OOM from accumulated query log
+
+## [2.3.4]
+
+* Fix OOM during fetch phase — flush wpdb query log between batches to prevent memory accumulation from LONGTEXT INSERT queries
+* Change default batch size from 100 to 10 (matches admin settings default)
+
+## [2.3.3]
+
+* Fix OOM during fetch phase — cap API batch size to 25 products per page and flush wpdb query log between batches to prevent memory accumulation
+
+## [2.3.2]
+
+* Fix unexpected output during plugin activation — use dbDelta-compatible SQL format for sync queue table
+
+## [2.3.1]
+
+* Use WordPress timezone for log filenames instead of UTC
+
+## [2.3.0]
+
+* **Database-backed sync queue** — product data is now stored in a temporary database table during sync instead of PHP memory, reducing memory usage from O(n) to O(1) regardless of product count
+* Products are processed one at a time per phase via cursor pattern, preventing OOM crashes on servers with low memory limits (e.g. 128MB)
+* Queue table is automatically created on plugin activation and cleaned up after each sync run
+
+## [2.2.9]
+
+* Convert existing simple products to variations when a grouped product sync encounters a duplicate SKU (trashes old simple, creates variation)
+* Reduce memory usage during phased sync by freeing heavy product data after each phase completes
+
+## [2.2.8]
+
+* Simplify per-product category assignment — look up Skwirrel category IDs directly in the resolved map from tree sync instead of re-extracting and recursively resolving the category hierarchy per product
+
+## [2.2.7]
+
+* Add "Stop sync" button to progress banner — allows aborting a running sync from the dashboard
+* Log timestamps now respect the WordPress timezone setting (uses `wp_date()` instead of `gmdate()`)
+
+## [2.2.6]
+
+* Add `include_contexts` to getCategories API call (required by V2 API for translations)
+* Improved category sync diagnostics: log full request params, response structure, and categories without names
+
+## [2.2.5]
+
+* Fix approved download directory: also enable existing disabled directories (WooCommerce could add the `/uploads` directory but leave it disabled)
+
+## [2.2.4]
+
+* **Fix category sync** — use correct API parameter `super_category_id` instead of non-existent `category_id`
+* Category tree sync now fetches all categories under a super category in one API call (no more recursion)
+* Fix per-product category assignment when API returns ID-only `_categories` (no names) — match by Skwirrel ID against existing WC terms
+* Support V1 API `_translation` format (keyed by language) in addition to V2 `_category_translations` (array)
+
+## [2.2.3]
+
+* Dark terminal-style log viewer with syntax highlighting for log levels (INFO=blue, WARNING=yellow, ERROR=red)
+* JSON objects in log lines highlighted in cyan
+* Sync separator lines styled with subtle dividers
+* Modal title shows the log filename
+* Truncation notice styled as warning banner
+
+## [2.2.2]
+
+* Raise PHP memory limit at sync start via `wp_raise_memory_limit('admin')` to prevent OOM crashes on large API responses
+* Register shutdown handler to detect fatal errors (OOM) during sync and record them as failed sync results
+* Fixes silent sync failures where a crash left the dashboard showing the previous successful result with no error record
+
+## [2.2.1]
+
+* Separate "Sync Logs" settings section with per-trigger log mode (one file per sync or per day)
+* Manual and scheduled syncs each have their own log mode setting
+* Add "Manual (no auto-delete)" option to log retention
+* Fix super category ID field width to match selection IDs field
+
+## [2.2.0]
+
+* Per-sync log files — each sync run writes to its own log file for easy debugging
+* Manual syncs get a unique log file; scheduled syncs share a daily log file (appended)
+* Log viewer modal in sync history — click "View" to read log contents inline
+* Configurable log retention setting (12 hours, 1 day, 2 days, 7 days, 30 days)
+* Auto-cleanup of old log files at the start of each sync run
+* Log files are cleaned up when history entries are deleted
+
+## [2.1.5]
+
+* Recursively fetch full category tree from API — all depth levels are now synced, not just direct children of the super category
+
+## [2.1.4]
+
+* Auto-register WP uploads directory as WooCommerce approved download directory during sync
+* Fixes "downloadable file not in approved folder" errors for imported PDFs (WC 6.5+)
+
+## [2.1.3]
+
+* Store Skwirrel API response for all product types: `upsert_product_as_variation`, `create_variable_product_from_group`, and `create_or_update_variation` now also save `_skwirrel_api_response`
+
+## [2.1.2]
+
+* Fix grouped products ignoring dynamic selection ID — post-filter groups against selection product list
+* Fetch allowed product IDs from selection before processing groups, skip groups with no matching members
+* Remove unused `get_collection_ids()` from upserter (now passed as parameter from sync service)
+
+## [2.1.1]
+
+* Fix grouped products ignoring selection ID filter — pass `dynamic_selection_id` to `getGroupedProducts`
+* Store raw Skwirrel API response as `_skwirrel_api_response` post meta during sync
+* Add dedicated "Skwirrel API Response" meta box on the product edit screen showing the stored JSON
+
+## [2.1.0]
+
+* Selection ID is now required — sync aborts if no selection ID is configured
+* Add "Show API response" button in the Skwirrel product meta box to view raw JSON from the API
+* Reduce batch size maximum from 500 to 50, default from 100 to 10
+* Fix translation: selection ID hint incorrectly said "category IDs" in all locales (nl, en, fr, de)
+
+## [2.0.8]
+
+* Add raw API response logging for `getCategories` and per-product `_categories` data (verbose mode)
+
+## [2.0.7]
+
+* Fix category tree sync failing when API returns single root category object instead of array
+* Categories from `getCategories` are now correctly extracted from root `_children` when super category ID is used
+
+## [2.0.6]
+
+* Add diagnostic logging for category-to-product assignment to trace resolution failures
+* Log each category resolve step (meta lookup, name fallback, creation) when verbose logging is enabled
+* Warn when categories are extracted from API but no WooCommerce term IDs could be resolved
+* Check and log `wp_set_object_terms` errors instead of silently ignoring failures
+
+## [2.0.5]
+
+* Update README and plugin description to reflect current feature set
+* Replace "ERP/PIM" references with "PIM" throughout
+* Update WooCommerce minimum to 8.0 (9.6+ recommended for native brand support)
+* Update WooCommerce tested up to 10.6
+* Update WordPress tested up to 6.9.4
+
 ## [2.0.4]
 
 * Inline "Update on re-sync" toggle in Permalinks section — saves instantly via AJAX with ✓ indicator
