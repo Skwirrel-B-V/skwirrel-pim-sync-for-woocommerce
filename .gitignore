@@ -9,8 +9,9 @@ Thumbs.db
 *~
 .vscode/
 
-# Composer (dev stubs only, not shipped)
+# dev stubs only
 vendor/
+node_modules/
 
 # Local config overrides
 phpstan.neon

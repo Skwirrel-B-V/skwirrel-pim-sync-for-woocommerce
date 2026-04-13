@@ -3,7 +3,7 @@
 	"phpVersion": "8.1",
 	"plugins": [
 		"https://downloads.wordpress.org/plugin/woocommerce.zip",
-		"plugin/skwirrel-pim-sync",
+		"./plugin/skwirrel-pim-sync",
 		"https://downloads.wordpress.org/plugin/plugin-check.zip"
 	],
 	"config": {
