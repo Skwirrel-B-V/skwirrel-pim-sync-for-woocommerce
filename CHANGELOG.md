@@ -2,6 +2,13 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.4.0]
+
+* **Live sync log viewer** — the Debug page now tails the current sync log file with 2-second polling, auto-scroll, pause/clear controls, and a live-updating line counter. When no sync is running, the most recent log is shown
+* **"View live log" anchor link** on the in-progress sync banner jumps straight to the live viewer, making it easy to watch a running sync in real time
+* **Active log tracking** — `Skwirrel_WC_Sync_Logger` now records the active log filename in the `skwirrel_wc_sync_active_log` option so the viewer can find the current log across page refreshes and separate requests
+* **Dashboard Debug block** relabelled to surface the live log viewer alongside the existing ETIM variation attribute troubleshooting
+
 ## [3.3.0]
 
 * **Log viewer performance** — log modal now renders progressively in batches of 200 lines via `requestAnimationFrame`, eliminating UI freezes on large logs

@@ -225,6 +225,55 @@ if (!function_exists('trailingslashit')) {
     }
 }
 
+if (!function_exists('update_option')) {
+    function update_option(string $option, $value, $autoload = null): bool {
+        $GLOBALS['_test_options'][$option] = $value;
+        return true;
+    }
+}
+
+if (!function_exists('delete_option')) {
+    function delete_option(string $option): bool {
+        unset($GLOBALS['_test_options'][$option]);
+        return true;
+    }
+}
+
+if (!function_exists('wp_upload_dir')) {
+    function wp_upload_dir(): array {
+        $base = $GLOBALS['_test_upload_basedir'] ?? sys_get_temp_dir();
+        return ['basedir' => $base, 'baseurl' => 'https://example.test'];
+    }
+}
+
+if (!function_exists('wp_mkdir_p')) {
+    function wp_mkdir_p(string $target): bool {
+        if (is_dir($target)) {
+            return true;
+        }
+        return mkdir($target, 0777, true);
+    }
+}
+
+if (!function_exists('wp_date')) {
+    function wp_date(string $format, ?int $timestamp = null): string {
+        return date($format, $timestamp ?? time());
+    }
+}
+
+if (!function_exists('wp_json_encode')) {
+    function wp_json_encode($data, int $options = 0, int $depth = 512): string {
+        return json_encode($data, $options, $depth);
+    }
+}
+
+if (!defined('HOUR_IN_SECONDS')) {
+    define('HOUR_IN_SECONDS', 3600);
+}
+if (!defined('DAY_IN_SECONDS')) {
+    define('DAY_IN_SECONDS', 86400);
+}
+
 // Stub wc_get_product() — tests can set $GLOBALS['_test_wc_products'][$product_id].
 if (!function_exists('wc_get_product')) {
     function wc_get_product(int $product_id) {
