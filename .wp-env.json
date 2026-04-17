@@ -1,11 +1,21 @@
 {
 	"core": "WordPress/WordPress#6.9.4",
-	"phpVersion": "8.1",
+	"phpVersion": "8.2",
 	"plugins": [
 		"https://downloads.wordpress.org/plugin/woocommerce.zip",
 		"./plugin/skwirrel-pim-sync",
 		"https://downloads.wordpress.org/plugin/plugin-check.zip"
 	],
+	"mappings": {
+		"wp-content/plugins/skwirrel-pim-sync/tests": "./tests",
+		"wp-content/plugins/skwirrel-pim-sync/vendor": "./vendor",
+		"wp-content/plugins/skwirrel-pim-sync/composer.json": "./composer.json",
+		"wp-content/plugins/skwirrel-pim-sync/composer.lock": "./composer.lock",
+		"wp-content/plugins/skwirrel-pim-sync/phpunit.xml.dist": "./phpunit.xml.dist",
+		"wp-content/plugins/skwirrel-pim-sync/phpunit-integration.xml.dist": "./phpunit-integration.xml.dist",
+		"wp-content/plugins/skwirrel-pim-sync/phpstan.neon.dist": "./phpstan.neon.dist",
+		"wp-content/plugins/skwirrel-pim-sync/.phpcs.xml.dist": "./.phpcs.xml.dist"
+	},
 	"config": {
 		"WP_DEBUG": true,
 		"WP_DEBUG_LOG": true,

@@ -23,9 +23,10 @@
 declare(strict_types=1);
 
 // Resolve the WordPress test framework location.
-// Inside wp-env, WP_PHPUNIT__DIR is set automatically.
+// Inside wp-env, WP_TESTS_DIR points at /wordpress-phpunit (pre-provisioned
+// with auto-generated wp-tests-config.php for the tests DB).
 // Outside wp-env, fall back to the wp-phpunit composer package.
-$_tests_dir = getenv( 'WP_PHPUNIT__DIR' );
+$_tests_dir = getenv( 'WP_TESTS_DIR' ) ?: getenv( 'WP_PHPUNIT__DIR' );
 
 if ( ! $_tests_dir ) {
 	$_tests_dir = dirname( __DIR__, 2 ) . '/vendor/wp-phpunit/wp-phpunit';
