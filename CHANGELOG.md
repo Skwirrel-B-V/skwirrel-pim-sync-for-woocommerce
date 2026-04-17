@@ -8,6 +8,7 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 * **"View live log" anchor link** on the in-progress sync banner jumps straight to the live viewer, making it easy to watch a running sync in real time
 * **Active log tracking** — `Skwirrel_WC_Sync_Logger` now records the active log filename in the `skwirrel_wc_sync_active_log` option so the viewer can find the current log across page refreshes and separate requests
 * **Dashboard Debug block** relabelled to surface the live log viewer alongside the existing ETIM variation attribute troubleshooting
+* **CI actions bumped to Node 24** — `actions/checkout` v4 → v5, `actions/cache` v4 → v5, `actions/upload-artifact` v4 → v5, `actions/github-script` v7 → v8 (resolves GitHub Node 20 deprecation warning)
 
 ## [3.3.0]
 
