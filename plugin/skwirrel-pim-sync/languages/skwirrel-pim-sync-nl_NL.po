@@ -135,7 +135,7 @@ msgid "Debug"
 msgstr "Debug"
 
 #: includes/class-admin-dashboard.php:259
-msgid "Troubleshoot variation attribute issues."
+msgid "Live sync log and variation attribute debugging."
 msgstr "Problemen met variatie-attributen oplossen."
 
 #: includes/class-admin-dashboard.php:270
@@ -429,10 +429,9 @@ msgstr "Productnaam (vertaald)"
 
 #: includes/class-admin-dashboard.php:609
 msgid ""
-"Label shown in the variant dropdown when no ETIM variation axes are "
-"available."
+"Label shown in the variant dropdown when no variation axes are available."
 msgstr ""
-"Label dat wordt getoond in de variant dropdown wanneer er geen ETIM variatie-"
+"Label dat wordt getoond in de variant dropdown wanneer er geen variatie-"
 "assen beschikbaar zijn."
 
 #: includes/class-admin-dashboard.php:614
@@ -1646,3 +1645,39 @@ msgstr ""
 #~ "aangemaakt bij de volgende sync.\n"
 #~ "\n"
 #~ "Weet u zeker dat u deze categorie wilt verwijderen?"
+
+msgid "Live sync log"
+msgstr "Live sync log"
+
+msgid "Sync running"
+msgstr "Sync bezig"
+
+msgid "Idle"
+msgstr "Inactief"
+
+msgid "Tails the current sync log file. When no sync is running, the most recent log is shown."
+msgstr "Toont het actieve sync logbestand. Wanneer geen sync actief is, wordt het meest recente log weergegeven."
+
+msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
+msgstr "Uitgebreide logging is uitgeschakeld. Schakel dit in via %s voor detail per product."
+
+msgid "Pause"
+msgstr "Pauze"
+
+msgid "Clear"
+msgstr "Wissen"
+
+msgid "Auto-scroll"
+msgstr "Automatisch scrollen"
+
+msgid "Resume"
+msgstr "Doorgaan"
+
+msgid "Waiting for sync log…"
+msgstr "Wachten op sync log…"
+
+msgid "no log yet"
+msgstr "nog geen log"
+
+msgid "View live log"
+msgstr "Bekijk live log"

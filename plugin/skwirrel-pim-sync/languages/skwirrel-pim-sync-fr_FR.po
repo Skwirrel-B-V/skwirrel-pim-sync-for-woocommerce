@@ -141,7 +141,7 @@ msgid "Debug"
 msgstr "Débogage"
 
 #: includes/class-admin-dashboard.php:259
-msgid "Troubleshoot variation attribute issues."
+msgid "Live sync log and variation attribute debugging."
 msgstr "Résoudre les problèmes d'attributs de variation."
 
 #: includes/class-admin-dashboard.php:270
@@ -439,11 +439,10 @@ msgstr "Nom du produit (traduit)"
 
 #: includes/class-admin-dashboard.php:609
 msgid ""
-"Label shown in the variant dropdown when no ETIM variation axes are "
-"available."
+"Label shown in the variant dropdown when no variation axes are available."
 msgstr ""
 "Libellé affiché dans la liste déroulante des variantes lorsqu'aucun axe de "
-"variation ETIM n'est disponible."
+"variation n'est disponible."
 
 #: includes/class-admin-dashboard.php:614
 msgid "Super category ID"
@@ -1671,3 +1670,39 @@ msgstr ""
 #~ "prochaine synchronisation.\n"
 #~ "\n"
 #~ "Êtes-vous sûr de vouloir supprimer cette catégorie ?"
+
+msgid "Live sync log"
+msgstr "Journal de sync en direct"
+
+msgid "Sync running"
+msgstr "Sync en cours"
+
+msgid "Idle"
+msgstr "Inactif"
+
+msgid "Tails the current sync log file. When no sync is running, the most recent log is shown."
+msgstr "Affiche le fichier journal de sync actuel. Lorsqu'aucune sync n'est en cours, le journal le plus récent est affiché."
+
+msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
+msgstr "La journalisation détaillée est désactivée. Activez-la dans %s pour voir le détail par produit."
+
+msgid "Pause"
+msgstr "Pause"
+
+msgid "Clear"
+msgstr "Effacer"
+
+msgid "Auto-scroll"
+msgstr "Défilement auto"
+
+msgid "Resume"
+msgstr "Reprendre"
+
+msgid "Waiting for sync log…"
+msgstr "En attente du journal de sync…"
+
+msgid "no log yet"
+msgstr "pas encore de journal"
+
+msgid "View live log"
+msgstr "Voir le journal en direct"

@@ -135,8 +135,8 @@ msgid "Debug"
 msgstr "Debug"
 
 #: includes/class-admin-dashboard.php:259
-msgid "Troubleshoot variation attribute issues."
-msgstr "Troubleshoot variation attribute issues."
+msgid "Live sync log and variation attribute debugging."
+msgstr "Live sync log and variation attribute debugging."
 
 #: includes/class-admin-dashboard.php:270
 msgid "Danger Zone"
@@ -430,11 +430,9 @@ msgstr "Product name (translated)"
 
 #: includes/class-admin-dashboard.php:609
 msgid ""
-"Label shown in the variant dropdown when no ETIM variation axes are "
-"available."
+"Label shown in the variant dropdown when no variation axes are available."
 msgstr ""
-"Label shown in the variant dropdown when no ETIM variation axes are "
-"available."
+"Label shown in the variant dropdown when no variation axes are available."
 
 #: includes/class-admin-dashboard.php:614
 msgid "Super category ID"
@@ -1579,3 +1577,39 @@ msgstr ""
 
 #~ msgid "Static token (X-Skwirrel-Api-Token)"
 #~ msgstr "Static token (X-Skwirrel-Api-Token)"
+
+msgid "Live sync log"
+msgstr "Live sync log"
+
+msgid "Sync running"
+msgstr "Sync running"
+
+msgid "Idle"
+msgstr "Idle"
+
+msgid "Tails the current sync log file. When no sync is running, the most recent log is shown."
+msgstr "Tails the current sync log file. When no sync is running, the most recent log is shown."
+
+msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
+msgstr "Verbose logging is disabled. Enable it in %s to see per-product detail."
+
+msgid "Pause"
+msgstr "Pause"
+
+msgid "Clear"
+msgstr "Clear"
+
+msgid "Auto-scroll"
+msgstr "Auto-scroll"
+
+msgid "Resume"
+msgstr "Resume"
+
+msgid "Waiting for sync log…"
+msgstr "Waiting for sync log…"
+
+msgid "no log yet"
+msgstr "no log yet"
+
+msgid "View live log"
+msgstr "View live log"

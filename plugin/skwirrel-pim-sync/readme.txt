@@ -4,11 +4,12 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 8.1
-Stable tag: 3.3.0
+Stable tag: 3.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 Synchronises products from the Skwirrel PIM system to WooCommerce via a JSON-RPC 2.0 API.
+
 
 == Description ==
 
@@ -62,6 +63,13 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 3.4.0 =
+* Live sync log viewer on the Debug page — tails the current sync log file with 2-second polling, auto-scroll, pause/clear/download controls
+* "View live log" anchor link on the in-progress sync banner jumps straight to the live log
+* Active log filename now tracked in a WP option so the viewer follows sync runs across page refreshes
+* Dashboard Debug block relabelled to surface the live log alongside variation attribute troubleshooting
+* CI actions bumped to Node 24 — checkout/cache/upload-artifact/github-script
 
 = 3.3.0 =
 * Log viewer performance — progressive rendering (200 lines/frame), chunked server loading (100 KB/request), and download button

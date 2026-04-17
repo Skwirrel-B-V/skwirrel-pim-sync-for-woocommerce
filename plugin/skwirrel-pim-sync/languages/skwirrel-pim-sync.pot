@@ -136,7 +136,7 @@ msgid "Debug"
 msgstr ""
 
 #: includes/class-admin-dashboard.php:259
-msgid "Troubleshoot variation attribute issues."
+msgid "Live sync log and variation attribute debugging."
 msgstr ""
 
 #: includes/class-admin-dashboard.php:270
@@ -429,8 +429,7 @@ msgstr ""
 
 #: includes/class-admin-dashboard.php:609
 msgid ""
-"Label shown in the variant dropdown when no ETIM variation axes are "
-"available."
+"Label shown in the variant dropdown when no variation axes are available."
 msgstr ""
 
 #: includes/class-admin-dashboard.php:614
@@ -1233,4 +1232,40 @@ msgstr ""
 msgid ""
 "WooCommerce is required. <a href=\"%1$s\">Install WooCommerce</a> or <a "
 "href=\"%2$s\">activate WooCommerce</a>."
+msgstr ""
+
+msgid "Live sync log"
+msgstr ""
+
+msgid "Sync running"
+msgstr ""
+
+msgid "Idle"
+msgstr ""
+
+msgid "Tails the current sync log file. When no sync is running, the most recent log is shown."
+msgstr ""
+
+msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
+msgstr ""
+
+msgid "Pause"
+msgstr ""
+
+msgid "Clear"
+msgstr ""
+
+msgid "Auto-scroll"
+msgstr ""
+
+msgid "Resume"
+msgstr ""
+
+msgid "Waiting for sync log…"
+msgstr ""
+
+msgid "no log yet"
+msgstr ""
+
+msgid "View live log"
 msgstr ""

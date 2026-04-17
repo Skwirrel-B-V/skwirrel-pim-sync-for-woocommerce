@@ -11,10 +11,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Skwirrel_WC_Sync_Admin_Settings {
 
-	private const PAGE_SLUG = 'skwirrel-pim-sync';
-	private const OPTION_KEY = 'skwirrel_wc_sync_settings';
+	private const PAGE_SLUG        = 'skwirrel-pim-sync';
+	private const OPTION_KEY       = 'skwirrel_wc_sync_settings';
 	private const TOKEN_OPTION_KEY = 'skwirrel_wc_sync_auth_token';
-	private const MASK = '••••••••';
+	private const MASK             = '••••••••';
 
 	private static ?self $instance = null;
 
@@ -25,9 +25,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		return self::$instance;
 	}
 
-	private const BG_SYNC_ACTION = 'skwirrel_wc_sync_background';
-	private const BG_SYNC_TRANSIENT = 'skwirrel_wc_sync_bg_token';
-	private const BG_PURGE_ACTION = 'skwirrel_wc_sync_purge_all';
+	private const BG_SYNC_ACTION     = 'skwirrel_wc_sync_background';
+	private const BG_SYNC_TRANSIENT  = 'skwirrel_wc_sync_bg_token';
+	private const BG_PURGE_ACTION    = 'skwirrel_wc_sync_purge_all';
 	private const BG_PURGE_TRANSIENT = 'skwirrel_wc_sync_purge_token';
 
 	private function __construct() {
@@ -46,6 +46,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		add_action( 'wp_ajax_nopriv_' . self::BG_PURGE_ACTION, [ $this, 'handle_background_purge' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_save_slug_resync', [ $this, 'handle_save_slug_resync' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_view_log', [ $this, 'handle_view_log' ] );
+		add_action( 'wp_ajax_skwirrel_wc_sync_tail_log', [ $this, 'handle_tail_log' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_download_log', [ $this, 'handle_download_log' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_abort', [ $this, 'handle_abort_sync' ] );
 	}
@@ -66,7 +67,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			'skwirrel_wc_sync',
 			self::OPTION_KEY,
 			[
-				'type' => 'array',
+				'type'              => 'array',
 				'sanitize_callback' => [ $this, 'sanitize_settings' ],
 			]
 		);
@@ -81,19 +82,19 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	}
 
 	public function sanitize_settings( array $input ): array {
-		$out = [];
+		$out                 = [];
 		$out['endpoint_url'] = isset( $input['endpoint_url'] ) ? esc_url_raw( trim( $input['endpoint_url'] ) ) : '';
-		$out['auth_type'] = in_array( $input['auth_type'] ?? '', [ 'bearer', 'token' ], true ) ? $input['auth_type'] : 'bearer';
-		$token = $this->sanitize_token( $input['auth_token'] ?? '' );
+		$out['auth_type']    = in_array( $input['auth_type'] ?? '', [ 'bearer', 'token' ], true ) ? $input['auth_type'] : 'bearer';
+		$token               = $this->sanitize_token( $input['auth_token'] ?? '' );
 		if ( ! empty( $token ) ) {
 			update_option( self::TOKEN_OPTION_KEY, $token, false );
 		}
-		$out['auth_token'] = ! empty( $token ) ? self::MASK : '';
-		$out['timeout'] = isset( $input['timeout'] ) ? max( 5, min( 120, (int) $input['timeout'] ) ) : 30;
-		$out['retries'] = isset( $input['retries'] ) ? max( 0, min( 5, (int) $input['retries'] ) ) : 2;
-		$out['sync_interval'] = $input['sync_interval'] ?? '';
-		$out['batch_size'] = isset( $input['batch_size'] ) ? max( 1, min( 50, (int) $input['batch_size'] ) ) : 10;
-		$out['sync_categories'] = ! empty( $input['sync_categories'] );
+		$out['auth_token']        = ! empty( $token ) ? self::MASK : '';
+		$out['timeout']           = isset( $input['timeout'] ) ? max( 5, min( 120, (int) $input['timeout'] ) ) : 30;
+		$out['retries']           = isset( $input['retries'] ) ? max( 0, min( 5, (int) $input['retries'] ) ) : 2;
+		$out['sync_interval']     = $input['sync_interval'] ?? '';
+		$out['batch_size']        = isset( $input['batch_size'] ) ? max( 1, min( 50, (int) $input['batch_size'] ) ) : 10;
+		$out['sync_categories']   = ! empty( $input['sync_categories'] );
 		$out['super_category_id'] = isset( $input['super_category_id'] ) ? sanitize_text_field( trim( $input['super_category_id'] ) ) : '';
 		if ( $out['sync_categories'] && ( '' === $out['super_category_id'] || 0 >= (int) $out['super_category_id'] ) ) {
 			add_settings_error(
@@ -103,16 +104,16 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'error'
 			);
 		}
-		$out['sync_grouped_products'] = ! empty( $input['sync_grouped_products'] );
+		$out['sync_grouped_products']       = ! empty( $input['sync_grouped_products'] );
 		$out['use_virtual_product_content'] = ! empty( $input['use_virtual_product_content'] );
-		$out['sync_related_products'] = ! empty( $input['sync_related_products'] );
-		$out['related_products_type'] = in_array( $input['related_products_type'] ?? '', [ 'auto', 'cross_sells', 'upsells', 'both' ], true )
+		$out['sync_related_products']       = ! empty( $input['sync_related_products'] );
+		$out['related_products_type']       = in_array( $input['related_products_type'] ?? '', [ 'auto', 'cross_sells', 'upsells', 'both' ], true )
 			? $input['related_products_type']
 			: 'auto';
-		$out['variant_label_field'] = in_array( $input['variant_label_field'] ?? '', [ 'internal_product_code', 'product_erp_description', 'product_name' ], true )
+		$out['variant_label_field']         = in_array( $input['variant_label_field'] ?? '', [ 'internal_product_code', 'product_erp_description', 'product_name' ], true )
 			? $input['variant_label_field']
 			: 'internal_product_code';
-		$out['sync_images'] = ( $input['sync_images'] ?? 'yes' ) === 'yes';
+		$out['sync_images']                 = ( $input['sync_images'] ?? 'yes' ) === 'yes';
 		// Image language: dropdown or custom
 		$lang_select = $input['image_language_select'] ?? '';
 		$lang_custom = sanitize_text_field( $input['image_language_custom'] ?? '' );
@@ -129,24 +130,24 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		if ( ! is_array( $checked ) ) {
 			$checked = [];
 		}
-		$checked = array_map( 'sanitize_text_field', $checked );
-		$custom_raw = $input['include_languages_custom'] ?? '';
+		$checked      = array_map( 'sanitize_text_field', $checked );
+		$custom_raw   = $input['include_languages_custom'] ?? '';
 		$custom_parts = array_values( array_filter( array_map( 'trim', preg_split( '/[\s,]+/', is_string( $custom_raw ) ? $custom_raw : '', -1, PREG_SPLIT_NO_EMPTY ) ) ) );
 		$custom_parts = array_map( 'sanitize_text_field', $custom_parts );
-		$merged = array_values( array_unique( array_merge( $checked, $custom_parts ) ) );
+		$merged       = array_values( array_unique( array_merge( $checked, $custom_parts ) ) );
 		if ( empty( $merged ) ) {
 			// Backward compatibility: accept old direct field
-			$inc = $input['include_languages'] ?? '';
+			$inc    = $input['include_languages'] ?? '';
 			$parsed = array_values( array_filter( array_map( 'trim', preg_split( '/[\s,]+/', is_string( $inc ) ? $inc : '', -1, PREG_SPLIT_NO_EMPTY ) ) ) );
 			$merged = ! empty( $parsed ) ? $parsed : [ 'nl-NL', 'nl' ];
 		}
 		$out['include_languages'] = $merged;
-		$out['use_sku_field'] = sanitize_text_field( $input['use_sku_field'] ?? 'internal_product_code' );
+		$out['use_sku_field']     = sanitize_text_field( $input['use_sku_field'] ?? 'internal_product_code' );
 
 		// Collection IDs: comma-separated, keep only values > 0
-		$raw_collections = $input['collection_ids'] ?? '';
-		$collection_parts = preg_split( '/[\s,]+/', is_string( $raw_collections ) ? $raw_collections : '', -1, PREG_SPLIT_NO_EMPTY );
-		$collection_valid = array_filter(
+		$raw_collections       = $input['collection_ids'] ?? '';
+		$collection_parts      = preg_split( '/[\s,]+/', is_string( $raw_collections ) ? $raw_collections : '', -1, PREG_SPLIT_NO_EMPTY );
+		$collection_valid      = array_filter(
 			array_map( 'intval', array_filter( array_map( 'trim', $collection_parts ), 'is_numeric' ) ),
 			static fn ( int $v ): bool => $v > 0
 		);
@@ -169,35 +170,35 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			);
 		}
 		// Custom classes
-		$out['sync_custom_classes'] = ! empty( $input['sync_custom_classes'] );
+		$out['sync_custom_classes']            = ! empty( $input['sync_custom_classes'] );
 		$out['sync_trade_item_custom_classes'] = ! empty( $input['sync_trade_item_custom_classes'] );
-		$out['custom_class_filter_mode'] = in_array( $input['custom_class_filter_mode'] ?? '', [ 'whitelist', 'blacklist' ], true )
+		$out['custom_class_filter_mode']       = in_array( $input['custom_class_filter_mode'] ?? '', [ 'whitelist', 'blacklist' ], true )
 			? $input['custom_class_filter_mode']
 			: '';
-		$raw_cc_filter = $input['custom_class_filter_ids'] ?? '';
-		$cc_parts = preg_split( '/[\s,]+/', is_string( $raw_cc_filter ) ? $raw_cc_filter : '', -1, PREG_SPLIT_NO_EMPTY );
-		$out['custom_class_filter_ids'] = implode( ', ', array_map( 'sanitize_text_field', array_map( 'trim', $cc_parts ) ) );
-		$out['custom_class_visibility_mode'] = in_array( $input['custom_class_visibility_mode'] ?? '', [ 'whitelist', 'blacklist' ], true )
+		$raw_cc_filter                         = $input['custom_class_filter_ids'] ?? '';
+		$cc_parts                              = preg_split( '/[\s,]+/', is_string( $raw_cc_filter ) ? $raw_cc_filter : '', -1, PREG_SPLIT_NO_EMPTY );
+		$out['custom_class_filter_ids']        = implode( ', ', array_map( 'sanitize_text_field', array_map( 'trim', $cc_parts ) ) );
+		$out['custom_class_visibility_mode']   = in_array( $input['custom_class_visibility_mode'] ?? '', [ 'whitelist', 'blacklist' ], true )
 			? $input['custom_class_visibility_mode']
 			: '';
-		$raw_vis = $input['custom_class_visibility_ids'] ?? '';
-		$vis_parts = preg_split( '/[\s,]+/', is_string( $raw_vis ) ? $raw_vis : '', -1, PREG_SPLIT_NO_EMPTY );
-		$out['custom_class_visibility_ids'] = implode( ', ', array_map( 'sanitize_text_field', array_map( 'trim', $vis_parts ) ) );
+		$raw_vis                               = $input['custom_class_visibility_ids'] ?? '';
+		$vis_parts                             = preg_split( '/[\s,]+/', is_string( $raw_vis ) ? $raw_vis : '', -1, PREG_SPLIT_NO_EMPTY );
+		$out['custom_class_visibility_ids']    = implode( ', ', array_map( 'sanitize_text_field', array_map( 'trim', $vis_parts ) ) );
 
-		$out['show_gtin_attribute'] = ! empty( $input['show_gtin_attribute'] );
-		$out['show_variant_attribute'] = ! empty( $input['show_variant_attribute'] );
-		$out['sync_manufacturers'] = ! empty( $input['sync_manufacturers'] );
-		$out['verbose_logging'] = ! empty( $input['verbose_logging'] );
-		$out['purge_stale_products'] = ! empty( $input['purge_stale_products'] );
-		$out['show_delete_warning'] = ! empty( $input['show_delete_warning'] );
+		$out['show_gtin_attribute']             = ! empty( $input['show_gtin_attribute'] );
+		$out['show_variant_attribute']          = ! empty( $input['show_variant_attribute'] );
+		$out['sync_manufacturers']              = ! empty( $input['sync_manufacturers'] );
+		$out['verbose_logging']                 = ! empty( $input['verbose_logging'] );
+		$out['purge_stale_products']            = ! empty( $input['purge_stale_products'] );
+		$out['show_delete_warning']             = ! empty( $input['show_delete_warning'] );
 		$out['prices_managed_outside_skwirrel'] = ! empty( $input['prices_managed_outside_skwirrel'] );
-		$out['log_mode_manual'] = in_array( $input['log_mode_manual'] ?? '', [ 'per_sync', 'per_day' ], true )
+		$out['log_mode_manual']                 = in_array( $input['log_mode_manual'] ?? '', [ 'per_sync', 'per_day' ], true )
 			? $input['log_mode_manual']
 			: 'per_sync';
-		$out['log_mode_scheduled'] = in_array( $input['log_mode_scheduled'] ?? '', [ 'per_sync', 'per_day' ], true )
+		$out['log_mode_scheduled']              = in_array( $input['log_mode_scheduled'] ?? '', [ 'per_sync', 'per_day' ], true )
 			? $input['log_mode_scheduled']
 			: 'per_day';
-		$out['log_retention'] = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
+		$out['log_retention']                   = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
 			? $input['log_retention']
 			: '7days';
 		return $out;
@@ -221,8 +222,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		}
 		check_admin_referer( 'skwirrel_wc_sync_test', '_wpnonce' );
 
-		$opts = get_option( self::OPTION_KEY, [] );
-		$token = self::get_auth_token();
+		$opts   = get_option( self::OPTION_KEY, [] );
+		$token  = self::get_auth_token();
 		$client = new Skwirrel_WC_Sync_JsonRpc_Client(
 			$opts['endpoint_url'] ?? '',
 			$opts['auth_type'] ?? 'bearer',
@@ -231,12 +232,12 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			(int) ( $opts['retries'] ?? 2 )
 		);
 
-		$result = $client->test_connection();
+		$result   = $client->test_connection();
 		$redirect = add_query_arg(
 			[
-				'page' => self::PAGE_SLUG,
-				'tab' => 'settings',
-				'test' => $result['success'] ? 'ok' : 'fail',
+				'page'    => self::PAGE_SLUG,
+				'tab'     => 'settings',
+				'test'    => $result['success'] ? 'ok' : 'fail',
 				'message' => $result['success'] ? '' : urlencode( $result['error']['message'] ?? 'Unknown error' ),
 			],
 			admin_url( 'admin.php' )
@@ -259,7 +260,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$url = add_query_arg(
 			[
 				'action' => self::BG_SYNC_ACTION,
-				'token' => $token,
+				'token'  => $token,
 			],
 			admin_url( 'admin-ajax.php' )
 		);
@@ -267,7 +268,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$redirect = add_query_arg(
 			[
 				'page' => self::PAGE_SLUG,
-				'tab' => 'sync',
+				'tab'  => 'sync',
 			],
 			admin_url( 'admin.php' )
 		);
@@ -281,8 +282,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		wp_remote_post(
 			$url,
 			[
-				'blocking' => false,
-				'timeout' => 0.01,
+				'blocking'  => false,
+				'timeout'   => 0.01,
 				// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress core filter
 				'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
 			]
@@ -317,7 +318,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		check_admin_referer( 'skwirrel_wc_sync_purge', '_wpnonce' );
 
 		$permanent = ! empty( $_POST['skwirrel_purge_empty_trash'] );
-		$mode = $permanent ? 'delete' : 'trash';
+		$mode      = $permanent ? 'delete' : 'trash';
 
 		$token = bin2hex( random_bytes( 16 ) );
 		set_transient( self::BG_PURGE_TRANSIENT . '_' . $token, $mode, 120 );
@@ -325,15 +326,15 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$url = add_query_arg(
 			[
 				'action' => self::BG_PURGE_ACTION,
-				'token' => $token,
+				'token'  => $token,
 			],
 			admin_url( 'admin-ajax.php' )
 		);
 
 		$redirect = add_query_arg(
 			[
-				'page' => self::PAGE_SLUG,
-				'tab' => 'settings',
+				'page'  => self::PAGE_SLUG,
+				'tab'   => 'settings',
 				'purge' => 'queued',
 			],
 			admin_url( 'admin.php' )
@@ -348,8 +349,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		wp_remote_post(
 			$url,
 			[
-				'blocking' => false,
-				'timeout' => 0.01,
+				'blocking'  => false,
+				'timeout'   => 0.01,
 				// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress core filter
 				'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
 			]
@@ -370,7 +371,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		}
 		delete_transient( self::BG_PURGE_TRANSIENT . '_' . $token );
 
-		$permanent = ( 'delete' === $mode );
+		$permanent     = ( 'delete' === $mode );
 		$purge_handler = new Skwirrel_WC_Sync_Purge_Handler( new Skwirrel_WC_Sync_Logger() );
 		$purge_handler->purge_all( $permanent );
 
@@ -383,16 +384,16 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		}
 		check_admin_referer( 'skwirrel_wc_sync_clear_history', '_wpnonce' );
 
-		$period = isset( $_POST['history_period'] ) ? sanitize_text_field( wp_unslash( $_POST['history_period'] ) ) : 'all';
+		$period  = isset( $_POST['history_period'] ) ? sanitize_text_field( wp_unslash( $_POST['history_period'] ) ) : 'all';
 		$history = Skwirrel_WC_Sync_History::get_sync_history();
 
 		if ( 'all' === $period ) {
 			Skwirrel_WC_Sync_History::delete_log_files_for_entries( $history );
 			$history = [];
 		} else {
-			$days = (int) $period;
-			$cutoff = time() - ( $days * DAY_IN_SECONDS );
-			$kept = [];
+			$days    = (int) $period;
+			$cutoff  = time() - ( $days * DAY_IN_SECONDS );
+			$kept    = [];
 			$removed = [];
 			foreach ( $history as $entry ) {
 				if ( ! empty( $entry['timestamp'] ) && $entry['timestamp'] >= $cutoff ) {
@@ -423,8 +424,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		wp_safe_redirect(
 			add_query_arg(
 				[
-					'page' => self::PAGE_SLUG,
-					'tab' => 'sync',
+					'page'    => self::PAGE_SLUG,
+					'tab'     => 'sync',
 					'history' => 'cleared',
 				],
 				admin_url( 'admin.php' )
@@ -441,8 +442,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			wp_send_json_error( 'Access denied', 403 );
 		}
-		$enabled = ! empty( $_POST['enabled'] );
-		$opts    = get_option( Skwirrel_WC_Sync_Permalink_Settings::OPTION_KEY, [] );
+		$enabled                       = ! empty( $_POST['enabled'] );
+		$opts                          = get_option( Skwirrel_WC_Sync_Permalink_Settings::OPTION_KEY, [] );
 		$opts['update_slug_on_resync'] = $enabled;
 		update_option( Skwirrel_WC_Sync_Permalink_Settings::OPTION_KEY, $opts );
 		wp_send_json_success();
@@ -497,6 +498,83 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'offset'   => $new_offset,
 				'size'     => $size,
 				'has_more' => $has_more,
+			]
+		);
+	}
+
+	/**
+	 * AJAX handler: tail the currently active or most recent sync log.
+	 *
+	 * Unlike handle_view_log, the client does not supply a filename — the server
+	 * resolves the active log (or latest if none running) so the live viewer
+	 * follows sync runs across page refreshes.
+	 */
+	public function handle_tail_log(): void {
+		check_ajax_referer( 'skwirrel_view_log_nonce', '_nonce' );
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( 'Access denied', 403 );
+		}
+
+		$filename = Skwirrel_WC_Sync_Logger::get_active_or_latest_log_filename();
+		if ( null === $filename ) {
+			wp_send_json_success(
+				[
+					'filename'   => null,
+					'content'    => '',
+					'offset'     => 0,
+					'size'       => 0,
+					'has_more'   => false,
+					'is_running' => (bool) get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ),
+				]
+			);
+		}
+
+		$path = Skwirrel_WC_Sync_Logger::get_log_directory() . $filename;
+		if ( ! file_exists( $path ) ) {
+			wp_send_json_error( 'Log file not found' );
+		}
+
+		$chunk_size = 256 * 1024;
+		$size       = (int) filesize( $path );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified above
+		$offset = isset( $_POST['offset'] ) ? absint( $_POST['offset'] ) : 0;
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified above
+		$client_filename = isset( $_POST['filename'] ) ? sanitize_text_field( wp_unslash( $_POST['filename'] ) ) : '';
+		if ( '' !== $client_filename && $client_filename !== $filename ) {
+			$offset = 0;
+		}
+
+		if ( $offset > $size ) {
+			$offset = 0;
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Direct read of log file
+		$fh = fopen( $path, 'r' );
+		if ( ! $fh ) {
+			wp_send_json_error( 'Could not open log file' );
+		}
+
+		if ( $offset > 0 ) {
+			fseek( $fh, $offset );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Direct read of log file
+		$content = fread( $fh, $chunk_size );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Direct read of log file
+		fclose( $fh );
+
+		$bytes_read = strlen( (string) $content );
+		$new_offset = $offset + $bytes_read;
+
+		wp_send_json_success(
+			[
+				'filename'   => $filename,
+				'content'    => $content,
+				'offset'     => $new_offset,
+				'size'       => $size,
+				'has_more'   => $new_offset < $size,
+				'is_running' => (bool) get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ),
 			]
 		);
 	}
@@ -714,7 +792,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '   })'
 			. '   .catch(function() { pre.textContent = "' . esc_js( __( 'Network error', 'skwirrel-pim-sync' ) ) . '"; });'
 			. ' }'
-			 // Open modal on View button click
+			// Open modal on View button click
 			. ' document.addEventListener("click", function(e) {'
 			. '  var btn = e.target.closest(".skw-btn-log-view");'
 			. '  if (!btn) return;'
@@ -731,7 +809,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '  modal.style.display = "flex";'
 			. '  fetchChunk(logFile, 0, pre);'
 			. ' });'
-			 // Load more button
+			// Load more button
 			. ' var moreBtn = document.getElementById("skwirrel-log-more");'
 			. ' if (moreBtn) {'
 			. '  moreBtn.addEventListener("click", function() {'
@@ -746,7 +824,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '   });'
 			. '  });'
 			. ' }'
-			 // Download button
+			// Download button
 			. ' var dlBtn = document.getElementById("skwirrel-log-download");'
 			. ' if (dlBtn) {'
 			. '  dlBtn.addEventListener("click", function() {'
@@ -758,7 +836,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '    + "&filename=" + encodeURIComponent(f);'
 			. '  });'
 			. ' }'
-			 // Close modal + cancel rendering
+			// Close modal + cancel rendering
 			. ' function closeModal() {'
 			. '  var modal = document.getElementById("skwirrel-log-modal");'
 			. '  if (modal) modal.style.display = "none";'
@@ -777,6 +855,98 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		if ( in_array( $current_tab, [ 'dashboard', 'sync' ], true ) && get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ) ) {
 			wp_add_inline_script( 'skwirrel-pim-sync-admin', 'setTimeout(function(){ window.location.reload(); }, 5000);' );
 		}
+
+		// Live log tail — only on the debug tab.
+		if ( 'debug' === $current_tab ) {
+			$lines_label   = esc_js( __( 'lines', 'skwirrel-pim-sync' ) );
+			$network_error = esc_js( __( 'Network error', 'skwirrel-pim-sync' ) );
+			$paused_label  = esc_js( __( 'Resume', 'skwirrel-pim-sync' ) );
+			$pause_label   = esc_js( __( 'Pause', 'skwirrel-pim-sync' ) );
+			$running_label = esc_js( __( 'Sync running', 'skwirrel-pim-sync' ) );
+			$idle_label    = esc_js( __( 'Idle', 'skwirrel-pim-sync' ) );
+			$waiting_label = esc_js( __( 'Waiting for sync log…', 'skwirrel-pim-sync' ) );
+
+			$live_js =
+				'(function() {'
+				. ' var pre = document.getElementById("skwirrel-live-log-content");'
+				. ' if (!pre) return;'
+				. ' var stateEl = document.getElementById("skwirrel-live-log-state");'
+				. ' var dotEl = document.querySelector(".skw-live-log-dot");'
+				. ' var fileEl = document.getElementById("skwirrel-live-log-filename");'
+				. ' var progressEl = document.getElementById("skwirrel-live-log-progress");'
+				. ' var pauseBtn = document.getElementById("skwirrel-live-log-pause");'
+				. ' var clearBtn = document.getElementById("skwirrel-live-log-clear");'
+				. ' var autoBox = document.getElementById("skwirrel-live-log-autoscroll");'
+				. ' var dlBtn = document.getElementById("skwirrel-live-log-download");'
+				. ' var filename = pre.dataset.filename || "";'
+				. ' var offset = 0, lineCount = 0, paused = false, timer = null;'
+				. ' function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}'
+				. ' function fmtLine(line){'
+				. '  var e = esc(line);'
+				. '  if (/^={3,}/.test(line)) return "<span class=\"skw-log-separator\">" + e + "</span>";'
+				. '  var m = e.match(/^(\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\])\\[(INFO|WARNING|ERROR|DEBUG)\\](.*)/);'
+				. '  if (m) {'
+				. '   var msg = m[3].replace(/(\\{[^}]+\\})/g, "<span class=\"skw-log-json\">$1</span>");'
+				. '   return "<span class=\"skw-log-ts\">" + m[1] + "</span><span class=\"skw-log-" + m[2].toLowerCase() + "\">[" + m[2] + "]</span>" + msg;'
+				. '  }'
+				. '  return e;'
+				. ' }'
+				. ' function appendChunk(raw){'
+				. '  if (!raw) return;'
+				. '  var lines = raw.split("\\n");'
+				. '  lineCount += lines.length;'
+				. '  var html = "";'
+				. '  for (var i = 0; i < lines.length; i++) html += fmtLine(lines[i]) + "\\n";'
+				. '  pre.insertAdjacentHTML("beforeend", html);'
+				. '  if (progressEl) progressEl.textContent = lineCount + " ' . $lines_label . '";'
+				. '  if (autoBox && autoBox.checked) pre.scrollTop = pre.scrollHeight;'
+				. ' }'
+				. ' function poll(){'
+				. '  if (paused) { schedule(); return; }'
+				. '  var fd = new FormData();'
+				. '  fd.append("action", "skwirrel_wc_sync_tail_log");'
+				. '  fd.append("_nonce", skwirrelPimSync.viewLogNonce);'
+				. '  fd.append("offset", offset);'
+				. '  fd.append("filename", filename);'
+				. '  fetch(skwirrelPimSync.ajaxUrl, { method: "POST", body: fd })'
+				. '   .then(function(r){ return r.json(); })'
+				. '   .then(function(r){'
+				. '    if (!r || !r.success) return;'
+				. '    var d = r.data;'
+				. '    if (d.filename && d.filename !== filename) {'
+				. '     filename = d.filename; offset = 0; lineCount = 0; pre.innerHTML = "";'
+				. '     if (fileEl) fileEl.textContent = filename;'
+				. '     pre.dataset.filename = filename;'
+				. '     if (dlBtn) dlBtn.disabled = false;'
+				. '    }'
+				. '    if (d.content) { offset = d.offset; appendChunk(d.content); }'
+				. '    else if (d.size !== undefined) { offset = d.size; }'
+				. '    if (!filename && fileEl) fileEl.textContent = "— ' . esc_js( __( 'no log yet', 'skwirrel-pim-sync' ) ) . '";'
+				. '    if (stateEl) stateEl.textContent = d.is_running ? "' . $running_label . '" : "' . $idle_label . '";'
+				. '    if (dotEl) { dotEl.classList.toggle("skw-live-log-dot-running", !!d.is_running); dotEl.classList.toggle("skw-live-log-dot-idle", !d.is_running); }'
+				. '   })'
+				. '   .catch(function(){ /* transient network error — keep trying */ })'
+				. '   .finally(function(){ schedule(); });'
+				. ' }'
+				. ' function schedule(){ timer = setTimeout(poll, 2000); }'
+				. ' if (pauseBtn) pauseBtn.addEventListener("click", function(){'
+				. '  paused = !paused;'
+				. '  pauseBtn.textContent = paused ? "' . $paused_label . '" : "' . $pause_label . '";'
+				. ' });'
+				. ' if (clearBtn) clearBtn.addEventListener("click", function(){ pre.innerHTML = ""; lineCount = 0; if (progressEl) progressEl.textContent = ""; });'
+				. ' if (dlBtn) dlBtn.addEventListener("click", function(){'
+				. '  if (!filename) return;'
+				. '  window.location.href = skwirrelPimSync.ajaxUrl'
+				. '   + "?action=skwirrel_wc_sync_download_log"'
+				. '   + "&_nonce=" + encodeURIComponent(skwirrelPimSync.downloadLogNonce)'
+				. '   + "&filename=" + encodeURIComponent(filename);'
+				. ' });'
+				. ' if (!filename && fileEl) fileEl.textContent = "' . $waiting_label . '";'
+				. ' poll();'
+				. '})();';
+
+			wp_add_inline_script( 'skwirrel-pim-sync-admin', $live_js );
+		}
 	}
 
 	public function render_page(): void {
@@ -787,7 +957,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$this->maybe_show_notices();
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tab parameter is display-only
-		$active_view = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'dashboard';
+		$active_view   = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'dashboard';
 		$allowed_views = [ 'dashboard', 'sync', 'history', 'settings', 'debug' ];
 		if ( ! in_array( $active_view, $allowed_views, true ) ) {
 			$active_view = 'dashboard';
@@ -829,9 +999,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		if ( isset( $_GET['sync'] ) && 'done' === $_GET['sync'] ) {
 			$last = Skwirrel_WC_Sync_History::get_last_result();
 			if ( $last && $last['success'] ) {
-				$with_a = (int) ( $last['with_attributes'] ?? 0 );
+				$with_a    = (int) ( $last['with_attributes'] ?? 0 );
 				$without_a = (int) ( $last['without_attributes'] ?? 0 );
-				$msg = sprintf(
+				$msg       = sprintf(
 					/* translators: %1$d = created count, %2$d = updated count, %3$d = failed count */
 					esc_html__( 'Sync completed. Created: %1$d, Updated: %2$d, Failed: %3$d', 'skwirrel-pim-sync' ),
 					(int) $last['created'],

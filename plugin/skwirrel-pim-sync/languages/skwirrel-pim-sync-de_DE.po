@@ -137,7 +137,7 @@ msgid "Debug"
 msgstr "Debug"
 
 #: includes/class-admin-dashboard.php:259
-msgid "Troubleshoot variation attribute issues."
+msgid "Live sync log and variation attribute debugging."
 msgstr "Fehlerbehebung bei Variationsattributen."
 
 #: includes/class-admin-dashboard.php:270
@@ -434,10 +434,9 @@ msgstr "Produktname (übersetzt)"
 
 #: includes/class-admin-dashboard.php:609
 msgid ""
-"Label shown in the variant dropdown when no ETIM variation axes are "
-"available."
+"Label shown in the variant dropdown when no variation axes are available."
 msgstr ""
-"Label, das im Varianten-Dropdown angezeigt wird, wenn keine ETIM-"
+"Label, das im Varianten-Dropdown angezeigt wird, wenn keine "
 "Variationsachsen verfügbar sind."
 
 #: includes/class-admin-dashboard.php:614
@@ -1628,3 +1627,39 @@ msgstr ""
 #~ msgstr ""
 #~ "Die Seite wird automatisch aktualisiert, wenn die Synchronisierung "
 #~ "abgeschlossen ist."
+
+msgid "Live sync log"
+msgstr "Live-Sync-Log"
+
+msgid "Sync running"
+msgstr "Synchronisation läuft"
+
+msgid "Idle"
+msgstr "Leerlauf"
+
+msgid "Tails the current sync log file. When no sync is running, the most recent log is shown."
+msgstr "Zeigt die aktuelle Sync-Logdatei. Wenn keine Synchronisation läuft, wird das zuletzt erstellte Log angezeigt."
+
+msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
+msgstr "Ausführliches Logging ist deaktiviert. Aktivieren Sie es in %s, um Details pro Produkt zu sehen."
+
+msgid "Pause"
+msgstr "Pause"
+
+msgid "Clear"
+msgstr "Leeren"
+
+msgid "Auto-scroll"
+msgstr "Auto-Scroll"
+
+msgid "Resume"
+msgstr "Fortsetzen"
+
+msgid "Waiting for sync log…"
+msgstr "Warte auf Sync-Log…"
+
+msgid "no log yet"
+msgstr "noch kein Log"
+
+msgid "View live log"
+msgstr "Live-Log ansehen"

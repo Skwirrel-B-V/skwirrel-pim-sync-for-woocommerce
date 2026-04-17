@@ -15,6 +15,7 @@ class Skwirrel_WC_Sync_Logger {
 
 	private const LOG_SOURCE                 = 'skwirrel-pim-sync';
 	private const LOG_DIR_NAME               = 'skwirrel-pim-sync-logs';
+	public const ACTIVE_LOG_OPTION           = 'skwirrel_wc_sync_active_log';
 	private ?\WC_Logger_Interface $wc_logger = null;
 
 	/** @var string|null Current sync log filename (basename only). */
@@ -60,6 +61,8 @@ class Skwirrel_WC_Sync_Logger {
 			$this->sync_log_filename = $filename;
 			$this->sync_log_handle   = $handle;
 
+			update_option( self::ACTIVE_LOG_OPTION, $filename, false );
+
 			// Write separator for appended files.
 			$separator = "\n===== Sync started " . wp_date( 'Y-m-d H:i:s' ) . " =====\n";
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Direct file I/O for log performance
@@ -78,6 +81,46 @@ class Skwirrel_WC_Sync_Logger {
 			fclose( $this->sync_log_handle );
 			$this->sync_log_handle = null;
 		}
+		delete_option( self::ACTIVE_LOG_OPTION );
+	}
+
+	/**
+	 * Get the filename of the currently active sync log, across processes.
+	 *
+	 * Returns the active log if a sync is writing one now; otherwise falls back
+	 * to the most recently modified sync log file so the debug page can still
+	 * show the last run's output.
+	 *
+	 * @return string|null Basename of the log file, or null if none exists.
+	 */
+	public static function get_active_or_latest_log_filename(): ?string {
+		$active = get_option( self::ACTIVE_LOG_OPTION, '' );
+		if ( is_string( $active ) && '' !== $active ) {
+			$path = self::get_log_directory() . $active;
+			if ( file_exists( $path ) ) {
+				return $active;
+			}
+			delete_option( self::ACTIVE_LOG_OPTION );
+		}
+
+		$dir = self::get_log_directory();
+		if ( ! is_dir( $dir ) ) {
+			return null;
+		}
+
+		$files = glob( $dir . 'sync-*.log' );
+		if ( ! is_array( $files ) || empty( $files ) ) {
+			return null;
+		}
+
+		usort(
+			$files,
+			static function ( $a, $b ) {
+				return filemtime( $b ) <=> filemtime( $a );
+			}
+		);
+
+		return basename( (string) $files[0] );
 	}
 
 	/**

@@ -256,7 +256,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</div>
 				<div class="skw-block-body">
 					<h3 class="skw-block-title"><?php esc_html_e( 'Debug', 'skwirrel-pim-sync' ); ?></h3>
-					<p class="skw-block-desc"><?php esc_html_e( 'Troubleshoot variation attribute issues.', 'skwirrel-pim-sync' ); ?></p>
+					<p class="skw-block-desc"><?php esc_html_e( 'Live sync log and variation attribute debugging.', 'skwirrel-pim-sync' ); ?></p>
 				</div>
 				<span class="skw-block-arrow"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M20 4h1a1 1 0 00-1-1v1zm-1 12a1 1 0 102 0h-2zM8 3a1 1 0 000 2V3zM3.293 19.293a1 1 0 101.414 1.414l-1.414-1.414zM19 4v12h2V4h-2zm1-1H8v2h12V3zm-.707.293l-16 16 1.414 1.414 16-16-1.414-1.414z" /></svg></span>
 			</a>
@@ -310,11 +310,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			Skwirrel_WC_Sync_History::PHASE_CLEANUP    => __( 'Cleanup & finalize', 'skwirrel-pim-sync' ),
 		);
 
+		$live_log_url = add_query_arg( 'tab', 'debug', admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ) . '#skwirrel-live-log';
 		?>
 		<div class="skw-progress-banner">
 			<div class="skw-progress-header">
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20" class="skw-spin"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182M21.015 4.356v4.992" stroke-linecap="round" stroke-linejoin="round" /></svg>
 				<span><?php esc_html_e( 'Sync in progress…', 'skwirrel-pim-sync' ); ?></span>
+				<a href="<?php echo esc_url( $live_log_url ); ?>" class="skw-btn skw-btn-live-log"><?php esc_html_e( 'View live log', 'skwirrel-pim-sync' ); ?></a>
 				<button type="button" class="skw-btn skw-btn-abort-sync"><?php esc_html_e( 'Stop sync', 'skwirrel-pim-sync' ); ?></button>
 			</div>
 			<div class="skw-progress-phases">
@@ -606,7 +608,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 								<option value="product_erp_description" <?php selected( $vlf, 'product_erp_description' ); ?>><?php esc_html_e( 'ERP description', 'skwirrel-pim-sync' ); ?></option>
 								<option value="product_name" <?php selected( $vlf, 'product_name' ); ?>><?php esc_html_e( 'Product name (translated)', 'skwirrel-pim-sync' ); ?></option>
 							</select>
-							<p class="skw-field-hint"><?php esc_html_e( 'Label shown in the variant dropdown when no ETIM variation axes are available.', 'skwirrel-pim-sync' ); ?></p>
+							<p class="skw-field-hint"><?php esc_html_e( 'Label shown in the variant dropdown when no variation axes are available.', 'skwirrel-pim-sync' ); ?></p>
 						</div>
 					</div>
 					<div class="skw-field-row">
@@ -852,7 +854,57 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 * Render the debug page.
 	 */
 	private function render_page_debug(): void {
+		$opts             = get_option( self::OPTION_KEY, array() );
+		$verbose_enabled  = ! empty( $opts['verbose_logging'] ) || ( defined( 'SKWIRREL_VERBOSE_SYNC' ) && SKWIRREL_VERBOSE_SYNC );
+		$sync_in_progress = (bool) get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
+		$active_log       = Skwirrel_WC_Sync_Logger::get_active_or_latest_log_filename();
 		?>
+		<div class="skw-section" id="skwirrel-live-log">
+			<div class="skw-section-header">
+				<h2 class="skw-section-title"><?php esc_html_e( 'Live sync log', 'skwirrel-pim-sync' ); ?></h2>
+				<div class="skw-live-log-status">
+					<span class="skw-live-log-dot skw-live-log-dot-<?php echo $sync_in_progress ? 'running' : 'idle'; ?>" aria-hidden="true"></span>
+					<span id="skwirrel-live-log-state">
+						<?php echo $sync_in_progress ? esc_html__( 'Sync running', 'skwirrel-pim-sync' ) : esc_html__( 'Idle', 'skwirrel-pim-sync' ); ?>
+					</span>
+				</div>
+			</div>
+			<p class="skw-section-desc">
+				<?php esc_html_e( 'Tails the current sync log file. When no sync is running, the most recent log is shown.', 'skwirrel-pim-sync' ); ?>
+			</p>
+			<?php if ( ! $verbose_enabled ) : ?>
+				<div class="skw-live-log-notice">
+					<?php
+					printf(
+						/* translators: %s: link to verbose logging setting */
+						esc_html__( 'Verbose logging is disabled. Enable it in %s to see per-product detail.', 'skwirrel-pim-sync' ),
+						'<a href="' . esc_url( add_query_arg( 'tab', 'settings', admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ) ) . '">' . esc_html__( 'Settings', 'skwirrel-pim-sync' ) . '</a>'
+					);
+					?>
+				</div>
+			<?php endif; ?>
+			<div class="skw-live-log-toolbar">
+				<button type="button" class="button" id="skwirrel-live-log-pause">
+					<?php esc_html_e( 'Pause', 'skwirrel-pim-sync' ); ?>
+				</button>
+				<button type="button" class="button" id="skwirrel-live-log-clear">
+					<?php esc_html_e( 'Clear', 'skwirrel-pim-sync' ); ?>
+				</button>
+				<label class="skw-live-log-autoscroll">
+					<input type="checkbox" id="skwirrel-live-log-autoscroll" checked>
+					<?php esc_html_e( 'Auto-scroll', 'skwirrel-pim-sync' ); ?>
+				</label>
+				<span class="skw-live-log-file" id="skwirrel-live-log-filename">
+					<?php echo $active_log ? esc_html( $active_log ) : '&mdash;'; ?>
+				</span>
+				<span class="skw-log-progress" id="skwirrel-live-log-progress"></span>
+				<button type="button" class="button skw-btn-log-download" id="skwirrel-live-log-download" <?php echo $active_log ? '' : 'disabled'; ?>>
+					<?php esc_html_e( 'Download', 'skwirrel-pim-sync' ); ?>
+				</button>
+			</div>
+			<pre id="skwirrel-live-log-content" data-filename="<?php echo esc_attr( $active_log ? $active_log : '' ); ?>"></pre>
+		</div>
+
 		<div class="skw-section">
 			<h2 class="skw-section-title"><?php esc_html_e( 'Debug Variation Attributes', 'skwirrel-pim-sync' ); ?></h2>
 			<p class="skw-section-desc"><?php esc_html_e( 'If variations show "Any Colour" or "Any Number of cups" instead of real values:', 'skwirrel-pim-sync' ); ?></p>
