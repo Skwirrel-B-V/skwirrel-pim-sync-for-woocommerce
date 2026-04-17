@@ -1,274 +1,64 @@
 # Skwirrel PIM sync for WooCommerce
 
-**Version 3.3.0** — WordPress plugin that synchronises products from the Skwirrel PIM system to WooCommerce via a JSON-RPC 2.0 API.
+[![CI](https://github.com/Skwirrel-B-V/skwirrel-pim-wp-sync/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Skwirrel-B-V/skwirrel-pim-wp-sync/actions/workflows/ci.yml)
+[![WordPress plugin](https://img.shields.io/wordpress/plugin/v/skwirrel-pim-sync?label=wp.org)](https://wordpress.org/plugins/skwirrel-pim-sync/)
+[![Requires PHP](https://img.shields.io/wordpress/plugin/required-php/skwirrel-pim-sync)](https://wordpress.org/plugins/skwirrel-pim-sync/)
+[![Tested WP](https://img.shields.io/wordpress/plugin/tested/skwirrel-pim-sync)](https://wordpress.org/plugins/skwirrel-pim-sync/)
+[![License](https://img.shields.io/badge/license-GPLv2%2B-blue)](https://www.gnu.org/licenses/gpl-2.0.html)
 
-## Description
+WordPress plugin that synchronises products from the Skwirrel PIM system to WooCommerce via a JSON-RPC 2.0 API.
 
-Skwirrel PIM sync for WooCommerce connects your WooCommerce webshop to the Skwirrel PIM system. Products, variations, categories, brands, manufacturers, images, and documents are synchronised automatically or on demand.
+Syncs simple and variable products (with ETIM variation axes), categories, brands, manufacturers, images, and documents — either on demand from the admin dashboard or on a schedule via WP-Cron / Action Scheduler. See [`plugin/skwirrel-pim-sync/readme.txt`](plugin/skwirrel-pim-sync/readme.txt) for the full user-facing feature list and settings reference (also published on WordPress.org).
 
-**Features:**
-
-* Full and delta (incremental) product synchronisation
-* Simple and variable product support with ETIM classification for variation axes
-* Automatic category tree sync with parent-child hierarchy
-* Brand sync via WooCommerce native `product_brand` taxonomy
-* Manufacturer sync with dedicated `product_manufacturer` taxonomy
-* Product image and document import into the WordPress media library
-* Custom class attributes (alphanumeric, logical, numeric, range, date, multi)
-* Configurable product URL slugs (source field, suffix, update on re-sync)
-* GTIN and manufacturer product code search filter on the product list page
-* Scheduled synchronisation via WP-Cron or Action Scheduler
-* Manual synchronisation from the admin dashboard
-* Sync progress banner with live phase checklist and counters
-* Date-grouped sync history (last 20 runs)
-* Stale product and category purge after full sync
-* Delete protection: warnings and automatic full re-sync when Skwirrel items are deleted in WooCommerce
-* Multilingual support with 7 locales (nl_NL, nl_BE, de_DE, fr_FR, fr_BE, en_US, en_GB)
+## Changelog
+- **[CHANGELOG.md](CHANGELOG.md)** — version history (dev-facing)
 
 ## Requirements
 
-- WordPress 6.0 or higher
-- WooCommerce 8.0 or higher (9.6+ recommended for native brand support; tested up to 10.6)
-- PHP 8.1 or higher
+- WordPress 6.0+
+- WooCommerce 8.0+ (9.6+ recommended for native brand support; tested up to 10.6)
+- PHP 8.1+
 - An active Skwirrel account with API access
 
 ## Installation
 
-1. Upload the plugin files to `/wp-content/plugins/skwirrel-pim-sync/`, or install the plugin directly through the WordPress plugin screen.
-2. Activate the plugin through the **Plugins** screen in WordPress.
-3. Navigate to **WooCommerce** → **Skwirrel Sync** to configure the plugin.
-4. Enter your Skwirrel subdomain and API authentication token.
-5. Click **Test connection** to verify the API connection.
-6. Click **Sync now** to start the first synchronisation.
+Install from the **[WordPress.org plugin directory](https://wordpress.org/plugins/skwirrel-pim-sync/)**. Then activate, go to **WooCommerce → Skwirrel Sync**, enter your subdomain and API token, and click **Test connection** → **Sync now**.
 
-## Settings
+## Documentation
 
-| Setting | Description |
-|---------|-------------|
-| **Skwirrel subdomain** | Your Skwirrel subdomain (e.g. `yourcompany` → `yourcompany.skwirrel.eu/jsonrpc`) |
-| **API token** | Authentication token for the Skwirrel API |
-| **Timeout** | HTTP request timeout in seconds (5–120) |
-| **Retries** | Number of retry attempts on failure (0–5) |
-| **Sync interval** | Disabled, hourly, twice daily, daily, or weekly |
-| **Batch size** | Products per API request (1–500) |
-| **Selection IDs** | Comma-separated selection IDs to sync specific selections only. Leave empty for all. |
-| **Super category ID** | Root category ID for category tree sync |
-| **Sync categories** | Create and assign WooCommerce categories from Skwirrel |
-| **Sync manufacturers** | Sync manufacturer names into `product_manufacturer` taxonomy |
-| **Sync images** | Download product images into the WordPress media library |
-| **SKU field** | `internal_product_code` or `manufacturer_product_code` |
-| **Purge stale products** | Trash products no longer in Skwirrel after a full sync |
-| **Delete warning** | Show warning banners on Skwirrel-managed items |
-| **Languages** | Language codes sent with API calls + preferred language for image titles |
-| **Verbose logging** | Enable detailed per-product log output |
+- **[docs/local-development.md](docs/local-development.md)** — setting up the repo, wp-env, editing translations, debug constants
+- **[docs/local-testing.md](docs/local-testing.md)** — unit + integration tests, static analysis, code style, pre-commit gate
+- **[docs/release.md](docs/release.md)** — triggers, workflow internals, and the end-to-end tag-based release flow
 
-### Permalink Settings
+## Testing
 
-Product URL slug settings are configured on **Settings** → **Permalinks**:
+[![Unit tests](https://img.shields.io/badge/unit%20tests-159-brightgreen)](docs/local-testing.md)
+[![Integration tests](https://img.shields.io/badge/integration%20tests-7-brightgreen)](docs/local-testing.md)
+[![PHPStan](https://img.shields.io/badge/PHPStan-level%206-blue)](phpstan.neon.dist)
+[![Code style](https://img.shields.io/badge/code%20style-WordPress-blue)](.phpcs.xml.dist)
 
-| Setting | Description |
-|---------|-------------|
-| **Slug source field** | Primary field for the product URL slug (product name, SKU, manufacturer code, external ID, or Skwirrel ID) |
-| **Slug suffix field** | Suffix appended when the slug already exists (or leave empty for WP auto-numbering) |
-| **Update slug on re-sync** | Also update slugs for existing products during sync (not just new products) |
+| Check | Tooling | Runs in CI? |
+|---|---|---|
+| Unit tests | Pest — 159 tests, 262 assertions (stub bootstrap, no Docker) | Yes, on every push + PR |
+| Integration tests | Pest + `WP_UnitTestCase` — 7 tests against real WP + WC via `@wordpress/env` | No — local only |
+| Static analysis | PHPStan, level 6 (`phpstan.neon.dist` + `phpstan-baseline.neon`) | Yes |
+| Code style | PHPCS, WordPress Coding Standards (`.phpcs.xml.dist`) | Yes |
 
-## How sync works
-
-1. **Manual**: Click **Sync now** on the dashboard. The sync runs in the background via an asynchronous HTTP request. Progress is shown live on the dashboard.
-2. **Scheduled**: Configure a sync interval; the plugin uses WP-Cron or Action Scheduler.
-3. **Upsert logic**: Existing products (matched by external ID, SKU, or Skwirrel ID) are updated; new products are created.
-4. **Delta sync**: Scheduled syncs only fetch products modified since the last sync (`updated_on >= last_sync`).
-5. **Purge**: After a full sync (if enabled), products and categories no longer in Skwirrel are moved to trash.
-
-## Delete protection
-
-Skwirrel is the source of truth: products managed by Skwirrel will be recreated on the next sync if deleted in WooCommerce.
-
-- **Warning banner**: a yellow banner on the product edit page indicates the product is managed by Skwirrel.
-- **Confirmation dialog**: deleting a Skwirrel product or category in the list shows a JavaScript confirmation.
-- **Automatic full sync**: when a Skwirrel item is deleted in WooCommerce, the next scheduled sync automatically runs as a full sync.
-
-The warning can be disabled via the "Delete warning" setting.
-
-## Field mapping
-
-| Skwirrel | WooCommerce |
-|----------|-------------|
-| `internal_product_code` / `manufacturer_product_code` | SKU |
-| `external_product_id` | Post meta `_skwirrel_external_id` |
-| `product_erp_description` | Product name |
-| `_product_translations[].product_description` | Short description |
-| `_product_translations[].product_long_description` | Long description |
-| `_trade_item_prices[].net_price` | Regular price (first trade item) |
-| `getGroupedProducts` (optional) | Variable products; grouped products become variations |
-| `_attachments` (type IMG) | Featured image + gallery |
-| `_attachments` (type MAN, DAT, etc.) | Downloadable files / documents |
-| `brand_name` | Product brand (`product_brand` taxonomy) |
-| `manufacturer_name` | Product manufacturer (`product_manufacturer` taxonomy) |
-| `_categories[]` / `_product_groups[]` | Product categories (with parent-child hierarchy) |
-| `_etim` / `_custom_classes` | Product attributes |
-
-## Troubleshooting
-
-### Connection test fails
-- Verify the subdomain is correct
-- Check that the API token is valid and not expired
-- Ensure the server allows outgoing HTTPS connections
-
-### Sync times out
-- The sync runs in the background; there should be no page timeout.
-- Lower the batch size (e.g. 50) if background sync still has issues.
-- Increase the timeout (e.g. 60 seconds) in settings.
-
-### Sync does not start in the background
-- Some hosts block HTTP requests from the server to itself (loopback requests). Ask your host to allow loopback requests.
-
-### No products synchronised
-- Check the logs via the dashboard **Sync Logs** link or **WooCommerce** → **Status** → **Logs**
-- Verify that the API token has the correct permissions
-
-### Duplicate products
-- The plugin uses `external_product_id` or `internal_product_code` as unique key. Ensure these fields are correctly filled in Skwirrel.
-
-## Logging
-
-The plugin uses the WooCommerce logger (`wc_get_logger`). Logs are available at:
-- **WooCommerce** → **Status** → **Logs** → source: `skwirrel-pim-sync`
-
-## Translations
-
-The plugin includes translations for the following languages:
-
-| Language | Locale |
-|----------|--------|
-| Dutch (Netherlands) | `nl_NL` |
-| Dutch (Belgium) | `nl_BE` |
-| English (US) | `en_US` |
-| English (GB) | `en_GB` |
-| German | `de_DE` |
-| French (France) | `fr_FR` |
-| French (Belgium) | `fr_BE` |
-
-## Development
-
-### Repository structure
-
-This repository is laid out to mirror the WordPress.org SVN structure used by
-the automated deploy workflow:
-
-```
-plugin/                          ← git repo root
-├── .github/workflows/           ← CI + wp.org deploy workflows
-├── assets/                      ← wp.org store assets (banners, icons)
-│                                  → uploaded to SVN /assets/
-├── RELEASING.md                 ← release flow
-└── skwirrel-pim-sync/           ← the actual plugin code
-    │                              → uploaded to SVN /trunk/ + /tags/X.Y.Z/
-    ├── skwirrel-pim-sync.php    ← plugin bootstrap
-    ├── readme.txt               ← wp.org readme (Stable tag lives here)
-    ├── includes/                ← class files
-    ├── templates/               ← WooCommerce template overrides
-    ├── languages/               ← .pot / .po / .mo translation files
-    ├── tests/                   ← Pest unit + integration tests
-    ├── composer.json            ← dev dependencies
-    └── package.json             ← wp-env dev environment
-```
-
-All development commands below are run from inside `skwirrel-pim-sync/` unless
-noted otherwise.
-
-### Prerequisites
-
-- **PHP 8.1+** with the standard WordPress extensions
-- **Composer 2.x**
-- **Node.js 18+** and **npm** (only needed for integration tests via wp-env)
-- **Docker Desktop** (only needed for integration tests via wp-env)
-
-### First-time setup
+Run everything from the repo root:
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/Skwirrel-B-V/skwirrel-pim-wp-sync.git plugin
-cd plugin/skwirrel-pim-sync
-
-# 2. Install PHP dev dependencies (Pest, PHPStan, PHPCS, WP stubs)
-composer install
-
-# 3. (Optional) Install Node deps for the wp-env Docker environment
-npm install
+vendor/bin/pest              # unit tests
+vendor/bin/phpstan analyse   # static analysis
+vendor/bin/phpcs             # code style
+npm run test:integration     # integration tests (requires npm run env:start)
 ```
 
-After step 2 you can run unit tests and static analysis. Step 3 is only
-required if you want to run integration tests against a real WordPress +
-WooCommerce stack.
+Test counts above are a snapshot of `main`; run `vendor/bin/pest` for the authoritative total. Full guide: **[docs/local-testing.md](docs/local-testing.md)**.
 
-### Unit tests (fast, no Docker)
+## Contributing
 
-```bash
-cd skwirrel-pim-sync
-vendor/bin/pest                  # all unit tests
-vendor/bin/pest --filter Mapper  # single test file / pattern
-```
-
-Unit tests use a stub bootstrap (`tests/bootstrap.php`) and do not require
-WordPress or WooCommerce to be installed — they run in seconds.
-
-### Integration tests (wp-env + Docker)
-
-Integration tests run against a real WordPress + WooCommerce stack inside
-Docker. They exercise the real `$wpdb`, real WC data stores, and real term /
-post APIs.
-
-```bash
-cd skwirrel-pim-sync
-npm run env:start           # boot WordPress + WooCommerce in Docker
-npm run composer:install    # install composer deps inside the tests container
-npm run test:integration    # run tests/Integration/* against real WP
-
-# Stop / reset
-npm run env:stop            # stop the container
-npm run env:clean           # drop both test DBs
-npm run env:destroy         # nuke everything
-```
-
-Once wp-env is running you can log in to either instance with the default
-`@wordpress/env` credentials:
-
-| | URL | User | Password |
-|---|---|---|---|
-| Dev site | http://localhost:8888/wp-admin | `admin` | `password` |
-| Tests site | http://localhost:8889/wp-admin | `admin` | `password` |
-
-The wp-env instance is configured in `.wp-env.json` (WordPress 6.6 + PHP 8.1 +
-WooCommerce from the plugin directory). See `tests/Integration/README.md` for
-the full guide on writing integration tests.
-
-### Static analysis and code style
-
-```bash
-cd skwirrel-pim-sync
-vendor/bin/phpstan analyse       # PHPStan level 6
-vendor/bin/phpcs                 # WordPress coding standards
-vendor/bin/phpcbf                # auto-fix code style issues
-```
-
-### Pre-commit quality checks
-
-All three must pass before every commit. The CI workflow re-runs them on push
-and pull request.
-
-```bash
-cd skwirrel-pim-sync
-vendor/bin/pest              # Unit tests
-vendor/bin/phpstan analyse   # Static analysis (level 6)
-vendor/bin/phpcs             # Code style (WordPress standards)
-```
-
-### Releasing
-
-Releases are automated. Push a git tag in the format `X.Y.Z` and the GitHub
-Actions deploy workflow publishes the plugin to the WordPress.org SVN repo.
-See [RELEASING.md](RELEASING.md) for the full step-by-step.
+- Every change bumps the version in all three spots (plugin header, `SKWIRREL_WC_SYNC_VERSION` constant, `readme.txt` Stable tag) — see [`docs/release.md`](docs/release.md).
+- Pre-commit quality gate: `vendor/bin/pest`, `vendor/bin/phpstan analyse`, `vendor/bin/phpcs` — all three must pass. CI re-runs them on PRs and pushes to `main`.
 
 ## License
 
