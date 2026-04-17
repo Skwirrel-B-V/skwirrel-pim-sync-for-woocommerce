@@ -612,7 +612,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<div class="skw-field-row">
 						<div class="skw-field">
 							<label for="super_category_id" class="skw-label"><?php esc_html_e( 'Super category ID', 'skwirrel-pim-sync' ); ?></label>
-							<input type="text" id="super_category_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[super_category_id]" value="<?php echo esc_attr( $opts['super_category_id'] ?? '' ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 42', 'skwirrel-pim-sync' ); ?>" />
+							<input type="number" id="super_category_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[super_category_id]" value="<?php echo esc_attr( $opts['super_category_id'] ?? '' ); ?>" class="skw-input" min="1" required placeholder="<?php esc_attr_e( 'e.g. 42', 'skwirrel-pim-sync' ); ?>" />
 							<p class="skw-field-hint">
 								<?php
 								printf(
@@ -625,7 +625,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						</div>
 						<div class="skw-field">
 							<label for="collection_ids" class="skw-label"><?php esc_html_e( 'Selection IDs', 'skwirrel-pim-sync' ); ?></label>
-							<input type="text" id="collection_ids" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[collection_ids]" value="<?php echo esc_attr( $opts['collection_ids'] ?? '' ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 123, 456', 'skwirrel-pim-sync' ); ?>" />
+							<input type="text" id="collection_ids" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[collection_ids]" value="<?php echo esc_attr( $opts['collection_ids'] ?? '' ); ?>" class="skw-input" required pattern="[1-9]\d*(\s*,\s*[1-9]\d*)*" title="<?php esc_attr_e( 'One or more IDs greater than 0, separated by commas', 'skwirrel-pim-sync' ); ?>" placeholder="<?php esc_attr_e( 'e.g. 123, 456', 'skwirrel-pim-sync' ); ?>" />
 							<p class="skw-field-hint">
 								<?php
 								printf(
@@ -638,7 +638,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						</div>
 						<div class="skw-field">
 							<label for="custom_collection_id" class="skw-label"><?php esc_html_e( 'Custom class collection ID', 'skwirrel-pim-sync' ); ?></label>
-							<input type="text" id="custom_collection_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[custom_collection_id]" value="<?php echo esc_attr( $opts['custom_collection_id'] ?? '' ); ?>" class="skw-input" required placeholder="<?php esc_attr_e( 'e.g. 5', 'skwirrel-pim-sync' ); ?>" />
+							<input type="number" id="custom_collection_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[custom_collection_id]" value="<?php echo esc_attr( $opts['custom_collection_id'] ?? '' ); ?>" class="skw-input" min="1" required placeholder="<?php esc_attr_e( 'e.g. 5', 'skwirrel-pim-sync' ); ?>" />
 							<p class="skw-field-hint">
 								<?php
 								printf(

@@ -165,6 +165,21 @@ class Skwirrel_WC_Sync_Service {
 					'failed'  => 0,
 				];
 			}
+			if ( ! empty( $options['sync_categories'] ) ) {
+				$super_cat_id = (int) ( $options['super_category_id'] ?? 0 );
+				if ( $super_cat_id <= 0 ) {
+					$this->logger->error( 'Sync aborted: sync_categories is enabled but no valid super category ID configured' );
+					$this->logger->stop_sync_log();
+					return [
+						'success' => false,
+						'error'   => 'Category sync is enabled but no super category ID configured. A super category ID greater than 0 is required.',
+						'created' => 0,
+						'updated' => 0,
+						'failed'  => 0,
+					];
+				}
+			}
+
 			$batch_size = (int) ( $options['batch_size'] ?? 10 );
 
 			// Build API include flags — keep the fetch lightweight (no ETIM/custom classes).
@@ -248,7 +263,7 @@ class Skwirrel_WC_Sync_Service {
 
 			// Pre-sync: category tree, brands, custom classes, grouped products
 			$this->check_abort();
-			if ( ! empty( $options['sync_categories'] ) && ! empty( $options['super_category_id'] ) ) {
+			if ( ! empty( $options['sync_categories'] ) ) {
 				$this->category_sync->sync_category_tree( $client, $options, $this->get_include_languages() );
 			}
 			$this->brand_sync->sync_all_brands( $client );

@@ -19,7 +19,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	private static ?self $instance = null;
 
 	public static function instance(): self {
-		if ( self::$instance === null ) {
+		if ( null === self::$instance ) {
 			self::$instance = new self();
 		}
 		return self::$instance;
@@ -95,6 +95,14 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out['batch_size'] = isset( $input['batch_size'] ) ? max( 1, min( 50, (int) $input['batch_size'] ) ) : 10;
 		$out['sync_categories'] = ! empty( $input['sync_categories'] );
 		$out['super_category_id'] = isset( $input['super_category_id'] ) ? sanitize_text_field( trim( $input['super_category_id'] ) ) : '';
+		if ( $out['sync_categories'] && ( '' === $out['super_category_id'] || 0 >= (int) $out['super_category_id'] ) ) {
+			add_settings_error(
+				self::OPTION_KEY,
+				'super_category_id_required',
+				__( 'Category sync is enabled but no valid super category ID is set. Please enter a super category ID greater than 0.', 'skwirrel-pim-sync' ),
+				'error'
+			);
+		}
 		$out['sync_grouped_products'] = ! empty( $input['sync_grouped_products'] );
 		$out['use_virtual_product_content'] = ! empty( $input['use_virtual_product_content'] );
 		$out['sync_related_products'] = ! empty( $input['sync_related_products'] );
@@ -108,9 +116,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// Image language: dropdown or custom
 		$lang_select = $input['image_language_select'] ?? '';
 		$lang_custom = sanitize_text_field( $input['image_language_custom'] ?? '' );
-		if ( $lang_select === '_custom' && $lang_custom !== '' ) {
+		if ( '_custom' === $lang_select && '' !== $lang_custom ) {
 			$out['image_language'] = $lang_custom;
-		} elseif ( $lang_select !== '' && $lang_select !== '_custom' ) {
+		} elseif ( '' !== $lang_select && '_custom' !== $lang_select ) {
 			$out['image_language'] = sanitize_text_field( $lang_select );
 		} else {
 			// Backward compatibility: accept old direct field
@@ -135,11 +143,31 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out['include_languages'] = $merged;
 		$out['use_sku_field'] = sanitize_text_field( $input['use_sku_field'] ?? 'internal_product_code' );
 
-		// Collection IDs: comma-separated, keep only numeric values
+		// Collection IDs: comma-separated, keep only values > 0
 		$raw_collections = $input['collection_ids'] ?? '';
 		$collection_parts = preg_split( '/[\s,]+/', is_string( $raw_collections ) ? $raw_collections : '', -1, PREG_SPLIT_NO_EMPTY );
-		$out['collection_ids'] = implode( ', ', array_filter( array_map( 'trim', $collection_parts ), 'is_numeric' ) );
+		$collection_valid = array_filter(
+			array_map( 'intval', array_filter( array_map( 'trim', $collection_parts ), 'is_numeric' ) ),
+			static fn ( int $v ): bool => $v > 0
+		);
+		$out['collection_ids'] = implode( ', ', $collection_valid );
+		if ( empty( $collection_valid ) ) {
+			add_settings_error(
+				self::OPTION_KEY,
+				'collection_ids_required',
+				__( 'At least one selection ID greater than 0 is required.', 'skwirrel-pim-sync' ),
+				'error'
+			);
+		}
 		$out['custom_collection_id'] = isset( $input['custom_collection_id'] ) ? sanitize_text_field( trim( $input['custom_collection_id'] ) ) : '';
+		if ( '' === $out['custom_collection_id'] || 0 >= (int) $out['custom_collection_id'] ) {
+			add_settings_error(
+				self::OPTION_KEY,
+				'custom_collection_id_required',
+				__( 'A custom class collection ID greater than 0 is required.', 'skwirrel-pim-sync' ),
+				'error'
+			);
+		}
 		// Custom classes
 		$out['sync_custom_classes'] = ! empty( $input['sync_custom_classes'] );
 		$out['sync_trade_item_custom_classes'] = ! empty( $input['sync_trade_item_custom_classes'] );
@@ -177,7 +205,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 	private function sanitize_token( string $token ): string {
 		$token = trim( $token );
-		if ( $token === self::MASK || $token === '' ) {
+		if ( self::MASK === $token || '' === $token ) {
 			return (string) get_option( self::TOKEN_OPTION_KEY, '' );
 		}
 		return $token;
@@ -337,12 +365,12 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			wp_die( 'Invalid request', 403 );
 		}
 		$mode = get_transient( self::BG_PURGE_TRANSIENT . '_' . $token );
-		if ( $mode === false ) {
+		if ( false === $mode ) {
 			wp_die( 'Invalid or expired token', 403 );
 		}
 		delete_transient( self::BG_PURGE_TRANSIENT . '_' . $token );
 
-		$permanent = ( $mode === 'delete' );
+		$permanent = ( 'delete' === $mode );
 		$purge_handler = new Skwirrel_WC_Sync_Purge_Handler( new Skwirrel_WC_Sync_Logger() );
 		$purge_handler->purge_all( $permanent );
 
@@ -358,7 +386,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$period = isset( $_POST['history_period'] ) ? sanitize_text_field( wp_unslash( $_POST['history_period'] ) ) : 'all';
 		$history = Skwirrel_WC_Sync_History::get_sync_history();
 
-		if ( $period === 'all' ) {
+		if ( 'all' === $period ) {
 			Skwirrel_WC_Sync_History::delete_log_files_for_entries( $history );
 			$history = [];
 		} else {
@@ -765,7 +793,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			$active_view = 'dashboard';
 		}
 		// Legacy: map 'sync' tab to dashboard.
-		if ( $active_view === 'sync' ) {
+		if ( 'sync' === $active_view ) {
 			$active_view = 'dashboard';
 		}
 
@@ -777,7 +805,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameters
 		if ( isset( $_GET['test'] ) ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			if ( $_GET['test'] === 'ok' ) {
+			if ( 'ok' === $_GET['test'] ) {
 				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Connection test successful.', 'skwirrel-pim-sync' ) . '</p></div>';
 			} else {
 				// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
@@ -786,19 +814,19 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			}
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
-		if ( isset( $_GET['sync'] ) && $_GET['sync'] === 'queued' ) {
+		if ( isset( $_GET['sync'] ) && 'queued' === $_GET['sync'] ) {
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Sync started in the background. Results will appear here once the sync is completed. Refresh the page to check the status.', 'skwirrel-pim-sync' ) . '</p></div>';
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
-		if ( isset( $_GET['history'] ) && $_GET['history'] === 'cleared' ) {
+		if ( isset( $_GET['history'] ) && 'cleared' === $_GET['history'] ) {
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Sync history deleted.', 'skwirrel-pim-sync' ) . '</p></div>';
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
-		if ( isset( $_GET['purge'] ) && $_GET['purge'] === 'queued' ) {
+		if ( isset( $_GET['purge'] ) && 'queued' === $_GET['purge'] ) {
 			echo '<div class="notice notice-warning is-dismissible"><p>' . esc_html__( 'Purge started in the background. All Skwirrel products, imported media, categories and attributes will be deleted. Refresh the page to check the status.', 'skwirrel-pim-sync' ) . '</p></div>';
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
-		if ( isset( $_GET['sync'] ) && $_GET['sync'] === 'done' ) {
+		if ( isset( $_GET['sync'] ) && 'done' === $_GET['sync'] ) {
 			$last = Skwirrel_WC_Sync_History::get_last_result();
 			if ( $last && $last['success'] ) {
 				$with_a = (int) ( $last['with_attributes'] ?? 0 );
