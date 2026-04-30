@@ -548,7 +548,21 @@ class Skwirrel_WC_Sync_Service {
 					try {
 						// Re-fetch this product with attribute includes (ETIM + custom classes).
 						$attr_product = $this->fetch_product_attributes( $client, $row->product, $attr_includes );
-						$attr_count   = $this->upserter->assign_attributes( $row->wc_id, $attr_product, $row->group_info );
+
+						/**
+						 * Fires after the attribute-enriched payload is fetched, before WC attribute assignment.
+						 *
+						 * Allows third-party code (e.g. site-specific MU-plugins) to persist the enriched
+						 * payload — including `_etim` and `_custom_classes` — as post meta for custom
+						 * frontend rendering, alongside the standard WooCommerce attribute table.
+						 *
+						 * @param int                  $wc_id        WC product or variation ID being synced.
+						 * @param array<string, mixed> $attr_product Enriched product payload.
+						 * @param array<string, mixed>|null $group_info Group mapping (with `wc_variable_id`) or null for simple products.
+						 */
+						do_action( 'skwirrel_wc_sync_after_attributes_fetched', $row->wc_id, $attr_product, $row->group_info );
+
+						$attr_count = $this->upserter->assign_attributes( $row->wc_id, $attr_product, $row->group_info );
 						unset( $attr_product );
 						if ( $attr_count > 0 ) {
 							++$with_attrs;
@@ -1235,6 +1249,10 @@ class Skwirrel_WC_Sync_Service {
 				} else {
 					$attr_product = $product;
 				}
+
+				/** This action is documented in the Phase 3 attribute loop of run_sync(). */
+				do_action( 'skwirrel_wc_sync_after_attributes_fetched', $wc_id, $attr_product, $group_info );
+
 				$this->upserter->assign_attributes( $wc_id, $attr_product, $group_info );
 
 				// Media.

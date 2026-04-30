@@ -346,6 +346,97 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	}
 
 	/**
+	 * Get custom class features grouped by class.
+	 *
+	 * Returns features organised by their parent custom class, suitable for frontend
+	 * rendering where specs are displayed grouped under a class heading (vs. the flat
+	 * WooCommerce attribute table).
+	 *
+	 * Skips text/blob meta types (T, B), not_applicable features and empty values —
+	 * the same rules `get_custom_class_attributes()` applies. Class names are resolved
+	 * from `_custom_class_translations[]` when available, with a fallback chain to
+	 * `custom_class_name` / `custom_class_description` / `custom_class_code`.
+	 *
+	 * @param array<string, mixed> $product             Raw API product (must include `_custom_classes`).
+	 * @param bool                 $include_trade_items Also include `_trade_item_custom_classes`.
+	 * @return array<int, array{class_id: int|null, class_code: string|null, class_name: string, features: array<int, array{label: string, value: string}>}>
+	 */
+	public function get_grouped_class_features( array $product, bool $include_trade_items = true ): array {
+		$lang    = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
+		$classes = $this->collect_custom_classes( $product, $include_trade_items );
+
+		$result = [];
+		foreach ( $classes as $cc ) {
+			$features = [];
+			$seen     = [];
+			foreach ( $cc['_custom_features'] ?? [] as $feat ) {
+				if ( ! is_array( $feat ) ) {
+					continue;
+				}
+				$type = $feat['custom_feature_type'] ?? '';
+				if ( ! in_array( $type, self::CC_ATTRIBUTE_TYPES, true ) ) {
+					continue;
+				}
+				if ( ! empty( $feat['not_applicable'] ) ) {
+					continue;
+				}
+				$value = $this->format_custom_feature_value( $feat, $lang );
+				if ( null === $value || '' === $value ) {
+					continue;
+				}
+				$key = $feat['custom_feature_code'] ?? ( 'cc_' . ( $feat['custom_class_feature_id'] ?? ( $feat['custom_feature_id'] ?? '' ) ) );
+				if ( isset( $seen[ $key ] ) ) {
+					continue;
+				}
+				$seen[ $key ] = true;
+				$features[]   = [
+					'label' => $this->resolve_custom_feature_label( $feat, $lang ),
+					'value' => $value,
+				];
+			}
+			if ( empty( $features ) ) {
+				continue;
+			}
+			$result[] = [
+				'class_id'   => isset( $cc['custom_class_id'] ) ? (int) $cc['custom_class_id'] : null,
+				'class_code' => isset( $cc['custom_class_code'] ) ? (string) $cc['custom_class_code'] : null,
+				'class_name' => $this->resolve_custom_class_name( $cc, $lang ),
+				'features'   => $features,
+			];
+		}
+		return $result;
+	}
+
+	/**
+	 * Resolve a human-readable name for a custom class.
+	 *
+	 * Tries `_custom_class_translations[]` first (matching language with prefix
+	 * fallback), then `custom_class_name`/`custom_class_description` from the
+	 * payload root, finally falling back to `custom_class_code`.
+	 *
+	 * @param array<string,mixed> $cc   Custom class object.
+	 * @param string              $lang Language code.
+	 */
+	private function resolve_custom_class_name( array $cc, string $lang ): string {
+		$trans = $cc['_custom_class_translations'] ?? [];
+		if ( ! empty( $trans ) && is_array( $trans ) ) {
+			$name = $this->pick_custom_translation( $trans, $lang, 'custom_class_description' );
+			if ( '' !== $name ) {
+				return $name;
+			}
+			$name = $this->pick_custom_translation( $trans, $lang, 'custom_class_name' );
+			if ( '' !== $name ) {
+				return $name;
+			}
+		}
+		$name = (string) ( $cc['custom_class_name'] ?? $cc['custom_class_description'] ?? '' );
+		if ( '' !== $name ) {
+			return $name;
+		}
+		return (string) ( $cc['custom_class_code'] ?? '' );
+	}
+
+	/**
 	 * Resolve a human-readable label for a custom class feature.
 	 *
 	 * Public so it can be called from the product upserter for group-level features.

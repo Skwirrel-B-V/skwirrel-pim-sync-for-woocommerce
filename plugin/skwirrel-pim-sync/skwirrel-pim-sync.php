@@ -4,7 +4,7 @@
  * Plugin Name: Skwirrel PIM sync for WooCommerce
  * Plugin URI: https://github.com/Skwirrel-B-V/skwirrel-pim-sync-for-woocommerce
  * Description: Sync plugin for Skwirrel PIM via Skwirrel JSON-RPC API to WooCommerce.
- * Version: 3.4.0
+ * Version: 3.6.0
  * Author: Skwirrel B.V.
  * Author URI: https://skwirrel.eu
  * Requires at least: 6.0
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SKWIRREL_WC_SYNC_VERSION', '3.4.0' );
+define( 'SKWIRREL_WC_SYNC_VERSION', '3.6.0' );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_FILE', __FILE__ );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -118,6 +118,7 @@ final class Skwirrel_WC_Sync_Plugin {
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/theme-api-functions.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-delete-protection.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-product-sync-meta-box.php';
+		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-pim-link.php';
 	}
 
 	private function register_hooks(): void {
@@ -154,6 +155,7 @@ final class Skwirrel_WC_Sync_Plugin {
 		Skwirrel_WC_Sync_Variation_Permalinks::instance();
 		Skwirrel_WC_Sync_Delete_Protection::instance();
 		Skwirrel_WC_Sync_Product_Sync_Meta_Box::instance();
+		Skwirrel_WC_Sync_Pim_Link::instance();
 	}
 
 	/**
