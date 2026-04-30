@@ -1,6 +1,6 @@
 # Skwirrel PIM sync for WooCommerce
 
-[![CI](https://github.com/Skwirrel-B-V/skwirrel-pim-wp-sync/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Skwirrel-B-V/skwirrel-pim-wp-sync/actions/workflows/ci.yml)
+[![CI](https://github.com/Skwirrel-B-V/skwirrel-pim-sync-for-woocommerce/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Skwirrel-B-V/skwirrel-pim-sync-for-woocommerce/actions/workflows/ci.yml)
 [![WordPress plugin](https://img.shields.io/wordpress/plugin/v/skwirrel-pim-sync?label=wp.org)](https://wordpress.org/plugins/skwirrel-pim-sync/)
 [![Requires PHP](https://img.shields.io/wordpress/plugin/required-php/skwirrel-pim-sync)](https://wordpress.org/plugins/skwirrel-pim-sync/)
 [![Tested WP](https://img.shields.io/wordpress/plugin/tested/skwirrel-pim-sync)](https://wordpress.org/plugins/skwirrel-pim-sync/)

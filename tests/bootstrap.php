@@ -379,3 +379,4 @@ require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-permalink-se
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-slug-resolver.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-theme-api.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-variation-permalinks.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-pim-link.php';

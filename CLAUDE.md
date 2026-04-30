@@ -161,11 +161,15 @@ Authentication: Bearer token or `X-Skwirrel-Api-Token` header.
 
 ## Versioning & Release
 
+Full end-to-end release guide: [`docs/release.md`](docs/release.md). Summary:
+
 - **Every change bumps the version** — update `Version:` in `plugin/skwirrel-pim-sync/skwirrel-pim-sync.php` header and `SKWIRREL_WC_SYNC_VERSION` constant
 - **Each version is committed and tagged** — `git tag X.Y.Z` on the version bump commit
 - **Tag format**: `X.Y.Z` (no `v` prefix) — consistent with existing tags
-- **Update changelog**: add entries to both `CHANGELOG.md` (repo root) and `plugin/skwirrel-pim-sync/readme.txt` (WordPress format)
+- **Update changelog**: add entries to both `CHANGELOG.md` (repo root) and `plugin/skwirrel-pim-sync/readme.txt` (WordPress format). The deploy workflow fails if a `= X.Y.Z =` entry is missing from `readme.txt`.
 - **Update translations**: regenerate `plugin/skwirrel-pim-sync/languages/skwirrel-pim-sync.pot` and update all `.po`/`.mo` files when strings change
+- **Tag push triggers deploy** to WordPress.org SVN via `.github/workflows/deploy.yml`. The workflow verifies header + constant + `Stable tag:` + changelog entry all match the tag before uploading.
+- **Environment gate**: the `wordpress-org` GitHub environment restricts which tags can deploy. The allowed-tag pattern uses **fnmatch syntax, not regex** — e.g. `[0-9]*.[0-9]*.[0-9]*` is valid, `[0-9]+.[0-9]+.[0-9]+` silently never matches and blocks every deploy.
 
 ### Quality Checks (run before every commit, from the repo root)
 
@@ -194,7 +198,7 @@ npm run test:integration   # integration suite against real WP
 npm run test:all           # both suites
 
 # Stop / reset
-'/Users/joskoomen/Pictures/screenshots/Scherm­afbeelding 2026-04-17 om 17.26.00.png'npm run env:stop
+npm run env:stop
 npm run env:clean          # drop both DBs
 ```
 
