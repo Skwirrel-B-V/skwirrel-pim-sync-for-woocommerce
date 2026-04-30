@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 8.1
-Stable tag: 3.6.1
+Stable tag: 3.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -64,16 +64,12 @@ The plugin uses the Skwirrel external ID as a unique key. Existing products are 
 
 == Changelog ==
 
-= 3.6.1 =
-* Fix: variation filter values no longer empty during sync — pre-sync rebuild of the variable product shell wiped the parent's term-options to `[]` for the entire duration of the sync, leaving the frontend variation filter (storage, color, connectivity, etc.) empty until the sync finished. The shell-rebuild now preserves existing term-options for each axis taxonomy
-* `flush_parent_attribute_terms()` is now authoritative — at the end of Phase 3 the parent's variation taxonomy term-list is rebuilt as exactly the set of term IDs whose slugs appear in the current children's `attribute_pa_*` post meta. Stale terms from removed variants are dropped (previously merged in indefinitely); new terms from added or updated variants are picked up. Replaces the previous merge-on-merge pattern with a single derived-from-children compute
-
 = 3.6.0 =
 * "Open in Skwirrel" deep-link — Skwirrel meta box on the product edit screen and each row on the WP Products list now offer a button that jumps straight to the matching product in the Skwirrel PIM web UI. The link uses the host from the JSON-RPC endpoint. Simple products use `/catalogue/products/edit/{product_id}`; variable/grouped product shells use `/catalogue/grouped-products/edit/{grouped_id}`.
 * "Settings saved" notice on the settings page — saving settings now shows a proper confirmation. The connection test result moved to a transient so it no longer re-displays after every save (previously a stale `?test=ok` URL parameter caused the test-success notice to fire on save).
-
-= 3.5.0 =
 * New `skwirrel_wc_sync_after_attributes_fetched` action hook — fires during the attributes phase right after a product's enriched payload (with `_etim` and `_custom_classes`) is fetched and before the WooCommerce attribute table is written. Enables site-specific code to persist the enriched payload as post meta for custom frontend rendering. Hook signature: `do_action( 'skwirrel_wc_sync_after_attributes_fetched', int $wc_id, array $attr_product, ?array $group_info )`. Fires in both the bulk Phase 3 loop and the single grouped product re-sync path
+* Fix: variation filter values no longer empty during sync — pre-sync rebuild of the variable product shell wiped the parent's term-options to `[]` for the entire duration of the sync, leaving the frontend variation filter (storage, color, connectivity, etc.) empty until the sync finished. The shell-rebuild now preserves existing term-options for each axis taxonomy
+* `flush_parent_attribute_terms()` is now authoritative — at the end of Phase 3 the parent's variation taxonomy term-list is rebuilt as exactly the set of term IDs whose slugs appear in the current children's `attribute_pa_*` post meta. Stale terms from removed variants are dropped (previously merged in indefinitely); new terms from added or updated variants are picked up. Replaces the previous merge-on-merge pattern with a single derived-from-children compute
 
 = 3.4.0 =
 * Live sync log viewer on the Debug page — tails the current sync log file with 2-second polling, auto-scroll, pause/clear/download controls
