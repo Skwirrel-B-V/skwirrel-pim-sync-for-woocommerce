@@ -1043,6 +1043,12 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			usort( $custom_variation_codes, fn( $a, $b ) => $a['order'] <=> $b['order'] );
 		}
 
+		// Preserve existing parent term options. Pre-sync only registers axis structure;
+		// the canonical term-list is rebuilt by flush_parent_attribute_terms() at the end of
+		// Phase 3 from the actual current children. Wiping options here would leave the
+		// frontend variation filter empty for the entire duration of the sync.
+		$existing_attrs = $is_new ? [] : $wc_product->get_attributes();
+
 		$attrs    = [];
 		$attr_pos = 0;
 		if ( ! empty( $etim_variation_codes ) ) {
@@ -1054,7 +1060,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$attr      = new WC_Product_Attribute();
 				$attr->set_id( wc_attribute_taxonomy_id_by_name( $etim_slug ) );
 				$attr->set_name( $tax );
-				$attr->set_options( [] );
+				$attr->set_options( self::get_existing_attr_options( $existing_attrs, $tax ) );
 				$attr->set_position( $attr_pos++ );
 				$attr->set_visible( true );
 				$attr->set_variation( true );
@@ -1070,7 +1076,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$attr       = new WC_Product_Attribute();
 				$attr->set_id( wc_attribute_taxonomy_id_by_name( $slug ) );
 				$attr->set_name( $tax );
-				$attr->set_options( [] );
+				$attr->set_options( self::get_existing_attr_options( $existing_attrs, $tax ) );
 				$attr->set_position( $attr_pos++ );
 				$attr->set_visible( true );
 				$attr->set_variation( true );
@@ -2010,11 +2016,37 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	}
 
 	/**
+	 * Read term-IDs already set on a parent attribute taxonomy.
+	 *
+	 * Returns the existing options for the given taxonomy, or `[]` if the
+	 * attribute isn't present or isn't a taxonomy. Used by the variable-product
+	 * shell-rebuild to preserve term-options between syncs — flush computes the
+	 * canonical list from current children at the end of Phase 3.
+	 *
+	 * @param array<string, WC_Product_Attribute> $existing_attrs Result of WC_Product::get_attributes().
+	 * @return array<int, int>
+	 */
+	private static function get_existing_attr_options( array $existing_attrs, string $taxonomy ): array {
+		if ( ! isset( $existing_attrs[ $taxonomy ] ) ) {
+			return [];
+		}
+		$attr = $existing_attrs[ $taxonomy ];
+		if ( ! $attr->is_taxonomy() ) {
+			return [];
+		}
+		return array_values( array_map( 'intval', $attr->get_options() ) );
+	}
+
+	/**
 	 * Flush all deferred parent attribute term updates.
 	 *
-	 * Called once after all variations have been processed, to update each parent
-	 * variable product's attribute options and term relationships in a single pass.
-	 * This avoids WC object cache staleness from rapid incremental updates.
+	 * Authoritative rebuild: for each variation taxonomy on the parent, the term-list
+	 * is set to exactly the term IDs whose slugs appear in the current children's
+	 * `attribute_pa_*` post meta. Stale terms (from removed variants) are dropped;
+	 * new terms (from added/updated variants) are picked up. The deferred_parent_terms
+	 * collected during Phase 3 are guaranteed to be a subset of this set, since
+	 * variations write their own meta in the same phase — so we don't need to merge
+	 * them in separately.
 	 *
 	 * @return void
 	 */
@@ -2053,58 +2085,56 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				continue;
 			}
 
-			// Step 1: Apply deferred terms collected during variation processing
-			$deferred = $this->deferred_parent_terms[ $parent_id ] ?? [];
-			$changed  = false;
-			foreach ( $deferred as $taxonomy => $term_ids ) {
-				if ( ! isset( $attrs[ $taxonomy ] ) || ! $attrs[ $taxonomy ]->is_taxonomy() ) {
-					continue;
-				}
-				$attr     = $attrs[ $taxonomy ];
-				$existing = is_array( $attr->get_options() ) ? array_map( 'intval', $attr->get_options() ) : [];
-				$merged   = array_unique( array_merge( $existing, array_map( 'intval', $term_ids ) ) );
-				$attr->set_options( $merged );
-				$attrs[ $taxonomy ] = $attr;
-				wp_set_object_terms( $parent_id, $merged, $taxonomy, false );
-				$changed = true;
-			}
-
-			// Step 2: Safety net — recover terms from child variation post meta.
-			// If deferred_parent_terms was empty (e.g. getProducts didn't return
-			// _etim_features), we read the actual attribute_pa_* meta from each
-			// variation and populate the parent's attribute options from those.
+			// Authoritative rebuild: for each variation taxonomy on the parent, the
+			// term-list is derived from the current children's attribute_pa_* post meta.
+			// Stale terms from removed variants are dropped; new terms from added or
+			// updated variants are picked up. The deferred_parent_terms entries from
+			// Phase 3 are a subset of this set (variations write their own meta in the
+			// same phase) so we don't need a separate merge step.
 			$variation_ids = $wc_product->get_children();
+			$changed       = false;
 			foreach ( $attrs as $taxonomy => $attr ) {
 				if ( ! $attr->is_taxonomy() || ! $attr->get_variation() ) {
 					continue;
 				}
-				$current_options = is_array( $attr->get_options() ) ? array_map( 'intval', $attr->get_options() ) : [];
-				$recovered_ids   = [];
+
+				$canonical_ids = [];
 				foreach ( $variation_ids as $vid ) {
 					$slug = get_post_meta( $vid, 'attribute_' . $taxonomy, true );
-					if ( empty( $slug ) ) {
+					if ( '' === $slug || null === $slug || ( is_array( $slug ) && empty( $slug ) ) ) {
 						continue;
 					}
-					$term = get_term_by( 'slug', $slug, $taxonomy );
-					if ( $term && ! is_wp_error( $term ) && ! in_array( $term->term_id, $current_options, true ) ) { // @phpstan-ignore function.impossibleType
-						$recovered_ids[] = $term->term_id;
+					$term = get_term_by( 'slug', (string) $slug, $taxonomy );
+					if ( $term && ! is_wp_error( $term ) ) { // @phpstan-ignore function.impossibleType
+						$canonical_ids[ (int) $term->term_id ] = (int) $term->term_id;
 					}
 				}
-				if ( ! empty( $recovered_ids ) ) {
-					$merged = array_unique( array_merge( $current_options, $recovered_ids ) );
-					$attr->set_options( $merged );
-					$attrs[ $taxonomy ] = $attr;
-					wp_set_object_terms( $parent_id, $merged, $taxonomy, false );
-					$changed = true;
-					$this->logger->info(
-						'Recovered variation terms from child meta',
-						[
-							'parent_id'     => $parent_id,
-							'taxonomy'      => $taxonomy,
-							'recovered_ids' => $recovered_ids,
-						]
-					);
+				$canonical_ids = array_values( $canonical_ids );
+
+				$current_options  = array_values( array_map( 'intval', $attr->get_options() ) );
+				$canonical_sorted = $canonical_ids;
+				$current_sorted   = $current_options;
+				sort( $canonical_sorted );
+				sort( $current_sorted );
+
+				if ( $canonical_sorted === $current_sorted ) {
+					continue;
 				}
+
+				$attr->set_options( $canonical_ids );
+				$attrs[ $taxonomy ] = $attr;
+				wp_set_object_terms( $parent_id, $canonical_ids, $taxonomy, false );
+				$changed = true;
+
+				$this->logger->verbose(
+					'Parent term-list rebuilt from current children',
+					[
+						'parent_id'      => $parent_id,
+						'taxonomy'       => $taxonomy,
+						'previous_count' => count( $current_options ),
+						'new_count'      => count( $canonical_ids ),
+					]
+				);
 			}
 
 			if ( $changed ) {

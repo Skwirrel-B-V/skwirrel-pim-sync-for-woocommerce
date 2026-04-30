@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 8.1
-Stable tag: 3.6.0
+Stable tag: 3.6.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -63,6 +63,10 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 3.6.1 =
+* Fix: variation filter values no longer empty during sync — pre-sync rebuild of the variable product shell wiped the parent's term-options to `[]` for the entire duration of the sync, leaving the frontend variation filter (storage, color, connectivity, etc.) empty until the sync finished. The shell-rebuild now preserves existing term-options for each axis taxonomy
+* `flush_parent_attribute_terms()` is now authoritative — at the end of Phase 3 the parent's variation taxonomy term-list is rebuilt as exactly the set of term IDs whose slugs appear in the current children's `attribute_pa_*` post meta. Stale terms from removed variants are dropped (previously merged in indefinitely); new terms from added or updated variants are picked up. Replaces the previous merge-on-merge pattern with a single derived-from-children compute
 
 = 3.6.0 =
 * "Open in Skwirrel" deep-link — Skwirrel meta box on the product edit screen and each row on the WP Products list now offer a button that jumps straight to the matching product in the Skwirrel PIM web UI. The link uses the host from the JSON-RPC endpoint. Simple products use `/catalogue/products/edit/{product_id}`; variable/grouped product shells use `/catalogue/grouped-products/edit/{grouped_id}`.

@@ -2,6 +2,11 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.6.1]
+
+* **Fix: variation filter values no longer empty during sync** — pre-sync rebuild of the variable product shell preserved structure but wiped the parent's term-options to `[]`, which left the frontend variation filter (storage, color, connectivity, etc.) empty for the entire duration of the sync. The shell-rebuild in `create_variable_product_from_group()` now preserves the parent's existing term-options for each axis taxonomy
+* **`flush_parent_attribute_terms()` is now authoritative** — at the end of Phase 3 the parent's variation taxonomy term-list is rebuilt as exactly the set of term IDs whose slugs appear in the current children's `attribute_pa_*` post meta. Stale terms from removed variants are dropped (previously merged in indefinitely); new terms from added/updated variants are picked up. Replaces the previous merge-on-merge pattern with a single derived-from-children compute
+
 ## [3.6.0]
 
 * **"Open in Skwirrel" deep-link** — the Skwirrel meta box on the product edit screen and each row on the WP Products list now offer an "Open in Skwirrel" link that jumps straight to the matching product in the Skwirrel PIM web UI. The host is derived from the configured JSON-RPC endpoint. Simple products use `/catalogue/products/edit/{product_id}`; variable/grouped product shells use `/catalogue/grouped-products/edit/{grouped_id}`
