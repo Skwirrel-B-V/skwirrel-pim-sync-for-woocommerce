@@ -1663,3 +1663,13 @@ msgstr "noch kein Log"
 
 msgid "View live log"
 msgstr "Live-Log ansehen"
+
+msgid "Open in Skwirrel"
+msgstr "In Skwirrel öffnen"
+
+msgid "Open in Skwirrel ↗"
+msgstr "In Skwirrel öffnen ↗"
+
+
+msgid "Settings saved."
+msgstr "Einstellungen gespeichert."

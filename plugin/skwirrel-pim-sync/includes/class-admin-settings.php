@@ -25,10 +25,11 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		return self::$instance;
 	}
 
-	private const BG_SYNC_ACTION     = 'skwirrel_wc_sync_background';
-	private const BG_SYNC_TRANSIENT  = 'skwirrel_wc_sync_bg_token';
-	private const BG_PURGE_ACTION    = 'skwirrel_wc_sync_purge_all';
-	private const BG_PURGE_TRANSIENT = 'skwirrel_wc_sync_purge_token';
+	private const BG_SYNC_ACTION       = 'skwirrel_wc_sync_background';
+	private const BG_SYNC_TRANSIENT    = 'skwirrel_wc_sync_bg_token';
+	private const BG_PURGE_ACTION      = 'skwirrel_wc_sync_purge_all';
+	private const BG_PURGE_TRANSIENT   = 'skwirrel_wc_sync_purge_token';
+	private const TEST_RESULT_TRANSIENT = 'skwirrel_wc_sync_test_result';
 
 	private function __construct() {
 		add_action( 'admin_menu', [ $this, 'add_menu' ], 99 );
@@ -232,13 +233,24 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			(int) ( $opts['retries'] ?? 2 )
 		);
 
-		$result   = $client->test_connection();
+		$result = $client->test_connection();
+
+		// Stash the result in a transient instead of the URL so a subsequent
+		// settings save (which redirects through options.php and preserves the
+		// referer) does not re-show this notice.
+		set_transient(
+			self::TEST_RESULT_TRANSIENT,
+			[
+				'success' => ! empty( $result['success'] ),
+				'message' => empty( $result['success'] ) ? (string) ( $result['error']['message'] ?? 'Unknown error' ) : '',
+			],
+			60
+		);
+
 		$redirect = add_query_arg(
 			[
-				'page'    => self::PAGE_SLUG,
-				'tab'     => 'settings',
-				'test'    => $result['success'] ? 'ok' : 'fail',
-				'message' => $result['success'] ? '' : urlencode( $result['error']['message'] ?? 'Unknown error' ),
+				'page' => self::PAGE_SLUG,
+				'tab'  => 'settings',
 			],
 			admin_url( 'admin.php' )
 		);
@@ -972,14 +984,23 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	}
 
 	private function maybe_show_notices(): void {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameters
-		if ( isset( $_GET['test'] ) ) {
-			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			if ( 'ok' === $_GET['test'] ) {
+		// "Settings saved" after WordPress redirects back from options.php.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter set by WP core
+		if ( isset( $_GET['settings-updated'] ) && 'true' === $_GET['settings-updated'] ) {
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Settings saved.', 'skwirrel-pim-sync' ) . '</p></div>';
+		}
+
+		// Connection test result — read once from a transient so a subsequent
+		// settings save does not re-show this notice via a stale URL parameter.
+		$test_result = get_transient( self::TEST_RESULT_TRANSIENT );
+		if ( false !== $test_result ) {
+			delete_transient( self::TEST_RESULT_TRANSIENT );
+			if ( is_array( $test_result ) && ! empty( $test_result['success'] ) ) {
 				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Connection test successful.', 'skwirrel-pim-sync' ) . '</p></div>';
 			} else {
-				// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
-				$msg = isset( $_GET['message'] ) ? sanitize_text_field( wp_unslash( $_GET['message'] ) ) : __( 'Connection failed.', 'skwirrel-pim-sync' );
+				$msg = is_array( $test_result ) && ! empty( $test_result['message'] )
+					? (string) $test_result['message']
+					: __( 'Connection failed.', 'skwirrel-pim-sync' );
 				echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( $msg ) . '</p></div>';
 			}
 		}

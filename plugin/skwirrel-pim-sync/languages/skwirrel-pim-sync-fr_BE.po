@@ -1706,3 +1706,13 @@ msgstr "pas encore de journal"
 
 msgid "View live log"
 msgstr "Voir le journal en direct"
+
+msgid "Open in Skwirrel"
+msgstr "Ouvrir dans Skwirrel"
+
+msgid "Open in Skwirrel ↗"
+msgstr "Ouvrir dans Skwirrel ↗"
+
+
+msgid "Settings saved."
+msgstr "Paramètres enregistrés."

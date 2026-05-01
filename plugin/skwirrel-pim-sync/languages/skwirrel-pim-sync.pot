@@ -1269,3 +1269,16 @@ msgstr ""
 
 msgid "View live log"
 msgstr ""
+
+#: includes/class-pim-link.php
+msgid "Open in Skwirrel"
+msgstr ""
+
+#: includes/class-product-sync-meta-box.php
+msgid "Open in Skwirrel ↗"
+msgstr ""
+
+
+#: includes/class-admin-settings.php
+msgid "Settings saved."
+msgstr ""

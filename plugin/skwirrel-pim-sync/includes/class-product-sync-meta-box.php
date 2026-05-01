@@ -124,6 +124,14 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 					</button>
 					<span class="spinner" id="skwirrel-sync-spinner" style="float: none; margin-top: 0;"></span>
 				</p>
+				<?php $pim_url = Skwirrel_WC_Sync_Pim_Link::build_url( (int) $post->ID ); ?>
+				<?php if ( null !== $pim_url ) : ?>
+					<p>
+						<a href="<?php echo esc_url( $pim_url ); ?>" target="_blank" rel="noopener noreferrer" class="button">
+							<?php esc_html_e( 'Open in Skwirrel ↗', 'skwirrel-pim-sync' ); ?>
+						</a>
+					</p>
+				<?php endif; ?>
 				<div id="skwirrel-sync-result" style="display: none; margin-top: 8px;"></div>
 				<p class="description" style="margin-top: 8px;">
 					<a href="#skwirrel-api-response" onclick="document.getElementById('skwirrel-api-response').scrollIntoView({behavior:'smooth'});return false;"><?php esc_html_e( 'View API response', 'skwirrel-pim-sync' ); ?> &darr;</a>
@@ -242,6 +250,14 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 				</button>
 				<span class="spinner" id="skwirrel-sync-spinner" style="float: none; margin-top: 0;"></span>
 			</p>
+			<?php $pim_url = Skwirrel_WC_Sync_Pim_Link::build_url( (int) $post->ID ); ?>
+			<?php if ( null !== $pim_url ) : ?>
+				<p>
+					<a href="<?php echo esc_url( $pim_url ); ?>" target="_blank" rel="noopener noreferrer" class="button">
+						<?php esc_html_e( 'Open in Skwirrel ↗', 'skwirrel-pim-sync' ); ?>
+					</a>
+				</p>
+			<?php endif; ?>
 			<div id="skwirrel-sync-result" style="display: none; margin-top: 8px;"></div>
 		</div>
 		<script>
