@@ -2,6 +2,10 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.6.1]
+
+* **Fix: ship files that were missing from the 3.6.0 build** — `includes/class-pim-link.php` (the "Open in Skwirrel" deep-link implementation), the updated `class-admin-settings.php` (Settings-saved notice + transient-based connection-test result), the updated `class-product-sync-meta-box.php` (PIM link button), the `assets/s.png` button icon, and the corresponding `.po`/`.mo` translation updates. A 3.6.0 install fatalled on activation with `Failed opening required ... includes/class-pim-link.php` because the class file was untracked in git when the release was tagged
+
 ## [3.6.0]
 
 * **"Open in Skwirrel" deep-link** — the Skwirrel meta box on the product edit screen and each row on the WP Products list now offer an "Open in Skwirrel" link that jumps straight to the matching product in the Skwirrel PIM web UI. The host is derived from the configured JSON-RPC endpoint. Simple products use `/catalogue/products/edit/{product_id}`; variable/grouped product shells use `/catalogue/grouped-products/edit/{grouped_id}`

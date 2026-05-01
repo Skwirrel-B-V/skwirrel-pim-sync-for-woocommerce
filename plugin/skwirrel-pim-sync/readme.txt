@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 8.1
-Stable tag: 3.6.0
+Stable tag: 3.6.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -63,6 +63,9 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 3.6.1 =
+* Fix: ship files that were missing from the 3.6.0 build — `class-pim-link.php` (the "Open in Skwirrel" deep-link implementation), the updated `class-admin-settings.php` (Settings-saved notice + transient-based test result), the updated `class-product-sync-meta-box.php` (PIM link button), the `assets/s.png` button icon, and the corresponding `.po`/`.mo` translation updates. Without these files an install of 3.6.0 fatalled on activation with "Failed opening required ... class-pim-link.php"
 
 = 3.6.0 =
 * "Open in Skwirrel" deep-link — Skwirrel meta box on the product edit screen and each row on the WP Products list now offer a button that jumps straight to the matching product in the Skwirrel PIM web UI. The link uses the host from the JSON-RPC endpoint. Simple products use `/catalogue/products/edit/{product_id}`; variable/grouped product shells use `/catalogue/grouped-products/edit/{grouped_id}`.
