@@ -24,3 +24,4 @@ phpunit.xml
 
 # Skwirrel ERP reference
 skwirrel/
+/mu-plugins/essec-skwirrel-specs.php
