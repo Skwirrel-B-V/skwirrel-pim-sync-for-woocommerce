@@ -122,7 +122,10 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		$child_ids = [];
 		if ( ! empty( $product_ids ) ) {
 			foreach ( array_chunk( $product_ids, self::BULK_CHUNK_SIZE ) as $chunk ) {
-				$ids = implode( ',', $chunk );
+				// Re-cast at the implode site so static analysers (Plugin Check)
+				// can trace the int-only type into the SQL string. Redundant at
+				// runtime — $product_ids was already array_map('intval') above.
+				$ids = implode( ',', array_map( 'intval', $chunk ) );
 				// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are intval-sanitized
 				$child_ids = array_merge(
 					$child_ids,
@@ -144,7 +147,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		$skwirrel_cat_term_ids = [];
 		if ( ! empty( $all_product_ids ) ) {
 			foreach ( array_chunk( $all_product_ids, self::BULK_CHUNK_SIZE ) as $chunk ) {
-				$id_list = implode( ',', $chunk );
+				$id_list = implode( ',', array_map( 'intval', $chunk ) );
 				// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are intval-sanitized
 				$skwirrel_cat_term_ids = array_merge(
 					$skwirrel_cat_term_ids,
@@ -277,7 +280,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			if ( ! empty( $attr_ids ) ) {
 				$this->logger->info( "Purge: {$attributes_deleted} Skwirrel attribute taxonomies found, deleting via SQL..." );
 				foreach ( array_chunk( $attr_ids, self::BULK_CHUNK_SIZE ) as $chunk ) {
-					$ids = implode( ',', $chunk );
+					$ids = implode( ',', array_map( 'intval', $chunk ) );
 					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are intval-sanitized
 					$wpdb->query( "DELETE FROM {$wpdb->prefix}woocommerce_attribute_taxonomies WHERE attribute_id IN ({$ids})" );
 				}
@@ -350,7 +353,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		global $wpdb;
 
 		foreach ( array_chunk( $post_ids, self::BULK_CHUNK_SIZE ) as $chunk ) {
-			$ids = implode( ',', $chunk );
+			$ids = implode( ',', array_map( 'intval', $chunk ) );
 
 			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- bulk purge with intval-sanitized IDs
 
@@ -395,7 +398,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		$now = time();
 
 		foreach ( array_chunk( $post_ids, self::BULK_CHUNK_SIZE ) as $chunk ) {
-			$ids = implode( ',', $chunk );
+			$ids = implode( ',', array_map( 'intval', $chunk ) );
 
 			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- bulk purge with intval-sanitized IDs
 
@@ -443,7 +446,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		global $wpdb;
 
 		foreach ( array_chunk( $term_ids, self::BULK_CHUNK_SIZE ) as $chunk ) {
-			$ids = implode( ',', $chunk );
+			$ids = implode( ',', array_map( 'intval', $chunk ) );
 
 			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- bulk purge with intval-sanitized IDs
 

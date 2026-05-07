@@ -2,7 +2,7 @@
 Contributors: jkoomen
 Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
-Tested up to: 6.9.4
+Tested up to: 6.9
 Requires PHP: 8.3
 Stable tag: 3.7.0
 License: GPLv2 or later

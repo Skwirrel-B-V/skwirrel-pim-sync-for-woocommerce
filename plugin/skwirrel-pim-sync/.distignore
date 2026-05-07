@@ -1,8 +1,33 @@
+# Files and folders excluded from the WordPress.org SVN deploy ZIP.
+# Read by 10up/action-wordpress-plugin-deploy.
+#
+# Anything dev-only (CI configs, lint configs, dependency manifests, tests,
+# editor metadata) belongs here so it never lands on a user's site.
+
+# OS / editor cruft
 .DS_Store
 .phpunit.cache
-node_modules/
-snippets/
+
+# Hidden config files (Plugin Check rejects hidden_files / application_detected)
+.distignore
+.gitignore
+.phpcs.xml.dist
+
+# Dev tooling configs (not used at runtime)
+phpcs.xml.dist
+phpstan.neon.dist
+phpstan-baseline.neon
+phpunit.xml.dist
+phpunit-integration.xml.dist
+
+# Dependency manifests + lockfiles
 composer.json
 composer.lock
 package.json
 package-lock.json
+
+# Dev-only directories
+node_modules/
+snippets/
+tests/
+vendor/
