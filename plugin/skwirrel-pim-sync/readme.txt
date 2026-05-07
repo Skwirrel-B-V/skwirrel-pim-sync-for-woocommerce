@@ -62,6 +62,19 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
+= I use a media offload plugin (WP Offload Media, S3 Uploads, …) — will the sync delete my offloaded files? =
+
+No, the sync never invokes `wp_delete_attachment()` on a missing-file event in 3.8.0+. When the local file is gone, the plugin only clears its own Skwirrel-side meta keys from the WP attachment record so the next sync can download fresh; the WP record itself (and any remote copy your offload plugin manages) is left untouched.
+
+If you want to go a step further and have the sync **reuse** the existing WP attachment (no fresh download, no churn) when the local file is gone but the remote copy is fine, hook into the `skwirrel_wc_sync_attachment_is_valid` filter. The simplest implementation as a mu-plugin:
+
+`<?php`
+`add_filter( 'skwirrel_wc_sync_attachment_is_valid', function ( $local_present, $att_id ) {`
+`    return $local_present || (bool) wp_get_attachment_url( $att_id );`
+`}, 10, 2 );`
+
+Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
+
 == Changelog ==
 
 = 3.8.0 =
