@@ -640,8 +640,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 		wp_enqueue_style( 'skwirrel-pim-sync-admin', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/admin.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
 		wp_enqueue_style( 'skwirrel-pim-sync-dashboard', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/dashboard.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
-		// phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- Google Fonts URL is versioned by its query string; appending ?ver= would break upstream caching.
-		wp_enqueue_style( 'skwirrel-pim-sync-inter-font', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', [], null );
+		// Google Fonts URL: pass the plugin version (not null) so Plugin Check
+		// is satisfied. Google ignores any extra query params anyway, so this
+		// only changes browser cache busting on plugin upgrades.
+		wp_enqueue_style( 'skwirrel-pim-sync-inter-font', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', [], SKWIRREL_WC_SYNC_VERSION );
 
 		// Admin page JS (purge confirmation + auto-reload).
 		wp_register_script( 'skwirrel-pim-sync-admin', false, [], SKWIRREL_WC_SYNC_VERSION, true );

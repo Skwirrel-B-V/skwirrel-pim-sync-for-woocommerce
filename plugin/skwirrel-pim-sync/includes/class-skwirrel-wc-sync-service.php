@@ -57,6 +57,26 @@ class Skwirrel_WC_Sync_Service {
 	 * @return array{success: bool, created: int, updated: int, failed: int, error?: string}
 	 */
 	public function run_sync( bool $delta = false, string $trigger = Skwirrel_WC_Sync_History::TRIGGER_MANUAL ): array {
+		// Mutex: refuse to start a second run while another one's heartbeat
+		// is still fresh. The heartbeat is refreshed at every phase update
+		// (HEARTBEAT_TTL = 60s); a stale value implies the prior run died
+		// without cleanup, so we let the new run take over. Without this
+		// check two concurrent runs race the shared queue table, the
+		// per-product `_skwirrel_synced_at` meta and ultimately the purge
+		// step — at worst trashing every Skwirrel-managed product because
+		// Run B truncated Run A's queue before any synced_at could be
+		// written.
+		$existing_heartbeat = get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
+		if ( ! empty( $existing_heartbeat ) ) {
+			return [
+				'success' => false,
+				'error'   => __( 'Another sync is already running; refusing to start a second concurrent run.', 'skwirrel-pim-sync' ),
+				'created' => 0,
+				'updated' => 0,
+				'failed'  => 0,
+			];
+		}
+
 		if ( function_exists( 'set_time_limit' ) ) {
 			@set_time_limit( 0 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,Squiz.PHP.DiscouragedFunctions.Discouraged -- long-running sync requires no time limit; @ guards against disable_functions
 		}
@@ -246,8 +266,10 @@ class Skwirrel_WC_Sync_Service {
 					'operator' => '>=',
 				];
 			}
-			$use_filter                     = true;
-			$filter['dynamic_selection_id'] = $collection_ids[0];
+			// `dynamic_selection_id` is a single-int filter on the Skwirrel side,
+			// so multiple configured selections become one API call per selection.
+			// The actual filter value is set inside the per-selection loop below.
+			$use_filter = true;
 
 			$this->logger->verbose(
 				'Sync started',
@@ -302,36 +324,156 @@ class Skwirrel_WC_Sync_Service {
 				__( 'Fetching products from API…', 'skwirrel-pim-sync' )
 			);
 
-			// Ensure sync queue table exists and is clean.
+			// Ensure sync queue table exists. Each run inserts only its own
+			// rows (tagged with sync_run_id) and removes them via
+			// $queue->cleanup() at end-of-run; no global truncate here, see
+			// Skwirrel_WC_Sync_Queue::truncate() for the rationale.
 			if ( ! Skwirrel_WC_Sync_Queue::table_exists() ) {
 				Skwirrel_WC_Sync_Queue::create_table();
 			}
-			Skwirrel_WC_Sync_Queue::truncate();
 			$sync_run_id = wp_generate_uuid4();
 			$queue       = new Skwirrel_WC_Sync_Queue( $sync_run_id );
 			$fetched     = 0;
-			$page        = 1;
 
-			$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
-			if ( ! $result['success'] ) {
-				$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
-				$this->logger->error( 'Sync API error', $err );
-				$this->logger->stop_sync_log();
-				Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $err['message'] ?? '', 0, 0, 0, 0, $trigger, $log_filename );
-				return [
-					'success' => false,
-					'error'   => $err['message'] ?? 'API error',
-					'created' => 0,
-					'updated' => 0,
-					'failed'  => 0,
-				];
+			// One API call per configured selection ID — `dynamic_selection_id`
+			// is a single-int filter on Skwirrel's side, so a comma-separated
+			// `collection_ids` setting becomes one paginated fetch per id.
+			foreach ( $collection_ids as $selection_id ) {
+				$filter['dynamic_selection_id'] = (int) $selection_id;
+				$page                           = 1;
+
+				$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
+				if ( ! $result['success'] ) {
+					$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
+					$this->logger->error( 'Sync API error', array_merge( $err, [ 'selection_id' => $selection_id ] ) );
+					$this->logger->stop_sync_log();
+					$queue->cleanup();
+					Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $err['message'] ?? '', 0, 0, 0, 0, $trigger, $log_filename );
+					return [
+						'success' => false,
+						'error'   => $err['message'] ?? 'API error',
+						'created' => 0,
+						'updated' => 0,
+						'failed'  => 0,
+					];
+				}
+
+				$data     = $result['result'] ?? [];
+				$products = $data['products'] ?? [];
+
+				do {
+					$page_count = count( $products );
+					$this->logger->verbose(
+						'Fetching batch',
+						[
+							'selection_id' => $selection_id,
+							'page'         => $page,
+							'count'        => $page_count,
+						]
+					);
+
+					foreach ( $products as $product ) {
+						$skwirrel_product_id = $product['product_id'] ?? $product['id'] ?? null;
+
+						// Virtual products → queue for phase 4 (media on parent)
+						$virtual_info = null;
+						if ( null !== $skwirrel_product_id ) {
+							$virtual_info = $product_to_group_map[ 'virtual:' . (int) $skwirrel_product_id ] ?? null;
+						}
+						if ( $virtual_info && ! empty( $virtual_info['is_virtual_for_variable'] ) ) {
+							$queue->insert_virtual_item( $product, (int) $virtual_info['wc_variable_id'] );
+							++$fetched;
+							continue;
+						}
+
+						// Skip non-grouped VIRTUAL products
+						if ( 'VIRTUAL' === ( $product['product_type'] ?? '' ) ) {
+							continue;
+						}
+
+						// Resolve group info
+						$sku_for_lookup = (string) ( $product['internal_product_code'] ?? $product['manufacturer_product_code'] ?? $this->mapper->get_sku( $product ) );
+						$group_info     = null;
+						if ( null !== $skwirrel_product_id && '' !== $skwirrel_product_id ) {
+							$group_info = $product_to_group_map[ (int) $skwirrel_product_id ] ?? null;
+						}
+						if ( ! $group_info && '' !== $sku_for_lookup ) {
+							$group_info = $product_to_group_map[ 'sku:' . $sku_for_lookup ] ?? null;
+						}
+
+						$queue->insert_item( $product, $group_info );
+						++$fetched;
+					}
+
+					// Free API response data and flush wpdb query log to reclaim memory.
+					unset( $products, $data, $result );
+					self::free_wpdb_memory();
+
+					Skwirrel_WC_Sync_History::update_phase_progress(
+						Skwirrel_WC_Sync_History::PHASE_FETCH,
+						$fetched,
+						0,
+						/* translators: %d = number of products fetched so far */
+						sprintf( __( 'Fetching products from API… (%d found)', 'skwirrel-pim-sync' ), $fetched )
+					);
+
+					if ( $page_count < $batch_size ) {
+						break;
+					}
+
+					++$page;
+					$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
+					if ( ! $result['success'] ) {
+						// Fail-fast on a partial fetch. Continuing here would let the
+						// run reach the purge step and trash every product that
+						// happened to live on the un-fetched pages, and would also
+						// advance `last_sync` so those products silently disappear
+						// from future delta syncs. The whole run must be recorded
+						// as failed.
+						$err = $result['error'] ?? [ 'message' => 'Pagination failed' ];
+						$this->logger->error( 'Pagination failed; aborting sync', array_merge( $err, [ 'selection_id' => $selection_id, 'page' => $page ] ) );
+						$this->logger->stop_sync_log();
+						$queue->cleanup();
+						Skwirrel_WC_Sync_History::update_last_result(
+							false,
+							$created,
+							$updated,
+							$failed,
+							sprintf(
+								/* translators: 1: API error message, 2: page number, 3: selection id */
+								__( 'Pagination failed at page %2$d (selection %3$d): %1$s', 'skwirrel-pim-sync' ),
+								(string) ( $err['message'] ?? 'API error' ),
+								$page,
+								(int) $selection_id
+							),
+							0,
+							0,
+							0,
+							0,
+							$trigger,
+							$log_filename
+						);
+						return [
+							'success' => false,
+							'error'   => sprintf(
+								/* translators: 1: API error message, 2: page number, 3: selection id */
+								__( 'Pagination failed at page %2$d (selection %3$d): %1$s', 'skwirrel-pim-sync' ),
+								(string) ( $err['message'] ?? 'API error' ),
+								$page,
+								(int) $selection_id
+							),
+							'created' => 0,
+							'updated' => 0,
+							'failed'  => 0,
+						];
+					}
+					$data     = $result['result'] ?? [];
+					$products = $data['products'] ?? [];
+				} while ( ! empty( $products ) );
 			}
 
-			$data     = $result['result'] ?? [];
-			$products = $data['products'] ?? [];
-
-			if ( $delta && empty( $products ) ) {
-				$this->logger->info( 'Delta sync: no products updated since last sync' );
+			if ( $delta && 0 === $fetched ) {
+				$this->logger->info( 'Delta sync: no products updated since last sync (across all configured selections)' );
 				$this->logger->stop_sync_log();
 				Skwirrel_WC_Sync_History::update_last_result( true, 0, 0, 0, '', 0, 0, 0, 0, $trigger, $log_filename );
 				return [
@@ -341,75 +483,6 @@ class Skwirrel_WC_Sync_Service {
 					'failed'  => 0,
 				];
 			}
-
-			do {
-				$page_count = count( $products );
-				$this->logger->verbose(
-					'Fetching batch',
-					[
-						'page'  => $page,
-						'count' => $page_count,
-					]
-				);
-
-				foreach ( $products as $product ) {
-					$skwirrel_product_id = $product['product_id'] ?? $product['id'] ?? null;
-
-					// Virtual products → queue for phase 4 (media on parent)
-					$virtual_info = null;
-					if ( null !== $skwirrel_product_id ) {
-						$virtual_info = $product_to_group_map[ 'virtual:' . (int) $skwirrel_product_id ] ?? null;
-					}
-					if ( $virtual_info && ! empty( $virtual_info['is_virtual_for_variable'] ) ) {
-						$queue->insert_virtual_item( $product, (int) $virtual_info['wc_variable_id'] );
-						++$fetched;
-						continue;
-					}
-
-					// Skip non-grouped VIRTUAL products
-					if ( 'VIRTUAL' === ( $product['product_type'] ?? '' ) ) {
-						continue;
-					}
-
-					// Resolve group info
-					$sku_for_lookup = (string) ( $product['internal_product_code'] ?? $product['manufacturer_product_code'] ?? $this->mapper->get_sku( $product ) );
-					$group_info     = null;
-					if ( null !== $skwirrel_product_id && '' !== $skwirrel_product_id ) {
-						$group_info = $product_to_group_map[ (int) $skwirrel_product_id ] ?? null;
-					}
-					if ( ! $group_info && '' !== $sku_for_lookup ) {
-						$group_info = $product_to_group_map[ 'sku:' . $sku_for_lookup ] ?? null;
-					}
-
-					$queue->insert_item( $product, $group_info );
-					++$fetched;
-				}
-
-				// Free API response data and flush wpdb query log to reclaim memory.
-				unset( $products, $data, $result );
-				self::free_wpdb_memory();
-
-				Skwirrel_WC_Sync_History::update_phase_progress(
-					Skwirrel_WC_Sync_History::PHASE_FETCH,
-					$fetched,
-					0,
-					/* translators: %d = number of products fetched so far */
-					sprintf( __( 'Fetching products from API… (%d found)', 'skwirrel-pim-sync' ), $fetched )
-				);
-
-				if ( $page_count < $batch_size ) {
-					break;
-				}
-
-				++$page;
-				$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
-				if ( ! $result['success'] ) {
-					$this->logger->error( 'Pagination failed', $result['error'] ?? [] );
-					break;
-				}
-				$data     = $result['result'] ?? [];
-				$products = $data['products'] ?? [];
-			} while ( ! empty( $products ) );
 
 			$total         = $queue->count_items( false );
 			$virtual_total = $queue->count_items( true );

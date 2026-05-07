@@ -134,9 +134,10 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 				);
 				continue;
 			}
-			$order = $att['product_attachment_order'] ?? $att['order'] ?? 999;
-			$meta  = $this->get_attachment_meta_for_language( $att );
-			$id    = $this->media_importer->import_image( $url, $att['file_name'] ?? '', $product_id, $meta['title'], $meta['description'] );
+			$order    = $att['product_attachment_order'] ?? $att['order'] ?? 999;
+			$meta     = $this->get_attachment_meta_for_language( $att );
+			$api_meta = $this->build_api_meta( $att );
+			$id       = $this->media_importer->import_image( $url, $att['file_name'] ?? '', $product_id, $meta['title'], $meta['description'], $api_meta );
 			if ( $id && ! in_array( $id, array_column( $ids, 'id' ), true ) ) {
 				$ids[] = [
 					'id'    => $id,
@@ -179,8 +180,9 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			if ( $this->media_importer->is_image_attachment_type( $code ) && ! $this->media_importer->url_has_non_image_extension( $url ) ) {
 				continue;
 			}
-			$name = $att['file_name'] ?? 'Download';
-			$id   = $this->media_importer->import_file( $url, $name, $product_id );
+			$name     = $att['file_name'] ?? 'Download';
+			$api_meta = $this->build_api_meta( $att );
+			$id       = $this->media_importer->import_file( $url, $name, $product_id, $api_meta );
 			if ( $id ) {
 				$guid = wp_get_attachment_url( $id );
 				if ( $guid ) {
@@ -225,7 +227,8 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 				$path = wp_parse_url( $url, PHP_URL_PATH );
 				$name = $path ? basename( $path ) : 'Document';
 			}
-			$id = $this->media_importer->import_file( $url, $name, $product_id );
+			$api_meta = $this->build_api_meta( $att );
+			$id       = $this->media_importer->import_file( $url, $name, $product_id, $api_meta );
 			if ( $id ) {
 				$guid = wp_get_attachment_url( $id );
 				if ( $guid ) {
@@ -252,5 +255,22 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			'OTV' => __( 'Other document', 'skwirrel-pim-sync' ),
 		];
 		return $labels[ strtoupper( $code ) ] ?? $code;
+	}
+
+	/**
+	 * Extract Skwirrel-side identifiers from a `_attachments[]` payload entry.
+	 *
+	 * Returns the shape expected by Skwirrel_WC_Sync_Media_Importer::import_image()
+	 * / import_file() so the importer can persist the stable attachment_id and
+	 * file_checksum onto the WordPress attachment for cross-sync deduplication.
+	 *
+	 * @param array<string,mixed> $att Single Skwirrel _attachments[] entry.
+	 * @return array{attachment_id: int|null, file_checksum: string|null}
+	 */
+	private function build_api_meta( array $att ): array {
+		return [
+			'attachment_id' => isset( $att['product_attachment_id'] ) ? (int) $att['product_attachment_id'] : null,
+			'file_checksum' => isset( $att['file_sha256_checksum'] ) ? (string) $att['file_sha256_checksum'] : null,
+		];
 	}
 }

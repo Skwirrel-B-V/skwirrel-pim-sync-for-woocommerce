@@ -1877,6 +1877,11 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			return;
 		}
 
+		$opts       = get_option( 'skwirrel_wc_sync_settings', [] );
+		$type       = $opts['related_products_type'] ?? 'cross_sells';
+		$sync_cross = in_array( $type, [ 'cross_sells', 'both', 'auto' ], true );
+		$sync_up    = in_array( $type, [ 'upsells', 'both', 'auto' ], true );
+
 		$relations        = $this->mapper->get_related_product_ids( $product );
 		$all_skwirrel_ids = array_values(
 			array_unique(
@@ -1895,9 +1900,6 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			// Merge pending IDs back into the relation buckets they belong to.
 			$pending_cross = array_values( array_unique( array_merge( $relations['cross_sells'], $pending ) ) );
 			$pending_up    = array_values( array_unique( array_merge( $relations['upsells'], $pending ) ) );
-			// Only add pending to buckets that are active (non-empty or setting matches).
-			$opts = get_option( 'skwirrel_wc_sync_settings', [] );
-			$type = $opts['related_products_type'] ?? 'cross_sells';
 			if ( 'upsells' === $type ) {
 				$relations['upsells'] = $pending_up;
 			} elseif ( 'both' === $type ) {
@@ -1908,13 +1910,12 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 		}
 
-		if ( empty( $all_skwirrel_ids ) ) {
-			delete_post_meta( $wc_id, '_skwirrel_pending_relations' );
-			return;
-		}
-
-		// Batch resolve Skwirrel IDs → WC IDs.
-		$id_map = $this->lookup->find_wc_ids_by_skwirrel_ids( $all_skwirrel_ids );
+		// Batch resolve Skwirrel IDs → WC IDs. Empty input returns an empty
+		// map; we deliberately keep going so an empty $relations bucket can
+		// clear the corresponding WC list when Skwirrel removed the relation.
+		$id_map = empty( $all_skwirrel_ids )
+			? []
+			: $this->lookup->find_wc_ids_by_skwirrel_ids( $all_skwirrel_ids );
 
 		// For variations, set relations on the parent variable product.
 		$target_id  = $wc_id;
@@ -1955,13 +1956,17 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$cross_sell_wc_ids = $resolve( $relations['cross_sells'] );
 		$upsell_wc_ids     = $resolve( $relations['upsells'] );
 
-		if ( ! empty( $cross_sell_wc_ids ) ) {
+		// Always write the buckets the run is configured to sync — passing []
+		// clears existing relations when Skwirrel removed them at the source.
+		// Buckets we're not syncing are deliberately untouched (admin may
+		// have set them manually).
+		if ( $sync_cross ) {
 			$wc_product->set_cross_sell_ids( $cross_sell_wc_ids );
 		}
-		if ( ! empty( $upsell_wc_ids ) ) {
+		if ( $sync_up ) {
 			$wc_product->set_upsell_ids( $upsell_wc_ids );
 		}
-		if ( ! empty( $cross_sell_wc_ids ) || ! empty( $upsell_wc_ids ) ) {
+		if ( $sync_cross || $sync_up ) {
 			$wc_product->save();
 		}
 

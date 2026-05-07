@@ -2,9 +2,9 @@
 Contributors: jkoomen
 Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
-Tested up to: 6.9.4
+Tested up to: 6.9
 Requires PHP: 8.3
-Stable tag: 3.7.0
+Stable tag: 3.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,7 +62,48 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
+= I use a media offload plugin (WP Offload Media, S3 Uploads, …) — will the sync delete my offloaded files? =
+
+No, the sync never invokes `wp_delete_attachment()` on a missing-file event in 3.8.0+. When the local file is gone, the plugin only clears its own Skwirrel-side meta keys from the WP attachment record so the next sync can download fresh; the WP record itself (and any remote copy your offload plugin manages) is left untouched.
+
+If you want to go a step further and have the sync **reuse** the existing WP attachment (no fresh download, no churn) when the local file is gone but the remote copy is fine, hook into the `skwirrel_wc_sync_attachment_is_valid` filter. The simplest implementation as a mu-plugin:
+
+`<?php`
+`add_filter( 'skwirrel_wc_sync_attachment_is_valid', function ( $local_present, $att_id ) {`
+`    return $local_present || (bool) wp_get_attachment_url( $att_id );`
+`}, 10, 2 );`
+
+Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
+
 == Changelog ==
+
+= 3.8.0 =
+
+Media — real Skwirrel ↔ WordPress mapping + content-change detection:
+
+* Every imported attachment now stores the Skwirrel `product_attachment_id` as `_skwirrel_attachment_id` post meta. Re-syncs locate existing media by that stable id first; URL-hash matching is the legacy fallback. CDN URL rewrites no longer create duplicate WP attachments.
+* The API's `file_sha256_checksum` lands on the WP attachment as `_skwirrel_file_checksum`. A re-sync that sees a different checksum replaces the underlying file in place — same WP attachment id, fresh bytes, sub-sizes regenerated, mime type updated. Failed downloads leave the existing attachment untouched.
+* Offload-plugin-safe missing-file guard — when the local file is gone the WP attachment record is preserved (no `wp_delete_attachment()` is ever invoked, which would have triggered offload-plugin hooks that may purge remote storage). Only the Skwirrel-side meta is cleared so the next sync can download fresh. New `skwirrel_wc_sync_attachment_is_valid` filter lets offload-aware site code declare an attachment valid even when the local file is missing.
+* Lazy migration: re-syncs of attachments imported before 3.8 silently backfill the new meta keys from the API payload. No re-download on upgrade.
+
+Sync safety — fixes for issues surfaced in code review:
+
+* Mutex on concurrent runs: `run_sync()` refuses to start when another run's heartbeat is still fresh, preventing the queue, per-product synced_at meta and purge step from being raced. A stale heartbeat is taken as "previous run died" and the new run takes over.
+* The global queue truncate at sync startup is gone. Each run uses its own `sync_run_id` and only touches its own rows; defends queue contents even if the mutex is bypassed.
+* Pagination atomicity: a later-page fetch failure is now a hard abort. Previously the run continued through every phase, advanced `last_sync`, and ran stale-product purge — at worst trashing the products that lived on the un-fetched pages.
+* Multi-selection support in the main fetch: `getProductsByFilter` is now called once per configured selection id. The previous code silently used only the first id, dropping every product that lived only in selections 2..N.
+* Empty cross-sells / upsells now actually clear. Previously an API payload that returned zero relations left existing WC cross-sells/upsells in place forever.
+
+Plugin Check submission cleanup:
+
+* `.distignore` excludes all dev tooling configs from the deploy ZIP.
+* `Tested up to: 6.9.4` → `6.9` (wp.org accepts only major.minor).
+* Bulk SQL in the purge handler reworked so `Plugin Check`'s static analyser can verify int-sanitised IDs in the IN-clauses.
+* Google Fonts enqueue now passes a version string instead of `null`.
+
+Tests:
+
+* 237 unit + 45 integration tests (up from 169 + 11 in 3.6.x). New `MediaImporterIntegrationTest` (10 cases) and `SyncSafetyIntegrationTest` (8 cases) pin every new behaviour.
 
 = 3.7.0 =
 * Bump minimum PHP version to 8.3 (PHP 8.1 reached end-of-life on 2025-12-31; 8.2 is in security-only support until 2026-12-31). `Requires PHP` and `composer.json` runtime constraint both updated.

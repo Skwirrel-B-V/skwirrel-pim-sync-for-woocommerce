@@ -56,13 +56,16 @@ class Skwirrel_WC_Sync_Queue {
 	}
 
 	/**
-	 * Truncate the queue table for fast cleanup of all data.
+	 * @deprecated 3.8.0 No-op kept for BC. Globally truncating the queue from
+	 *             inside a sync wipes rows belonging to other concurrent
+	 *             runs and risks the purge step trashing every Skwirrel-
+	 *             managed product. Each sync now isolates itself via its
+	 *             own `sync_run_id` and uses `$queue->cleanup()` (instance
+	 *             method) to remove only its own rows when finished.
 	 */
 	public static function truncate(): void {
-		global $wpdb;
-		$table = self::table_name();
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$wpdb->query( "TRUNCATE TABLE {$table}" );
+		_deprecated_function( __METHOD__, '3.8.0', 'per-run $queue->cleanup()' );
+		// Deliberately no longer touches the table.
 	}
 
 	/**
