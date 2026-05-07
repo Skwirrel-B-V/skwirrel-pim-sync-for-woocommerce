@@ -57,6 +57,26 @@ class Skwirrel_WC_Sync_Service {
 	 * @return array{success: bool, created: int, updated: int, failed: int, error?: string}
 	 */
 	public function run_sync( bool $delta = false, string $trigger = Skwirrel_WC_Sync_History::TRIGGER_MANUAL ): array {
+		// Mutex: refuse to start a second run while another one's heartbeat
+		// is still fresh. The heartbeat is refreshed at every phase update
+		// (HEARTBEAT_TTL = 60s); a stale value implies the prior run died
+		// without cleanup, so we let the new run take over. Without this
+		// check two concurrent runs race the shared queue table, the
+		// per-product `_skwirrel_synced_at` meta and ultimately the purge
+		// step — at worst trashing every Skwirrel-managed product because
+		// Run B truncated Run A's queue before any synced_at could be
+		// written.
+		$existing_heartbeat = get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
+		if ( ! empty( $existing_heartbeat ) ) {
+			return [
+				'success' => false,
+				'error'   => __( 'Another sync is already running; refusing to start a second concurrent run.', 'skwirrel-pim-sync' ),
+				'created' => 0,
+				'updated' => 0,
+				'failed'  => 0,
+			];
+		}
+
 		if ( function_exists( 'set_time_limit' ) ) {
 			@set_time_limit( 0 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,Squiz.PHP.DiscouragedFunctions.Discouraged -- long-running sync requires no time limit; @ guards against disable_functions
 		}
