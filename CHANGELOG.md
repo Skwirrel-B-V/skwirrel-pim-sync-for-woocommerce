@@ -2,6 +2,10 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.8.1]
+
+* **Grouped-products multi-selection** — `Skwirrel_WC_Sync_Product_Upserter::sync_grouped_products_first()` now calls the per-selection prefilter (`fetch_product_ids_for_selection`) once per configured `collection_ids` entry, merging the resulting allowed-product maps. Mirrors the 3.8.0 main-fetch fix; without this, grouped products whose members lived only in selections 2..N were silently skipped. Locked down by a new red→green test in `SyncSafetyIntegrationTest`.
+
 ## [3.8.0]
 
 ### Media: real Skwirrel↔WordPress mapping + content-change detection

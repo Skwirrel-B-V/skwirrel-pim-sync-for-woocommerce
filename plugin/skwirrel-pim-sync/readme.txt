@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.3
-Stable tag: 3.8.0
+Stable tag: 3.8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,10 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.8.1 =
+
+* Fix: grouped-products sync now honours every configured `dynamic_selection_id`. The 3.8.0 multi-selection fix only covered the main fetch loop; the grouped-products prefilter still used `collection_ids[0]` and silently skipped grouped products whose members lived only in selections 2..N. With this patch, a grouped product is kept whenever any of its members appears in any of the configured selections.
 
 = 3.8.0 =
 
