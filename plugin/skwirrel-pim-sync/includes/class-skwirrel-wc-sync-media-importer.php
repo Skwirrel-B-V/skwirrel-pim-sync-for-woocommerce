@@ -15,8 +15,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Skwirrel_WC_Sync_Media_Importer {
 
 	private Skwirrel_WC_Sync_Logger $logger;
-	private const META_SKWIRREL_URL  = '_skwirrel_source_url';
-	private const META_SKWIRREL_HASH = '_skwirrel_url_hash';
+	private const META_SKWIRREL_URL           = '_skwirrel_source_url';
+	private const META_SKWIRREL_HASH          = '_skwirrel_url_hash';
+	private const META_SKWIRREL_ATTACHMENT_ID = '_skwirrel_attachment_id';
+	private const META_SKWIRREL_FILE_CHECKSUM = '_skwirrel_file_checksum';
 
 	/** Image attachment type codes (from Skwirrel schema: PPI=Picture, PHI=Picture print, LOG=Logo, SCH=Diagram, PRT=Presentation, OTV=Other visual). */
 	private const IMAGE_TYPES = [ 'IMG', 'PPI', 'PHI', 'LOG', 'SCH', 'PRT', 'OTV' ];
@@ -32,9 +34,17 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * Import image from URL. Downloads file and creates attachment directly (bypasses upload validation).
 	 * Attaches to $parent_id when given (product post ID).
 	 * $title = product_attachment_title (alt text + caption). $description = product_attachment_description.
-	 * Returns attachment ID or 0 on failure.
+	 *
+	 * $api_meta captures stable Skwirrel-side identifiers carried by the API payload:
+	 *   - attachment_id: Skwirrel `product_attachment_id` (stable PK across syncs).
+	 *   - file_checksum: `file_sha256_checksum` of the source file content.
+	 * When supplied, both are persisted as post meta so subsequent syncs can dedup
+	 * on the stable ID and detect content changes via checksum comparison.
+	 *
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 * @return int Attachment ID or 0 on failure.
 	 */
-	public function import_image( string $url, string $title = '', int $parent_id = 0, string $alt_caption = '', string $description = '' ): int {
+	public function import_image( string $url, string $title = '', int $parent_id = 0, string $alt_caption = '', string $description = '', array $api_meta = [] ): int {
 		$url = $this->normalize_download_url( $url );
 		if ( empty( $url ) || ! $this->is_valid_url( $url ) ) {
 			return 0;
@@ -136,12 +146,15 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 		update_post_meta( $id, self::META_SKWIRREL_URL, $url );
 		update_post_meta( $id, self::META_SKWIRREL_HASH, $hash );
+		$this->persist_api_meta( $id, $api_meta );
 
 		$this->logger->debug(
 			'Imported image',
 			[
-				'url'           => $url,
-				'attachment_id' => $id,
+				'url'                   => $url,
+				'attachment_id'         => $id,
+				'skwirrel_attachment_id' => $api_meta['attachment_id'] ?? null,
+				'file_checksum'         => $api_meta['file_checksum'] ?? null,
 			]
 		);
 		return $id;
@@ -150,9 +163,11 @@ class Skwirrel_WC_Sync_Media_Importer {
 	/**
 	 * Import file (PDF, etc.) from URL. Downloads and creates attachment directly (bypasses upload validation).
 	 * Attaches to $parent_id when given (product post ID).
-	 * Returns attachment ID or 0.
+	 *
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta See import_image().
+	 * @return int Attachment ID or 0 on failure.
 	 */
-	public function import_file( string $url, string $name = '', int $parent_id = 0 ): int {
+	public function import_file( string $url, string $name = '', int $parent_id = 0, array $api_meta = [] ): int {
 		$url = $this->normalize_download_url( $url );
 		if ( empty( $url ) || ! $this->is_valid_url( $url ) ) {
 			return 0;
@@ -231,8 +246,29 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 		update_post_meta( $id, self::META_SKWIRREL_URL, $url );
 		update_post_meta( $id, self::META_SKWIRREL_HASH, $hash );
+		$this->persist_api_meta( $id, $api_meta );
 
 		return $id;
+	}
+
+	/**
+	 * Persist Skwirrel-side identifiers from the API payload onto a WP attachment.
+	 *
+	 * Both keys are written only when the corresponding payload value is non-empty.
+	 * Stored values: attachment_id as string-cast int, file_checksum as lowercase
+	 * hex (so casing differences in subsequent comparisons don't cause false positives).
+	 *
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 */
+	private function persist_api_meta( int $attachment_id, array $api_meta ): void {
+		$skwirrel_id = isset( $api_meta['attachment_id'] ) ? (int) $api_meta['attachment_id'] : 0;
+		if ( $skwirrel_id > 0 ) {
+			update_post_meta( $attachment_id, self::META_SKWIRREL_ATTACHMENT_ID, $skwirrel_id );
+		}
+		$checksum = isset( $api_meta['file_checksum'] ) ? strtolower( trim( (string) $api_meta['file_checksum'] ) ) : '';
+		if ( '' !== $checksum ) {
+			update_post_meta( $attachment_id, self::META_SKWIRREL_FILE_CHECKSUM, $checksum );
+		}
 	}
 
 	public function is_image_attachment_type( string $code ): bool {
