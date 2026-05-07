@@ -386,6 +386,49 @@ test( 'run_sync queries every configured selection id, not just the first one', 
 } );
 
 // ------------------------------------------------------------------
+// 4b. Grouped-products prefilter must honour every configured selection id
+// ------------------------------------------------------------------
+
+test( 'sync_grouped_products_first queries every selection id when building the allowed-products filter', function () {
+	update_option( 'skwirrel_wc_sync_settings', array_merge(
+		(array) get_option( 'skwirrel_wc_sync_settings' ),
+		[
+			'sync_grouped_products' => true,
+			'collection_ids'        => '1, 2',
+		]
+	) );
+
+	// Per-id call counter for getProductsByFilter. Both the main-fetch loop
+	// (already multi-selection-aware after the 3.8.0 fix) and the grouped-
+	// products prefilter use this RPC, so a correct implementation queries
+	// each configured id from BOTH paths — i.e. at least twice per id.
+	$by_selection = [];
+	safetyStub( [
+		'getBrands'           => [ 'brands' => [] ],
+		'getGroupedProducts'  => [ 'grouped_products' => [] ],
+		'getProductsByFilter' => function ( $params ) use ( &$by_selection ) {
+			$sid = $params['filter']['dynamic_selection_id'] ?? null;
+			if ( null !== $sid ) {
+				$sid_int = (int) $sid;
+				$by_selection[ $sid_int ] = ( $by_selection[ $sid_int ] ?? 0 ) + 1;
+			}
+			return [ 'products' => [] ];
+		},
+	] );
+
+	$service = new Skwirrel_WC_Sync_Service();
+	$result  = $service->run_sync( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
+
+	expect( $result['success'] )->toBeTrue();
+	// Both selections must have been hit at least twice (once by the main
+	// fetch loop, once by sync_grouped_products_first's prefilter). Today
+	// the prefilter only uses $collection_ids[0], so selection 2 ends up
+	// at exactly 1 call instead of 2 — the test fails red against main.
+	expect( $by_selection[1] ?? 0 )->toBeGreaterThanOrEqual( 2 );
+	expect( $by_selection[2] ?? 0 )->toBeGreaterThanOrEqual( 2 );
+} );
+
+// ------------------------------------------------------------------
 // 5. Related products — empty API relations must clear existing WC links
 // ------------------------------------------------------------------
 
