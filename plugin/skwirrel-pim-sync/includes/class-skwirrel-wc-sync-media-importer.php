@@ -651,9 +651,23 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 	/**
 	 * Locate an existing WP attachment AND verify its underlying file is still
-	 * on disk. Stale records — typically created when an admin manually deleted
-	 * a media file outside the plugin — are removed so the import path can
-	 * re-download cleanly without endlessly returning a broken attachment id.
+	 * usable. The default check is a local `file_exists()` against the result
+	 * of `get_attached_file()`, but that returns `false` on sites that use a
+	 * media-offload plugin (WP Offload Media, S3 Uploads, …) which keeps the
+	 * WP attachment record valid while removing the local file after pushing
+	 * it to remote storage. Site code can override the default via the
+	 * `skwirrel_wc_sync_attachment_is_valid` filter.
+	 *
+	 * When the local file is missing AND the filter does not declare the
+	 * attachment otherwise valid, we deliberately do NOT call
+	 * `wp_delete_attachment()`: invoking the WP delete pipeline would trigger
+	 * offload-plugin hooks that may purge the remote copy too. Instead we
+	 * disconnect the broken record from the Skwirrel-side identifiers
+	 * (`_skwirrel_attachment_id`, `_skwirrel_url_hash`,
+	 * `_skwirrel_file_checksum`, `_skwirrel_source_url`) so subsequent
+	 * lookups miss it and the import path falls through to a fresh download.
+	 * The orphan WP record itself stays put — harmless, and recoverable by
+	 * an admin if needed.
 	 *
 	 * @param array{attachment_id?: int|string|null, ...} $api_meta
 	 */
@@ -662,19 +676,42 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( ! $existing ) {
 			return 0;
 		}
-		$file = get_attached_file( $existing );
-		if ( is_string( $file ) && '' !== $file && file_exists( $file ) ) {
+		$file         = get_attached_file( $existing );
+		$file_present = is_string( $file ) && '' !== $file && file_exists( $file );
+
+		/**
+		 * Allow offload plugins / site code to declare a Skwirrel attachment
+		 * valid even when the LOCAL file is missing. Returning a truthy value
+		 * here keeps the import path reusing the existing attachment instead
+		 * of disconnecting it.
+		 *
+		 * @param bool        $file_present  Default: result of file_exists() on the local path.
+		 * @param int         $attachment_id WP attachment ID under inspection.
+		 * @param string|null $local_path    Path returned by get_attached_file(), or null.
+		 */
+		$is_valid = (bool) apply_filters(
+			'skwirrel_wc_sync_attachment_is_valid',
+			$file_present,
+			$existing,
+			is_string( $file ) ? $file : null
+		);
+
+		if ( $is_valid ) {
 			return $existing;
 		}
+
 		$this->logger->warning(
-			'Skwirrel attachment record points to a missing file; deleting broken record',
+			'Skwirrel attachment record points to a missing file; clearing Skwirrel meta so future lookups miss it (record itself preserved for offload-plugin safety)',
 			[
-				'attachment_id'        => $existing,
-				'expected_path'        => is_string( $file ) ? $file : null,
+				'attachment_id'          => $existing,
+				'expected_path'          => is_string( $file ) ? $file : null,
 				'skwirrel_attachment_id' => $api_meta['attachment_id'] ?? null,
 			]
 		);
-		wp_delete_attachment( $existing, true );
+		delete_post_meta( $existing, self::META_SKWIRREL_ATTACHMENT_ID );
+		delete_post_meta( $existing, self::META_SKWIRREL_FILE_CHECKSUM );
+		delete_post_meta( $existing, self::META_SKWIRREL_HASH );
+		delete_post_meta( $existing, self::META_SKWIRREL_URL );
 		return 0;
 	}
 

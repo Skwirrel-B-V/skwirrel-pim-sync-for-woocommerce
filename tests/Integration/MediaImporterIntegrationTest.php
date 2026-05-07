@@ -377,7 +377,7 @@ test( 'backfill leaves an existing stored checksum untouched (must not squash co
 // before the import path treats them as a valid match
 // ------------------------------------------------------------------
 
-test( 'import_image replaces a broken record when the underlying file was deleted on disk', function () {
+test( 'import_image disconnects a broken record (file gone) without deleting it, then downloads fresh', function () {
 	stubMediaDownload( 'cdn.example/broken.png', fakePngBytes() );
 
 	$first_id = $this->importer->import_image(
@@ -391,12 +391,9 @@ test( 'import_image replaces a broken record when the underlying file was delete
 	$path = (string) get_attached_file( $first_id );
 	expect( file_exists( $path ) )->toBeTrue();
 
-	// Simulate an admin (or a buggy media plugin) deleting just the file on
-	// disk without touching the WP attachment record — the lookup would
-	// otherwise keep returning a broken id forever.
+	// Simulate the file being gone (admin cleanup, half-failed sync).
 	unlink( $path );
-	expect( file_exists( $path ) )->toBeFalse();
-	expect( get_post( $first_id ) )->not->toBeNull(); // record still here
+	expect( get_post( $first_id ) )->not->toBeNull();
 
 	$second_id = $this->importer->import_image(
 		'https://cdn.example/broken.png',
@@ -407,14 +404,22 @@ test( 'import_image replaces a broken record when the underlying file was delete
 		[ 'attachment_id' => 8001, 'file_checksum' => 'aaa' ]
 	);
 
-	// New record was created — old broken one was deleted.
+	// Critical invariants for offload-plugin safety:
+	//  * the WP attachment record is NOT deleted (wp_delete_attachment would
+	//    trigger offload-plugin hooks that may purge remote storage),
+	//  * the Skwirrel-side meta IS cleared so future lookups miss it,
+	//  * a fresh download happens under a new attachment id.
 	expect( $second_id )->toBeGreaterThan( 0 );
 	expect( $second_id )->not->toBe( $first_id );
-	expect( get_post( $first_id ) )->toBeNull();
+	expect( get_post( $first_id ) )->not->toBeNull();
+	expect( get_post_meta( $first_id, '_skwirrel_attachment_id', true ) )->toBe( '' );
+	expect( get_post_meta( $first_id, '_skwirrel_url_hash', true ) )->toBe( '' );
+	expect( get_post_meta( $first_id, '_skwirrel_file_checksum', true ) )->toBe( '' );
+	expect( get_post_meta( $first_id, '_skwirrel_source_url', true ) )->toBe( '' );
 	expect( file_exists( (string) get_attached_file( $second_id ) ) )->toBeTrue();
 } );
 
-test( 'import_file replaces a broken record when the underlying file was deleted on disk', function () {
+test( 'import_file disconnects a broken record (file gone) without deleting it, then downloads fresh', function () {
 	stubMediaDownload( 'cdn.example/broken-doc.pdf', '%PDF-1.4 content' );
 
 	$first_id = $this->importer->import_file(
@@ -435,7 +440,46 @@ test( 'import_file replaces a broken record when the underlying file was deleted
 
 	expect( $second_id )->toBeGreaterThan( 0 );
 	expect( $second_id )->not->toBe( $first_id );
+	expect( get_post( $first_id ) )->not->toBeNull();
+	expect( get_post_meta( $first_id, '_skwirrel_attachment_id', true ) )->toBe( '' );
 	expect( file_exists( (string) get_attached_file( $second_id ) ) )->toBeTrue();
+} );
+
+test( 'skwirrel_wc_sync_attachment_is_valid filter keeps offloaded records (local file missing, remote ok)', function () {
+	stubMediaDownload( 'cdn.example/offloaded.png', fakePngBytes() );
+
+	$first_id = $this->importer->import_image(
+		'https://cdn.example/offloaded.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 8003, 'file_checksum' => 'aaa' ]
+	);
+	$path = (string) get_attached_file( $first_id );
+	unlink( $path ); // simulate offload plugin removing the local file after pushing to S3
+
+	// Site code (or an offload-plugin integration) overrides the default
+	// file_exists check so the import path keeps reusing the existing record.
+	$filter = static fn( bool $default, int $att_id, ?string $local_path ): bool => true;
+	add_filter( 'skwirrel_wc_sync_attachment_is_valid', $filter, 10, 3 );
+
+	$second_id = $this->importer->import_image(
+		'https://cdn.example/offloaded.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 8003, 'file_checksum' => 'aaa' ]
+	);
+
+	remove_filter( 'skwirrel_wc_sync_attachment_is_valid', $filter, 10 );
+
+	// Same WP attachment id reused — no fresh download, no meta cleanup,
+	// no churn for offloaded media libraries.
+	expect( $second_id )->toBe( $first_id );
+	expect( get_post_meta( $first_id, '_skwirrel_attachment_id', true ) )->toBe( '8003' );
+	expect( get_post_meta( $first_id, '_skwirrel_file_checksum', true ) )->toBe( 'aaa' );
 } );
 
 test( 'import_file replaces underlying bytes when checksum differs', function () {
