@@ -4,16 +4,39 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 
 ## [3.8.0]
 
+### Media: real Skwirrel↔WordPress mapping + content-change detection
+
 * **Stable Skwirrel-media → WP-attachment mapping** — `_skwirrel_attachment_id` post meta now records the Skwirrel `product_attachment_id` for every imported attachment. The dedup lookup tries this stable id first and falls back to the URL-hash check only when no id is stored yet. CDN URL rewrites on the Skwirrel side no longer surface as duplicate WP attachments.
 * **Content-change detection via Skwirrel's own SHA-256** — `_skwirrel_file_checksum` post meta now records `file_sha256_checksum` from the API. When a re-sync identifies the existing attachment via the stable id and finds a DIFFERENT checksum, the file is replaced in place: same WP attachment id, fresh bytes, image sub-sizes regenerated, mime type updated. Equal-second timestamp collisions with the previous filename are handled safely. Failed downloads / invalid bytes / copy errors are logged and the existing attachment is left untouched.
-* **File-existence guard before reusing matches** — `find_valid_existing_attachment()` verifies `file_exists(get_attached_file($id))` after every successful lookup. Broken records (file deleted out-of-band) are permanently deleted via `wp_delete_attachment( $id, true )` so the import path falls through to a fresh download instead of returning the same broken id forever.
+* **Offload-plugin-safe missing-file guard** — `find_valid_existing_attachment()` verifies `file_exists(get_attached_file($id))` after every successful lookup, but never invokes `wp_delete_attachment()` on a missing-file event. A broken record only has its Skwirrel-side meta keys cleared so future lookups miss it, and the WP attachment record itself is preserved — calling the WP delete pipeline would have triggered offload-plugin hooks (WP Offload Media, S3 Uploads, …) that may have purged the remote copy. New filter `skwirrel_wc_sync_attachment_is_valid` lets offload-aware site code declare an attachment valid when the local file is missing but a remote copy exists; the workspace's `mu-plugins/skwirrel-offload-compat.php` is a drop-in reference implementation.
 * **Lazy migration for pre-3.8 attachments** — re-syncs of attachments imported before 3.8 backfill the new meta keys from the current API payload. The backfill only writes EMPTY meta — a non-empty stored checksum that differs from the API value is preserved as a content-change signal that drives the replace path. The first post-3.8 sync of any attachment establishes its baseline; subsequent syncs catch real Skwirrel-side content changes.
 * **No re-download on upgrade** — the migration path is designed to make the upgrade transparent. Existing attachments stay where they are; new meta is added in the background as syncs naturally happen.
-* **WordPress.org Plugin Check submission cleanup**
-  * Expanded `plugin/skwirrel-pim-sync/.distignore` so `.phpcs.xml.dist`, `phpstan.neon.dist`, `phpstan-baseline.neon`, `phpunit.xml.dist`, `phpunit-integration.xml.dist`, `.gitignore`, `.distignore` itself, the `tests/` directory and any `vendor/` tree are excluded from the deploy ZIP. Plugin Check's `application_detected` and `hidden_files` errors no longer fire.
-  * `readme.txt`: trimmed `Tested up to: 6.9.4` → `6.9` (wp.org accepts only the major.minor portion).
-  * `class-skwirrel-wc-sync-purge-handler.php`: re-cast `array_chunk` outputs at the `implode` site so `Plugin Check`'s static analyser can verify the IDs interpolated into the bulk SQL are int-sanitised. Runtime behaviour unchanged.
-  * `class-skwirrel-wc-sync-admin-settings.php`: passed the plugin version (instead of `null`) to the Google Fonts `wp_enqueue_style` call to satisfy `WordPress.WP.EnqueuedResourceParameters.MissingVersion`.
+
+### Sync-safety hardening (P1 / P2 fixes from code review)
+
+* **Mutex on concurrent runs** — `run_sync()` refuses to start when another run's heartbeat transient is fresh (HEARTBEAT_TTL = 60s). Returns `success=false` with an "already running" error before any HTTP call. A stale heartbeat is treated as "previous run died without cleanup" and the new run takes over. Without this, two concurrent runs raced the shared queue, the per-product `_skwirrel_synced_at` meta and ultimately the purge step — at worst trashing every Skwirrel-managed product because Run B truncated Run A's queue before any synced_at could be written.
+* **Per-run queue isolation** — the global `Skwirrel_WC_Sync_Queue::truncate()` is now a deprecated no-op; `run_sync()` no longer wipes the table at startup. Each run uses its own `sync_run_id` and removes only its own rows via the existing `$queue->cleanup()` instance method. Defends queue contents even if the mutex is bypassed.
+* **Pagination atomicity** — a fetch failure on a later page is now a hard abort. The previous behaviour (log + `break`) let the run continue through every phase, advance `last_sync` and run the stale-product purge — silently dropping products from future delta syncs and trashing the products on the un-fetched pages. The whole run is now recorded as failed, the queue is cleaned up, and the user-visible error includes the failing page number and selection id.
+* **Multi-selection support in the main fetch** — `getProductsByFilter` is now called once per configured `dynamic_selection_id` (the API filter is a single-int field). Previously only `$collection_ids[0]` was used, silently dropping every product that lived only in selections 2..N even though the admin UI accepts the multi-id syntax.
+* **Empty cross-sells / upsells now actually clear** — `assign_relations()` always writes the relation buckets the run is configured to sync, even when Skwirrel's payload returned zero relations for that bucket. Previously an empty payload short-circuited and existing WC cross-sells / upsells lingered forever once removed at the source. Buckets we are NOT syncing (e.g. upsells when `related_products_type=cross_sells`) are deliberately left alone — admin-curated relations on the unrelated bucket stay intact.
+
+### Offload-plugin compatibility (new mu-plugin)
+
+* **`mu-plugins/skwirrel-offload-compat.php`** — drop-in reference implementation of the new `skwirrel_wc_sync_attachment_is_valid` filter. Vetoes the missing-file cleanup whenever `wp_get_attachment_url()` returns a URL that does NOT start with the local uploads baseurl — the signal an offload plugin produces when serving the file from remote storage. Not bundled in the plugin ZIP; activate by dropping the file in `wp-content/mu-plugins/`.
+* **readme.txt FAQ entry** documenting the filter and showing a one-line `mu-plugin` snippet for the common case.
+
+### WordPress.org Plugin Check submission cleanup
+
+* Expanded `plugin/skwirrel-pim-sync/.distignore` so `.phpcs.xml.dist`, `phpstan.neon.dist`, `phpstan-baseline.neon`, `phpunit.xml.dist`, `phpunit-integration.xml.dist`, `.gitignore`, `.distignore` itself, the `tests/` directory and any `vendor/` tree are excluded from the deploy ZIP. Plugin Check's `application_detected` and `hidden_files` errors no longer fire.
+* `readme.txt`: trimmed `Tested up to: 6.9.4` → `6.9` (wp.org accepts only the major.minor portion).
+* `class-skwirrel-wc-sync-purge-handler.php`: re-cast `array_chunk` outputs at the `implode` site so Plugin Check's static analyser can verify the IDs interpolated into the bulk SQL are int-sanitised. Runtime behaviour unchanged.
+* `class-skwirrel-wc-sync-admin-settings.php`: passed the plugin version (instead of `null`) to the Google Fonts `wp_enqueue_style` call to satisfy `WordPress.WP.EnqueuedResourceParameters.MissingVersion`.
+
+### Tests
+
+* New `tests/Integration/MediaImporterIntegrationTest.php` (10 cases) — pins the new dedup-by-attachment-id, checksum-replace, file-existence guard, backfill, and offload-filter behaviours.
+* New `tests/Integration/SyncSafetyIntegrationTest.php` (8 cases) — pins the mutex, queue isolation, pagination atomicity, multi-selection and relations-clear invariants. Authored red, turned green by the matching fixes.
+* Total: 237 unit + 45 integration tests. PHPStan level 6 clean, PHPCS clean, Plugin Check clean.
 
 ## [3.7.0]
 
