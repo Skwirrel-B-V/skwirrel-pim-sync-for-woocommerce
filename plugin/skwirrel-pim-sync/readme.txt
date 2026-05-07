@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.3
-Stable tag: 3.7.0
+Stable tag: 3.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -63,6 +63,13 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 3.8.0 =
+* **Real Skwirrel-media to WordPress-attachment mapping** — every imported attachment now stores the Skwirrel `product_attachment_id` as `_skwirrel_attachment_id` post meta. Re-syncs locate existing media by that stable id first and fall back to the URL-hash check only for legacy attachments. URL changes on the Skwirrel CDN no longer create duplicate WordPress attachments.
+* **Content-change detection via Skwirrel's own checksum** — the API's `file_sha256_checksum` lands on the WP attachment as `_skwirrel_file_checksum`. When a re-sync sees a different checksum on an attachment we already have, the underlying file is replaced in place: same WP attachment id, fresh bytes, sub-sizes regenerated, mime type updated. Failed downloads leave the existing attachment untouched.
+* **File-existence guard** — if the WP record exists but the underlying file was deleted on disk (admin cleanup, buggy media plugin, half-failed sync), the broken record is removed and the asset is downloaded fresh on the next attempt instead of being returned forever.
+* **Lazy migration for pre-3.8 attachments** — re-syncs of attachments that lack the new meta keys silently backfill them from the API payload at no extra cost. No mass re-download on upgrade.
+* **WordPress.org Plugin Check pass** — `.distignore` now excludes all dev tooling configs (`.phpcs.xml.dist`, `phpunit*.xml.dist`, `phpstan.neon.dist`, `tests/`, etc.) from the deployed ZIP. Trimmed `Tested up to: 6.9.4` to `6.9` (only major.minor allowed). Reworked the bulk SQL in the purge handler so the `Plugin Check` static analyser can verify the IN-clause IDs are int-sanitised. Google Fonts enqueue now passes a version string instead of `null`.
 
 = 3.7.0 =
 * Bump minimum PHP version to 8.3 (PHP 8.1 reached end-of-life on 2025-12-31; 8.2 is in security-only support until 2026-12-31). `Requires PHP` and `composer.json` runtime constraint both updated.

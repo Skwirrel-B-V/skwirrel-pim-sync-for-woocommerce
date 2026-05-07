@@ -2,6 +2,19 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.8.0]
+
+* **Stable Skwirrel-media → WP-attachment mapping** — `_skwirrel_attachment_id` post meta now records the Skwirrel `product_attachment_id` for every imported attachment. The dedup lookup tries this stable id first and falls back to the URL-hash check only when no id is stored yet. CDN URL rewrites on the Skwirrel side no longer surface as duplicate WP attachments.
+* **Content-change detection via Skwirrel's own SHA-256** — `_skwirrel_file_checksum` post meta now records `file_sha256_checksum` from the API. When a re-sync identifies the existing attachment via the stable id and finds a DIFFERENT checksum, the file is replaced in place: same WP attachment id, fresh bytes, image sub-sizes regenerated, mime type updated. Equal-second timestamp collisions with the previous filename are handled safely. Failed downloads / invalid bytes / copy errors are logged and the existing attachment is left untouched.
+* **File-existence guard before reusing matches** — `find_valid_existing_attachment()` verifies `file_exists(get_attached_file($id))` after every successful lookup. Broken records (file deleted out-of-band) are permanently deleted via `wp_delete_attachment( $id, true )` so the import path falls through to a fresh download instead of returning the same broken id forever.
+* **Lazy migration for pre-3.8 attachments** — re-syncs of attachments imported before 3.8 backfill the new meta keys from the current API payload. The backfill only writes EMPTY meta — a non-empty stored checksum that differs from the API value is preserved as a content-change signal that drives the replace path. The first post-3.8 sync of any attachment establishes its baseline; subsequent syncs catch real Skwirrel-side content changes.
+* **No re-download on upgrade** — the migration path is designed to make the upgrade transparent. Existing attachments stay where they are; new meta is added in the background as syncs naturally happen.
+* **WordPress.org Plugin Check submission cleanup**
+  * Expanded `plugin/skwirrel-pim-sync/.distignore` so `.phpcs.xml.dist`, `phpstan.neon.dist`, `phpstan-baseline.neon`, `phpunit.xml.dist`, `phpunit-integration.xml.dist`, `.gitignore`, `.distignore` itself, the `tests/` directory and any `vendor/` tree are excluded from the deploy ZIP. Plugin Check's `application_detected` and `hidden_files` errors no longer fire.
+  * `readme.txt`: trimmed `Tested up to: 6.9.4` → `6.9` (wp.org accepts only the major.minor portion).
+  * `class-skwirrel-wc-sync-purge-handler.php`: re-cast `array_chunk` outputs at the `implode` site so `Plugin Check`'s static analyser can verify the IDs interpolated into the bulk SQL are int-sanitised. Runtime behaviour unchanged.
+  * `class-skwirrel-wc-sync-admin-settings.php`: passed the plugin version (instead of `null`) to the Google Fonts `wp_enqueue_style` call to satisfy `WordPress.WP.EnqueuedResourceParameters.MissingVersion`.
+
 ## [3.7.0]
 
 * **Bump minimum PHP to 8.3** — PHP 8.1 reached end-of-life on 2025-12-31 and 8.2 is in security-only support until 2026-12-31. `Requires PHP` in the plugin header + readme and the `composer.json` runtime constraint are all updated to `>=8.3`
