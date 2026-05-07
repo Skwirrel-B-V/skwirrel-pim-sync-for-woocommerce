@@ -310,6 +310,69 @@ test( 'import_image does not replace when the stored checksum is empty (legacy a
 } );
 
 // ------------------------------------------------------------------
+// Backwards-compat backfill — pre-3.8 attachments have no Skwirrel-side
+// meta; they should be silently upgraded on first re-sync without any
+// re-download
+// ------------------------------------------------------------------
+
+test( 'pre-3.8 attachment (URL-hash only) gets attachment_id and checksum backfilled on first re-sync', function () {
+	stubMediaDownload( 'cdn.example/legacy-backfill.png', fakePngBytes() );
+
+	// Step 1: simulate a pre-3.8 import — no api_meta supplied.
+	$first_id = $this->importer->import_image( 'https://cdn.example/legacy-backfill.png' );
+	expect( get_post_meta( $first_id, '_skwirrel_attachment_id', true ) )->toBe( '' );
+	expect( get_post_meta( $first_id, '_skwirrel_file_checksum', true ) )->toBe( '' );
+	$initial_path = (string) get_attached_file( $first_id );
+
+	// Step 2: a re-sync now passes the new api_meta. The match still happens
+	// via URL hash (attachment_id lookup misses), and both meta keys must be
+	// quietly populated. No re-download — the file path stays put.
+	$second_id = $this->importer->import_image(
+		'https://cdn.example/legacy-backfill.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 4242, 'file_checksum' => 'aabbcc' ]
+	);
+
+	expect( $second_id )->toBe( $first_id );
+	expect( get_post_meta( $second_id, '_skwirrel_attachment_id', true ) )->toBe( '4242' );
+	expect( get_post_meta( $second_id, '_skwirrel_file_checksum', true ) )->toBe( 'aabbcc' );
+	expect( get_attached_file( $second_id ) )->toBe( $initial_path );
+} );
+
+test( 'backfill leaves an existing stored checksum untouched (must not squash content-update signal)', function () {
+	stubMediaDownload( 'cdn.example/already-tracked.png', fakePngBytes() );
+
+	// Step 1: attachment imported under 3.8 with a known checksum.
+	$first_id = $this->importer->import_image(
+		'https://cdn.example/already-tracked.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 5555, 'file_checksum' => 'original-checksum' ]
+	);
+	expect( get_post_meta( $first_id, '_skwirrel_file_checksum', true ) )->toBe( 'original-checksum' );
+
+	// Step 2: a re-sync with a DIFFERENT checksum must NOT be silently
+	// overwritten by the backfill; instead the replace path takes over and
+	// the new checksum lands AFTER the file was actually replaced.
+	$second_id = $this->importer->import_image(
+		'https://cdn.example/already-tracked.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 5555, 'file_checksum' => 'different-checksum' ]
+	);
+
+	expect( $second_id )->toBe( $first_id );
+	expect( get_post_meta( $second_id, '_skwirrel_file_checksum', true ) )->toBe( 'different-checksum' );
+} );
+
+// ------------------------------------------------------------------
 // File-existence check — broken WP attachment records get cleaned up
 // before the import path treats them as a valid match
 // ------------------------------------------------------------------

@@ -53,6 +53,11 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$hash     = $this->url_hash( $url );
 		$existing = $this->find_valid_existing_attachment( $hash, $api_meta );
 		if ( $existing ) {
+			// Backfill BEFORE checking for a content update — pre-3.8 attachments
+			// have no stored checksum, so the first post-3.8 sync just records
+			// the current state. From the second sync onwards, an api/stored
+			// checksum mismatch can cleanly trigger replace.
+			$this->backfill_api_meta( $existing, $api_meta );
 			$this->maybe_replace_image_content( $existing, $url, $alt_caption, $description, $api_meta );
 			$this->ensure_post_parent( $existing, $parent_id );
 			return $existing;
@@ -170,6 +175,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$hash     = $this->url_hash( $url );
 		$existing = $this->find_valid_existing_attachment( $hash, $api_meta );
 		if ( $existing ) {
+			// See backfill rationale in import_image().
+			$this->backfill_api_meta( $existing, $api_meta );
 			$this->maybe_replace_file_content( $existing, $url, $api_meta );
 			$this->ensure_post_parent( $existing, $parent_id );
 			return $existing;
@@ -522,6 +529,45 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$checksum = isset( $api_meta['file_checksum'] ) ? strtolower( trim( (string) $api_meta['file_checksum'] ) ) : '';
 		if ( '' !== $checksum ) {
 			update_post_meta( $attachment_id, self::META_SKWIRREL_FILE_CHECKSUM, $checksum );
+		}
+	}
+
+	/**
+	 * Lazy migration for pre-3.8 attachments: fill in `_skwirrel_attachment_id`
+	 * and `_skwirrel_file_checksum` from the current API payload only when the
+	 * stored value is empty. Crucially, this does NOT overwrite existing meta —
+	 * a non-empty stored checksum that differs from the API value is a content-
+	 * change signal that should drive maybe_replace_*_content(), not be
+	 * silently squashed.
+	 *
+	 * Limitation: any content change that happened on the Skwirrel side BEFORE
+	 * the first post-3.8 sync is invisible to us; the backfill establishes the
+	 * baseline, and only future changes get detected.
+	 *
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 */
+	private function backfill_api_meta( int $attachment_id, array $api_meta ): void {
+		$skwirrel_id = isset( $api_meta['attachment_id'] ) ? (int) $api_meta['attachment_id'] : 0;
+		if ( $skwirrel_id > 0 ) {
+			$stored_id = (string) get_post_meta( $attachment_id, self::META_SKWIRREL_ATTACHMENT_ID, true );
+			if ( '' === $stored_id ) {
+				update_post_meta( $attachment_id, self::META_SKWIRREL_ATTACHMENT_ID, $skwirrel_id );
+				$this->logger->debug(
+					'Backfilled _skwirrel_attachment_id on legacy attachment',
+					[ 'attachment_id' => $attachment_id, 'skwirrel_attachment_id' => $skwirrel_id ]
+				);
+			}
+		}
+		$checksum = isset( $api_meta['file_checksum'] ) ? strtolower( trim( (string) $api_meta['file_checksum'] ) ) : '';
+		if ( '' !== $checksum ) {
+			$stored_checksum = (string) get_post_meta( $attachment_id, self::META_SKWIRREL_FILE_CHECKSUM, true );
+			if ( '' === $stored_checksum ) {
+				update_post_meta( $attachment_id, self::META_SKWIRREL_FILE_CHECKSUM, $checksum );
+				$this->logger->debug(
+					'Backfilled _skwirrel_file_checksum on legacy attachment',
+					[ 'attachment_id' => $attachment_id, 'checksum' => $checksum ]
+				);
+			}
 		}
 	}
 
