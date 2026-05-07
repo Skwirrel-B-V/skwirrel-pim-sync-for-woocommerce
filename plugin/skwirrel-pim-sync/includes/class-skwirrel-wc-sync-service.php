@@ -426,8 +426,46 @@ class Skwirrel_WC_Sync_Service {
 				++$page;
 				$result = $this->fetch_products_page( $client, $use_filter, $filter, $api_includes, $batch_size, $page );
 				if ( ! $result['success'] ) {
-					$this->logger->error( 'Pagination failed', $result['error'] ?? [] );
-					break;
+					// Fail-fast on a partial fetch. Continuing here would let the
+					// run reach the purge step and trash every product that
+					// happened to live on the un-fetched pages, and would also
+					// advance `last_sync` so those products silently disappear
+					// from future delta syncs. The whole run must be recorded
+					// as failed.
+					$err = $result['error'] ?? [ 'message' => 'Pagination failed' ];
+					$this->logger->error( 'Pagination failed; aborting sync', $err );
+					$this->logger->stop_sync_log();
+					$queue->cleanup();
+					Skwirrel_WC_Sync_History::update_last_result(
+						false,
+						$created,
+						$updated,
+						$failed,
+						sprintf(
+							/* translators: 1: API error message, 2: page number where the failure happened */
+							__( 'Pagination failed at page %2$d: %1$s', 'skwirrel-pim-sync' ),
+							(string) ( $err['message'] ?? 'API error' ),
+							$page
+						),
+						0,
+						0,
+						0,
+						0,
+						$trigger,
+						$log_filename
+					);
+					return [
+						'success' => false,
+						'error'   => sprintf(
+							/* translators: 1: API error message, 2: page number where the failure happened */
+							__( 'Pagination failed at page %2$d: %1$s', 'skwirrel-pim-sync' ),
+							(string) ( $err['message'] ?? 'API error' ),
+							$page
+						),
+						'created' => 0,
+						'updated' => 0,
+						'failed'  => 0,
+					];
 				}
 				$data     = $result['result'] ?? [];
 				$products = $data['products'] ?? [];
