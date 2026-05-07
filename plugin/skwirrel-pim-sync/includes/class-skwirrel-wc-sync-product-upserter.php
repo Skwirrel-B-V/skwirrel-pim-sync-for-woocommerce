@@ -761,17 +761,25 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'include_languages'         => $this->get_include_languages(),
 		];
 
-		// Build allowed product IDs from the dynamic selection (post-filter).
+		// Build allowed product IDs from every configured dynamic selection.
+		// `dynamic_selection_id` is a single-int filter on the API, so multiple
+		// configured selections become one prefilter call per id; the resulting
+		// ID maps are merged so a grouped product is kept whenever ANY of its
+		// members lives in ANY of the configured selections.
 		$allowed_product_ids = null;
 		if ( ! empty( $collection_ids ) ) {
-			$allowed_product_ids = $this->fetch_product_ids_for_selection( $client, $collection_ids[0], $batch_size );
-			$this->logger->info(
-				'Fetched product IDs for selection filter',
-				[
-					'dynamic_selection_id' => $collection_ids[0],
-					'product_count'        => count( $allowed_product_ids ),
-				]
-			);
+			$allowed_product_ids = [];
+			foreach ( $collection_ids as $selection_id ) {
+				$ids_for_selection = $this->fetch_product_ids_for_selection( $client, (int) $selection_id, $batch_size );
+				$allowed_product_ids += $ids_for_selection;
+				$this->logger->info(
+					'Fetched product IDs for selection filter',
+					[
+						'dynamic_selection_id' => (int) $selection_id,
+						'product_count'        => count( $ids_for_selection ),
+					]
+				);
+			}
 		}
 
 		$page = 1;
