@@ -309,6 +309,72 @@ test( 'import_image does not replace when the stored checksum is empty (legacy a
 	expect( get_attached_file( $second_id ) )->toBe( $initial_path );
 } );
 
+// ------------------------------------------------------------------
+// File-existence check — broken WP attachment records get cleaned up
+// before the import path treats them as a valid match
+// ------------------------------------------------------------------
+
+test( 'import_image replaces a broken record when the underlying file was deleted on disk', function () {
+	stubMediaDownload( 'cdn.example/broken.png', fakePngBytes() );
+
+	$first_id = $this->importer->import_image(
+		'https://cdn.example/broken.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 8001, 'file_checksum' => 'aaa' ]
+	);
+	$path = (string) get_attached_file( $first_id );
+	expect( file_exists( $path ) )->toBeTrue();
+
+	// Simulate an admin (or a buggy media plugin) deleting just the file on
+	// disk without touching the WP attachment record — the lookup would
+	// otherwise keep returning a broken id forever.
+	unlink( $path );
+	expect( file_exists( $path ) )->toBeFalse();
+	expect( get_post( $first_id ) )->not->toBeNull(); // record still here
+
+	$second_id = $this->importer->import_image(
+		'https://cdn.example/broken.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 8001, 'file_checksum' => 'aaa' ]
+	);
+
+	// New record was created — old broken one was deleted.
+	expect( $second_id )->toBeGreaterThan( 0 );
+	expect( $second_id )->not->toBe( $first_id );
+	expect( get_post( $first_id ) )->toBeNull();
+	expect( file_exists( (string) get_attached_file( $second_id ) ) )->toBeTrue();
+} );
+
+test( 'import_file replaces a broken record when the underlying file was deleted on disk', function () {
+	stubMediaDownload( 'cdn.example/broken-doc.pdf', '%PDF-1.4 content' );
+
+	$first_id = $this->importer->import_file(
+		'https://cdn.example/broken-doc.pdf',
+		'broken.pdf',
+		0,
+		[ 'attachment_id' => 8002, 'file_checksum' => 'aaa' ]
+	);
+	$path = (string) get_attached_file( $first_id );
+	unlink( $path );
+
+	$second_id = $this->importer->import_file(
+		'https://cdn.example/broken-doc.pdf',
+		'broken.pdf',
+		0,
+		[ 'attachment_id' => 8002, 'file_checksum' => 'aaa' ]
+	);
+
+	expect( $second_id )->toBeGreaterThan( 0 );
+	expect( $second_id )->not->toBe( $first_id );
+	expect( file_exists( (string) get_attached_file( $second_id ) ) )->toBeTrue();
+} );
+
 test( 'import_file replaces underlying bytes when checksum differs', function () {
 	stubMediaDownload( 'cdn.example/changing-doc.pdf', '%PDF-1.4 v1' );
 

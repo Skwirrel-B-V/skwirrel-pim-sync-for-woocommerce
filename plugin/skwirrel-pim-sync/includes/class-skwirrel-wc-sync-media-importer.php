@@ -51,7 +51,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 
 		$hash     = $this->url_hash( $url );
-		$existing = $this->find_existing_attachment( $hash, $api_meta );
+		$existing = $this->find_valid_existing_attachment( $hash, $api_meta );
 		if ( $existing ) {
 			$this->maybe_replace_image_content( $existing, $url, $alt_caption, $description, $api_meta );
 			$this->ensure_post_parent( $existing, $parent_id );
@@ -168,7 +168,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 
 		$hash     = $this->url_hash( $url );
-		$existing = $this->find_existing_attachment( $hash, $api_meta );
+		$existing = $this->find_valid_existing_attachment( $hash, $api_meta );
 		if ( $existing ) {
 			$this->maybe_replace_file_content( $existing, $url, $api_meta );
 			$this->ensure_post_parent( $existing, $parent_id );
@@ -601,6 +601,35 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 	private function url_hash( string $url ): string {
 		return hash( 'sha256', $url );
+	}
+
+	/**
+	 * Locate an existing WP attachment AND verify its underlying file is still
+	 * on disk. Stale records — typically created when an admin manually deleted
+	 * a media file outside the plugin — are removed so the import path can
+	 * re-download cleanly without endlessly returning a broken attachment id.
+	 *
+	 * @param array{attachment_id?: int|string|null, ...} $api_meta
+	 */
+	private function find_valid_existing_attachment( string $url_hash, array $api_meta ): int {
+		$existing = $this->find_existing_attachment( $url_hash, $api_meta );
+		if ( ! $existing ) {
+			return 0;
+		}
+		$file = get_attached_file( $existing );
+		if ( is_string( $file ) && '' !== $file && file_exists( $file ) ) {
+			return $existing;
+		}
+		$this->logger->warning(
+			'Skwirrel attachment record points to a missing file; deleting broken record',
+			[
+				'attachment_id'        => $existing,
+				'expected_path'        => is_string( $file ) ? $file : null,
+				'skwirrel_attachment_id' => $api_meta['attachment_id'] ?? null,
+			]
+		);
+		wp_delete_attachment( $existing, true );
+		return 0;
 	}
 
 	/**
