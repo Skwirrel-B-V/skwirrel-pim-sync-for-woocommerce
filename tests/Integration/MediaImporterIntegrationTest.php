@@ -223,3 +223,117 @@ test( 'import_file persists Skwirrel attachment_id and file_checksum from api_me
 	expect( get_post_meta( $id, '_skwirrel_file_checksum', true ) )
 		->toBe( 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef' );
 } );
+
+// ------------------------------------------------------------------
+// Content-update path — checksum mismatch triggers in-place replace
+// ------------------------------------------------------------------
+
+test( 'import_image leaves the file untouched when checksum is unchanged', function () {
+	stubMediaDownload( 'cdn.example/stable.png', fakePngBytes() );
+
+	$first_id = $this->importer->import_image(
+		'https://cdn.example/stable.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 6001, 'file_checksum' => 'aaa' ]
+	);
+	$initial_path = get_attached_file( $first_id );
+	expect( file_exists( (string) $initial_path ) )->toBeTrue();
+
+	$second_id = $this->importer->import_image(
+		'https://cdn.example/stable.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 6001, 'file_checksum' => 'aaa' ]
+	);
+
+	expect( $second_id )->toBe( $first_id );
+	expect( get_attached_file( $second_id ) )->toBe( $initial_path );
+} );
+
+test( 'import_image replaces the underlying file when api checksum differs from stored', function () {
+	stubMediaDownload( 'cdn.example/changed.png', fakePngBytes() );
+
+	$first_id = $this->importer->import_image(
+		'https://cdn.example/changed.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 6002, 'file_checksum' => 'oldoldold' ]
+	);
+	expect( get_post_meta( $first_id, '_skwirrel_file_checksum', true ) )->toBe( 'oldoldold' );
+
+	// Trigger content-update with a different checksum on the same Skwirrel
+	// attachment id. The WP attachment record is preserved (same id) but the
+	// stored checksum is refreshed and the file under that id has been
+	// re-written from the freshly-downloaded bytes.
+	$second_id = $this->importer->import_image(
+		'https://cdn.example/changed.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 6002, 'file_checksum' => 'newnewnew' ]
+	);
+
+	expect( $second_id )->toBe( $first_id );
+	expect( get_post_meta( $second_id, '_skwirrel_file_checksum', true ) )->toBe( 'newnewnew' );
+	expect( file_exists( (string) get_attached_file( $second_id ) ) )->toBeTrue();
+} );
+
+test( 'import_image does not replace when the stored checksum is empty (legacy attachment)', function () {
+	stubMediaDownload( 'cdn.example/legacy-checksum.png', fakePngBytes() );
+
+	// First import: pre-3.8 sim — no api_meta, so no checksum stored.
+	$first_id = $this->importer->import_image( 'https://cdn.example/legacy-checksum.png' );
+	$initial_path = (string) get_attached_file( $first_id );
+
+	// Second import passes a checksum, but since the stored side is empty we
+	// must NOT trigger a re-download — that would create churn for every
+	// pre-3.8 attachment on the first sync after the 3.8 upgrade.
+	$second_id = $this->importer->import_image(
+		'https://cdn.example/legacy-checksum.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 0, 'file_checksum' => 'somechecksum' ]
+	);
+
+	expect( $second_id )->toBe( $first_id );
+	expect( get_attached_file( $second_id ) )->toBe( $initial_path );
+} );
+
+test( 'import_file replaces underlying bytes when checksum differs', function () {
+	stubMediaDownload( 'cdn.example/changing-doc.pdf', '%PDF-1.4 v1' );
+
+	$first_id = $this->importer->import_file(
+		'https://cdn.example/changing-doc.pdf',
+		'doc.pdf',
+		0,
+		[ 'attachment_id' => 7001, 'file_checksum' => 'v1-checksum' ]
+	);
+	$initial_path = (string) get_attached_file( $first_id );
+	expect( file_get_contents( $initial_path ) )->toBe( '%PDF-1.4 v1' );
+
+	// Restub with new bytes for the same URL, pass new checksum.
+	remove_all_filters( 'pre_http_request' );
+	stubMediaDownload( 'cdn.example/changing-doc.pdf', '%PDF-1.4 v2 with extra content' );
+
+	$second_id = $this->importer->import_file(
+		'https://cdn.example/changing-doc.pdf',
+		'doc.pdf',
+		0,
+		[ 'attachment_id' => 7001, 'file_checksum' => 'v2-checksum' ]
+	);
+
+	expect( $second_id )->toBe( $first_id );
+	expect( get_post_meta( $second_id, '_skwirrel_file_checksum', true ) )->toBe( 'v2-checksum' );
+	$new_path = (string) get_attached_file( $second_id );
+	expect( file_get_contents( $new_path ) )->toBe( '%PDF-1.4 v2 with extra content' );
+} );

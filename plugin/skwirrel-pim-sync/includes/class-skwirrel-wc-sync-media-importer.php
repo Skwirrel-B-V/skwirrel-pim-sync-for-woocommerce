@@ -53,14 +53,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$hash     = $this->url_hash( $url );
 		$existing = $this->find_existing_attachment( $hash, $api_meta );
 		if ( $existing ) {
-			if ( $parent_id && 0 === wp_get_post_parent_id( $existing ) ) {
-				wp_update_post(
-					[
-						'ID'          => $existing,
-						'post_parent' => $parent_id,
-					]
-				);
-			}
+			$this->maybe_replace_image_content( $existing, $url, $alt_caption, $description, $api_meta );
+			$this->ensure_post_parent( $existing, $parent_id );
 			return $existing;
 		}
 
@@ -176,14 +170,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$hash     = $this->url_hash( $url );
 		$existing = $this->find_existing_attachment( $hash, $api_meta );
 		if ( $existing ) {
-			if ( $parent_id && 0 === wp_get_post_parent_id( $existing ) ) {
-				wp_update_post(
-					[
-						'ID'          => $existing,
-						'post_parent' => $parent_id,
-					]
-				);
-			}
+			$this->maybe_replace_file_content( $existing, $url, $api_meta );
+			$this->ensure_post_parent( $existing, $parent_id );
 			return $existing;
 		}
 
@@ -249,6 +237,272 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$this->persist_api_meta( $id, $api_meta );
 
 		return $id;
+	}
+
+	/**
+	 * Ensure the attachment is parented to the given product.
+	 *
+	 * Only fills in a missing parent — never reassigns. Skwirrel media is
+	 * routinely shared across products via dedup, and overwriting an
+	 * existing parent would silently move the attachment in the WP media
+	 * library admin.
+	 */
+	private function ensure_post_parent( int $attachment_id, int $parent_id ): void {
+		if ( $parent_id <= 0 ) {
+			return;
+		}
+		if ( 0 !== wp_get_post_parent_id( $attachment_id ) ) {
+			return;
+		}
+		wp_update_post(
+			[
+				'ID'          => $attachment_id,
+				'post_parent' => $parent_id,
+			]
+		);
+	}
+
+	/**
+	 * Decide whether the existing attachment needs its file content replaced.
+	 *
+	 * Replacement is triggered only when both sides supply a non-empty
+	 * file_sha256_checksum AND they differ. Missing/empty checksums on either
+	 * side are interpreted as "no signal" — preferable to false positives
+	 * that would re-download every legacy attachment on the first re-sync
+	 * after upgrading to 3.8.
+	 *
+	 * @param array{file_checksum?: string|null, ...} $api_meta
+	 */
+	private function should_replace_content( int $attachment_id, array $api_meta ): bool {
+		$api_cs = isset( $api_meta['file_checksum'] ) ? strtolower( trim( (string) $api_meta['file_checksum'] ) ) : '';
+		if ( '' === $api_cs ) {
+			return false;
+		}
+		$stored_cs = (string) get_post_meta( $attachment_id, self::META_SKWIRREL_FILE_CHECKSUM, true );
+		if ( '' === $stored_cs ) {
+			return false;
+		}
+		return $api_cs !== $stored_cs;
+	}
+
+	/**
+	 * Re-download an image attachment when its source content changed.
+	 *
+	 * The new file lands at a fresh path (under the existing attachment ID),
+	 * the previous main file and all generated sub-sizes are removed, and
+	 * the attachment metadata + mime type + checksum are refreshed. The WP
+	 * attachment ID is preserved so post_parent links and any references
+	 * elsewhere keep working.
+	 *
+	 * Failures (download error, invalid image bytes, copy failure) leave
+	 * the existing attachment untouched and only emit a warning — the
+	 * sync run as a whole must keep moving.
+	 *
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 */
+	private function maybe_replace_image_content( int $attachment_id, string $url, string $alt_caption, string $description, array $api_meta ): void {
+		if ( ! $this->should_replace_content( $attachment_id, $api_meta ) ) {
+			return;
+		}
+
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+
+		$tmp = $this->download_to_temp( $url, 30 );
+		if ( is_wp_error( $tmp ) ) {
+			$this->logger->warning(
+				'Content-update download failed; keeping existing image',
+				[ 'url' => $url, 'attachment_id' => $attachment_id, 'error' => $tmp->get_error_message() ]
+			);
+			return;
+		}
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- getimagesize emits a warning on non-image bytes; we already handle the false return below.
+		$image_info = @getimagesize( $tmp );
+		if ( false === $image_info ) {
+			wp_delete_file( $tmp );
+			$this->logger->warning( 'Content-update bytes are not a valid image; keeping existing', [ 'url' => $url, 'attachment_id' => $attachment_id ] );
+			return;
+		}
+
+		$ext_map  = [
+			IMAGETYPE_JPEG => 'jpg',
+			IMAGETYPE_PNG  => 'png',
+			IMAGETYPE_GIF  => 'gif',
+			IMAGETYPE_WEBP => 'webp',
+		];
+		$ext      = $ext_map[ $image_info[2] ] ?? 'jpg';
+		$filename = 'skwirrel-' . substr( $this->url_hash( $url ), 0, 12 ) . '-' . time() . '.' . $ext;
+
+		$upload_dir = wp_upload_dir();
+		if ( $upload_dir['error'] ) {
+			wp_delete_file( $tmp );
+			$this->logger->warning( 'Content-update upload dir error', [ 'attachment_id' => $attachment_id, 'error' => $upload_dir['error'] ] );
+			return;
+		}
+		$dest = $upload_dir['path'] . '/' . $filename;
+		if ( ! copy( $tmp, $dest ) ) {
+			wp_delete_file( $tmp );
+			$this->logger->warning( 'Content-update copy failed; keeping existing', [ 'url' => $url, 'attachment_id' => $attachment_id ] );
+			return;
+		}
+		wp_delete_file( $tmp );
+
+		$old_path = get_attached_file( $attachment_id );
+		$old_meta = wp_get_attachment_metadata( $attachment_id );
+
+		$filetype = wp_check_filetype( $filename, null );
+		if ( ! empty( $filetype['type'] ) ) {
+			wp_update_post(
+				[
+					'ID'             => $attachment_id,
+					'post_mime_type' => $filetype['type'],
+					'post_excerpt'   => $alt_caption,
+					'post_content'   => $description,
+				]
+			);
+		}
+		update_attached_file( $attachment_id, $dest );
+		$new_meta = wp_generate_attachment_metadata( $attachment_id, $dest );
+		if ( ! is_wp_error( $new_meta ) ) { // @phpstan-ignore function.impossibleType
+			wp_update_attachment_metadata( $attachment_id, $new_meta );
+		}
+
+		// Only delete the previous main file when it's a different path — when
+		// time() collides within the same sync second, copy() will have already
+		// overwritten the original and deleting it would wipe the freshly
+		// written bytes. Sub-sizes are still cleaned via the metadata.
+		$old_path_str  = is_string( $old_path ) ? $old_path : '';
+		$delete_main   = ( '' !== $old_path_str && $old_path_str !== $dest ) ? $old_path_str : '';
+		$old_meta_arr  = is_array( $old_meta ) ? $old_meta : [];
+		$cleanup_dir   = '' !== $old_path_str ? dirname( $old_path_str ) : '';
+		$this->cleanup_old_attachment_files( $delete_main, $old_meta_arr, $cleanup_dir );
+
+		update_post_meta( $attachment_id, self::META_SKWIRREL_URL, $url );
+		update_post_meta( $attachment_id, self::META_SKWIRREL_HASH, $this->url_hash( $url ) );
+		$this->persist_api_meta( $attachment_id, $api_meta );
+
+		$this->logger->info(
+			'Image content replaced (checksum changed)',
+			[
+				'attachment_id'         => $attachment_id,
+				'url'                   => $url,
+				'skwirrel_attachment_id' => $api_meta['attachment_id'] ?? null,
+				'new_checksum'          => $api_meta['file_checksum'] ?? null,
+			]
+		);
+	}
+
+	/**
+	 * Re-download a non-image attachment (PDF, etc.) when its checksum changed.
+	 *
+	 * Same shape as maybe_replace_image_content() but without the
+	 * getimagesize() validation step or sub-size cleanup. The previous main
+	 * file is deleted after the new one has been written, so a failed
+	 * download or copy never leaves the attachment in a half-written state.
+	 *
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 */
+	private function maybe_replace_file_content( int $attachment_id, string $url, array $api_meta ): void {
+		if ( ! $this->should_replace_content( $attachment_id, $api_meta ) ) {
+			return;
+		}
+
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+
+		$tmp = $this->download_to_temp( $url, 60 );
+		if ( is_wp_error( $tmp ) ) {
+			$this->logger->warning(
+				'Content-update download failed; keeping existing file',
+				[ 'url' => $url, 'attachment_id' => $attachment_id, 'error' => $tmp->get_error_message() ]
+			);
+			return;
+		}
+
+		$path     = wp_parse_url( $url, PHP_URL_PATH );
+		$basename = $path ? basename( $path ) : '';
+		$ext      = $basename ? pathinfo( $basename, PATHINFO_EXTENSION ) : '';
+		if ( ! preg_match( '/^[a-z0-9]{2,5}$/i', $ext ) ) {
+			$ext = 'pdf';
+		}
+		$filename = 'skwirrel-' . substr( $this->url_hash( $url ), 0, 12 ) . '-' . time() . '.' . $ext;
+
+		$upload_dir = wp_upload_dir();
+		if ( $upload_dir['error'] ) {
+			wp_delete_file( $tmp );
+			return;
+		}
+		$dest = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
+		if ( ! copy( $tmp, $dest ) ) {
+			wp_delete_file( $tmp );
+			$this->logger->warning( 'Content-update copy failed; keeping existing file', [ 'url' => $url, 'attachment_id' => $attachment_id ] );
+			return;
+		}
+		wp_delete_file( $tmp );
+
+		$old_path = get_attached_file( $attachment_id );
+
+		$filetype = wp_check_filetype( $dest, null );
+		wp_update_post(
+			[
+				'ID'             => $attachment_id,
+				'post_mime_type' => $filetype['type'] ? $filetype['type'] : 'application/octet-stream',
+			]
+		);
+		update_attached_file( $attachment_id, $dest );
+
+		// Only delete the old file when it's at a different path — see the
+		// matching guard in maybe_replace_image_content() for the details.
+		$old_path_str = is_string( $old_path ) ? $old_path : '';
+		$delete_main  = ( '' !== $old_path_str && $old_path_str !== $dest ) ? $old_path_str : '';
+		$this->cleanup_old_attachment_files( $delete_main, [], '' );
+
+		update_post_meta( $attachment_id, self::META_SKWIRREL_URL, $url );
+		update_post_meta( $attachment_id, self::META_SKWIRREL_HASH, $this->url_hash( $url ) );
+		$this->persist_api_meta( $attachment_id, $api_meta );
+
+		$this->logger->info(
+			'File content replaced (checksum changed)',
+			[
+				'attachment_id'         => $attachment_id,
+				'url'                   => $url,
+				'skwirrel_attachment_id' => $api_meta['attachment_id'] ?? null,
+				'new_checksum'          => $api_meta['file_checksum'] ?? null,
+			]
+		);
+	}
+
+	/**
+	 * Remove the previous main file and any generated image sub-sizes after
+	 * a successful in-place replacement. Best-effort: missing files are not
+	 * an error — they were probably already cleaned up manually.
+	 *
+	 * Pass an empty `$old_main_file` to skip deleting the main file (e.g. when
+	 * the new file ended up at the same path due to a same-second collision —
+	 * sub-sizes still need cleaning when the new dimensions don't match).
+	 *
+	 * @param string              $old_main_file Path to delete, or empty to skip the main file.
+	 * @param array<string,mixed> $old_metadata  Pre-replacement attachment metadata (for sub-size filenames).
+	 * @param string              $dir           Directory containing the sub-sizes; required when sub-sizes need cleaning.
+	 */
+	private function cleanup_old_attachment_files( string $old_main_file, array $old_metadata, string $dir = '' ): void {
+		if ( '' !== $old_main_file && file_exists( $old_main_file ) ) {
+			wp_delete_file( $old_main_file );
+		}
+		if ( empty( $old_metadata['sizes'] ) || ! is_array( $old_metadata['sizes'] ) ) {
+			return;
+		}
+		if ( '' === $dir ) {
+			return;
+		}
+		foreach ( $old_metadata['sizes'] as $size ) {
+			if ( ! is_array( $size ) || empty( $size['file'] ) ) {
+				continue;
+			}
+			$size_file = $dir . '/' . $size['file'];
+			if ( file_exists( $size_file ) ) {
+				wp_delete_file( $size_file );
+			}
+		}
 	}
 
 	/**
