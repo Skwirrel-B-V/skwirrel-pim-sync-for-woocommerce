@@ -51,7 +51,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 
 		$hash     = $this->url_hash( $url );
-		$existing = $this->find_attachment_by_hash( $hash );
+		$existing = $this->find_existing_attachment( $hash, $api_meta );
 		if ( $existing ) {
 			if ( $parent_id && 0 === wp_get_post_parent_id( $existing ) ) {
 				wp_update_post(
@@ -174,7 +174,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 
 		$hash     = $this->url_hash( $url );
-		$existing = $this->find_attachment_by_hash( $hash );
+		$existing = $this->find_existing_attachment( $hash, $api_meta );
 		if ( $existing ) {
 			if ( $parent_id && 0 === wp_get_post_parent_id( $existing ) ) {
 				wp_update_post(
@@ -347,6 +347,46 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 	private function url_hash( string $url ): string {
 		return hash( 'sha256', $url );
+	}
+
+	/**
+	 * Locate an existing WP attachment for a Skwirrel media item.
+	 *
+	 * Lookup priority:
+	 *   1. Skwirrel `product_attachment_id` (most stable — survives URL changes
+	 *      such as CDN reorganisations or filename rewrites on the Skwirrel side).
+	 *   2. SHA-256 hash of the normalised source URL (fallback for attachments
+	 *      imported before the attachment_id meta key was introduced).
+	 *
+	 * @param string                                      $url_hash  SHA-256 of the normalised URL.
+	 * @param array{attachment_id?: int|string|null, ...} $api_meta  Skwirrel-side identifiers.
+	 */
+	private function find_existing_attachment( string $url_hash, array $api_meta ): int {
+		$skwirrel_id = isset( $api_meta['attachment_id'] ) ? (int) $api_meta['attachment_id'] : 0;
+		if ( $skwirrel_id > 0 ) {
+			$found = $this->find_attachment_by_skwirrel_id( $skwirrel_id );
+			if ( $found ) {
+				return $found;
+			}
+		}
+		return $this->find_attachment_by_hash( $url_hash );
+	}
+
+	private function find_attachment_by_skwirrel_id( int $skwirrel_attachment_id ): int {
+		if ( $skwirrel_attachment_id <= 0 ) {
+			return 0;
+		}
+		$posts = get_posts(
+			[
+				'post_type'      => 'attachment',
+				'post_status'    => 'any',
+				'meta_key'       => self::META_SKWIRREL_ATTACHMENT_ID, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+				'meta_value'     => (string) $skwirrel_attachment_id, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- meta is stored as string by update_post_meta
+				'posts_per_page' => 1,
+				'fields'         => 'ids',
+			]
+		);
+		return ! empty( $posts ) ? (int) $posts[0] : 0;
 	}
 
 	private function find_attachment_by_hash( string $hash ): int {

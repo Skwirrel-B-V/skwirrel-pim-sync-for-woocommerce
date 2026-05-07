@@ -119,6 +119,92 @@ test( 'import_image skips empty api_meta values', function () {
 // import_file() — same persistence path
 // ------------------------------------------------------------------
 
+// ------------------------------------------------------------------
+// Re-import lookup paths — by Skwirrel attachment_id (primary) and
+// URL hash (legacy fallback)
+// ------------------------------------------------------------------
+
+test( 'import_image returns the existing attachment id when attachment_id matches a prior import', function () {
+	stubMediaDownload( 'cdn.example/dedup-by-id.png', fakePngBytes() );
+
+	$first_id = $this->importer->import_image(
+		'https://cdn.example/dedup-by-id.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 5005, 'file_checksum' => 'a' ]
+	);
+	expect( $first_id )->toBeGreaterThan( 0 );
+
+	// Same Skwirrel id, but a totally different URL — the lookup must use
+	// attachment_id rather than the URL hash, otherwise URL-rewrites on the
+	// CDN would silently produce duplicate attachments.
+	$second_id = $this->importer->import_image(
+		'https://cdn.example/RENAMED-after-cdn-refactor.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 5005, 'file_checksum' => 'a' ]
+	);
+
+	expect( $second_id )->toBe( $first_id );
+} );
+
+test( 'import_image still finds legacy attachments via URL hash when attachment_id is unknown', function () {
+	stubMediaDownload( 'cdn.example/legacy-fallback.png', fakePngBytes() );
+
+	// First sync simulates a pre-3.8 install: no api_meta passed, so only the URL
+	// hash is recorded.
+	$first_id = $this->importer->import_image( 'https://cdn.example/legacy-fallback.png' );
+	expect( $first_id )->toBeGreaterThan( 0 );
+	expect( get_post_meta( $first_id, '_skwirrel_attachment_id', true ) )->toBe( '' );
+
+	// Second sync hits the same URL. Even with api_meta now provided, the
+	// attachment_id lookup misses (no record stored that ID), so the URL
+	// hash fallback must catch it instead of triggering a duplicate download.
+	$second_id = $this->importer->import_image(
+		'https://cdn.example/legacy-fallback.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 7777, 'file_checksum' => 'b' ]
+	);
+
+	expect( $second_id )->toBe( $first_id );
+} );
+
+test( 'import_image dedup by attachment_id ignores a different file_checksum stored against another id', function () {
+	stubMediaDownload( 'cdn.example/dedup-isolation-a.png', fakePngBytes() );
+	stubMediaDownload( 'cdn.example/dedup-isolation-b.png', fakePngBytes() );
+
+	$first_id = $this->importer->import_image(
+		'https://cdn.example/dedup-isolation-a.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 1001, 'file_checksum' => 'aaa' ]
+	);
+
+	// Different attachment_id should not collide with the first record even
+	// though the file checksums happen to look similar — we look up by id,
+	// not by checksum (yet — that comes in commit 4).
+	$second_id = $this->importer->import_image(
+		'https://cdn.example/dedup-isolation-b.png',
+		'',
+		0,
+		'',
+		'',
+		[ 'attachment_id' => 1002, 'file_checksum' => 'aaa' ]
+	);
+
+	expect( $second_id )->not->toBe( $first_id );
+	expect( $second_id )->toBeGreaterThan( $first_id );
+} );
+
 test( 'import_file persists Skwirrel attachment_id and file_checksum from api_meta', function () {
 	stubMediaDownload( 'cdn.example/manual.pdf', '%PDF-1.4 fake bytes' );
 
