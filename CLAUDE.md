@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-WordPress plugin that synchronises products from the Skwirrel PIM system into WooCommerce via a JSON-RPC 2.0 API. Written in PHP 8.1+, targeting WordPress 6.x and WooCommerce 8+ (9.6+ recommended for native brand support; tested up to 10.6).
+WordPress plugin that synchronises products from the Skwirrel PIM system into WooCommerce via a JSON-RPC 2.0 API. Written in PHP 8.3+, targeting WordPress 6.x and WooCommerce 8+ (9.6+ recommended for native brand support; tested up to 10.6).
 
 All UI strings use English source text with translatable strings (text domain `skwirrel-pim-sync`). Translations are available for nl_NL, nl_BE, de_DE, fr_FR, fr_BE, en_US, and en_GB.
 
@@ -38,36 +38,38 @@ Singleton-based class architecture without Composer autoloading — all classes 
 
 All class files live under `plugin/skwirrel-pim-sync/includes/`.
 
+All class files follow `class-skwirrel-wc-sync-{slug}.php` (the WordPress coding-standard `WordPress.Files.FileName.InvalidClassFileName` rule). The plugin bootstrap entry file remains `skwirrel-pim-sync.php` and just requires the bootstrap class + initializes it.
+
 | Class | File | Role |
 |-------|------|------|
-| `Skwirrel_WC_Sync_Plugin` | `skwirrel-pim-sync.php` | Bootstrap, dependency loading, hook registration |
-| `Skwirrel_WC_Sync_Admin_Settings` | `class-admin-settings.php` | Admin UI, settings persistence, manual sync trigger |
-| `Skwirrel_WC_Sync_Admin_Dashboard` | `class-admin-dashboard.php` | Dashboard screen (status, history, log viewer) |
-| `Skwirrel_WC_Sync_Permalink_Settings` | `class-permalink-settings.php` | Slug configuration on Settings → Permalinks |
-| `Skwirrel_WC_Sync_Action_Scheduler` | `class-action-scheduler.php` | Cron/Action Scheduler job management |
-| `Skwirrel_WC_Sync_Service` | `class-sync-service.php` | Core sync orchestrator — fetches, maps, upserts products |
-| `Skwirrel_WC_Sync_Sync_Queue` | `class-sync-queue.php` | Custom DB table for queued sync work |
-| `Skwirrel_WC_Sync_Sync_History` | `class-sync-history.php` | Persisted history of sync runs |
-| `Skwirrel_WC_Sync_Product_Mapper` | `class-product-mapper.php` | Maps Skwirrel API data to WooCommerce field values |
-| `Skwirrel_WC_Sync_Product_Upserter` | `class-product-upserter.php` | Creates/updates simple + variation products |
-| `Skwirrel_WC_Sync_Product_Lookup` | `class-product-lookup.php` | Resolves existing WC products by Skwirrel keys |
-| `Skwirrel_WC_Sync_Purge_Handler` | `class-purge-handler.php` | Trashes stale products/categories after full sync |
-| `Skwirrel_WC_Sync_Category_Sync` | `class-category-sync.php` | Matches/creates WC categories from Skwirrel |
-| `Skwirrel_WC_Sync_Brand_Sync` | `class-brand-sync.php` | Registers/syncs brand + manufacturer taxonomies |
-| `Skwirrel_WC_Sync_Taxonomy_Manager` | `class-taxonomy-manager.php` | Shared taxonomy helpers |
-| `Skwirrel_WC_Sync_Etim_Extractor` | `class-etim-extractor.php` | ETIM feature/value extraction |
-| `Skwirrel_WC_Sync_Custom_Class_Extractor` | `class-custom-class-extractor.php` | Custom (non-ETIM) classification extraction |
-| `Skwirrel_WC_Sync_Attachment_Handler` | `class-attachment-handler.php` | Ties imported media to products/variations |
-| `Skwirrel_WC_Sync_Media_Importer` | `class-media-importer.php` | Downloads images/files into WP media library |
-| `Skwirrel_WC_Sync_JsonRpc_Client` | `class-jsonrpc-client.php` | HTTP client for Skwirrel JSON-RPC API |
-| `Skwirrel_WC_Sync_Logger` | `class-logger.php` | Logging wrapper around `WC_Logger` |
-| `Skwirrel_WC_Sync_Slug_Resolver` | `class-slug-resolver.php` | Resolves product URL slugs based on permalink settings |
-| `Skwirrel_WC_Sync_Variation_Permalinks` | `class-variation-permalinks.php` | Variation-specific slug/permalink handling |
-| `Skwirrel_WC_Sync_Variation_Attributes_Fix` | `class-variation-attributes-fix.php` | Patches WooCommerce variation attribute bugs (static) |
-| `Skwirrel_WC_Sync_Product_Documents` | `class-product-documents.php` | Frontend documents tab + admin meta box |
-| `Skwirrel_WC_Sync_Product_Sync_Meta_Box` | `class-product-sync-meta-box.php` | Admin meta box on product edit screen |
-| `Skwirrel_WC_Sync_Delete_Protection` | `class-delete-protection.php` | Delete warnings + force full sync after WC deletion |
-| `Skwirrel_WC_Sync_Theme_Api` | `class-theme-api.php` (+ `theme-api-functions.php`) | Public theme helper API |
+| `Skwirrel_WC_Sync_Plugin` | `class-skwirrel-wc-sync-plugin.php` | Bootstrap, dependency loading, hook registration |
+| `Skwirrel_WC_Sync_Admin_Settings` | `class-skwirrel-wc-sync-admin-settings.php` | Admin UI, settings persistence, manual sync trigger |
+| `Skwirrel_WC_Sync_Admin_Dashboard` | `class-skwirrel-wc-sync-admin-dashboard.php` | Dashboard screen (status, history, log viewer) |
+| `Skwirrel_WC_Sync_Permalink_Settings` | `class-skwirrel-wc-sync-permalink-settings.php` | Slug configuration on Settings → Permalinks |
+| `Skwirrel_WC_Sync_Action_Scheduler` | `class-skwirrel-wc-sync-action-scheduler.php` | Cron/Action Scheduler job management |
+| `Skwirrel_WC_Sync_Service` | `class-skwirrel-wc-sync-service.php` | Core sync orchestrator — fetches, maps, upserts products |
+| `Skwirrel_WC_Sync_Queue` | `class-skwirrel-wc-sync-queue.php` | Custom DB table for queued sync work |
+| `Skwirrel_WC_Sync_History` | `class-skwirrel-wc-sync-history.php` | Persisted history of sync runs |
+| `Skwirrel_WC_Sync_Product_Mapper` | `class-skwirrel-wc-sync-product-mapper.php` | Maps Skwirrel API data to WooCommerce field values |
+| `Skwirrel_WC_Sync_Product_Upserter` | `class-skwirrel-wc-sync-product-upserter.php` | Creates/updates simple + variation products |
+| `Skwirrel_WC_Sync_Product_Lookup` | `class-skwirrel-wc-sync-product-lookup.php` | Resolves existing WC products by Skwirrel keys |
+| `Skwirrel_WC_Sync_Purge_Handler` | `class-skwirrel-wc-sync-purge-handler.php` | Trashes stale products/categories after full sync |
+| `Skwirrel_WC_Sync_Category_Sync` | `class-skwirrel-wc-sync-category-sync.php` | Matches/creates WC categories from Skwirrel |
+| `Skwirrel_WC_Sync_Brand_Sync` | `class-skwirrel-wc-sync-brand-sync.php` | Registers/syncs brand + manufacturer taxonomies |
+| `Skwirrel_WC_Sync_Taxonomy_Manager` | `class-skwirrel-wc-sync-taxonomy-manager.php` | Shared taxonomy helpers |
+| `Skwirrel_WC_Sync_Etim_Extractor` | `class-skwirrel-wc-sync-etim-extractor.php` | ETIM feature/value extraction |
+| `Skwirrel_WC_Sync_Custom_Class_Extractor` | `class-skwirrel-wc-sync-custom-class-extractor.php` | Custom (non-ETIM) classification extraction |
+| `Skwirrel_WC_Sync_Attachment_Handler` | `class-skwirrel-wc-sync-attachment-handler.php` | Ties imported media to products/variations |
+| `Skwirrel_WC_Sync_Media_Importer` | `class-skwirrel-wc-sync-media-importer.php` | Downloads images/files into WP media library |
+| `Skwirrel_WC_Sync_JsonRpc_Client` | `class-skwirrel-wc-sync-jsonrpc-client.php` | HTTP client for Skwirrel JSON-RPC API |
+| `Skwirrel_WC_Sync_Logger` | `class-skwirrel-wc-sync-logger.php` | Logging wrapper around `WC_Logger` |
+| `Skwirrel_WC_Sync_Slug_Resolver` | `class-skwirrel-wc-sync-slug-resolver.php` | Resolves product URL slugs based on permalink settings |
+| `Skwirrel_WC_Sync_Variation_Permalinks` | `class-skwirrel-wc-sync-variation-permalinks.php` | Variation-specific slug/permalink handling |
+| `Skwirrel_WC_Sync_Variation_Attributes_Fix` | `class-skwirrel-wc-sync-variation-attributes-fix.php` | Patches WooCommerce variation attribute bugs (static) |
+| `Skwirrel_WC_Sync_Product_Documents` | `class-skwirrel-wc-sync-product-documents.php` | Frontend documents tab + admin meta box |
+| `Skwirrel_WC_Sync_Product_Sync_Meta_Box` | `class-skwirrel-wc-sync-product-sync-meta-box.php` | Admin meta box on product edit screen |
+| `Skwirrel_WC_Sync_Delete_Protection` | `class-skwirrel-wc-sync-delete-protection.php` | Delete warnings + force full sync after WC deletion |
+| `Skwirrel_WC_Sync_Theme_API` | `class-skwirrel-wc-sync-theme-api.php` (+ `theme-api-functions.php`) | Public theme helper API |
 
 ### External API
 
@@ -81,8 +83,8 @@ Authentication: Bearer token or `X-Skwirrel-Api-Token` header.
 
 ## Conventions
 
-- **PHP version**: 8.1+ with `declare(strict_types=1)` in the main file
-- **Naming**: `Skwirrel_WC_Sync_` prefix for all classes; files named `class-{slug}.php`
+- **PHP version**: 8.3+ with `declare(strict_types=1)` in the main file
+- **Naming**: `Skwirrel_WC_Sync_` prefix for all classes; files named `class-skwirrel-wc-sync-{slug}.php` (full class name in kebab-case, per WPCS)
 - **Singletons**: Most classes use `::instance()` pattern with private constructors
 - **No autoloader**: All includes are manual `require_once` in the bootstrap
 - **Settings storage**: Main settings in `skwirrel_wc_sync_settings` option; auth token stored separately in `skwirrel_wc_sync_auth_token`

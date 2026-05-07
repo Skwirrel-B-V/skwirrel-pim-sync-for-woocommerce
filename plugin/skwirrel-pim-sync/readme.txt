@@ -3,8 +3,8 @@ Contributors: jkoomen
 Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9.4
-Requires PHP: 8.1
-Stable tag: 3.6.1
+Requires PHP: 8.3
+Stable tag: 3.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -37,7 +37,7 @@ Skwirrel PIM sync for WooCommerce connects your WooCommerce webshop to the Skwir
 
 * WordPress 6.0 or higher
 * WooCommerce 8.0 or higher (9.6+ recommended for native brand support; tested up to 10.6)
-* PHP 8.1 or higher
+* PHP 8.3 or higher
 * An active Skwirrel account with API access
 
 == Installation ==
@@ -63,6 +63,13 @@ You can set an automatic schedule (hourly, twice daily, or daily) or synchronise
 The plugin uses the Skwirrel external ID as a unique key. Existing products are updated, not duplicated.
 
 == Changelog ==
+
+= 3.7.0 =
+* Bump minimum PHP version to 8.3 (PHP 8.1 reached end-of-life on 2025-12-31; 8.2 is in security-only support until 2026-12-31). `Requires PHP` and `composer.json` runtime constraint both updated.
+* Bump minimum Node.js version to 22 LTS for the local dev environment (`package.json` `engines.node`). Node 18 reached end-of-life in April 2025 and Node 20 maintenance ends April 2026.
+* CI: bump GitHub Actions PHP version from 8.1 to 8.3 to match the dev tooling lock file (Pest 3 / PHPUnit 11 require PHP 8.2+). Cache key updated accordingly.
+* `.wp-env.json`: bump `phpVersion` to 8.3 for parity with CI and the runtime floor.
+* Internal: aligned source files with the WordPress coding standards now that CI no longer fails before phpcs runs. Class files renamed to `class-skwirrel-wc-sync-{slug}.php` (full class name in kebab-case); the `Skwirrel_WC_Sync_Plugin` bootstrap class extracted from `skwirrel-pim-sync.php` into its own file. ~125 Yoda condition flips, ~33 `$camelCase` → `$snake_case` local variable renames, removed `$mapper` parameter from `Skwirrel_WC_Sync_Category_Sync::assign_categories()` (was unused), renamed `$object` → `$wc_object` in `Skwirrel_WC_Sync_Variation_Attributes_Fix::fix_rest_response_attributes()` (PHP 8.2+ reserved keyword). No functional changes.
 
 = 3.6.1 =
 * Fix: ship files that were missing from the 3.6.0 build — `class-pim-link.php` (the "Open in Skwirrel" deep-link implementation), the updated `class-admin-settings.php` (Settings-saved notice + transient-based test result), the updated `class-product-sync-meta-box.php` (PIM link button), the `assets/s.png` button icon, and the corresponding `.po`/`.mo` translation updates. Without these files an install of 3.6.0 fatalled on activation with "Failed opening required ... class-pim-link.php"

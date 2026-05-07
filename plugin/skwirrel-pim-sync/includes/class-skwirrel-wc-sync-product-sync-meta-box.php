@@ -423,7 +423,7 @@ class Skwirrel_WC_Sync_Product_Sync_Meta_Box {
 	 * @return string JSON with span-wrapped tokens.
 	 */
 	private function highlight_json( string $escaped_json ): string {
-		// Keys: "key":
+		// Match JSON keys (quoted token followed by a colon).
 		$result = preg_replace(
 			'/(&quot;[^&]*?&quot;)\s*:/',
 			'<span class="skw-json-key">$1</span>:',

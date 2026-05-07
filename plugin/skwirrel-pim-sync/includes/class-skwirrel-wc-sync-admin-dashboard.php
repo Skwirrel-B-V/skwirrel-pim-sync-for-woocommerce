@@ -495,7 +495,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 */
 	private function render_page_settings(): void {
 		$opts         = get_option( self::OPTION_KEY, array() );
-		$token_masked = Skwirrel_WC_Sync_Admin_Settings::get_auth_token() !== '' ? self::MASK : '';
+		$token_masked = '' !== Skwirrel_WC_Sync_Admin_Settings::get_auth_token() ? self::MASK : '';
 
 		?>
 		<div class="skw-section">

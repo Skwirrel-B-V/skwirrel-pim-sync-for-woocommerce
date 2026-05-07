@@ -17,7 +17,7 @@ Syncs simple and variable products (with ETIM variation axes), categories, brand
 
 - WordPress 6.0+
 - WooCommerce 8.0+ (9.6+ recommended for native brand support; tested up to 10.6)
-- PHP 8.1+
+- PHP 8.3+
 - An active Skwirrel account with API access
 
 ## Installation

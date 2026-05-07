@@ -34,11 +34,11 @@ class Skwirrel_WC_Sync_Variation_Attributes_Fix {
 		}
 		$from_meta = [];
 		foreach ( $all_meta as $key => $arr ) {
-			if ( strpos( $key, 'attribute_' ) !== 0 || ! is_array( $arr ) || $arr[0] === '' ) {
+			if ( 0 !== strpos( $key, 'attribute_' ) || ! is_array( $arr ) || '' === $arr[0] ) {
 				continue;
 			}
 			$tax = substr( $key, strlen( 'attribute_' ) );
-			if ( $tax !== '' && taxonomy_exists( $tax ) ) {
+			if ( '' !== $tax && taxonomy_exists( $tax ) ) {
 				$from_meta[ $tax ] = wp_unslash( $arr[0] );
 			}
 		}
@@ -69,7 +69,7 @@ class Skwirrel_WC_Sync_Variation_Attributes_Fix {
 			}
 			$tax = $attr->get_name();
 			$val = get_post_meta( $variation_id, 'attribute_' . $tax, true );
-			if ( $val !== '' && $val !== false ) {
+			if ( '' !== $val && false !== $val ) {
 				$from_meta[ $tax ] = wp_unslash( $val );
 			}
 		}
@@ -90,7 +90,7 @@ class Skwirrel_WC_Sync_Variation_Attributes_Fix {
 			return $attributes;
 		}
 		foreach ( $from_meta as $tax => $val ) {
-			if ( ! isset( $attributes[ $tax ] ) || (string) $attributes[ $tax ] === '' ) {
+			if ( ! isset( $attributes[ $tax ] ) || '' === (string) $attributes[ $tax ] ) {
 				$attributes[ $tax ] = $val;
 			}
 		}
@@ -114,7 +114,7 @@ class Skwirrel_WC_Sync_Variation_Attributes_Fix {
 		$current = $variation->get_attributes();
 		$patched = false;
 		foreach ( $from_meta as $tax => $val ) {
-			if ( ! isset( $current[ $tax ] ) || (string) ( $current[ $tax ] ?? '' ) === '' ) {
+			if ( ! isset( $current[ $tax ] ) || '' === (string) ( $current[ $tax ] ?? '' ) ) {
 				$current[ $tax ] = $val;
 				$patched         = true;
 			}
@@ -128,12 +128,17 @@ class Skwirrel_WC_Sync_Variation_Attributes_Fix {
 	 * Fix attributes in REST API response so admin (or other clients) get correct values instead of "Any".
 	 * Handles both formats: associative array (attribute_pa_xxx => value) and list of objects (id, name, option).
 	 */
-	public static function fix_rest_response_attributes( WP_REST_Response $response, $object, WP_REST_Request $request ): WP_REST_Response {
-		if ( ! $object instanceof WC_Product_Variation ) {
+	/**
+	 * @param WP_REST_Request $request Required by the WC REST filter signature; unused here.
+	 *
+	 * @phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
+	 */
+	public static function fix_rest_response_attributes( WP_REST_Response $response, $wc_object, WP_REST_Request $request ): WP_REST_Response { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- $request is required by woocommerce_rest_prepare_product_variation_object filter signature
+		if ( ! $wc_object instanceof WC_Product_Variation ) {
 			return $response;
 		}
-		$vid       = $object->get_id();
-		$parent_id = $object->get_parent_id();
+		$vid       = $wc_object->get_id();
+		$parent_id = $wc_object->get_parent_id();
 		if ( ! $vid || ! $parent_id ) {
 			return $response;
 		}
@@ -148,12 +153,12 @@ class Skwirrel_WC_Sync_Variation_Attributes_Fix {
 			$by_name = [];
 			foreach ( $current as $item ) {
 				$name = $item['name'] ?? $item['id'] ?? '';
-				if ( $name !== '' ) {
+				if ( '' !== $name ) {
 					$by_name[ $name ] = $item;
 				}
 			}
 			foreach ( $from_meta as $tax => $slug ) {
-				if ( ! isset( $by_name[ $tax ] ) || (string) ( $by_name[ $tax ]['option'] ?? '' ) === '' ) {
+				if ( ! isset( $by_name[ $tax ] ) || '' === (string) ( $by_name[ $tax ]['option'] ?? '' ) ) {
 					$by_name[ $tax ] = [
 						'id'     => wc_attribute_taxonomy_id_by_name( str_replace( 'pa_', '', $tax ) ),
 						'name'   => $tax,
@@ -165,7 +170,7 @@ class Skwirrel_WC_Sync_Variation_Attributes_Fix {
 		} else {
 			foreach ( $from_meta as $tax => $slug ) {
 				$key = 'attribute_' . $tax;
-				if ( ! isset( $current[ $key ] ) || (string) $current[ $key ] === '' ) {
+				if ( ! isset( $current[ $key ] ) || '' === (string) $current[ $key ] ) {
 					$current[ $key ] = $slug;
 				}
 			}

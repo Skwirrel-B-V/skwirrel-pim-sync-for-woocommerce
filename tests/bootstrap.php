@@ -369,14 +369,14 @@ if (!class_exists('WC_Product_Variable')) {
 }
 
 // Load plugin classes (order matters — dependencies first).
-require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-logger.php';
-require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-media-importer.php';
-require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-etim-extractor.php';
-require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-custom-class-extractor.php';
-require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-attachment-handler.php';
-require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-product-mapper.php';
-require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-permalink-settings.php';
-require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-slug-resolver.php';
-require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-theme-api.php';
-require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-variation-permalinks.php';
-require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-pim-link.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-logger.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-media-importer.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-etim-extractor.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-custom-class-extractor.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-attachment-handler.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-mapper.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-permalink-settings.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-slug-resolver.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-theme-api.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-variation-permalinks.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-pim-link.php';

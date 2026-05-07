@@ -107,7 +107,7 @@ class Skwirrel_WC_Sync_Category_Sync {
 
 		foreach ( $flat as $cat ) {
 			$cat_id = $cat['id'] ?? null;
-			if ( $cat_id !== null && isset( $resolved[ $cat_id ] ) ) {
+			if ( null !== $cat_id && isset( $resolved[ $cat_id ] ) ) {
 				continue;
 			}
 
@@ -115,9 +115,9 @@ class Skwirrel_WC_Sync_Category_Sync {
 			$wc_parent = 0;
 
 			// Resolve parent first
-			if ( $parent_id !== null && isset( $resolved[ $parent_id ] ) ) {
+			if ( null !== $parent_id && isset( $resolved[ $parent_id ] ) ) {
 				$wc_parent = $resolved[ $parent_id ];
-			} elseif ( $parent_id !== null && $parent_id !== $super_id ) {
+			} elseif ( null !== $parent_id && $parent_id !== $super_id ) {
 				// Parent not yet resolved but exists in our set — find/create it
 				if ( isset( $by_id[ $parent_id ] ) ) {
 					$wc_parent = $this->find_or_create_category_term(
@@ -141,7 +141,7 @@ class Skwirrel_WC_Sync_Category_Sync {
 				$wc_parent
 			);
 
-			if ( $wc_term_id && $cat_id !== null ) {
+			if ( $wc_term_id && null !== $cat_id ) {
 				$resolved[ $cat_id ] = $wc_term_id;
 				++$created_count;
 			}
@@ -236,11 +236,10 @@ class Skwirrel_WC_Sync_Category_Sync {
 	 * in the resolved map (populated by sync_category_tree), falling back
 	 * to a term meta lookup when needed.
 	 *
-	 * @param int                              $wc_product_id WooCommerce product ID.
-	 * @param array                            $product       Skwirrel product data.
-	 * @param Skwirrel_WC_Sync_Product_Mapper  $mapper        Product mapper instance.
+	 * @param int   $wc_product_id WooCommerce product ID.
+	 * @param array $product       Skwirrel product data.
 	 */
-	public function assign_categories( int $wc_product_id, array $product, Skwirrel_WC_Sync_Product_Mapper $mapper ): void {
+	public function assign_categories( int $wc_product_id, array $product ): void {
 		$raw_cats = $product['_categories'] ?? [];
 		if ( empty( $raw_cats ) || ! is_array( $raw_cats ) ) {
 			return;
@@ -252,7 +251,7 @@ class Skwirrel_WC_Sync_Category_Sync {
 
 		foreach ( $raw_cats as $cat ) {
 			$cat_id = $cat['category_id'] ?? $cat['product_category_id'] ?? $cat['id'] ?? null;
-			if ( $cat_id === null ) {
+			if ( null === $cat_id ) {
 				continue;
 			}
 			$cat_id = (int) $cat_id;
@@ -323,17 +322,17 @@ class Skwirrel_WC_Sync_Category_Sync {
 		string $meta_key,
 		int $parent_term_id
 	): int {
-		if ( $name === '' && $skwirrel_id === null ) {
+		if ( '' === $name && null === $skwirrel_id ) {
 			return 0;
 		}
 
 		// Track seen category IDs for purge logic
-		if ( $skwirrel_id !== null ) {
+		if ( null !== $skwirrel_id ) {
 			$this->seen_category_ids[] = (string) $skwirrel_id;
 		}
 
 		// 1. Match by Skwirrel category ID in term meta (reliable)
-		if ( $skwirrel_id !== null ) {
+		if ( null !== $skwirrel_id ) {
 			global $wpdb;
 			$existing_term_id = $wpdb->get_var(
 				$wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- term meta lookup by value not supported by WP API
@@ -368,12 +367,12 @@ class Skwirrel_WC_Sync_Category_Sync {
 		}
 
 		// 2. Fall back to name matching
-		if ( $name !== '' ) {
+		if ( '' !== $name ) {
 			$term = term_exists( $name, $taxonomy, $parent_term_id > 0 ? $parent_term_id : 0 );
 			if ( $term && ! is_wp_error( $term ) ) { // @phpstan-ignore function.impossibleType
 				$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
 				// Store Skwirrel ID for next sync
-				if ( $skwirrel_id !== null ) {
+				if ( null !== $skwirrel_id ) {
 					update_term_meta( $term_id, $meta_key, (string) $skwirrel_id );
 				}
 				$this->logger->verbose(
@@ -397,7 +396,7 @@ class Skwirrel_WC_Sync_Category_Sync {
 		}
 
 		// 3. Create new term
-		if ( $name === '' ) {
+		if ( '' === $name ) {
 			return 0;
 		}
 		$args = [];
@@ -407,9 +406,9 @@ class Skwirrel_WC_Sync_Category_Sync {
 		$inserted = wp_insert_term( $name, $taxonomy, $args );
 		if ( is_wp_error( $inserted ) ) {
 			// Handle "term already exists" race condition
-			if ( $inserted->get_error_code() === 'term_exists' ) {
+			if ( 'term_exists' === $inserted->get_error_code() ) {
 				$term_id = (int) $inserted->get_error_data( 'term_exists' );
-				if ( $skwirrel_id !== null && $term_id ) {
+				if ( null !== $skwirrel_id && $term_id ) {
 					update_term_meta( $term_id, $meta_key, (string) $skwirrel_id );
 				}
 				return $term_id;
@@ -425,7 +424,7 @@ class Skwirrel_WC_Sync_Category_Sync {
 		}
 
 		$term_id = (int) $inserted['term_id'];
-		if ( $skwirrel_id !== null ) {
+		if ( null !== $skwirrel_id ) {
 			update_term_meta( $term_id, $meta_key, (string) $skwirrel_id );
 		}
 		$this->logger->verbose(
@@ -474,24 +473,24 @@ class Skwirrel_WC_Sync_Category_Sync {
 	private function flatten_category_tree( array $categories, array &$flat, string $lang ): void {
 		foreach ( $categories as $cat ) {
 			$cat_id = $cat['category_id'] ?? $cat['product_category_id'] ?? $cat['id'] ?? null;
-			if ( $cat_id !== null ) {
+			if ( null !== $cat_id ) {
 				$cat_id = (int) $cat_id;
 			}
 
 			$name = $this->pick_category_name( $cat, $lang );
-			if ( $name === '' && isset( $cat['category_name'] ) ) {
+			if ( '' === $name && isset( $cat['category_name'] ) ) {
 				$name = $cat['category_name'];
 			}
-			if ( $name === '' && isset( $cat['product_category_code'] ) && $cat['product_category_code'] !== '' ) {
+			if ( '' === $name && isset( $cat['product_category_code'] ) && '' !== $cat['product_category_code'] ) {
 				$name = $cat['product_category_code'];
 			}
 
 			$parent_id = $cat['parent_category_id'] ?? null;
-			if ( $parent_id !== null ) {
+			if ( null !== $parent_id ) {
 				$parent_id = (int) $parent_id;
 			}
 
-			if ( $name !== '' ) {
+			if ( '' !== $name ) {
 				$flat[] = [
 					'id'        => $cat_id,
 					'name'      => $name,
@@ -541,9 +540,9 @@ class Skwirrel_WC_Sync_Category_Sync {
 		if ( ! empty( $translations ) && is_array( $translations ) ) {
 			foreach ( $translations as $t ) {
 				$t_lang = $t['language'] ?? '';
-				if ( stripos( $t_lang, $lang ) === 0 || stripos( $lang, $t_lang ) === 0 ) {
+				if ( 0 === stripos( $t_lang, $lang ) || 0 === stripos( $lang, $t_lang ) ) {
 					$name = $t['category_name'] ?? $t['product_category_name'] ?? $t['name'] ?? '';
-					if ( $name !== '' ) {
+					if ( '' !== $name ) {
 						return $name;
 					}
 				}
@@ -551,7 +550,7 @@ class Skwirrel_WC_Sync_Category_Sync {
 			// Fallback: first translation with a name
 			foreach ( $translations as $t ) {
 				$name = $t['category_name'] ?? $t['product_category_name'] ?? $t['name'] ?? '';
-				if ( $name !== '' ) {
+				if ( '' !== $name ) {
 					return $name;
 				}
 			}

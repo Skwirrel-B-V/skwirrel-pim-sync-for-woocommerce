@@ -40,7 +40,7 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 		}
 		foreach ( $translations as $t ) {
 			$tlang = (string) ( $t['language'] ?? '' );
-			if ( strcasecmp( $tlang, $lang ) === 0 ) {
+			if ( 0 === strcasecmp( $tlang, $lang ) ) {
 				return [
 					'title'       => (string) ( $t['product_attachment_title'] ?? $att['file_name'] ?? '' ),
 					'description' => (string) ( $t['product_attachment_description'] ?? '' ),
@@ -49,7 +49,7 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 		}
 		foreach ( $translations as $t ) {
 			$tlang = (string) ( $t['language'] ?? '' );
-			if ( strlen( $lang ) >= 2 && strlen( $tlang ) >= 2 && strcasecmp( substr( $tlang, 0, 2 ), substr( $lang, 0, 2 ) ) === 0 ) {
+			if ( strlen( $lang ) >= 2 && strlen( $tlang ) >= 2 && 0 === strcasecmp( substr( $tlang, 0, 2 ), substr( $lang, 0, 2 ) ) ) {
 				return [
 					'title'       => (string) ( $t['product_attachment_title'] ?? $att['file_name'] ?? '' ),
 					'description' => (string) ( $t['product_attachment_description'] ?? '' ),
@@ -82,7 +82,7 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 	 */
 	private function normalize_attachment_url( string $url ): string {
 		$url = trim( (string) $url );
-		if ( $url === '' ) {
+		if ( '' === $url ) {
 			return '';
 		}
 		while ( str_contains( $url, '\\/' ) ) {
@@ -221,7 +221,7 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 				continue;
 			}
 			$name = (string) ( $att['file_name'] ?? $att['product_attachment_title'] ?? '' );
-			if ( $name === '' ) {
+			if ( '' === $name ) {
 				$path = wp_parse_url( $url, PHP_URL_PATH );
 				$name = $path ? basename( $path ) : 'Document';
 			}

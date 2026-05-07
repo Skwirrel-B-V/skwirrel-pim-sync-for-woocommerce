@@ -59,9 +59,9 @@ class Skwirrel_WC_Sync_JsonRpc_Client {
 			'X-Skwirrel-Api-Version' => '2',
 		];
 
-		if ( $this->auth_type === 'bearer' ) {
+		if ( 'bearer' === $this->auth_type ) {
 			$headers['Authorization'] = 'Bearer ' . $this->auth_token;
-		} elseif ( $this->auth_type === 'token' ) {
+		} elseif ( 'token' === $this->auth_type ) {
 			$headers['X-Skwirrel-Api-Token'] = $this->auth_token;
 		}
 

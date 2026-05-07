@@ -51,7 +51,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 			return 'sku:' . $code;
 		}
 		$id = $product['product_id'] ?? null;
-		if ( $id !== null && $id !== '' ) {
+		if ( null !== $id && '' !== $id ) {
 			return 'id:' . $id;
 		}
 		return null;
@@ -63,12 +63,12 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	public function get_sku( array $product ): string {
 		$opts  = get_option( 'skwirrel_wc_sync_settings', [] );
 		$field = $opts['use_sku_field'] ?? 'internal_product_code';
-		if ( $field === 'manufacturer_product_code' ) {
+		if ( 'manufacturer_product_code' === $field ) {
 			$sku = (string) ( $product['manufacturer_product_code'] ?? $product['internal_product_code'] ?? '' );
 		} else {
 			$sku = (string) ( $product['internal_product_code'] ?? $product['manufacturer_product_code'] ?? '' );
 		}
-		if ( $sku === '' && isset( $product['product_id'] ) ) {
+		if ( '' === $sku && isset( $product['product_id'] ) ) {
 			return 'SKW-' . $product['product_id'];
 		}
 		return $sku;
@@ -122,7 +122,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 			return 'trash';
 		}
 		$status = $product['_product_status']['product_status_description'] ?? null;
-		if ( $status && stripos( (string) $status, 'draft' ) !== false ) {
+		if ( $status && false !== stripos( (string) $status, 'draft' ) ) {
 			return 'draft';
 		}
 		return 'publish';
@@ -140,7 +140,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 					return null; // price on request
 				}
 				$net = $p['net_price'] ?? null;
-				if ( $net !== null && $net >= 0 ) {
+				if ( null !== $net && $net >= 0 ) {
 					return (float) $net;
 				}
 			}
@@ -281,12 +281,12 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		}
 		$etim = $this->etim->get_etim_attributes( $product );
 		foreach ( $etim as $name => $value ) {
-			if ( $value !== '' && $value !== null ) {
+			if ( '' !== $value && null !== $value ) {
 				$attrs[ $name ] = (string) $value;
 			}
 		}
 		$product_id = $product['internal_product_code'] ?? $product['product_id'] ?? '?';
-		$etimItems  = $this->etim->collect_etim_items( $product );
+		$etim_items = $this->etim->collect_etim_items( $product );
 		$this->logger->verbose(
 			'get_attributes result',
 			[
@@ -297,7 +297,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 					'gtin'         => ! empty( $gtin ),
 				],
 				'etim_attrs'  => count( $etim ),
-				'etim_items'  => count( $etimItems ),
+				'etim_items'  => count( $etim_items ),
 			]
 		);
 		if ( empty( $attrs ) ) {
@@ -309,17 +309,17 @@ class Skwirrel_WC_Sync_Product_Mapper {
 					'has_manufacturer'   => ! empty( $product['manufacturer_name'] ?? '' ),
 					'has_gtin'           => ! empty( $product['product_gtin'] ?? '' ),
 					'has__etim'          => isset( $product['_etim'] ),
-					'etim_items_count'   => count( $etimItems ),
+					'etim_items_count'   => count( $etim_items ),
 					'has_product_groups' => ! empty( $product['_product_groups'] ?? [] ),
 				]
 			);
-		} elseif ( empty( $etim ) && ! empty( $etimItems ) ) {
+		} elseif ( empty( $etim ) && ! empty( $etim_items ) ) {
 			$this->logger->debug(
 				'Product has base attributes but no ETIM values; features may be not_applicable',
 				[
 					'product'             => $product_id,
 					'attr_count'          => count( $attrs ),
-					'etim_features_count' => count( $etimItems[0]['_etim_features'] ?? [] ),
+					'etim_features_count' => count( $etim_items[0]['_etim_features'] ?? [] ),
 				]
 			);
 		}
@@ -390,12 +390,12 @@ class Skwirrel_WC_Sync_Product_Mapper {
 			$groups = $product['_product_groups'] ?? [];
 			foreach ( $groups as $g ) {
 				$name = (string) ( $g['product_group_name'] ?? '' );
-				if ( $name === '' ) {
+				if ( '' === $name ) {
 					continue;
 				}
 				$group_id     = $g['product_group_id'] ?? $g['id'] ?? null;
 				$categories[] = [
-					'id'          => $group_id !== null ? (int) $group_id : null,
+					'id'          => null !== $group_id ? (int) $group_id : null,
 					'name'        => $name,
 					'parent_id'   => null,
 					'parent_name' => '',
@@ -443,10 +443,10 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	private function extract_ancestor_chain( array $cat, array &$categories, array &$seen_ids ): void {
 		$cat_id = $cat['category_id'] ?? $cat['product_category_id'] ?? $cat['id'] ?? null;
 		$name   = $this->pick_category_translation( $cat );
-		if ( $name === '' ) {
+		if ( '' === $name ) {
 			$name = (string) ( $cat['category_name'] ?? $cat['product_category_name'] ?? $cat['name'] ?? '' );
 		}
-		if ( $name === '' ) {
+		if ( '' === $name ) {
 			return;
 		}
 
@@ -457,11 +457,11 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		if ( ! empty( $cat['_parent_category'] ) && is_array( $cat['_parent_category'] ) ) {
 			$this->extract_ancestor_chain( $cat['_parent_category'], $categories, $seen_ids );
 			$parent_name = $this->pick_category_translation( $cat['_parent_category'] );
-			if ( $parent_name === '' ) {
+			if ( '' === $parent_name ) {
 				$parent_name = (string) ( $cat['_parent_category']['category_name'] ?? $cat['_parent_category']['name'] ?? '' );
 			}
 			// Ensure parent_id is set from the nested object if not on the current entry
-			if ( $parent_id === null ) {
+			if ( null === $parent_id ) {
 				$parent_id = $cat['_parent_category']['category_id']
 					?? $cat['_parent_category']['product_category_id']
 					?? $cat['_parent_category']['id']
@@ -473,18 +473,18 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		}
 
 		// Skip if we already added this exact category (by ID)
-		if ( $cat_id !== null && isset( $seen_ids[ $cat_id ] ) ) {
+		if ( null !== $cat_id && isset( $seen_ids[ $cat_id ] ) ) {
 			return;
 		}
 
-		if ( $cat_id !== null ) {
+		if ( null !== $cat_id ) {
 			$seen_ids[ $cat_id ] = true;
 		}
 
 		$categories[] = [
-			'id'          => $cat_id !== null ? (int) $cat_id : null,
+			'id'          => null !== $cat_id ? (int) $cat_id : null,
 			'name'        => $name,
-			'parent_id'   => $parent_id !== null ? (int) $parent_id : null,
+			'parent_id'   => null !== $parent_id ? (int) $parent_id : null,
 			'parent_name' => $parent_name,
 		];
 	}

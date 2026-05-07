@@ -25,10 +25,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		return self::$instance;
 	}
 
-	private const BG_SYNC_ACTION       = 'skwirrel_wc_sync_background';
-	private const BG_SYNC_TRANSIENT    = 'skwirrel_wc_sync_bg_token';
-	private const BG_PURGE_ACTION      = 'skwirrel_wc_sync_purge_all';
-	private const BG_PURGE_TRANSIENT   = 'skwirrel_wc_sync_purge_token';
+	private const BG_SYNC_ACTION        = 'skwirrel_wc_sync_background';
+	private const BG_SYNC_TRANSIENT     = 'skwirrel_wc_sync_bg_token';
+	private const BG_PURGE_ACTION       = 'skwirrel_wc_sync_purge_all';
+	private const BG_PURGE_TRANSIENT    = 'skwirrel_wc_sync_purge_token';
 	private const TEST_RESULT_TRANSIENT = 'skwirrel_wc_sync_test_result';
 
 	private function __construct() {
@@ -72,10 +72,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'sanitize_callback' => [ $this, 'sanitize_settings' ],
 			]
 		);
-		add_action( 'update_option_' . self::OPTION_KEY, [ $this, 'on_settings_updated' ], 10, 3 );
+		add_action( 'update_option_' . self::OPTION_KEY, [ $this, 'on_settings_updated' ], 10, 2 );
 	}
 
-	public function on_settings_updated( $old_value, $value, $option ): void {
+	public function on_settings_updated( $old_value, $value ): void {
 		if ( is_array( $value ) ) {
 			delete_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
 			Skwirrel_WC_Sync_Action_Scheduler::instance()->schedule();
@@ -114,7 +114,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out['variant_label_field']         = in_array( $input['variant_label_field'] ?? '', [ 'internal_product_code', 'product_erp_description', 'product_name' ], true )
 			? $input['variant_label_field']
 			: 'internal_product_code';
-		$out['sync_images']                 = ( $input['sync_images'] ?? 'yes' ) === 'yes';
+		$out['sync_images']                 = 'yes' === ( $input['sync_images'] ?? 'yes' );
 		// Image language: dropdown or custom
 		$lang_select = $input['image_language_select'] ?? '';
 		$lang_custom = sanitize_text_field( $input['image_language_custom'] ?? '' );
@@ -307,10 +307,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_background_sync(): void {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- uses transient-based token instead of nonce
 		$token = isset( $_REQUEST['token'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['token'] ) ) : '';
-		if ( empty( $token ) || strlen( $token ) !== 32 || ! ctype_xdigit( $token ) ) {
+		if ( empty( $token ) || 32 !== strlen( $token ) || ! ctype_xdigit( $token ) ) {
 			wp_die( 'Invalid request', 403 );
 		}
-		if ( get_transient( self::BG_SYNC_TRANSIENT . '_' . $token ) !== '1' ) {
+		if ( '1' !== get_transient( self::BG_SYNC_TRANSIENT . '_' . $token ) ) {
 			wp_die( 'Invalid or expired token', 403 );
 		}
 		delete_transient( self::BG_SYNC_TRANSIENT . '_' . $token );
@@ -374,7 +374,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_background_purge(): void {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- uses transient-based token instead of nonce
 		$token = isset( $_REQUEST['token'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['token'] ) ) : '';
-		if ( empty( $token ) || strlen( $token ) !== 32 || ! ctype_xdigit( $token ) ) {
+		if ( empty( $token ) || 32 !== strlen( $token ) || ! ctype_xdigit( $token ) ) {
 			wp_die( 'Invalid request', 403 );
 		}
 		$mode = get_transient( self::BG_PURGE_TRANSIENT . '_' . $token );
@@ -634,12 +634,13 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 	public function enqueue_assets( string $hook ): void {
 		// Only load plugin page assets on our settings page.
-		if ( strpos( $hook, self::PAGE_SLUG ) === false ) {
+		if ( false === strpos( $hook, self::PAGE_SLUG ) ) {
 			return;
 		}
 
 		wp_enqueue_style( 'skwirrel-pim-sync-admin', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/admin.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
 		wp_enqueue_style( 'skwirrel-pim-sync-dashboard', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/dashboard.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
+		// phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- Google Fonts URL is versioned by its query string; appending ?ver= would break upstream caching.
 		wp_enqueue_style( 'skwirrel-pim-sync-inter-font', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', [], null );
 
 		// Admin page JS (purge confirmation + auto-reload).

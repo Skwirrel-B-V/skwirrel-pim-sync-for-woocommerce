@@ -18,7 +18,7 @@ class Skwirrel_WC_Sync_Action_Scheduler {
 	private static ?self $instance = null;
 
 	public static function instance(): self {
-		if ( self::$instance === null ) {
+		if ( null === self::$instance ) {
 			self::$instance = new self();
 		}
 		return self::$instance;

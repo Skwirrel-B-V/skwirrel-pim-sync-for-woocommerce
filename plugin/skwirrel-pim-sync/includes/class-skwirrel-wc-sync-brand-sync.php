@@ -132,7 +132,7 @@ class Skwirrel_WC_Sync_Brand_Sync {
 		$created = 0;
 		foreach ( $brands as $brand ) {
 			$brand_name = trim( $brand['brand_name'] ?? $brand['name'] ?? '' );
-			if ( $brand_name === '' ) {
+			if ( '' === $brand_name ) {
 				continue;
 			}
 
@@ -143,7 +143,7 @@ class Skwirrel_WC_Sync_Brand_Sync {
 
 			$inserted = wp_insert_term( $brand_name, self::BRAND_TAXONOMY );
 			if ( is_wp_error( $inserted ) ) {
-				if ( $inserted->get_error_code() !== 'term_exists' ) {
+				if ( 'term_exists' !== $inserted->get_error_code() ) {
 					$this->logger->warning(
 						'Failed to create brand term',
 						[
@@ -180,12 +180,12 @@ class Skwirrel_WC_Sync_Brand_Sync {
 		}
 
 		$brand_name = trim( $product['brand_name'] ?? '' );
-		if ( $brand_name === '' ) {
+		if ( '' === $brand_name ) {
 			return;
 		}
 
 		$term_id = $this->find_or_create_term( $brand_name, self::BRAND_TAXONOMY );
-		if ( $term_id === null ) {
+		if ( null === $term_id ) {
 			return;
 		}
 
@@ -214,12 +214,12 @@ class Skwirrel_WC_Sync_Brand_Sync {
 		}
 
 		$manufacturer_name = trim( $product['manufacturer_name'] ?? '' );
-		if ( $manufacturer_name === '' ) {
+		if ( '' === $manufacturer_name ) {
 			return;
 		}
 
 		$term_id = $this->find_or_create_term( $manufacturer_name, self::MANUFACTURER_TAXONOMY );
-		if ( $term_id === null ) {
+		if ( null === $term_id ) {
 			return;
 		}
 
@@ -249,7 +249,7 @@ class Skwirrel_WC_Sync_Brand_Sync {
 
 		$inserted = wp_insert_term( $name, $taxonomy );
 		if ( is_wp_error( $inserted ) ) {
-			if ( $inserted->get_error_code() === 'term_exists' ) {
+			if ( 'term_exists' === $inserted->get_error_code() ) {
 				return (int) $inserted->get_error_data( 'term_exists' );
 			}
 			$this->logger->warning(

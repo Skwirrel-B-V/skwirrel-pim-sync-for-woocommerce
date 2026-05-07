@@ -55,7 +55,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 	 */
 	public function purge_all( bool $permanent ): void {
 		if ( function_exists( 'set_time_limit' ) ) {
-			@set_time_limit( 0 ); // phpcs:ignore Generic.PHP.NoSilencedErrors.Discouraged,Squiz.PHP.DiscouragedFunctions.Discouraged -- long-running purge requires no time limit
+			@set_time_limit( 0 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,Squiz.PHP.DiscouragedFunctions.Discouraged -- long-running purge requires no time limit; @ guards against disable_functions
 		}
 
 		$mode_label = $permanent ? 'permanent delete' : 'trash';
@@ -593,7 +593,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 				$variation_ids = $product->get_children();
 				foreach ( $variation_ids as $vid ) {
 					$variation = wc_get_product( $vid );
-					if ( $variation && $variation->get_status() !== 'trash' ) {
+					if ( $variation && 'trash' !== $variation->get_status() ) {
 						$variation->set_status( 'trash' );
 						$variation->save();
 						++$trashed;

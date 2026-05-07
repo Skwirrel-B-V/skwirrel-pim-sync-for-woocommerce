@@ -58,7 +58,7 @@ class Skwirrel_WC_Sync_Service {
 	 */
 	public function run_sync( bool $delta = false, string $trigger = Skwirrel_WC_Sync_History::TRIGGER_MANUAL ): array {
 		if ( function_exists( 'set_time_limit' ) ) {
-			@set_time_limit( 0 ); // phpcs:ignore Generic.PHP.NoSilencedErrors.Discouraged,Squiz.PHP.DiscouragedFunctions.Discouraged -- long-running sync requires no time limit
+			@set_time_limit( 0 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,Squiz.PHP.DiscouragedFunctions.Discouraged -- long-running sync requires no time limit; @ guards against disable_functions
 		}
 
 		// Raise PHP memory limit — API responses with all includes can be very large.
@@ -367,7 +367,7 @@ class Skwirrel_WC_Sync_Service {
 					}
 
 					// Skip non-grouped VIRTUAL products
-					if ( ( $product['product_type'] ?? '' ) === 'VIRTUAL' ) {
+					if ( 'VIRTUAL' === ( $product['product_type'] ?? '' ) ) {
 						continue;
 					}
 

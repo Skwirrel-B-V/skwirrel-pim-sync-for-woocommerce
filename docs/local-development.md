@@ -4,9 +4,9 @@ Setting up the Skwirrel PIM sync plugin for local work. Related docs: [`local-te
 
 ## Prerequisites
 
-- **PHP 8.1+** with standard WP extensions
+- **PHP 8.3+** with standard WP extensions
 - **Composer 2.x**
-- **Node.js 18+** and **npm** (for wp-env)
+- **Node.js 22+** and **npm** (for wp-env)
 - **Docker Desktop** (for wp-env)
 - Git
 
@@ -76,7 +76,7 @@ The dev site (`:8888`) is what you open in the browser while coding. The tests s
 The `.wp-env.json` provisions:
 
 - WordPress 6.9.4
-- PHP 8.1
+- PHP 8.3
 - WooCommerce (latest from wp.org)
 - Plugin Check (latest from wp.org)
 - This plugin from `./plugin/skwirrel-pim-sync`
@@ -164,7 +164,7 @@ Set in `wp-config.php` (or via `.wp-env.json` `config`) on the dev site when you
 
 ## Common issues
 
-- **`composer install` complains about platform PHP** — the repo requires PHP 8.1+. Check `php -v`. On macOS, consider `brew install php@8.1` or use the PHP provided inside wp-env.
+- **`composer install` complains about platform PHP** — the repo requires PHP 8.3+. Check `php -v`. On macOS, consider `brew install php@8.3` or use the PHP provided inside wp-env.
 - **`npm run env:start` fails / hangs** — make sure Docker Desktop is actually running. First boot pulls images and can take several minutes.
 - **Port 8888 or 8889 in use** — either stop the conflicting service or change the port in `.wp-env.json`.
 - **Changes don't appear on the dev site** — hard refresh the browser; check which instance you're on (`:8888` dev vs `:8889` tests). If opcache is stubborn, `npm run env:stop && npm run env:start`.

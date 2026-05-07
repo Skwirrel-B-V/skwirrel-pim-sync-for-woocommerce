@@ -345,7 +345,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			);
 		}
 
-		$this->category_sync->assign_categories( $id, $product, $this->mapper );
+		$this->category_sync->assign_categories( $id, $product );
 		$this->brand_sync->assign_brand( $id, $product );
 		if ( ! empty( $this->get_options()['sync_manufacturers'] ) ) {
 			$this->brand_sync->assign_manufacturer( $id, $product );
@@ -687,7 +687,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		// Assign categories from variation product to parent variable product.
 		// Same issue: getGroupedProducts lacks _categories, but individual
 		// variation products from getProducts do have them.
-		$this->category_sync->assign_categories( $wc_variable_id, $product, $this->mapper );
+		$this->category_sync->assign_categories( $wc_variable_id, $product );
 
 		// Collect non-variation ETIM + custom class attributes for parent product
 		$non_var_attrs = $this->mapper->get_attributes( $product );
@@ -1140,7 +1140,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			];
 		}
 
-		$this->category_sync->assign_categories( $id, $group, $this->mapper );
+		$this->category_sync->assign_categories( $id, $group );
 		$this->brand_sync->assign_brand( $id, $group );
 		if ( ! empty( $this->get_options()['sync_manufacturers'] ) ) {
 			$this->brand_sync->assign_manufacturer( $id, $group );
@@ -1543,7 +1543,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		if ( ! $wc_id ) {
 			return;
 		}
-		$this->category_sync->assign_categories( $wc_id, $product, $this->mapper );
+		$this->category_sync->assign_categories( $wc_id, $product );
 		$this->brand_sync->assign_brand( $wc_id, $product );
 		$options = $this->get_options();
 		if ( ! empty( $options['sync_manufacturers'] ) ) {
@@ -1788,7 +1788,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 
 		// Categories and brands from virtual product.
-		$this->category_sync->assign_categories( $wc_variable_id, $virtual_product, $this->mapper );
+		$this->category_sync->assign_categories( $wc_variable_id, $virtual_product );
 		$this->brand_sync->assign_brand( $wc_variable_id, $virtual_product );
 
 		$options = $this->get_options();

@@ -11,11 +11,11 @@ declare(strict_types=1);
  * branch in upsert_product_as_variation()/create_or_update_variation().
  */
 
-require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-product-lookup.php';
-require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-brand-sync.php';
-require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-taxonomy-manager.php';
-require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-category-sync.php';
-require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-product-upserter.php';
+require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-lookup.php';
+require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-brand-sync.php';
+require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-taxonomy-manager.php';
+require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-category-sync.php';
+require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php';
 
 beforeEach(function () {
     unset($GLOBALS['_test_options']);

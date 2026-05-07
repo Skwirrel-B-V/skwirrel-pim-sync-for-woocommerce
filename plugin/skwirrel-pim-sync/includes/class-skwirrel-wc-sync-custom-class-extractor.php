@@ -73,7 +73,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	 * @return array Filtered list
 	 */
 	public function filter_custom_classes( array $classes, string $mode, array $filter_ids, array $filter_codes ): array {
-		if ( $mode === '' || ( empty( $filter_ids ) && empty( $filter_codes ) ) ) {
+		if ( '' === $mode || ( empty( $filter_ids ) && empty( $filter_codes ) ) ) {
 			return $classes;
 		}
 		return array_values(
@@ -82,9 +82,9 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 				static function ( array $cc ) use ( $mode, $filter_ids, $filter_codes ): bool {
 					$id    = $cc['custom_class_id'] ?? null;
 					$code  = $cc['custom_class_code'] ?? null;
-					$match = ( $id !== null && in_array( (int) $id, $filter_ids, true ) )
-					|| ( $code !== null && in_array( strtolower( (string) $code ), $filter_codes, true ) );
-					return $mode === 'whitelist' ? $match : ! $match;
+					$match = ( null !== $id && in_array( (int) $id, $filter_ids, true ) )
+					|| ( null !== $code && in_array( strtolower( (string) $code ), $filter_codes, true ) );
+					return 'whitelist' === $mode ? $match : ! $match;
 				}
 			)
 		);
@@ -101,7 +101,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 		$parts = preg_split( '/[\s,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY );
 		foreach ( $parts as $part ) {
 			$part = trim( $part );
-			if ( $part === '' ) {
+			if ( '' === $part ) {
 				continue;
 			}
 			if ( is_numeric( $part ) ) {
@@ -154,7 +154,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 					continue;
 				}
 				$value = $this->format_custom_feature_value( $feat, $lang );
-				if ( $value === null || $value === '' ) {
+				if ( null === $value || '' === $value ) {
 					continue;
 				}
 				$label = $this->resolve_custom_feature_label( $feat, $lang );
@@ -226,7 +226,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 					continue;
 				}
 				$value = $this->format_custom_feature_value( $feat, $lang );
-				if ( $value === null || $value === '' ) {
+				if ( null === $value || '' === $value ) {
 					continue;
 				}
 				$label = $this->resolve_custom_feature_label( $feat, $lang );
@@ -272,10 +272,10 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 				if ( ! empty( $feat['not_applicable'] ) ) {
 					continue;
 				}
-				$value = $type === 'B' // @phpstan-ignore identical.alwaysTrue
+				$value = 'B' === $type // @phpstan-ignore identical.alwaysTrue
 					? ( $feat['big_text_value'] ?? '' )
 					: ( $feat['text_value'] ?? '' );
-				if ( $value === '' || $value === null ) { // @phpstan-ignore identical.alwaysFalse
+				if ( '' === $value || null === $value ) { // @phpstan-ignore identical.alwaysFalse
 					continue;
 				}
 				$code              = $feat['custom_feature_code']
@@ -303,7 +303,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 		if ( empty( $custom_ids ) ) {
 			return [];
 		}
-		if ( $lang === '' ) {
+		if ( '' === $lang ) {
 			$lang = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
 		}
 		$id_list = [];
@@ -327,12 +327,12 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 					continue;
 				}
 				$value = $this->format_custom_feature_value( $feat, $lang );
-				if ( $value === null || $value === '' ) {
+				if ( null === $value || '' === $value ) {
 					continue;
 				}
 				$label = $this->resolve_custom_feature_label( $feat, $lang );
 				$slug  = sanitize_title( $value );
-				if ( $slug === '' ) {
+				if ( '' === $slug ) {
 					$slug = sanitize_title( (string) $value );
 				}
 				$result[ $feat_id ] = [
@@ -446,13 +446,13 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	 * @return string Resolved label.
 	 */
 	public function resolve_custom_feature_label( array $feat, string $lang = '' ): string {
-		if ( $lang === '' ) {
+		if ( '' === $lang ) {
 			$lang = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
 		}
 		$trans = $feat['_custom_feature_translations'] ?? [];
 		if ( ! empty( $trans ) && is_array( $trans ) ) {
 			$label = $this->pick_custom_translation( $trans, $lang, 'custom_feature_description' );
-			if ( $label !== '' ) {
+			if ( '' !== $label ) {
 				return $label;
 			}
 		}
@@ -469,11 +469,11 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 		$type = $feat['custom_feature_type'] ?? '';
 
 		// A — Alphanumeric (single value from list)
-		if ( $type === 'A' ) {
+		if ( 'A' === $type ) {
 			if ( ! empty( $feat['_custom_values'] ) && is_array( $feat['_custom_values'] ) ) {
 				foreach ( $feat['_custom_values'] as $v ) {
 					$desc = $this->pick_custom_value_translation( $v, $lang );
-					if ( $desc !== '' ) {
+					if ( '' !== $desc ) {
 						return $desc;
 					}
 				}
@@ -482,16 +482,16 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 		}
 
 		// M — Multi-alphanumeric (comma-separated values)
-		if ( $type === 'M' ) {
+		if ( 'M' === $type ) {
 			$values = [];
 			if ( ! empty( $feat['_custom_values'] ) && is_array( $feat['_custom_values'] ) ) {
 				foreach ( $feat['_custom_values'] as $v ) {
 					$desc = $this->pick_custom_value_translation( $v, $lang );
-					if ( $desc !== '' ) {
+					if ( '' !== $desc ) {
 						$values[] = $desc;
 					} else {
 						$code = $v['custom_value_code'] ?? '';
-						if ( $code !== '' ) {
+						if ( '' !== $code ) {
 							$values[] = $code;
 						}
 					}
@@ -501,48 +501,48 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 		}
 
 		// L — Logical
-		if ( $type === 'L' && array_key_exists( 'logical_value', $feat ) && $feat['logical_value'] !== null ) {
+		if ( 'L' === $type && array_key_exists( 'logical_value', $feat ) && null !== $feat['logical_value'] ) {
 			return $feat['logical_value'] ? 'Ja' : 'Nee';
 		}
 
 		// N — Numeric
-		if ( $type === 'N' && $feat['numeric_value'] !== null && $feat['numeric_value'] !== '' ) {
+		if ( 'N' === $type && null !== $feat['numeric_value'] && '' !== $feat['numeric_value'] ) {
 			$unit = $this->resolve_custom_unit( $feat, $lang );
-			return $feat['numeric_value'] . ( $unit !== '' ? ' ' . $unit : '' );
+			return $feat['numeric_value'] . ( '' !== $unit ? ' ' . $unit : '' );
 		}
 
 		// R — Range
-		if ( $type === 'R' && ( $feat['range_min'] !== null || $feat['range_max'] !== null ) ) {
+		if ( 'R' === $type && ( null !== $feat['range_min'] || null !== $feat['range_max'] ) ) {
 			$min  = $feat['range_min'] ?? '';
 			$max  = $feat['range_max'] ?? '';
 			$unit = $this->resolve_custom_unit( $feat, $lang );
-			$s    = $min . ( $min !== '' && $max !== '' ? ' – ' : '' ) . $max;
-			return $s . ( $unit !== '' ? ' ' . $unit : '' );
+			$s    = $min . ( '' !== $min && '' !== $max ? ' – ' : '' ) . $max;
+			return $s . ( '' !== $unit ? ' ' . $unit : '' );
 		}
 
 		// D — Date
-		if ( $type === 'D' && ! empty( $feat['date_value'] ) ) {
+		if ( 'D' === $type && ! empty( $feat['date_value'] ) ) {
 			return (string) $feat['date_value'];
 		}
 
 		// T — Text (short text value)
-		if ( $type === 'T' && ! empty( $feat['text_value'] ) ) {
+		if ( 'T' === $type && ! empty( $feat['text_value'] ) ) {
 			return (string) $feat['text_value'];
 		}
 
 		// I — Internationalized text (pick by language)
-		if ( $type === 'I' ) {
+		if ( 'I' === $type ) {
 			$texts = $feat['translated_texts'] ?? [];
 			if ( ! empty( $texts ) && is_array( $texts ) ) {
 				// Try exact match, then prefix match, then first
 				foreach ( $texts as $t ) {
-					if ( strcasecmp( (string) ( $t['language'] ?? '' ), $lang ) === 0 ) {
+					if ( 0 === strcasecmp( (string) ( $t['language'] ?? '' ), $lang ) ) {
 						return (string) ( $t['text'] ?? $t['value'] ?? '' );
 					}
 				}
 				foreach ( $texts as $t ) {
 					$tl = (string) ( $t['language'] ?? '' );
-					if ( strlen( $lang ) >= 2 && strlen( $tl ) >= 2 && strcasecmp( substr( $tl, 0, 2 ), substr( $lang, 0, 2 ) ) === 0 ) {
+					if ( strlen( $lang ) >= 2 && strlen( $tl ) >= 2 && 0 === strcasecmp( substr( $tl, 0, 2 ), substr( $lang, 0, 2 ) ) ) {
 						return (string) ( $t['text'] ?? $t['value'] ?? '' );
 					}
 				}
@@ -565,7 +565,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 				continue;
 			}
 			$tl = (string) ( $t['language'] ?? '' );
-			if ( strcasecmp( $tl, $lang ) === 0 ) {
+			if ( 0 === strcasecmp( $tl, $lang ) ) {
 				return (string) ( $t[ $field ] ?? '' );
 			}
 		}
@@ -575,7 +575,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 				continue;
 			}
 			$tl = (string) ( $t['language'] ?? '' );
-			if ( strlen( $lang ) >= 2 && strlen( $tl ) >= 2 && strcasecmp( substr( $tl, 0, 2 ), substr( $lang, 0, 2 ) ) === 0 ) {
+			if ( strlen( $lang ) >= 2 && strlen( $tl ) >= 2 && 0 === strcasecmp( substr( $tl, 0, 2 ), substr( $lang, 0, 2 ) ) ) {
 				return (string) ( $t[ $field ] ?? '' );
 			}
 		}
@@ -604,7 +604,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 			return (string) ( $feat['custom_unit_code'] ?? '' );
 		}
 		$abbr = $this->pick_custom_translation( $trans, $lang, 'custom_unit_abbreviation' );
-		if ( $abbr !== '' ) {
+		if ( '' !== $abbr ) {
 			return $abbr;
 		}
 		return $this->pick_custom_translation( $trans, $lang, 'custom_unit_description' );

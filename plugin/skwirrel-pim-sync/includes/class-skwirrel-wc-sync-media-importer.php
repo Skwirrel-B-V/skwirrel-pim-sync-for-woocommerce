@@ -69,6 +69,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- getimagesize emits a warning on non-image bytes; we already handle the false return below.
 		$image_info = @getimagesize( $tmp );
 		if ( false === $image_info ) {
 			wp_delete_file( $tmp );

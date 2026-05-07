@@ -2,6 +2,22 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.7.0]
+
+* **Bump minimum PHP to 8.3** — PHP 8.1 reached end-of-life on 2025-12-31 and 8.2 is in security-only support until 2026-12-31. `Requires PHP` in the plugin header + readme and the `composer.json` runtime constraint are all updated to `>=8.3`
+* **Bump minimum Node.js to 22 LTS** — added `engines.node` to `package.json`. Node 18 EOL'd April 2025; Node 20 maintenance ends April 2026. Node 22 is the current Active LTS (maintenance until April 2027)
+* **CI: PHP 8.1 → 8.3** — `.github/workflows/ci.yml` was still installing PHP 8.1, which broke `composer install` after Pest 3 / PHPUnit 11 (both PHP 8.2+) landed in `composer.lock`. Cache key bumped along with the version
+* **wp-env: `phpVersion` 8.2 → 8.3** for parity with CI and the new runtime floor
+* **Internal cleanup: aligned source files with WordPress coding standards** — no functional changes. With CI no longer dying in `composer install`, phpcs surfaced a backlog of 187 errors that had been masked. Cleared all of them:
+  * **File renames**: 28 class files moved from `class-{slug}.php` to `class-skwirrel-wc-sync-{slug}.php` (full class name in kebab-case, per `WordPress.Files.FileName.InvalidClassFileName`). All `require_once` paths in the bootstrap, `tests/bootstrap.php`, and `tests/Unit/ProductUpserterPriceTest.php` updated.
+  * **Bootstrap class extracted**: `Skwirrel_WC_Sync_Plugin` moved out of `skwirrel-pim-sync.php` into `includes/class-skwirrel-wc-sync-plugin.php`. The plugin entry file now only carries the header, constants, `before_woocommerce_init` hook, activation hook, and `require + ::instance()`.
+  * **Yoda condition flips**: 125 `$expr === 'literal'` → `'literal' === $expr` across the plugin (token-aware fixer, no behavioural change).
+  * **Variable naming**: 33 `$camelCase` → `$snake_case` local variables in `class-skwirrel-wc-sync-product-mapper.php` and `class-skwirrel-wc-sync-etim-extractor.php` (e.g. `$etimItems` → `$etim_items`).
+  * **Reserved keyword param**: `Skwirrel_WC_Sync_Variation_Attributes_Fix::fix_rest_response_attributes()` parameter `$object` → `$wc_object` (PHP 8.2+ reserves `object` as a soft keyword).
+  * **Removed unused parameter**: `Skwirrel_WC_Sync_Category_Sync::assign_categories()` no longer takes a `$mapper` argument (5 callers in `class-skwirrel-wc-sync-product-upserter.php` updated). The `update_option_*` callback `on_settings_updated()` dropped from 3 to 2 args.
+  * **PHPCS config**: registered `manage_woocommerce` as a known WooCommerce capability so the WPCS Capabilities sniff stops flagging legitimate uses.
+  * **Phpstan baseline regenerated**: same set of 179 entries (mostly missing array shape annotations), new file paths.
+
 ## [3.6.1]
 
 * **Fix: ship files that were missing from the 3.6.0 build** — `includes/class-pim-link.php` (the "Open in Skwirrel" deep-link implementation), the updated `class-admin-settings.php` (Settings-saved notice + transient-based connection-test result), the updated `class-product-sync-meta-box.php` (PIM link button), the `assets/s.png` button icon, and the corresponding `.po`/`.mo` translation updates. A 3.6.0 install fatalled on activation with `Failed opening required ... includes/class-pim-link.php` because the class file was untracked in git when the release was tagged
