@@ -150,10 +150,10 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$this->logger->debug(
 			'Imported image',
 			[
-				'url'                   => $url,
-				'attachment_id'         => $id,
+				'url'                    => $url,
+				'attachment_id'          => $id,
 				'skwirrel_attachment_id' => $api_meta['attachment_id'] ?? null,
-				'file_checksum'         => $api_meta['file_checksum'] ?? null,
+				'file_checksum'          => $api_meta['file_checksum'] ?? null,
 			]
 		);
 		return $id;
@@ -319,7 +319,11 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( is_wp_error( $tmp ) ) {
 			$this->logger->warning(
 				'Content-update download failed; keeping existing image',
-				[ 'url' => $url, 'attachment_id' => $attachment_id, 'error' => $tmp->get_error_message() ]
+				[
+					'url'           => $url,
+					'attachment_id' => $attachment_id,
+					'error'         => $tmp->get_error_message(),
+				]
 			);
 			return;
 		}
@@ -327,7 +331,13 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$image_info = @getimagesize( $tmp );
 		if ( false === $image_info ) {
 			wp_delete_file( $tmp );
-			$this->logger->warning( 'Content-update bytes are not a valid image; keeping existing', [ 'url' => $url, 'attachment_id' => $attachment_id ] );
+			$this->logger->warning(
+				'Content-update bytes are not a valid image; keeping existing',
+				[
+					'url'           => $url,
+					'attachment_id' => $attachment_id,
+				]
+			);
 			return;
 		}
 
@@ -343,13 +353,25 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$upload_dir = wp_upload_dir();
 		if ( $upload_dir['error'] ) {
 			wp_delete_file( $tmp );
-			$this->logger->warning( 'Content-update upload dir error', [ 'attachment_id' => $attachment_id, 'error' => $upload_dir['error'] ] );
+			$this->logger->warning(
+				'Content-update upload dir error',
+				[
+					'attachment_id' => $attachment_id,
+					'error'         => $upload_dir['error'],
+				]
+			);
 			return;
 		}
 		$dest = $upload_dir['path'] . '/' . $filename;
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
-			$this->logger->warning( 'Content-update copy failed; keeping existing', [ 'url' => $url, 'attachment_id' => $attachment_id ] );
+			$this->logger->warning(
+				'Content-update copy failed; keeping existing',
+				[
+					'url'           => $url,
+					'attachment_id' => $attachment_id,
+				]
+			);
 			return;
 		}
 		wp_delete_file( $tmp );
@@ -378,10 +400,10 @@ class Skwirrel_WC_Sync_Media_Importer {
 		// time() collides within the same sync second, copy() will have already
 		// overwritten the original and deleting it would wipe the freshly
 		// written bytes. Sub-sizes are still cleaned via the metadata.
-		$old_path_str  = is_string( $old_path ) ? $old_path : '';
-		$delete_main   = ( '' !== $old_path_str && $old_path_str !== $dest ) ? $old_path_str : '';
-		$old_meta_arr  = is_array( $old_meta ) ? $old_meta : [];
-		$cleanup_dir   = '' !== $old_path_str ? dirname( $old_path_str ) : '';
+		$old_path_str = is_string( $old_path ) ? $old_path : '';
+		$delete_main  = ( '' !== $old_path_str && $old_path_str !== $dest ) ? $old_path_str : '';
+		$old_meta_arr = is_array( $old_meta ) ? $old_meta : [];
+		$cleanup_dir  = '' !== $old_path_str ? dirname( $old_path_str ) : '';
 		$this->cleanup_old_attachment_files( $delete_main, $old_meta_arr, $cleanup_dir );
 
 		update_post_meta( $attachment_id, self::META_SKWIRREL_URL, $url );
@@ -391,10 +413,10 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$this->logger->info(
 			'Image content replaced (checksum changed)',
 			[
-				'attachment_id'         => $attachment_id,
-				'url'                   => $url,
+				'attachment_id'          => $attachment_id,
+				'url'                    => $url,
 				'skwirrel_attachment_id' => $api_meta['attachment_id'] ?? null,
-				'new_checksum'          => $api_meta['file_checksum'] ?? null,
+				'new_checksum'           => $api_meta['file_checksum'] ?? null,
 			]
 		);
 	}
@@ -420,7 +442,11 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( is_wp_error( $tmp ) ) {
 			$this->logger->warning(
 				'Content-update download failed; keeping existing file',
-				[ 'url' => $url, 'attachment_id' => $attachment_id, 'error' => $tmp->get_error_message() ]
+				[
+					'url'           => $url,
+					'attachment_id' => $attachment_id,
+					'error'         => $tmp->get_error_message(),
+				]
 			);
 			return;
 		}
@@ -441,7 +467,13 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$dest = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
-			$this->logger->warning( 'Content-update copy failed; keeping existing file', [ 'url' => $url, 'attachment_id' => $attachment_id ] );
+			$this->logger->warning(
+				'Content-update copy failed; keeping existing file',
+				[
+					'url'           => $url,
+					'attachment_id' => $attachment_id,
+				]
+			);
 			return;
 		}
 		wp_delete_file( $tmp );
@@ -470,10 +502,10 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$this->logger->info(
 			'File content replaced (checksum changed)',
 			[
-				'attachment_id'         => $attachment_id,
-				'url'                   => $url,
+				'attachment_id'          => $attachment_id,
+				'url'                    => $url,
 				'skwirrel_attachment_id' => $api_meta['attachment_id'] ?? null,
-				'new_checksum'          => $api_meta['file_checksum'] ?? null,
+				'new_checksum'           => $api_meta['file_checksum'] ?? null,
 			]
 		);
 	}
@@ -554,7 +586,10 @@ class Skwirrel_WC_Sync_Media_Importer {
 				update_post_meta( $attachment_id, self::META_SKWIRREL_ATTACHMENT_ID, $skwirrel_id );
 				$this->logger->debug(
 					'Backfilled _skwirrel_attachment_id on legacy attachment',
-					[ 'attachment_id' => $attachment_id, 'skwirrel_attachment_id' => $skwirrel_id ]
+					[
+						'attachment_id'          => $attachment_id,
+						'skwirrel_attachment_id' => $skwirrel_id,
+					]
 				);
 			}
 		}
@@ -565,7 +600,10 @@ class Skwirrel_WC_Sync_Media_Importer {
 				update_post_meta( $attachment_id, self::META_SKWIRREL_FILE_CHECKSUM, $checksum );
 				$this->logger->debug(
 					'Backfilled _skwirrel_file_checksum on legacy attachment',
-					[ 'attachment_id' => $attachment_id, 'checksum' => $checksum ]
+					[
+						'attachment_id' => $attachment_id,
+						'checksum'      => $checksum,
+					]
 				);
 			}
 		}
