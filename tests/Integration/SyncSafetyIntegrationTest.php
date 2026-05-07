@@ -255,3 +255,198 @@ test( 'run_sync does NOT trigger stale-product purge when a later page fails', f
 	// The stale product must NOT have been trashed — purge skipped on partial fetch.
 	expect( get_post_status( $stale_id ) )->toBe( 'publish' );
 } );
+
+// ------------------------------------------------------------------
+// 1b. Mutex + queue isolation — extra coverage for the P1 fixes
+// ------------------------------------------------------------------
+
+test( 'end-of-run $queue->cleanup() removes only the calling run rows', function () {
+	$queue_a = new Skwirrel_WC_Sync_Queue( 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa' );
+	$queue_a->insert_item( [ 'product_id' => 200, 'product_type' => 'STANDARD' ] );
+	$queue_a->insert_item( [ 'product_id' => 201, 'product_type' => 'STANDARD' ] );
+
+	$queue_b = new Skwirrel_WC_Sync_Queue( 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb' );
+	$queue_b->insert_item( [ 'product_id' => 300, 'product_type' => 'STANDARD' ] );
+
+	expect( $queue_a->count_items( false ) )->toBe( 2 );
+	expect( $queue_b->count_items( false ) )->toBe( 1 );
+
+	// Run B finishing must not touch run A's rows. This is the inverse of
+	// the start-of-run isolation test — together they pin "queue rows are
+	// owned by exactly one sync_run_id" from both ends of a run's lifecycle.
+	$queue_b->cleanup();
+
+	expect( $queue_a->count_items( false ) )->toBe( 2 );
+	expect( $queue_b->count_items( false ) )->toBe( 0 );
+} );
+
+test( 'heartbeat transient is cleared after a successful run, so the next click can start', function () {
+	$skwirrel_product = [
+		'product_id'              => 700001,
+		'product_type'            => 'STANDARD',
+		'external_product_id'     => 'EXT-700001',
+		'internal_product_code'   => 'SKU-700001',
+		'product_erp_description' => 'Cleared heartbeat product',
+		'_product_status'         => [ 'product_status_description' => 'active' ],
+	];
+
+	$page = 0;
+	safetyStub( [
+		'getBrands'           => [ 'brands' => [] ],
+		'getProductsByFilter' => function ( $params ) use ( &$page, $skwirrel_product ) {
+			$is_attr_fetch = isset( $params['filter']['code']['type'] )
+				&& 'product_id' === $params['filter']['code']['type'];
+			if ( $is_attr_fetch ) {
+				return [ 'products' => [ $skwirrel_product ] ];
+			}
+			++$page;
+			return 1 === $page ? [ 'products' => [ $skwirrel_product ] ] : [ 'products' => [] ];
+		},
+	] );
+
+	$service = new Skwirrel_WC_Sync_Service();
+	$result  = $service->run_sync( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
+	expect( $result['success'] )->toBeTrue();
+
+	// After a clean finish the in-progress transient must be gone — otherwise
+	// the next manual click would always trip the mutex even though no sync
+	// is actually running.
+	expect( get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ) )->toBeFalse();
+
+	// And a follow-up run actually proceeds (no lock collision).
+	$page    = 0;
+	$result2 = $service->run_sync( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
+	expect( $result2['success'] )->toBeTrue();
+} );
+
+// ------------------------------------------------------------------
+// 4. Multiple selection IDs — UI says "1, 2, 3", sync must honour all
+// ------------------------------------------------------------------
+
+test( 'run_sync queries every configured selection id, not just the first one', function () {
+	update_option( 'skwirrel_wc_sync_settings', array_merge(
+		(array) get_option( 'skwirrel_wc_sync_settings' ),
+		[ 'collection_ids' => '1, 2' ]
+	) );
+
+	$product_in_one = [
+		'product_id'              => 600001,
+		'product_type'            => 'STANDARD',
+		'external_product_id'     => 'EXT-SEL1',
+		'internal_product_code'   => 'SKU-SEL1',
+		'product_erp_description' => 'From selection 1',
+		'_product_status'         => [ 'product_status_description' => 'active' ],
+	];
+	$product_in_two = [
+		'product_id'              => 600002,
+		'product_type'            => 'STANDARD',
+		'external_product_id'     => 'EXT-SEL2',
+		'internal_product_code'   => 'SKU-SEL2',
+		'product_erp_description' => 'From selection 2',
+		'_product_status'         => [ 'product_status_description' => 'active' ],
+	];
+
+	$selection_calls = [ 1 => 0, 2 => 0 ];
+	safetyStub( [
+		'getBrands'           => [ 'brands' => [] ],
+		'getProductsByFilter' => function ( $params ) use ( &$selection_calls, $product_in_one, $product_in_two ) {
+			$is_attr_fetch = isset( $params['filter']['code']['type'] )
+				&& 'product_id' === $params['filter']['code']['type'];
+			if ( $is_attr_fetch ) {
+				$pid = $params['filter']['code']['data'][0] ?? '';
+				if ( '600001' === (string) $pid ) {
+					return [ 'products' => [ $product_in_one ] ];
+				}
+				return [ 'products' => [ $product_in_two ] ];
+			}
+			$selection_id = (int) ( $params['filter']['dynamic_selection_id'] ?? 0 );
+			if ( isset( $selection_calls[ $selection_id ] ) ) {
+				++$selection_calls[ $selection_id ];
+				if ( 1 === $selection_calls[ $selection_id ] ) {
+					return [ 'products' => [ 1 === $selection_id ? $product_in_one : $product_in_two ] ];
+				}
+			}
+			return [ 'products' => [] ];
+		},
+	] );
+
+	$service = new Skwirrel_WC_Sync_Service();
+	$result  = $service->run_sync( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
+
+	expect( $result['success'] )->toBeTrue();
+	// Both selections must have been queried at least once.
+	expect( $selection_calls[1] )->toBeGreaterThan( 0 );
+	expect( $selection_calls[2] )->toBeGreaterThan( 0 );
+	// Both products must end up in WooCommerce — currently the second one
+	// never gets fetched because only $collection_ids[0] is used.
+	$matches_one = wc_get_products( [ 'sku' => 'SKU-SEL1', 'limit' => 1, 'status' => [ 'publish', 'draft' ] ] );
+	$matches_two = wc_get_products( [ 'sku' => 'SKU-SEL2', 'limit' => 1, 'status' => [ 'publish', 'draft' ] ] );
+	expect( $matches_one )->toHaveCount( 1 );
+	expect( $matches_two )->toHaveCount( 1 );
+} );
+
+// ------------------------------------------------------------------
+// 5. Related products — empty API relations must clear existing WC links
+// ------------------------------------------------------------------
+
+test( 'empty cross_sells in the API payload clears existing WC cross_sells', function () {
+	update_option( 'skwirrel_wc_sync_settings', array_merge(
+		(array) get_option( 'skwirrel_wc_sync_settings' ),
+		[
+			'sync_related_products' => true,
+			'related_products_type' => 'cross_sells',
+		]
+	) );
+
+	// Seed: a Skwirrel-tagged product with an existing cross_sell to a sibling.
+	$sibling = new WC_Product_Simple();
+	$sibling->set_name( 'Sibling target' );
+	$sibling->set_sku( 'SKU-SIBLING' );
+	$sibling->set_status( 'publish' );
+	$sibling_id = (int) $sibling->save();
+
+	$tracked = new WC_Product_Simple();
+	$tracked->set_name( 'Tracked product' );
+	$tracked->set_sku( 'SKU-TRACKED' );
+	$tracked->set_status( 'publish' );
+	$tracked->set_cross_sell_ids( [ $sibling_id ] );
+	$tracked_id = (int) $tracked->save();
+	update_post_meta( $tracked_id, '_skwirrel_external_id', 'ext:EXT-TRACKED' );
+	update_post_meta( $tracked_id, '_skwirrel_product_id', '500001' );
+
+	$skwirrel_product = [
+		'product_id'              => 500001,
+		'product_type'            => 'STANDARD',
+		'external_product_id'     => 'EXT-TRACKED',
+		'internal_product_code'   => 'SKU-TRACKED',
+		'product_erp_description' => 'Tracked product (no relations)',
+		'_product_status'         => [ 'product_status_description' => 'active' ],
+		// Critically: NO `_related_products` field. Skwirrel removed all relations.
+	];
+
+	$page = 0;
+	safetyStub( [
+		'getBrands'           => [ 'brands' => [] ],
+		'getProductsByFilter' => function ( $params ) use ( &$page, $skwirrel_product ) {
+			$is_attr_fetch = isset( $params['filter']['code']['type'] )
+				&& 'product_id' === $params['filter']['code']['type'];
+			if ( $is_attr_fetch ) {
+				return [ 'products' => [ $skwirrel_product ] ];
+			}
+			++$page;
+			return 1 === $page ? [ 'products' => [ $skwirrel_product ] ] : [ 'products' => [] ];
+		},
+	] );
+
+	$service = new Skwirrel_WC_Sync_Service();
+	$result  = $service->run_sync( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
+
+	expect( $result['success'] )->toBeTrue();
+
+	// The cross_sell that Skwirrel removed must also disappear in WC,
+	// otherwise stale relations linger forever once a relation is removed
+	// at the source.
+	$refreshed = wc_get_product( $tracked_id );
+	expect( $refreshed )->not->toBeFalse();
+	expect( $refreshed->get_cross_sell_ids() )->toBe( [] );
+} );
