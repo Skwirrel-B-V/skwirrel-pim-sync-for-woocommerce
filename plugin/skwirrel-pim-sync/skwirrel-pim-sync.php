@@ -4,7 +4,7 @@
  * Plugin Name: Skwirrel PIM sync for WooCommerce
  * Plugin URI: https://github.com/Skwirrel-B-V/skwirrel-pim-sync-for-woocommerce
  * Description: Sync plugin for Skwirrel PIM via Skwirrel JSON-RPC API to WooCommerce.
- * Version: 3.8.1
+ * Version: 3.8.2
  * Author: Skwirrel B.V.
  * Author URI: https://skwirrel.eu
  * Requires at least: 6.0
@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SKWIRREL_WC_SYNC_VERSION', '3.8.1' );
+define( 'SKWIRREL_WC_SYNC_VERSION', '3.8.2' );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_FILE', __FILE__ );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SKWIRREL_WC_SYNC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -43,6 +43,7 @@ register_activation_hook(
 	__FILE__,
 	function (): void {
 		// Check WooCommerce dependency on activation.
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- 'active_plugins' is a WordPress core filter, not a plugin-defined hook.
 		if ( ! class_exists( 'WooCommerce' ) && ! in_array( 'woocommerce/woocommerce.php', (array) apply_filters( 'active_plugins', get_option( 'active_plugins', [] ) ), true ) ) {
 			deactivate_plugins( plugin_basename( __FILE__ ) );
 			wp_die(

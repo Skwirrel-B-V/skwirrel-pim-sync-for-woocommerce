@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.3
-Stable tag: 3.8.1
+Stable tag: 3.8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,13 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.8.2 =
+
+Release-hygiene fixes for WordPress.org Plugin Check:
+
+* Stop shipping dev-only files in the SVN trunk. The 10up deploy action skips `.distignore` whenever a `BUILD_DIR` is configured, so the previous releases inadvertently shipped empty `composer.json`, `phpstan.neon.dist`, `phpunit.xml.dist`, `phpunit-integration.xml.dist`, `.phpcs.xml.dist`, `.gitignore`, and `.distignore` placeholder files. Those placeholders have been removed from the plugin source so the deploy ZIP only contains runtime files.
+* Suppress Plugin Check false positives in plugin code: the `active_plugins` activation check is the WordPress core filter (not a plugin-defined hook), the `_skwirrel_category_id` term-meta lookup queries are documented as having no WP API equivalent, and the `'meta_key'` array key inside a logger context is correctly flagged as not a database query argument. No runtime behavior changes.
 
 = 3.8.1 =
 

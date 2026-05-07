@@ -65,7 +65,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 
 		// --- Step 1: Delete Skwirrel media attachment DB records ---
 		// Files on disk are left as orphans (harmless) — use a media cleanup tool to reclaim space.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk purge operation
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk purge operation, no WP API equivalent
 		$attachment_ids = array_map(
 			'intval',
 			$wpdb->get_col(
@@ -75,6 +75,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 				AND pm.meta_key = '_skwirrel_source_url'"
 			)
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
 		$attachments_deleted = count( $attachment_ids );
 		if ( $attachments_deleted > 0 ) {
@@ -84,7 +85,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		}
 
 		// --- Step 2: Find products and collect their category term IDs ---
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk purge operation
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk purge operation, no WP API equivalent
 		if ( $permanent ) {
 			$product_ids = $wpdb->get_col(
 				$wpdb->prepare(
@@ -115,6 +116,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 				)
 			);
 		}
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
 		$product_ids = array_map( 'intval', $product_ids );
 

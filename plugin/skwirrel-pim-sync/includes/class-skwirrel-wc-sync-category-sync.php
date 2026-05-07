@@ -334,8 +334,9 @@ class Skwirrel_WC_Sync_Category_Sync {
 		// 1. Match by Skwirrel category ID in term meta (reliable)
 		if ( null !== $skwirrel_id ) {
 			global $wpdb;
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- term meta lookup by value, no WP API equivalent
 			$existing_term_id = $wpdb->get_var(
-				$wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- term meta lookup by value not supported by WP API
+				$wpdb->prepare(
 					"SELECT tm.term_id FROM {$wpdb->termmeta} tm
                  INNER JOIN {$wpdb->term_taxonomy} tt ON tm.term_id = tt.term_id AND tt.taxonomy = %s
                  WHERE tm.meta_key = %s AND tm.meta_value = %s
@@ -345,6 +346,7 @@ class Skwirrel_WC_Sync_Category_Sync {
 					(string) $skwirrel_id
 				)
 			);
+			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 			if ( $existing_term_id ) {
 				$this->logger->verbose(
 					'Category found by meta',
@@ -361,6 +363,7 @@ class Skwirrel_WC_Sync_Category_Sync {
 				[
 					'skwirrel_id' => $skwirrel_id,
 					'name'        => $name,
+					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- array key for log context, not a query argument.
 					'meta_key'    => $meta_key,
 				]
 			);
@@ -449,8 +452,9 @@ class Skwirrel_WC_Sync_Category_Sync {
 	 */
 	private function find_term_by_skwirrel_id( int $skwirrel_id, string $taxonomy, string $meta_key ): int {
 		global $wpdb;
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- term meta lookup by value, no WP API equivalent
 		$term_id = $wpdb->get_var(
-			$wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- term meta lookup by value
+			$wpdb->prepare(
 				"SELECT tm.term_id FROM {$wpdb->termmeta} tm
 				 INNER JOIN {$wpdb->term_taxonomy} tt ON tm.term_id = tt.term_id AND tt.taxonomy = %s
 				 WHERE tm.meta_key = %s AND tm.meta_value = %s
@@ -460,6 +464,7 @@ class Skwirrel_WC_Sync_Category_Sync {
 				(string) $skwirrel_id
 			)
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		return $term_id ? (int) $term_id : 0;
 	}
 

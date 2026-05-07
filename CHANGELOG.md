@@ -2,6 +2,18 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.8.2]
+
+### Release hygiene — WordPress.org Plugin Check
+
+* **Stop shipping dev-only files in the SVN trunk.** The 10up `action-wordpress-plugin-deploy` script (`deploy.sh:175`) silently skips `--exclude-from=.distignore` when `BUILD_DIR` is set. We use `BUILD_DIR: ./plugin/skwirrel-pim-sync`, so every prior tag inadvertently shipped empty `composer.json`, `phpstan.neon.dist`, `phpunit.xml.dist`, `phpunit-integration.xml.dist`, `.phpcs.xml.dist`, `.gitignore`, and `.distignore` placeholder files into the WP.org SVN trunk. Removed those tracked 0-byte placeholders from `plugin/skwirrel-pim-sync/`; wp-env still mounts the real files from the repo root via `.wp-env.json` mappings. The deploy ZIP for 3.8.2 contains only runtime files.
+* **Suppress Plugin Check false positives in shipped code:**
+  * `skwirrel-pim-sync.php:46` — added `phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound` for the `active_plugins` filter call (WordPress core filter, not a plugin-defined hook).
+  * `class-skwirrel-wc-sync-category-sync.php` — replaced misplaced `phpcs:ignore` annotations with `phpcs:disable`/`phpcs:enable` blocks around the two `$wpdb->get_var()` term-meta-by-value lookups (no WP API equivalent for "find term by meta value").
+  * `class-skwirrel-wc-sync-category-sync.php` (line 364) — added `phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key` on the `'meta_key' => $meta_key` array entry inside a logger call (it's a log context key, not a query argument).
+  * `class-skwirrel-wc-sync-purge-handler.php` — replaced misplaced `phpcs:ignore` annotations with `phpcs:disable`/`phpcs:enable` blocks around the three bulk `$wpdb->get_col()` lookups for Skwirrel media + product purge.
+* **No runtime behavior changes.** Local `vendor/bin/phpcs`, `vendor/bin/phpstan`, and `vendor/bin/pest` all pass before and after.
+
 ## [3.8.1]
 
 * **Grouped-products multi-selection** — `Skwirrel_WC_Sync_Product_Upserter::sync_grouped_products_first()` now calls the per-selection prefilter (`fetch_product_ids_for_selection`) once per configured `collection_ids` entry, merging the resulting allowed-product maps. Mirrors the 3.8.0 main-fetch fix; without this, grouped products whose members lived only in selections 2..N were silently skipped. Locked down by a new red→green test in `SyncSafetyIntegrationTest`.

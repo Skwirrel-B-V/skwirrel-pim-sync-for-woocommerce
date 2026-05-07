@@ -431,7 +431,16 @@ class Skwirrel_WC_Sync_Service {
 						// from future delta syncs. The whole run must be recorded
 						// as failed.
 						$err = $result['error'] ?? [ 'message' => 'Pagination failed' ];
-						$this->logger->error( 'Pagination failed; aborting sync', array_merge( $err, [ 'selection_id' => $selection_id, 'page' => $page ] ) );
+						$this->logger->error(
+							'Pagination failed; aborting sync',
+							array_merge(
+								$err,
+								[
+									'selection_id' => $selection_id,
+									'page'         => $page,
+								]
+							)
+						);
 						$this->logger->stop_sync_log();
 						$queue->cleanup();
 						Skwirrel_WC_Sync_History::update_last_result(

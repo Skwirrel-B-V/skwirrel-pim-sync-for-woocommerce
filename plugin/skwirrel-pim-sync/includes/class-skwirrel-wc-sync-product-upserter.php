@@ -770,7 +770,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		if ( ! empty( $collection_ids ) ) {
 			$allowed_product_ids = [];
 			foreach ( $collection_ids as $selection_id ) {
-				$ids_for_selection = $this->fetch_product_ids_for_selection( $client, (int) $selection_id, $batch_size );
+				$ids_for_selection    = $this->fetch_product_ids_for_selection( $client, (int) $selection_id, $batch_size );
 				$allowed_product_ids += $ids_for_selection;
 				$this->logger->info(
 					'Fetched product IDs for selection filter',
