@@ -322,11 +322,13 @@ class Skwirrel_WC_Sync_Service {
 				__( 'Fetching products from API…', 'skwirrel-pim-sync' )
 			);
 
-			// Ensure sync queue table exists and is clean.
+			// Ensure sync queue table exists. Each run inserts only its own
+			// rows (tagged with sync_run_id) and removes them via
+			// $queue->cleanup() at end-of-run; no global truncate here, see
+			// Skwirrel_WC_Sync_Queue::truncate() for the rationale.
 			if ( ! Skwirrel_WC_Sync_Queue::table_exists() ) {
 				Skwirrel_WC_Sync_Queue::create_table();
 			}
-			Skwirrel_WC_Sync_Queue::truncate();
 			$sync_run_id = wp_generate_uuid4();
 			$queue       = new Skwirrel_WC_Sync_Queue( $sync_run_id );
 			$fetched     = 0;
