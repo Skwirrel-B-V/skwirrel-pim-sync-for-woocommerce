@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.3
-Stable tag: 3.9.0
+Stable tag: 3.9.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,11 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.9.1 =
+
+* New: "Reset Skwirrel sync settings" button in the Settings → Danger zone. Deletes the configuration option (`skwirrel_wc_sync_settings`), API token (`skwirrel_wc_sync_auth_token`), permalink rules, last-sync state, and force-full flag; cancels all scheduled sync jobs in the `skwirrel-pim-sync` Action Scheduler group; and flushes the object-cache entries for those keys. Products, media, categories, brands, and sync history are left untouched. Confirms via dialog before running.
+* Fix: persistent object caches (LiteSpeed, Redis, Memcached) could serve a stale `skwirrel_wc_sync_settings` for several requests after a settings save — the new URL was written to the DB but `get_option()` kept returning the old value, so the next sync still hit the wrong endpoint. The plugin now explicitly invalidates the option-group cache keys after every settings update via the standard `wp_cache_delete` API, which every well-behaved object-cache drop-in honors.
 
 = 3.9.0 =
 

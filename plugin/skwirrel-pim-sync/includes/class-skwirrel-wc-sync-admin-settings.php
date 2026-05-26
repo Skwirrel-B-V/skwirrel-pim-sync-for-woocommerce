@@ -43,6 +43,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		add_action( 'wp_ajax_nopriv_' . self::BG_SYNC_ACTION, [ $this, 'handle_background_sync' ] );
 		add_action( 'admin_post_skwirrel_wc_sync_purge', [ $this, 'handle_purge_now' ] );
 		add_action( 'admin_post_skwirrel_wc_sync_clear_history', [ $this, 'handle_clear_history' ] );
+		add_action( 'admin_post_skwirrel_wc_sync_reset_settings', [ $this, 'handle_reset_settings' ] );
 		add_action( 'wp_ajax_' . self::BG_PURGE_ACTION, [ $this, 'handle_background_purge' ] );
 		add_action( 'wp_ajax_nopriv_' . self::BG_PURGE_ACTION, [ $this, 'handle_background_purge' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_save_slug_resync', [ $this, 'handle_save_slug_resync' ] );
@@ -79,7 +80,26 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		if ( is_array( $value ) ) {
 			delete_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
 			Skwirrel_WC_Sync_Action_Scheduler::instance()->schedule();
+			$this->bust_settings_cache();
 		}
+	}
+
+	/**
+	 * Invalidate the WP object cache entry for our settings options.
+	 *
+	 * Sites running aggressive persistent object caches have been observed serving stale
+	 * `skwirrel_wc_sync_settings` after an update — admin updates the endpoint URL, the
+	 * next page load reads the old value, the next sync still hits the old URL. WordPress
+	 * core invalidates the `alloptions` group inside `update_option`, but not every cache
+	 * drop-in propagates that across workers reliably. Calling `wp_cache_delete` on the
+	 * specific keys plus `alloptions`/`notoptions` covers the gap via the standard cache
+	 * API contract — drop-in agnostic, no plugin-specific dependencies.
+	 */
+	private function bust_settings_cache(): void {
+		wp_cache_delete( self::OPTION_KEY, 'options' );
+		wp_cache_delete( self::TOKEN_OPTION_KEY, 'options' );
+		wp_cache_delete( 'alloptions', 'options' );
+		wp_cache_delete( 'notoptions', 'options' );
 	}
 
 	public function sanitize_settings( array $input ): array {
@@ -491,6 +511,64 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	}
 
 	/**
+	 * Reset Skwirrel sync settings to a blank state.
+	 *
+	 * Deletes the main settings option, the auth token, and the runtime/state options the
+	 * sync flow accumulates (last sync timestamp, force-full flag, slug-resync flag).
+	 * Cancels every queued Action Scheduler job in the `skwirrel-pim-sync` group and
+	 * invalidates any persistent object cache entry for the settings option so that
+	 * aggressive caches (LiteSpeed Object Cache, Redis with stale propagation) do not
+	 * serve the old value on the next request.
+	 *
+	 * Intentionally leaves products, attachments, categories, brands, and sync history alone:
+	 * this is the escape-hatch for when settings refuse to persist, not a product purge —
+	 * the existing "Delete all Skwirrel products" button covers that.
+	 */
+	public function handle_reset_settings(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( esc_html__( 'Access denied.', 'skwirrel-pim-sync' ) );
+		}
+		check_admin_referer( 'skwirrel_wc_sync_reset_settings', '_wpnonce' );
+
+		$option_keys = [
+			self::OPTION_KEY,
+			self::TOKEN_OPTION_KEY,
+			'skwirrel_wc_sync_last_sync',
+			'skwirrel_wc_sync_force_full_sync',
+			'skwirrel_wc_sync_slug_resync_needed',
+			'skwirrel_wc_sync_permalinks',
+		];
+		foreach ( $option_keys as $key ) {
+			delete_option( $key );
+		}
+
+		delete_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
+		delete_transient( self::BG_SYNC_TRANSIENT );
+		delete_transient( self::BG_PURGE_TRANSIENT );
+		delete_transient( self::TEST_RESULT_TRANSIENT );
+
+		if ( function_exists( 'as_unschedule_all_actions' ) ) {
+			as_unschedule_all_actions( '', [], 'skwirrel-pim-sync' );
+		}
+
+		$this->bust_settings_cache();
+
+		( new Skwirrel_WC_Sync_Logger() )->info( 'Settings reset by admin — all configuration options deleted, scheduled jobs cancelled, caches flushed.' );
+
+		wp_safe_redirect(
+			add_query_arg(
+				[
+					'page'  => self::PAGE_SLUG,
+					'tab'   => 'settings',
+					'reset' => 'done',
+				],
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
 	 * AJAX handler: save the "update slug on re-sync" toggle.
 	 */
 	public function handle_save_slug_resync(): void {
@@ -700,6 +778,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'purgeConfirmPermanent' => __( 'WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be undone!\n\nAre you sure?', 'skwirrel-pim-sync' ),
 				'purgeConfirmTrash'     => __( 'All Skwirrel products will be moved to the trash.\n\nAre you sure?', 'skwirrel-pim-sync' ),
 				'clearHistoryConfirm'   => __( 'Delete all sync history?', 'skwirrel-pim-sync' ),
+				'resetSettingsConfirm'  => __( 'Reset all Skwirrel sync settings? Endpoint URL, API token, sync schedule and slug rules will be deleted, and all scheduled syncs will be cancelled. Products, media, categories and sync history are kept.\n\nAre you sure?', 'skwirrel-pim-sync' ),
 				'ajaxUrl'               => admin_url( 'admin-ajax.php' ),
 				'slugResyncNonce'       => wp_create_nonce( 'skwirrel_slug_resync_nonce' ),
 				'viewLogNonce'          => wp_create_nonce( 'skwirrel_view_log_nonce' ),
@@ -718,6 +797,12 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '   var permanent = document.getElementById("skwirrel-purge-permanent").checked;'
 			. '   var msg = permanent ? skwirrelPimSync.purgeConfirmPermanent : skwirrelPimSync.purgeConfirmTrash;'
 			. '   if (!confirm(msg)) { e.preventDefault(); }'
+			. '  });'
+			. ' }'
+			. ' var resetForm = document.getElementById("skwirrel-reset-settings-form");'
+			. ' if (resetForm) {'
+			. '  resetForm.addEventListener("submit", function(e) {'
+			. '   if (!confirm(skwirrelPimSync.resetSettingsConfirm)) { e.preventDefault(); }'
 			. '  });'
 			. ' }'
 			. ' var langSelect = document.getElementById("image_language_select");'
@@ -1078,6 +1163,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
 		if ( isset( $_GET['history'] ) && 'cleared' === $_GET['history'] ) {
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Sync history deleted.', 'skwirrel-pim-sync' ) . '</p></div>';
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
+		if ( isset( $_GET['reset'] ) && 'done' === $_GET['reset'] ) {
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Skwirrel sync settings reset. All configuration options were deleted, scheduled jobs cancelled, and caches flushed. Products, media, categories and sync history are untouched. Re-enter your subdomain and API token below to continue.', 'skwirrel-pim-sync' ) . '</p></div>';
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
 		if ( isset( $_GET['purge'] ) && 'queued' === $_GET['purge'] ) {

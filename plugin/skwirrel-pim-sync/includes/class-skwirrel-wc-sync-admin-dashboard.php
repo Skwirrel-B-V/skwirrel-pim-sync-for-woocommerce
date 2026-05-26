@@ -846,6 +846,18 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<button type="submit" class="skw-btn skw-btn-danger"><?php esc_html_e( 'Delete all Skwirrel products', 'skwirrel-pim-sync' ); ?></button>
 				</div>
 			</form>
+
+			<hr style="margin: 24px 0; border: 0; border-top: 1px solid rgba(220, 50, 50, 0.2);" />
+
+			<h3 class="skw-block-title"><?php esc_html_e( 'Reset settings', 'skwirrel-pim-sync' ); ?></h3>
+			<p class="skw-section-desc"><?php esc_html_e( 'Delete all Skwirrel sync configuration (endpoint URL, API token, sync schedule, slug rules). Cancels all scheduled sync jobs and flushes the object cache. Products, media, categories and sync history are untouched — use this when your settings refuse to update because of an aggressive persistent cache.', 'skwirrel-pim-sync' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-reset-settings-form">
+				<input type="hidden" name="action" value="skwirrel_wc_sync_reset_settings" />
+				<?php wp_nonce_field( 'skwirrel_wc_sync_reset_settings', '_wpnonce' ); ?>
+				<div class="skw-field-actions" style="margin-top: 12px;">
+					<button type="submit" class="skw-btn skw-btn-danger" id="skwirrel-reset-settings-btn"><?php esc_html_e( 'Reset Skwirrel sync settings', 'skwirrel-pim-sync' ); ?></button>
+				</div>
+			</form>
 		</div>
 		<?php
 	}

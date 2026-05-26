@@ -2,6 +2,25 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.9.1]
+
+### Fix — settings refused to persist behind persistent object caches
+
+* **Symptom**: after 3.9.0 a user on LiteSpeed Object Cache reported that updating the endpoint URL on the Settings page "did not store the changes" — the new value was written to the DB by `update_option`, but the next page load and the next sync run both read the old value back. WordPress core invalidates the `alloptions` group inside `update_option`, but not every object-cache drop-in propagates that delete across PHP workers in time.
+* **Drop-in-agnostic fix (`includes/class-skwirrel-wc-sync-admin-settings.php`)**: new private helper `bust_settings_cache()` calls `wp_cache_delete` on `skwirrel_wc_sync_settings`, `skwirrel_wc_sync_auth_token`, `alloptions`, and `notoptions` in the `options` group. Invoked from `on_settings_updated()` and from the new Reset Settings handler. Uses only the standard cache API — no LiteSpeed-, Redis-, or Memcached-specific code paths — so every conforming drop-in honors it.
+
+### New — Reset Skwirrel sync settings (Settings → Danger zone)
+
+* **Why**: when a misbehaving object cache or other state-corruption bug leaves the plugin's settings stuck on a bad value that the Settings form cannot overwrite, the only previous escape-hatch was to drop into WP-CLI or phpMyAdmin and `delete_option('skwirrel_wc_sync_settings')` by hand.
+* **What it does (`includes/class-skwirrel-wc-sync-admin-settings.php::handle_reset_settings`)**:
+  * `delete_option` for `skwirrel_wc_sync_settings`, `skwirrel_wc_sync_auth_token`, `skwirrel_wc_sync_last_sync`, `skwirrel_wc_sync_force_full_sync`, `skwirrel_wc_sync_slug_resync_needed`, `skwirrel_wc_sync_permalinks`.
+  * Deletes the sync-in-progress, background-sync, background-purge, and test-result transients.
+  * Cancels every queued Action Scheduler job in the `skwirrel-pim-sync` group via `as_unschedule_all_actions`.
+  * Calls `bust_settings_cache()` so the next read goes to the (now empty) DB.
+  * Logs the action via `Skwirrel_WC_Sync_Logger::info()`.
+* **What it preserves**: products, media attachments, categories, brands, manufacturers, attribute taxonomies, sync history. This is the "I can't save my endpoint URL" escape-hatch, not a factory reset for product data — the existing "Delete all Skwirrel products" button still handles that.
+* **UI**: new form under the existing Danger zone on the Settings tab. Submits via `admin-post.php` with a `skwirrel_wc_sync_reset_settings` nonce and a JS confirmation dialog. After the redirect, an admin notice confirms the reset and directs the user to re-enter the subdomain and token.
+
 ## [3.9.0]
 
 ### Fix — settings: doubled `.skwirrel.eu` endpoint URL persisted across saves
