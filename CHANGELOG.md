@@ -2,6 +2,19 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.9.0]
+
+### Fix — settings: doubled `.skwirrel.eu` endpoint URL persisted across saves
+
+* **Symptom**: with `lixero-tmp.z06.skwirrel.eu` pasted into the "Skwirrel subdomain" field on Settings, the inline JS appended `.skwirrel.eu/jsonrpc` unconditionally, producing `https://lixero-tmp.z06.skwirrel.eu.skwirrel.eu/jsonrpc`. Sync runs then failed with `cURL error 7: Failed to connect to lixero-tmp.z06.skwirrel.eu.skwirrel.eu`.
+* **Why the bad URL "stuck"**: the stored value was round-tripped through the field on every page load — the greedy `^https?://(.+)\.skwirrel\.eu(?:/jsonrpc)?$` regex on the dashboard re-extracted `lixero-tmp.z06.skwirrel.eu` as the "subdomain", refilled the visible input with the doubled value, and unless the user manually wiped the field, re-saving wrote the same bad URL back. Not a caching layer — a self-reinforcing UI loop.
+* **Fix in three places (`includes/class-skwirrel-wc-sync-admin-settings.php`, `includes/class-skwirrel-wc-sync-admin-dashboard.php`)**:
+  1. New static helper `Skwirrel_WC_Sync_Admin_Settings::normalize_endpoint_url()` parses the URL, lowercases the host, collapses any number of duplicated trailing `.skwirrel.eu` segments, restores `https://` if missing, and appends `/jsonrpc` when only a Skwirrel host is provided.
+  2. `sanitize_settings()` runs the new helper before `esc_url_raw()`, so any doubled value is healed on save.
+  3. The dashboard settings tab now calls the helper when reading `endpoint_url` for display — already-stored doubled URLs surface in the subdomain field as the correctly-stripped value.
+  4. The inline JS attached to the subdomain field now defensively strips `https://`, trailing path segments, and trailing `.skwirrel.eu` on every `input`, `blur`, and `paste` event before constructing the hidden `endpoint_url`. Pasting a full hostname yields the correct subdomain.
+* **No behavior change for sites with a clean URL.** New unit tests in `tests/Unit/AdminSettingsEndpointUrlTest.php` cover the doubled-suffix collapse, triple-suffix collapse, scheme-less input, host-only input, mixed case, and non-Skwirrel hosts.
+
 ## [3.8.2]
 
 ### Release hygiene — WordPress.org Plugin Check

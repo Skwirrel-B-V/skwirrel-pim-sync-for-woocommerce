@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.3
-Stable tag: 3.8.2
+Stable tag: 3.9.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,10 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.9.0 =
+
+* Fix: pasting the full Skwirrel hostname (e.g. `lixero-tmp.z06.skwirrel.eu`) into the subdomain field on Settings no longer produces a `…skwirrel.eu.skwirrel.eu/jsonrpc` endpoint. The inline JS now strips any leading `https://`, trailing path, and trailing `.skwirrel.eu` from the input on type/blur/paste; the PHP `sanitize_settings` collapses duplicated suffixes server-side; and the dashboard display normalizes the stored value before extracting the subdomain. Existing sites with a doubled URL stored in `skwirrel_wc_sync_settings.endpoint_url` self-heal on the next settings save (or on reload of the settings tab, where the visible subdomain field now shows the corrected value).
 
 = 3.8.2 =
 

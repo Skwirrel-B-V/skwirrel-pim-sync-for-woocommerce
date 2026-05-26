@@ -510,7 +510,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<div class="skw-fieldgroup">
 					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'API Connection', 'skwirrel-pim-sync' ); ?></h3>
 					<?php
-					$full_url  = rtrim( $opts['endpoint_url'] ?? '', '/' );
+					$full_url  = Skwirrel_WC_Sync_Admin_Settings::normalize_endpoint_url( (string) ( $opts['endpoint_url'] ?? '' ) );
 					$subdomain = '';
 					if ( preg_match( '#^https?://(.+)\.skwirrel\.eu(?:/jsonrpc)?$#i', $full_url, $m ) ) {
 						$subdomain = $m[1];

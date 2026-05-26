@@ -84,7 +84,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 	public function sanitize_settings( array $input ): array {
 		$out                 = [];
-		$out['endpoint_url'] = isset( $input['endpoint_url'] ) ? esc_url_raw( trim( $input['endpoint_url'] ) ) : '';
+		$out['endpoint_url'] = isset( $input['endpoint_url'] ) ? esc_url_raw( self::normalize_endpoint_url( (string) $input['endpoint_url'] ) ) : '';
 		$out['auth_type']    = in_array( $input['auth_type'] ?? '', [ 'bearer', 'token' ], true ) ? $input['auth_type'] : 'bearer';
 		$token               = $this->sanitize_token( $input['auth_token'] ?? '' );
 		if ( ! empty( $token ) ) {
@@ -215,6 +215,50 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 	public static function get_auth_token(): string {
 		return (string) get_option( self::TOKEN_OPTION_KEY, '' );
+	}
+
+	/**
+	 * Normalize a Skwirrel JSON-RPC endpoint URL.
+	 *
+	 * Heals values produced when a user pastes a full hostname (e.g. "lixero-tmp.z06.skwirrel.eu")
+	 * into the subdomain field — the inline JS would otherwise append a second ".skwirrel.eu/jsonrpc",
+	 * yielding "https://lixero-tmp.z06.skwirrel.eu.skwirrel.eu/jsonrpc". Once stored, the doubled value
+	 * round-trips through the field on every page load, so the bad URL persists across saves until the
+	 * user manually clears it. Collapsing any duplicated trailing ".skwirrel.eu" segments here breaks
+	 * that loop both on save and on display.
+	 */
+	public static function normalize_endpoint_url( string $url ): string {
+		$url = trim( $url );
+		if ( '' === $url ) {
+			return '';
+		}
+		// Peel repeated leading "https://" / "http://" — the pre-3.9.0 JS could
+		// produce "https://https://…" when a full URL was pasted into the subdomain field.
+		while ( (bool) preg_match( '#^https?://https?://#i', $url ) ) {
+			$url = (string) preg_replace( '#^https?://#i', '', $url );
+		}
+		if ( ! preg_match( '#^https?://#i', $url ) ) {
+			$url = 'https://' . ltrim( $url, '/' );
+		}
+		$parts = wp_parse_url( $url );
+		if ( ! is_array( $parts ) || empty( $parts['host'] ) ) {
+			return $url;
+		}
+		$host = strtolower( (string) $parts['host'] );
+		while ( (bool) preg_match( '/\.skwirrel\.eu\.skwirrel\.eu$/i', $host ) ) {
+			$host = (string) preg_replace( '/\.skwirrel\.eu$/i', '', $host );
+		}
+		$scheme = $parts['scheme'] ?? 'https';
+		$path   = (string) ( $parts['path'] ?? '' );
+		// For Skwirrel hosts the only valid path is /jsonrpc — discard any garbage the user
+		// may have pasted (e.g. "/jsonrpc.skwirrel.eu/jsonrpc" from a double-paste mishap).
+		if ( (bool) preg_match( '/\.skwirrel\.eu$/i', $host ) ) {
+			$path = '/jsonrpc';
+		} else {
+			$path = rtrim( $path, '/' );
+		}
+		$query = isset( $parts['query'] ) ? '?' . $parts['query'] : '';
+		return $scheme . '://' . $host . $path . $query;
 	}
 
 	public function handle_test_connection(): void {
@@ -686,20 +730,40 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. ' }'
 			. ' var subInput = document.getElementById("skwirrel_subdomain");'
 			. ' var urlField = document.getElementById("endpoint_url");'
+			. ' function skwNormalizeSubdomain(raw) {'
+			. '  var s = (raw || "").trim().toLowerCase();'
+			. '  s = s.replace(/^https?:\\/\\//, "");'
+			. '  s = s.replace(/\\/.*$/, "");'
+			. '  while (/\\.skwirrel\\.eu$/.test(s)) { s = s.replace(/\\.skwirrel\\.eu$/, ""); }'
+			. '  return s.replace(/^\\.+|\\.+$/g, "");'
+			. ' }'
+			. ' function skwApplySubdomain(v) {'
+			. '  var clean = skwNormalizeSubdomain(v);'
+			. '  if (urlField) urlField.value = clean ? "https://" + clean + ".skwirrel.eu/jsonrpc" : "";'
+			. '  var label = clean || "<your-subdomain>";'
+			. '  var tokenDomain = document.getElementById("skwirrel-token-domain");'
+			. '  var tokenLink = document.getElementById("skwirrel-token-link");'
+			. '  if (tokenDomain) tokenDomain.textContent = label;'
+			. '  if (tokenLink && clean) tokenLink.href = "https://" + clean + ".skwirrel.eu/data/webservice";'
+			. '  var catLink = document.getElementById("skwirrel-categories-link");'
+			. '  document.querySelectorAll(".skwirrel-link-domain").forEach(function(el) { el.textContent = label; });'
+			. '  if (catLink && clean) catLink.href = "https://" + clean + ".skwirrel.eu/base/categories";'
+			. '  var selLink = document.getElementById("skwirrel-selections-link");'
+			. '  if (selLink && clean) selLink.href = "https://" + clean + ".skwirrel.eu/data/selections";'
+			. ' }'
 			. ' if (subInput && urlField) {'
-			. '  subInput.addEventListener("input", function() {'
-			. '   var v = this.value;'
-			. '   urlField.value = v ? "https://" + v + ".skwirrel.eu/jsonrpc" : "";'
-			. '   var tokenDomain = document.getElementById("skwirrel-token-domain");'
-			. '   var tokenLink = document.getElementById("skwirrel-token-link");'
-			. '   if (tokenDomain) tokenDomain.textContent = v || "<your-subdomain>";'
-			. '   if (tokenLink && v) tokenLink.href = "https://" + v + ".skwirrel.eu/data/webservice";'
-			. '   var catLink = document.getElementById("skwirrel-categories-link");'
-			. '   var catDomains = document.querySelectorAll(".skwirrel-link-domain");'
-			. '   catDomains.forEach(function(el) { el.textContent = v || "<your-subdomain>"; });'
-			. '   if (catLink && v) catLink.href = "https://" + v + ".skwirrel.eu/base/categories";'
-			. '   var selLink = document.getElementById("skwirrel-selections-link");'
-			. '   if (selLink && v) selLink.href = "https://" + v + ".skwirrel.eu/data/selections";'
+			. '  subInput.addEventListener("input", function() { skwApplySubdomain(this.value); });'
+			. '  subInput.addEventListener("blur", function() {'
+			. '   var clean = skwNormalizeSubdomain(this.value);'
+			. '   if (clean !== this.value) { this.value = clean; }'
+			. '   skwApplySubdomain(clean);'
+			. '  });'
+			. '  subInput.addEventListener("paste", function(e) {'
+			. '   var pasted = (e.clipboardData || window.clipboardData).getData("text");'
+			. '   var clean = skwNormalizeSubdomain(pasted);'
+			. '   e.preventDefault();'
+			. '   this.value = clean;'
+			. '   skwApplySubdomain(clean);'
 			. '  });'
 			. ' }'
 			. ' var historyBtn = document.getElementById("skwirrel-clear-history-btn");'
