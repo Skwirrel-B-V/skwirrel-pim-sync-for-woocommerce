@@ -526,19 +526,40 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<input type="hidden" id="endpoint_url" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[endpoint_url]" value="<?php echo esc_attr( $full_url ); ?>" />
 					</div>
 					<input type="hidden" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[auth_type]" value="token" />
-					<div class="skw-field">
-						<label for="auth_token" class="skw-label"><?php esc_html_e( 'API Token', 'skwirrel-pim-sync' ); ?></label>
-						<input type="password" id="auth_token" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[auth_token]" value="<?php echo esc_attr( $token_masked ); ?>" class="skw-input" autocomplete="off" />
-						<p class="skw-field-hint">
-							<?php
-							printf(
-								/* translators: %s = URL to Skwirrel webservice page */
-								esc_html__( 'Create a static API token at %s.', 'skwirrel-pim-sync' ),
-								'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/data/webservice" target="_blank" id="skwirrel-token-link">https://<span id="skwirrel-token-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/data/webservice</a>'
-							);
-							?>
-						</p>
-					</div>
+					<?php if ( class_exists( 'Skwirrel_WC_Sync_Connectors' ) && Skwirrel_WC_Sync_Connectors::is_registered() ) : ?>
+						<div class="skw-field">
+							<label class="skw-label"><?php esc_html_e( 'API Token', 'skwirrel-pim-sync' ); ?></label>
+							<p class="skw-field-hint">
+								<?php
+								$has_token      = '' !== Skwirrel_WC_Sync_Admin_Settings::get_auth_token();
+								$connectors_url = admin_url( 'options-general.php?page=connectors' );
+								$status_label   = $has_token
+									? esc_html__( 'Token configured.', 'skwirrel-pim-sync' )
+									: esc_html__( 'No token configured.', 'skwirrel-pim-sync' );
+								printf(
+									/* translators: 1: status label, 2: link to the WordPress Connections Screen */
+									esc_html__( '%1$s Manage your Skwirrel API token in %2$s.', 'skwirrel-pim-sync' ),
+									'<strong>' . esc_html( $status_label ) . '</strong>',
+									'<a href="' . esc_url( $connectors_url ) . '">' . esc_html__( 'Settings → Connectors', 'skwirrel-pim-sync' ) . '</a>'
+								);
+								?>
+							</p>
+						</div>
+					<?php else : ?>
+						<div class="skw-field">
+							<label for="auth_token" class="skw-label"><?php esc_html_e( 'API Token', 'skwirrel-pim-sync' ); ?></label>
+							<input type="password" id="auth_token" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[auth_token]" value="<?php echo esc_attr( $token_masked ); ?>" class="skw-input" autocomplete="off" />
+							<p class="skw-field-hint">
+								<?php
+								printf(
+									/* translators: %s = URL to Skwirrel webservice page */
+									esc_html__( 'Create a static API token at %s.', 'skwirrel-pim-sync' ),
+									'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/data/webservice" target="_blank" id="skwirrel-token-link">https://<span id="skwirrel-token-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/data/webservice</a>'
+								);
+								?>
+							</p>
+						</div>
+					<?php endif; ?>
 					<div class="skw-field-row">
 						<div class="skw-field">
 							<label for="timeout" class="skw-label"><?php esc_html_e( 'Timeout (seconds)', 'skwirrel-pim-sync' ); ?></label>

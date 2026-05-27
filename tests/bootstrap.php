@@ -239,6 +239,40 @@ if (!function_exists('delete_option')) {
     }
 }
 
+// Stub transient functions — backed by $GLOBALS['_test_transients'][$key] = [$value, $expires_at].
+// Tests can fast-forward time by mutating the stored expires_at.
+if (!function_exists('set_transient')) {
+    function set_transient(string $transient, $value, int $expiration = 0): bool {
+        $GLOBALS['_test_transients'][$transient] = [
+            'value'   => $value,
+            'expires' => $expiration > 0 ? time() + $expiration : 0,
+        ];
+        return true;
+    }
+}
+
+if (!function_exists('get_transient')) {
+    function get_transient(string $transient) {
+        if (!isset($GLOBALS['_test_transients'][$transient])) {
+            return false;
+        }
+        $entry = $GLOBALS['_test_transients'][$transient];
+        if ($entry['expires'] > 0 && $entry['expires'] < time()) {
+            unset($GLOBALS['_test_transients'][$transient]);
+            return false;
+        }
+        return $entry['value'];
+    }
+}
+
+if (!function_exists('delete_transient')) {
+    function delete_transient(string $transient): bool {
+        $existed = isset($GLOBALS['_test_transients'][$transient]);
+        unset($GLOBALS['_test_transients'][$transient]);
+        return $existed;
+    }
+}
+
 if (!function_exists('wp_upload_dir')) {
     function wp_upload_dir(): array {
         $base = $GLOBALS['_test_upload_basedir'] ?? sys_get_temp_dir();

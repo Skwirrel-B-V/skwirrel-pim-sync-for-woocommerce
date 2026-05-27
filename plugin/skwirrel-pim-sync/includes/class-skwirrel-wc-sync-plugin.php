@@ -59,6 +59,7 @@ final class Skwirrel_WC_Sync_Plugin {
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-queue.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-service.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-action-scheduler.php';
+		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-connectors.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-admin-settings.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-admin-dashboard.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-product-documents.php';
@@ -97,6 +98,7 @@ final class Skwirrel_WC_Sync_Plugin {
 		add_action( 'restrict_manage_posts', [ $this, 'add_identifier_search_input' ], 25 );
 		add_action( 'parse_query', [ $this, 'filter_products_by_identifier' ] );
 
+		Skwirrel_WC_Sync_Connectors::instance();
 		Skwirrel_WC_Sync_Admin_Settings::instance();
 		Skwirrel_WC_Sync_Permalink_Settings::instance();
 		Skwirrel_WC_Sync_Action_Scheduler::instance();

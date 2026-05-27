@@ -98,6 +98,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	private function bust_settings_cache(): void {
 		wp_cache_delete( self::OPTION_KEY, 'options' );
 		wp_cache_delete( self::TOKEN_OPTION_KEY, 'options' );
+		if ( class_exists( 'Skwirrel_WC_Sync_Connectors' ) ) {
+			wp_cache_delete( Skwirrel_WC_Sync_Connectors::CREDENTIAL_OPTION, 'options' );
+		}
 		wp_cache_delete( 'alloptions', 'options' );
 		wp_cache_delete( 'notoptions', 'options' );
 	}
@@ -234,6 +237,15 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	}
 
 	public static function get_auth_token(): string {
+		// Prefer the WP 7.0+ Connectors API store. Falls back to the legacy
+		// `skwirrel_wc_sync_auth_token` option for sub-7.0 sites and for the
+		// 3.10.0 migration window before maybe_migrate_token() has run.
+		if ( class_exists( 'Skwirrel_WC_Sync_Connectors' ) ) {
+			$token = Skwirrel_WC_Sync_Connectors::get_token();
+			if ( '' !== $token ) {
+				return $token;
+			}
+		}
 		return (string) get_option( self::TOKEN_OPTION_KEY, '' );
 	}
 
@@ -383,6 +395,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$service->run_sync( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
 
 		delete_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
+		Skwirrel_WC_Sync_History::release_sync_mutex();
 
 		wp_die( '', 200 );
 	}
@@ -538,11 +551,15 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			'skwirrel_wc_sync_slug_resync_needed',
 			'skwirrel_wc_sync_permalinks',
 		];
+		if ( class_exists( 'Skwirrel_WC_Sync_Connectors' ) ) {
+			$option_keys[] = Skwirrel_WC_Sync_Connectors::CREDENTIAL_OPTION;
+		}
 		foreach ( $option_keys as $key ) {
 			delete_option( $key );
 		}
 
 		delete_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
+		Skwirrel_WC_Sync_History::release_sync_mutex();
 		delete_transient( self::BG_SYNC_TRANSIENT );
 		delete_transient( self::BG_PURGE_TRANSIENT );
 		delete_transient( self::TEST_RESULT_TRANSIENT );

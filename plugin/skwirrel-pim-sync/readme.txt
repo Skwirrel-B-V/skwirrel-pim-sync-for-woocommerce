@@ -2,9 +2,9 @@
 Contributors: jkoomen
 Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
-Tested up to: 6.9
+Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 3.9.1
+Stable tag: 3.10.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -32,6 +32,7 @@ Skwirrel PIM sync for WooCommerce connects your WooCommerce webshop to the Skwir
 * Stale product and category purge after full sync
 * Delete protection with warnings and automatic full re-sync
 * Multilingual support with 7 locales (nl_NL, nl_BE, de_DE, fr_FR, fr_BE, en_US, en_GB)
+* Optional integration with the WordPress 7.0 Connections Screen for centralised API key management
 
 **Requirements:**
 
@@ -76,6 +77,13 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.10.0 =
+
+* Fix: manual "Sync now" rejected since 3.8.0. `handle_sync_now()` pre-set the `SYNC_IN_PROGRESS` transient as the dashboard's "sync running" badge, and the 3.8.0 concurrency mutex read the same transient as "another run already in progress" — so every manual click was refused with "Another sync is already running". Scheduled syncs ran fine, which is why the regression went unnoticed. Fix uses two-key separation: `SYNC_IN_PROGRESS` stays the UI badge, a new `SYNC_MUTEX` transient owned exclusively by `run_sync()` becomes the concurrency guard. The mutex also now honors its own staleness check (timestamp comparison vs. `HEARTBEAT_TTL`), so a previous run that died without cleanup is genuinely taken over by the next click instead of locking the install out for 60 seconds.
+* New: WordPress 7.0 Connectors API integration. The Skwirrel API token can now be managed from the central **Settings → Connectors** screen alongside other plugins' credentials. The plugin registers a `skwirrel_pim` connector on `wp_connectors_init` (guarded by `function_exists( 'wp_get_connector' )` so sub-7.0 sites are unaffected). On the first admin pageload after upgrade, the legacy `skwirrel_wc_sync_auth_token` value is copied into the Connectors store automatically — the plugin's settings page hides the inline token field and links to the Connections Screen instead. The legacy option is kept as a hidden fallback for one minor cycle and removed in 3.11.0. Pre-7.0 sites continue to use the existing inline token field exactly as before.
+* Compatibility: tested against WordPress 7.0 (Modern admin theme verified for the settings, dashboard, permalinks, product meta box, and documents tab — admin CSS is well-scoped and stays legible under the new palette).
+* CI: WordPress.org Plugin Check now runs on every push as a non-blocking job. WP.org will start scanning submissions and emailing on failure, so surfacing the same checks in CI gives release-time confidence. The job will flip to blocking once the first report is clean.
 
 = 3.9.1 =
 

@@ -2,6 +2,34 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.10.0]
+
+### Fix — manual "Sync now" rejected by mutex collision (regression since 3.8.0)
+
+* **Symptom**: every manual "Sync now" click was refused with "Another sync is already running; refusing to start a second concurrent run." Scheduled syncs worked, which is why the bug shipped undetected for five releases.
+* **Root cause**: `Skwirrel_WC_Sync_Admin_Settings::handle_sync_now()` pre-sets the `SYNC_IN_PROGRESS` transient before dispatching the loopback AJAX, so the dashboard renders the "sync running" badge immediately on click. The 3.8.0 concurrency mutex inside `Skwirrel_WC_Sync_Service::run_sync()` reads the same transient as "a previous run is already in progress" and bails out. `Action_Scheduler::run_scheduled_sync()` does not pre-set the transient and was the only path that survived.
+* **Fix — two-key separation (`includes/class-skwirrel-wc-sync-history.php`, `includes/class-skwirrel-wc-sync-service.php`, `includes/class-skwirrel-wc-sync-admin-settings.php`)**: new `SYNC_MUTEX` constant + transient owned exclusively by `run_sync()`. `SYNC_IN_PROGRESS` is now purely the UI badge; the mutex check no longer reads it. New helpers `Skwirrel_WC_Sync_History::acquire_sync_mutex()` and `::release_sync_mutex()` encapsulate the timestamp-based staleness check the original code's comment promised but never implemented — a stale mutex (older than `HEARTBEAT_TTL` = 60s) is now genuinely treated as a dead prior run, so a hard crash during sync no longer locks the install out for 60 seconds. `sync_heartbeat()` refreshes both transients; `update_last_result()` and the `finally` block in `run_sync()` release the mutex on every exit path including the four config-error early returns that bypassed `update_last_result()`. The `handle_sync_now()` pre-set is intentionally retained so the dashboard badge appears the instant the user clicks.
+* **Tests**: new `tests/Unit/SyncMutexTest.php` (7 cases) covers fresh-mutex refusal, stale-mutex takeover, ignoring the UI badge, `sync_heartbeat` dual-refresh, `release_sync_mutex` clearing only the mutex, and `update_last_result` clearing both. Required transient stubs were added to `tests/bootstrap.php`.
+
+### New — WordPress 7.0 Connectors API integration
+
+* **Why**: WP 7.0 (released 2026-05-20) introduces a **Settings → Connectors** screen that lets users manage API credentials for participating plugins from one centralised place. Surfacing the Skwirrel API token there cleans up our settings page, gives admins one stop for credential rotation, and lines up with the platform direction.
+* **What (`includes/class-skwirrel-wc-sync-connectors.php`)**: new singleton `Skwirrel_WC_Sync_Connectors`. Registers a `skwirrel_pim` connector on the `wp_connectors_init` hook with `api_key` authentication and `connectors_skwirrel_pim_api_key` as the credential storage key. Every entrypoint is guarded by `function_exists( 'wp_get_connector' )` so sub-7.0 sites are completely unaffected.
+* **Migration**: on the first admin pageload after upgrading to 3.10.0, the legacy `skwirrel_wc_sync_auth_token` value is copied into the Connectors store via `update_option()`. Idempotent — gated by the new `skwirrel_wc_sync_db_version` option. Does not overwrite an existing Connectors credential. The legacy option is **kept** as a hidden fallback for one minor cycle and will be removed in 3.11.0.
+* **Read path**: `Skwirrel_WC_Sync_Admin_Settings::get_auth_token()` now prefers the Connectors store and falls back to the legacy option. The two existing call sites (`class-skwirrel-wc-sync-admin-dashboard.php:498` masking, `class-skwirrel-wc-sync-service.php:1384` HTTP auth) are unaffected — same getter, same return type.
+* **UI fork (`class-skwirrel-wc-sync-admin-dashboard.php`)**: on WP 7.0+ with the connector registered, the settings page hides the inline API Token password input and renders a status line + link to **Settings → Connectors**. On WP < 7.0 the existing password field, mask, and sanitiser behave exactly as before.
+* **Reset Settings (`class-skwirrel-wc-sync-admin-settings.php::handle_reset_settings`)**: the 3.9.1 escape-hatch now also deletes `connectors_skwirrel_pim_api_key` (when the API is available) and invalidates that cache key alongside the existing options.
+* **Tests**: new `tests/Unit/ConnectorsApiTest.php` (10 cases) covers registry-detection, registration arg shape, get-token fallback, and the migration's overwrite-protection / idempotency / no-op-without-legacy guarantees.
+
+### Compatibility — WordPress 7.0
+
+* `readme.txt` `Tested up to` bumped from `6.9` to `7.0`. `Requires at least` stays at `6.0`. PHP requirement unchanged (`8.3`).
+* Admin CSS (`assets/admin.css`, `assets/dashboard.css`) audited against the new Modern admin theme: all custom rules are namespaced under `.skw-*` / `.skwirrel-*` and don't override core `.wrap` / `.button` / `.notice` chrome. Danger-zone red and warning yellow remain legible.
+
+### CI — WordPress.org Plugin Check
+
+* `.github/workflows/ci.yml` now runs `wordpress/plugin-check-action@v1` against `plugin/skwirrel-pim-sync/` on every push. Marked `continue-on-error: true` for the first release; flipped to blocking once the report is clean. WP.org will soon start scanning submissions and emailing maintainers on failure, so having the same checks visible in CI avoids release-time surprises.
+
 ## [3.9.1]
 
 ### Fix — settings refused to persist behind persistent object caches

@@ -483,7 +483,7 @@ parameters:
 		-
 			message: '#^Constant SKWIRREL_WC_SYNC_PLUGIN_DIR not found\.$#'
 			identifier: constant.notFound
-			count: 29
+			count: 30
 			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-plugin.php
 
 		-

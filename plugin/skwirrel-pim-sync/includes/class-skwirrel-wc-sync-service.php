@@ -58,16 +58,19 @@ class Skwirrel_WC_Sync_Service {
 	 */
 	public function run_sync( bool $delta = false, string $trigger = Skwirrel_WC_Sync_History::TRIGGER_MANUAL ): array {
 		// Mutex: refuse to start a second run while another one's heartbeat
-		// is still fresh. The heartbeat is refreshed at every phase update
-		// (HEARTBEAT_TTL = 60s); a stale value implies the prior run died
-		// without cleanup, so we let the new run take over. Without this
-		// check two concurrent runs race the shared queue table, the
-		// per-product `_skwirrel_synced_at` meta and ultimately the purge
+		// is still fresh. The mutex is refreshed at every phase update
+		// (HEARTBEAT_TTL = 60s); a stale timestamp implies the prior run died
+		// without cleanup, so acquire_sync_mutex() lets the new run take over.
+		// Without this check two concurrent runs race the shared queue table,
+		// the per-product `_skwirrel_synced_at` meta and ultimately the purge
 		// step — at worst trashing every Skwirrel-managed product because
-		// Run B truncated Run A's queue before any synced_at could be
-		// written.
-		$existing_heartbeat = get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
-		if ( ! empty( $existing_heartbeat ) ) {
+		// Run B truncated Run A's queue before any synced_at could be written.
+		//
+		// Owned exclusively by SYNC_MUTEX. SYNC_IN_PROGRESS is the UI badge
+		// (pre-set by handle_sync_now() so the dashboard shows "Sync running"
+		// from the moment the user clicks). The two were the same key until
+		// 3.10.0; the collision broke every manual "Sync now" since 3.8.0.
+		if ( ! Skwirrel_WC_Sync_History::acquire_sync_mutex() ) {
 			return [
 				'success' => false,
 				'error'   => __( 'Another sync is already running; refusing to start a second concurrent run.', 'skwirrel-pim-sync' ),
@@ -875,6 +878,9 @@ class Skwirrel_WC_Sync_Service {
 		} finally {
 			$shutdown_registered = false; // Disable shutdown handler — sync completed.
 			$this->logger->stop_sync_log();
+			// Belt-and-braces release — covers the config-error early returns
+			// that bypass update_last_result(). delete_transient is idempotent.
+			Skwirrel_WC_Sync_History::release_sync_mutex();
 		}
 	}
 

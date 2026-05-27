@@ -26,13 +26,23 @@ class Skwirrel_WC_Sync_History {
 	/** @var int Maximum number of history entries to keep. */
 	public const MAX_HISTORY_ENTRIES = 20;
 
-	/** @var string Transient key indicating a sync is currently in progress. */
+	/** @var string Transient key indicating a sync is currently in progress (UI badge). */
 	public const SYNC_IN_PROGRESS = 'skwirrel_wc_sync_in_progress';
+
+	/**
+	 * Mutex transient owned exclusively by run_sync().
+	 *
+	 * Kept separate from SYNC_IN_PROGRESS so the admin dispatch path (handle_sync_now)
+	 * can pre-set the UI badge without colliding with the concurrency guard.
+	 *
+	 * @var string
+	 */
+	public const SYNC_MUTEX = 'skwirrel_wc_sync_mutex';
 
 	/** @var string Transient key used to signal the running sync to abort. */
 	public const SYNC_ABORT = 'skwirrel_wc_sync_abort';
 
-	/** @var int Time-to-live in seconds for the sync-in-progress transient. */
+	/** @var int Time-to-live in seconds for the sync-in-progress / mutex transients. */
 	public const HEARTBEAT_TTL = 60;
 
 	/** @var string Option key for the sync phase progress array. */
@@ -87,7 +97,35 @@ class Skwirrel_WC_Sync_History {
 	 * @return void
 	 */
 	public static function sync_heartbeat(): void {
-		set_transient( self::SYNC_IN_PROGRESS, (string) time(), self::HEARTBEAT_TTL );
+		$now = (string) time();
+		set_transient( self::SYNC_IN_PROGRESS, $now, self::HEARTBEAT_TTL );
+		set_transient( self::SYNC_MUTEX, $now, self::HEARTBEAT_TTL );
+	}
+
+	/**
+	 * Acquire the run_sync() mutex if no fresh run is already in progress.
+	 *
+	 * A stored timestamp older than HEARTBEAT_TTL is treated as a dead prior run
+	 * (the heartbeat refresh has lapsed) and is overwritten so the new run can take over.
+	 *
+	 * @return bool True if the mutex was acquired, false if another fresh run holds it.
+	 */
+	public static function acquire_sync_mutex(): bool {
+		$mutex = get_transient( self::SYNC_MUTEX );
+		if ( is_numeric( $mutex ) && ( time() - (int) $mutex ) < self::HEARTBEAT_TTL ) {
+			return false;
+		}
+		set_transient( self::SYNC_MUTEX, (string) time(), self::HEARTBEAT_TTL );
+		return true;
+	}
+
+	/**
+	 * Release the run_sync() mutex.
+	 *
+	 * Called at the end of run_sync() (success or failure) so the next click can proceed.
+	 */
+	public static function release_sync_mutex(): void {
+		delete_transient( self::SYNC_MUTEX );
 	}
 
 	/**
@@ -172,6 +210,7 @@ class Skwirrel_WC_Sync_History {
 
 		update_option( self::OPTION_LAST_SYNC_RESULT, $result, false );
 		delete_transient( self::SYNC_IN_PROGRESS );
+		self::release_sync_mutex();
 		self::clear_sync_progress();
 
 		// Clear slug resync flag after successful sync.

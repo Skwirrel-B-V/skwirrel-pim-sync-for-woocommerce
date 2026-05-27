@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Skwirrel PIM sync for WooCommerce 1.7.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-13 16:09+0200\n"
+"POT-Creation-Date: 2026-05-27 20:28+0200\n"
 "PO-Revision-Date: 2026-02-26 12:00+0000\n"
 "Last-Translator: Skwirrel Sync <info@skwirrel.eu>\n"
 "Language-Team: Nederlands (Nederland)\n"
@@ -1168,7 +1168,8 @@ msgstr "Ongeldig product-ID."
 #: includes/class-product-sync-meta-box.php:577
 #, php-format
 msgid "Grouped product synced successfully (%1$d created, %2$d updated)."
-msgstr "Gegroepeerd product gesynchroniseerd (%1$d aangemaakt, %2$d bijgewerkt)."
+msgstr ""
+"Gegroepeerd product gesynchroniseerd (%1$d aangemaakt, %2$d bijgewerkt)."
 
 #: includes/class-product-sync-meta-box.php:586
 msgid "No Skwirrel product ID found for this product."
@@ -1282,6 +1283,86 @@ msgid ""
 msgstr ""
 "WooCommerce is vereist. <a href=\"%1$s\">Installeer WooCommerce</a> of <a "
 "href=\"%2$s\">activeer WooCommerce</a>."
+
+msgid "Live sync log"
+msgstr "Live sync log"
+
+msgid "Sync running"
+msgstr "Sync bezig"
+
+msgid "Idle"
+msgstr "Inactief"
+
+msgid ""
+"Tails the current sync log file. When no sync is running, the most recent "
+"log is shown."
+msgstr ""
+"Toont het actieve sync logbestand. Wanneer geen sync actief is, wordt het "
+"meest recente log weergegeven."
+
+msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
+msgstr ""
+"Uitgebreide logging is uitgeschakeld. Schakel dit in via %s voor detail per "
+"product."
+
+msgid "Pause"
+msgstr "Pauze"
+
+msgid "Clear"
+msgstr "Wissen"
+
+msgid "Auto-scroll"
+msgstr "Automatisch scrollen"
+
+msgid "Resume"
+msgstr "Doorgaan"
+
+msgid "Waiting for sync log…"
+msgstr "Wachten op sync log…"
+
+msgid "no log yet"
+msgstr "nog geen log"
+
+msgid "View live log"
+msgstr "Bekijk live log"
+
+#: includes/class-pim-link.php
+msgid "Open in Skwirrel"
+msgstr "Openen in Skwirrel"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Open in Skwirrel ↗"
+msgstr "Openen in Skwirrel ↗"
+
+#: includes/class-admin-settings.php
+msgid "Settings saved."
+msgstr "Instellingen bewaard."
+
+#: includes/class-admin-dashboard.php:537
+msgid "Token configured."
+msgstr "Token geconfigureerd."
+
+#: includes/class-admin-dashboard.php:538
+msgid "No token configured."
+msgstr "Geen token geconfigureerd."
+
+#: includes/class-admin-dashboard.php:541
+#, php-format
+msgid "%1$s Manage your Skwirrel API token in %2$s."
+msgstr "%1$s Beheer je Skwirrel API-token in %2$s."
+
+#: includes/class-admin-dashboard.php:543
+msgid "Settings → Connectors"
+msgstr "Instellingen → Connectoren"
+
+#: includes/class-connectors.php:98
+msgid "Skwirrel PIM"
+msgstr "Skwirrel PIM"
+
+#: includes/class-connectors.php:99
+msgid ""
+"API token for syncing products from the Skwirrel PIM system to WooCommerce."
+msgstr "API-token voor het synchroniseren van producten van het Skwirrel PIM-systeem naar WooCommerce."
 
 #~ msgid "Variations:"
 #~ msgstr "Variaties:"
@@ -1645,49 +1726,3 @@ msgstr ""
 #~ "aangemaakt bij de volgende sync.\n"
 #~ "\n"
 #~ "Weet u zeker dat u deze categorie wilt verwijderen?"
-
-msgid "Live sync log"
-msgstr "Live sync log"
-
-msgid "Sync running"
-msgstr "Sync bezig"
-
-msgid "Idle"
-msgstr "Inactief"
-
-msgid "Tails the current sync log file. When no sync is running, the most recent log is shown."
-msgstr "Toont het actieve sync logbestand. Wanneer geen sync actief is, wordt het meest recente log weergegeven."
-
-msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
-msgstr "Uitgebreide logging is uitgeschakeld. Schakel dit in via %s voor detail per product."
-
-msgid "Pause"
-msgstr "Pauze"
-
-msgid "Clear"
-msgstr "Wissen"
-
-msgid "Auto-scroll"
-msgstr "Automatisch scrollen"
-
-msgid "Resume"
-msgstr "Doorgaan"
-
-msgid "Waiting for sync log…"
-msgstr "Wachten op sync log…"
-
-msgid "no log yet"
-msgstr "nog geen log"
-
-msgid "View live log"
-msgstr "Bekijk live log"
-
-msgid "Open in Skwirrel"
-msgstr "Openen in Skwirrel"
-
-msgid "Open in Skwirrel ↗"
-msgstr "Openen in Skwirrel ↗"
-
-
-msgid "Settings saved."
-msgstr "Instellingen bewaard."

@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Skwirrel PIM sync for WooCommerce 1.7.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-13 16:09+0200\n"
+"POT-Creation-Date: 2026-05-27 20:28+0200\n"
 "PO-Revision-Date: 2026-02-26 12:00+0000\n"
 "Last-Translator: Skwirrel Sync <info@skwirrel.eu>\n"
 "Language-Team: Français (France)\n"
@@ -1187,7 +1187,8 @@ msgstr "ID de produit invalide."
 #: includes/class-product-sync-meta-box.php:577
 #, php-format
 msgid "Grouped product synced successfully (%1$d created, %2$d updated)."
-msgstr "Produit groupé synchronisé avec succès (%1$d créé(s), %2$d mis à jour)."
+msgstr ""
+"Produit groupé synchronisé avec succès (%1$d créé(s), %2$d mis à jour)."
 
 #: includes/class-product-sync-meta-box.php:586
 msgid "No Skwirrel product ID found for this product."
@@ -1301,6 +1302,86 @@ msgid ""
 msgstr ""
 "WooCommerce est requis. <a href=\"%1$s\">Installer WooCommerce</a> ou <a "
 "href=\"%2$s\">activer WooCommerce</a>."
+
+msgid "Live sync log"
+msgstr "Journal de sync en direct"
+
+msgid "Sync running"
+msgstr "Sync en cours"
+
+msgid "Idle"
+msgstr "Inactif"
+
+msgid ""
+"Tails the current sync log file. When no sync is running, the most recent "
+"log is shown."
+msgstr ""
+"Affiche le fichier journal de sync actuel. Lorsqu'aucune sync n'est en "
+"cours, le journal le plus récent est affiché."
+
+msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
+msgstr ""
+"La journalisation détaillée est désactivée. Activez-la dans %s pour voir le "
+"détail par produit."
+
+msgid "Pause"
+msgstr "Pause"
+
+msgid "Clear"
+msgstr "Effacer"
+
+msgid "Auto-scroll"
+msgstr "Défilement auto"
+
+msgid "Resume"
+msgstr "Reprendre"
+
+msgid "Waiting for sync log…"
+msgstr "En attente du journal de sync…"
+
+msgid "no log yet"
+msgstr "pas encore de journal"
+
+msgid "View live log"
+msgstr "Voir le journal en direct"
+
+#: includes/class-pim-link.php
+msgid "Open in Skwirrel"
+msgstr "Ouvrir dans Skwirrel"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Open in Skwirrel ↗"
+msgstr "Ouvrir dans Skwirrel ↗"
+
+#: includes/class-admin-settings.php
+msgid "Settings saved."
+msgstr "Paramètres enregistrés."
+
+#: includes/class-admin-dashboard.php:537
+msgid "Token configured."
+msgstr "Jeton configuré."
+
+#: includes/class-admin-dashboard.php:538
+msgid "No token configured."
+msgstr "Aucun jeton configuré."
+
+#: includes/class-admin-dashboard.php:541
+#, php-format
+msgid "%1$s Manage your Skwirrel API token in %2$s."
+msgstr "%1$s Gérez votre jeton d’API Skwirrel dans %2$s."
+
+#: includes/class-admin-dashboard.php:543
+msgid "Settings → Connectors"
+msgstr "Réglages → Connecteurs"
+
+#: includes/class-connectors.php:98
+msgid "Skwirrel PIM"
+msgstr "Skwirrel PIM"
+
+#: includes/class-connectors.php:99
+msgid ""
+"API token for syncing products from the Skwirrel PIM system to WooCommerce."
+msgstr "Jeton d’API pour synchroniser les produits du système PIM Skwirrel vers WooCommerce."
 
 #~ msgid "Variations:"
 #~ msgstr "Variations :"
@@ -1670,49 +1751,3 @@ msgstr ""
 #~ "prochaine synchronisation.\n"
 #~ "\n"
 #~ "Êtes-vous sûr de vouloir supprimer cette catégorie ?"
-
-msgid "Live sync log"
-msgstr "Journal de sync en direct"
-
-msgid "Sync running"
-msgstr "Sync en cours"
-
-msgid "Idle"
-msgstr "Inactif"
-
-msgid "Tails the current sync log file. When no sync is running, the most recent log is shown."
-msgstr "Affiche le fichier journal de sync actuel. Lorsqu'aucune sync n'est en cours, le journal le plus récent est affiché."
-
-msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
-msgstr "La journalisation détaillée est désactivée. Activez-la dans %s pour voir le détail par produit."
-
-msgid "Pause"
-msgstr "Pause"
-
-msgid "Clear"
-msgstr "Effacer"
-
-msgid "Auto-scroll"
-msgstr "Défilement auto"
-
-msgid "Resume"
-msgstr "Reprendre"
-
-msgid "Waiting for sync log…"
-msgstr "En attente du journal de sync…"
-
-msgid "no log yet"
-msgstr "pas encore de journal"
-
-msgid "View live log"
-msgstr "Voir le journal en direct"
-
-msgid "Open in Skwirrel"
-msgstr "Ouvrir dans Skwirrel"
-
-msgid "Open in Skwirrel ↗"
-msgstr "Ouvrir dans Skwirrel ↗"
-
-
-msgid "Settings saved."
-msgstr "Paramètres enregistrés."

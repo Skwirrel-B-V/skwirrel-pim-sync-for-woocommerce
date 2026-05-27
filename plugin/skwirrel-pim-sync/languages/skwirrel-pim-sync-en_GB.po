@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Skwirrel PIM sync for WooCommerce 1.7.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-13 16:09+0200\n"
+"POT-Creation-Date: 2026-05-27 20:28+0200\n"
 "PO-Revision-Date: 2026-02-26 12:00+0000\n"
 "Last-Translator: Skwirrel Sync <info@skwirrel.eu>\n"
 "Language-Team: English (United Kingdom)\n"
@@ -1273,6 +1273,85 @@ msgstr ""
 "WooCommerce is required. <a href=\"%1$s\">Install WooCommerce</a> or <a "
 "href=\"%2$s\">activate WooCommerce</a>."
 
+msgid "Live sync log"
+msgstr "Live sync log"
+
+msgid "Sync running"
+msgstr "Sync running"
+
+msgid "Idle"
+msgstr "Idle"
+
+msgid ""
+"Tails the current sync log file. When no sync is running, the most recent "
+"log is shown."
+msgstr ""
+"Tails the current sync log file. When no sync is running, the most recent "
+"log is shown."
+
+msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
+msgstr ""
+"Verbose logging is disabled. Enable it in %s to see per-product detail."
+
+msgid "Pause"
+msgstr "Pause"
+
+msgid "Clear"
+msgstr "Clear"
+
+msgid "Auto-scroll"
+msgstr "Auto-scroll"
+
+msgid "Resume"
+msgstr "Resume"
+
+msgid "Waiting for sync log…"
+msgstr "Waiting for sync log…"
+
+msgid "no log yet"
+msgstr "no log yet"
+
+msgid "View live log"
+msgstr "View live log"
+
+#: includes/class-pim-link.php
+msgid "Open in Skwirrel"
+msgstr "Open in Skwirrel"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Open in Skwirrel ↗"
+msgstr "Open in Skwirrel ↗"
+
+#: includes/class-admin-settings.php
+msgid "Settings saved."
+msgstr "Settings saved."
+
+#: includes/class-admin-dashboard.php:537
+msgid "Token configured."
+msgstr "Token configured."
+
+#: includes/class-admin-dashboard.php:538
+msgid "No token configured."
+msgstr "No token configured."
+
+#: includes/class-admin-dashboard.php:541
+#, php-format
+msgid "%1$s Manage your Skwirrel API token in %2$s."
+msgstr "%1$s Manage your Skwirrel API token in %2$s."
+
+#: includes/class-admin-dashboard.php:543
+msgid "Settings → Connectors"
+msgstr "Settings → Connectors"
+
+#: includes/class-connectors.php:98
+msgid "Skwirrel PIM"
+msgstr "Skwirrel PIM"
+
+#: includes/class-connectors.php:99
+msgid ""
+"API token for syncing products from the Skwirrel PIM system to WooCommerce."
+msgstr "API token for syncing products from the Skwirrel PIM system to WooCommerce."
+
 #~ msgid "Variations:"
 #~ msgstr "Variations:"
 
@@ -1577,49 +1656,3 @@ msgstr ""
 
 #~ msgid "Static token (X-Skwirrel-Api-Token)"
 #~ msgstr "Static token (X-Skwirrel-Api-Token)"
-
-msgid "Live sync log"
-msgstr "Live sync log"
-
-msgid "Sync running"
-msgstr "Sync running"
-
-msgid "Idle"
-msgstr "Idle"
-
-msgid "Tails the current sync log file. When no sync is running, the most recent log is shown."
-msgstr "Tails the current sync log file. When no sync is running, the most recent log is shown."
-
-msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
-msgstr "Verbose logging is disabled. Enable it in %s to see per-product detail."
-
-msgid "Pause"
-msgstr "Pause"
-
-msgid "Clear"
-msgstr "Clear"
-
-msgid "Auto-scroll"
-msgstr "Auto-scroll"
-
-msgid "Resume"
-msgstr "Resume"
-
-msgid "Waiting for sync log…"
-msgstr "Waiting for sync log…"
-
-msgid "no log yet"
-msgstr "no log yet"
-
-msgid "View live log"
-msgstr "View live log"
-
-msgid "Open in Skwirrel"
-msgstr "Open in Skwirrel"
-
-msgid "Open in Skwirrel ↗"
-msgstr "Open in Skwirrel ↗"
-
-
-msgid "Settings saved."
-msgstr "Settings saved."

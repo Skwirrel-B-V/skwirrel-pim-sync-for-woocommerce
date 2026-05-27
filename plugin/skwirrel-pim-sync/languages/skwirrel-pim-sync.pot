@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Skwirrel PIM sync for WooCommerce\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-13 16:09+0200\n"
+"POT-Creation-Date: 2026-05-27 20:28+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1281,4 +1281,29 @@ msgstr ""
 
 #: includes/class-admin-settings.php
 msgid "Settings saved."
+msgstr ""
+
+#: includes/class-admin-dashboard.php:537
+msgid "Token configured."
+msgstr ""
+
+#: includes/class-admin-dashboard.php:538
+msgid "No token configured."
+msgstr ""
+
+#: includes/class-admin-dashboard.php:541
+#, php-format
+msgid "%1$s Manage your Skwirrel API token in %2$s."
+msgstr ""
+
+#: includes/class-admin-dashboard.php:543
+msgid "Settings → Connectors"
+msgstr ""
+
+#: includes/class-connectors.php:98
+msgid "Skwirrel PIM"
+msgstr ""
+
+#: includes/class-connectors.php:99
+msgid "API token for syncing products from the Skwirrel PIM system to WooCommerce."
 msgstr ""

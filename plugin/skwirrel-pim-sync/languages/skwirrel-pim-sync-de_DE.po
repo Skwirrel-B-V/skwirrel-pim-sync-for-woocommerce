@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Skwirrel PIM sync for WooCommerce 1.7.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-13 16:09+0200\n"
+"POT-Creation-Date: 2026-05-27 20:28+0200\n"
 "PO-Revision-Date: 2026-02-26 12:00+0000\n"
 "Last-Translator: Skwirrel Sync <info@skwirrel.eu>\n"
 "Language-Team: Deutsch (Deutschland)\n"
@@ -436,8 +436,8 @@ msgstr "Produktname (übersetzt)"
 msgid ""
 "Label shown in the variant dropdown when no variation axes are available."
 msgstr ""
-"Label, das im Varianten-Dropdown angezeigt wird, wenn keine "
-"Variationsachsen verfügbar sind."
+"Label, das im Varianten-Dropdown angezeigt wird, wenn keine Variationsachsen "
+"verfügbar sind."
 
 #: includes/class-admin-dashboard.php:614
 msgid "Super category ID"
@@ -1189,7 +1189,9 @@ msgstr "Ungültige Produkt-ID."
 #: includes/class-product-sync-meta-box.php:577
 #, php-format
 msgid "Grouped product synced successfully (%1$d created, %2$d updated)."
-msgstr "Gruppiertes Produkt erfolgreich synchronisiert (%1$d erstellt, %2$d aktualisiert)."
+msgstr ""
+"Gruppiertes Produkt erfolgreich synchronisiert (%1$d erstellt, %2$d "
+"aktualisiert)."
 
 #: includes/class-product-sync-meta-box.php:586
 msgid "No Skwirrel product ID found for this product."
@@ -1303,6 +1305,86 @@ msgid ""
 msgstr ""
 "WooCommerce ist erforderlich. <a href=\"%1$s\">WooCommerce installieren</a> "
 "oder <a href=\"%2$s\">WooCommerce aktivieren</a>."
+
+msgid "Live sync log"
+msgstr "Live-Sync-Log"
+
+msgid "Sync running"
+msgstr "Synchronisation läuft"
+
+msgid "Idle"
+msgstr "Leerlauf"
+
+msgid ""
+"Tails the current sync log file. When no sync is running, the most recent "
+"log is shown."
+msgstr ""
+"Zeigt die aktuelle Sync-Logdatei. Wenn keine Synchronisation läuft, wird das "
+"zuletzt erstellte Log angezeigt."
+
+msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
+msgstr ""
+"Ausführliches Logging ist deaktiviert. Aktivieren Sie es in %s, um Details "
+"pro Produkt zu sehen."
+
+msgid "Pause"
+msgstr "Pause"
+
+msgid "Clear"
+msgstr "Leeren"
+
+msgid "Auto-scroll"
+msgstr "Auto-Scroll"
+
+msgid "Resume"
+msgstr "Fortsetzen"
+
+msgid "Waiting for sync log…"
+msgstr "Warte auf Sync-Log…"
+
+msgid "no log yet"
+msgstr "noch kein Log"
+
+msgid "View live log"
+msgstr "Live-Log ansehen"
+
+#: includes/class-pim-link.php
+msgid "Open in Skwirrel"
+msgstr "In Skwirrel öffnen"
+
+#: includes/class-product-sync-meta-box.php
+msgid "Open in Skwirrel ↗"
+msgstr "In Skwirrel öffnen ↗"
+
+#: includes/class-admin-settings.php
+msgid "Settings saved."
+msgstr "Einstellungen gespeichert."
+
+#: includes/class-admin-dashboard.php:537
+msgid "Token configured."
+msgstr "Token konfiguriert."
+
+#: includes/class-admin-dashboard.php:538
+msgid "No token configured."
+msgstr "Kein Token konfiguriert."
+
+#: includes/class-admin-dashboard.php:541
+#, php-format
+msgid "%1$s Manage your Skwirrel API token in %2$s."
+msgstr "%1$s Verwalten Sie Ihr Skwirrel-API-Token unter %2$s."
+
+#: includes/class-admin-dashboard.php:543
+msgid "Settings → Connectors"
+msgstr "Einstellungen → Connectors"
+
+#: includes/class-connectors.php:98
+msgid "Skwirrel PIM"
+msgstr "Skwirrel PIM"
+
+#: includes/class-connectors.php:99
+msgid ""
+"API token for syncing products from the Skwirrel PIM system to WooCommerce."
+msgstr "API-Token zum Synchronisieren von Produkten aus dem Skwirrel-PIM-System mit WooCommerce."
 
 #~ msgid "Variations:"
 #~ msgstr "Varianten:"
@@ -1627,49 +1709,3 @@ msgstr ""
 #~ msgstr ""
 #~ "Die Seite wird automatisch aktualisiert, wenn die Synchronisierung "
 #~ "abgeschlossen ist."
-
-msgid "Live sync log"
-msgstr "Live-Sync-Log"
-
-msgid "Sync running"
-msgstr "Synchronisation läuft"
-
-msgid "Idle"
-msgstr "Leerlauf"
-
-msgid "Tails the current sync log file. When no sync is running, the most recent log is shown."
-msgstr "Zeigt die aktuelle Sync-Logdatei. Wenn keine Synchronisation läuft, wird das zuletzt erstellte Log angezeigt."
-
-msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
-msgstr "Ausführliches Logging ist deaktiviert. Aktivieren Sie es in %s, um Details pro Produkt zu sehen."
-
-msgid "Pause"
-msgstr "Pause"
-
-msgid "Clear"
-msgstr "Leeren"
-
-msgid "Auto-scroll"
-msgstr "Auto-Scroll"
-
-msgid "Resume"
-msgstr "Fortsetzen"
-
-msgid "Waiting for sync log…"
-msgstr "Warte auf Sync-Log…"
-
-msgid "no log yet"
-msgstr "noch kein Log"
-
-msgid "View live log"
-msgstr "Live-Log ansehen"
-
-msgid "Open in Skwirrel"
-msgstr "In Skwirrel öffnen"
-
-msgid "Open in Skwirrel ↗"
-msgstr "In Skwirrel öffnen ↗"
-
-
-msgid "Settings saved."
-msgstr "Einstellungen gespeichert."
