@@ -260,25 +260,39 @@ class Skwirrel_WC_Sync_Service {
 			}
 
 			// Determine whether to use getProducts (fast, full sync) or getProductsByFilter (filtered).
-			$use_filter = false;
-			$filter     = [];
+			$use_filter        = false;
+			$filter            = [];
+			$initial_delta_run = false;
 			if ( $delta && ! empty( $delta_since ) ) {
 				$use_filter           = true;
 				$filter['updated_on'] = [
 					'datetime' => $delta_since,
 					'operator' => '>=',
 				];
+			} elseif ( $delta && empty( $delta_since ) ) {
+				// Delta requested but no checkpoint yet — first delta run after install,
+				// reset, purge, or a string of failed runs. The API call falls through
+				// to "everything in selection" (no updated_on filter), but we establish
+				// the checkpoint upfront so the *next* scheduled run is a real delta.
+				// Safe: no products in the selection can be missed by this run, because
+				// no filter narrows the API response.
+				$initial_delta_run = true;
+				update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z', $sync_started_at ) );
+				$this->logger->info(
+					'Delta sync requested but no checkpoint exists — running as initial full pass and seeding last_sync for subsequent delta runs.'
+				);
 			}
 			// `dynamic_selection_id` is a single-int filter on the Skwirrel side,
 			// so multiple configured selections become one API call per selection.
 			// The actual filter value is set inside the per-selection loop below.
 			$use_filter = true;
 
-			$this->logger->verbose(
+			$this->logger->info(
 				'Sync started',
 				[
 					'delta'          => $delta,
 					'delta_since'    => $delta_since,
+					'initial_delta'  => $initial_delta_run,
 					'batch_size'     => $batch_size,
 					'api_method'     => 'getProductsByFilter',
 					'collection_ids' => $collection_ids,

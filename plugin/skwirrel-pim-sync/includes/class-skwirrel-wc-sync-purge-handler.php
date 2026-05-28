@@ -295,7 +295,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		// --- Step 7: Reset sync state options ---
 		delete_option( 'skwirrel_wc_sync_last_sync' );
 		delete_option( 'skwirrel_wc_sync_force_full_sync' );
-		$this->logger->info( 'Purge: sync state options reset (last sync result preserved).' );
+		$this->logger->info( 'Purge: sync state options reset — last_sync checkpoint cleared, force_full_sync flag cleared, last sync result preserved. Next sync will run as initial full pass.' );
 
 		// --- Step 8: Flush caches and store purge result ---
 		wp_cache_flush();

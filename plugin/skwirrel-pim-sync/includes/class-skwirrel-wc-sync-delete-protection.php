@@ -239,6 +239,10 @@ class Skwirrel_WC_Sync_Delete_Protection {
 		}
 
 		update_option( self::FORCE_FULL_SYNC_OPTION, true, false );
+		( new Skwirrel_WC_Sync_Logger() )->info(
+			'force_full_sync flag set: Skwirrel-managed product trashed in WC — next scheduled sync will run as full to bring it back.',
+			[ 'post_id' => $post_id ]
+		);
 	}
 
 	/**
@@ -255,5 +259,9 @@ class Skwirrel_WC_Sync_Delete_Protection {
 		}
 
 		update_option( self::FORCE_FULL_SYNC_OPTION, true, false );
+		( new Skwirrel_WC_Sync_Logger() )->info(
+			'force_full_sync flag set: Skwirrel-managed product category deleted in WC — next scheduled sync will run as full to bring it back.',
+			[ 'term_id' => $term_id ]
+		);
 	}
 }

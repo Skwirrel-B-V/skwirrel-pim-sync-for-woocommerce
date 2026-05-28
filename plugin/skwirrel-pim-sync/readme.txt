@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 3.10.0
+Stable tag: 3.10.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,11 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.10.1 =
+
+* Fix: scheduled delta sync no longer touches every product on every run when no `last_sync` checkpoint exists. Previously, when `skwirrel_wc_sync_last_sync` was empty (first run after install, after a Reset Settings / Purge, or after a string of failed runs), `getProductsByFilter` was called with only `dynamic_selection_id` and no `updated_on` filter — so the API returned every product in the selection, and the run silently degraded to a full pass. The fix establishes the checkpoint upfront (writes `last_sync = sync_started_at` before the API call) so the *next* scheduled delta run actually narrows. This current run still does the full pass (which is correct — we need an initial baseline), but no further runs do unless the checkpoint is wiped again.
+* Diagnostics: the `Sync started` log line is now at info level (was verbose), so every scheduled run records `delta`, `delta_since`, `initial_delta`, `filter` in the always-on log without requiring `verbose_logging` to be turned on. Reset Settings, Purge, and the `force_full_sync` flag's set/consume events also log at info level. These four signals together make every "all products updated again" outcome self-explain in the log without needing verbose mode enabled on production installs.
 
 = 3.10.0 =
 

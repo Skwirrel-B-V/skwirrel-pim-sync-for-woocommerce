@@ -570,7 +570,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 		$this->bust_settings_cache();
 
-		( new Skwirrel_WC_Sync_Logger() )->info( 'Settings reset by admin — all configuration options deleted, scheduled jobs cancelled, caches flushed.' );
+		( new Skwirrel_WC_Sync_Logger() )->info( 'Settings reset by admin — all configuration options deleted (including last_sync checkpoint and force_full_sync flag), scheduled jobs cancelled, caches flushed. Next scheduled sync will run as initial full pass.' );
 
 		wp_safe_redirect(
 			add_query_arg(

@@ -2,6 +2,24 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.10.1]
+
+### Fix — delta sync touched every product when no checkpoint existed
+
+* **Symptom**: scheduled delta runs reported "updated: N" for every product on every interval, even when nothing changed upstream. The `_skwirrel_synced_at` meta was bumped on every product each cycle.
+* **Root cause** (`includes/class-skwirrel-wc-sync-service.php:262-275`): `$delta_since = get_option( 'skwirrel_wc_sync_last_sync', '' )`. When that option was empty (first run, post-reset, post-purge, or after a streak of failed runs that never reached the success-path `update_option` on line 840), the `updated_on >= $delta_since` filter was never added to `$filter`. Line 275 still unconditionally forced `$use_filter = true` so `getProductsByFilter` was called — but with only `dynamic_selection_id`. The Skwirrel API returned every product in the selection. The plugin processed all of them. The next interval found the same empty checkpoint and did the same thing.
+* **Fix**: when `$delta === true` and `$delta_since === ''`, treat the run as an initial-delta: log it at info level, and write `last_sync = $sync_started_at` *before* the API call so the next scheduled run has a real checkpoint to filter on. The current run still does a full pass (correct — we need an initial baseline), but no further runs do unless the checkpoint is wiped again. Safe: no products in the selection can be missed by this run because no filter narrows the API response.
+
+### Diagnostics — observable signals for the other three "delta touches everything" causes
+
+So a production install can self-diagnose without enabling `verbose_logging` (which the team can't turn on on live installs):
+
+* **`includes/class-skwirrel-wc-sync-service.php`**: the `Sync started` log line is now `info` (was `verbose`). It records `delta`, `delta_since`, `initial_delta`, `batch_size`, `api_method`, `collection_ids`, `filter` on every run.
+* **`includes/class-skwirrel-wc-sync-admin-settings.php::handle_reset_settings`**: the existing reset log now spells out that `last_sync` and `force_full_sync` are being cleared and that the next sync will run as an initial full pass.
+* **`includes/class-skwirrel-wc-sync-purge-handler.php`**: same enrichment for the purge-handler reset-state log (line 296 region).
+* **`includes/class-skwirrel-wc-sync-action-scheduler.php::run_scheduled_sync`**: new info log when the `force_full_sync` flag is *consumed* — tells you a Delete_Protection-triggered full run is about to happen.
+* **`includes/class-skwirrel-wc-sync-delete-protection.php::on_product_trashed` and `::on_category_deleted`**: new info logs when the flag is *set*, with the post_id / term_id that triggered it. If a product gets re-trashed every interval (e.g. via a misbehaving filter on the WC side), this is now visible.
+
 ## [3.10.0]
 
 ### Fix — manual "Sync now" rejected by mutex collision (regression since 3.8.0)

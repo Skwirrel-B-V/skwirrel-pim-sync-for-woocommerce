@@ -67,6 +67,7 @@ class Skwirrel_WC_Sync_Action_Scheduler {
 		$force_full = get_option( 'skwirrel_wc_sync_force_full_sync', false );
 		if ( $force_full ) {
 			delete_option( 'skwirrel_wc_sync_force_full_sync' );
+			( new Skwirrel_WC_Sync_Logger() )->info( 'Scheduled sync: force_full_sync flag was set (Delete_Protection saw a Skwirrel item trashed since last run) — running as full sync and clearing the flag.' );
 		}
 
 		$delta   = $force_full ? false : ( $args['delta'] ?? true );
