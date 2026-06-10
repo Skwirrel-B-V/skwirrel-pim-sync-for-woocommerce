@@ -348,15 +348,17 @@ class Skwirrel_WC_Sync_Category_Sync {
 			);
 			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 			if ( $existing_term_id ) {
+				$term_id = (int) $existing_term_id;
+				$this->maybe_update_term( $term_id, $name, $taxonomy, $parent_term_id );
 				$this->logger->verbose(
 					'Category found by meta',
 					[
 						'skwirrel_id' => $skwirrel_id,
-						'term_id'     => (int) $existing_term_id,
+						'term_id'     => $term_id,
 						'name'        => $name,
 					]
 				);
-				return (int) $existing_term_id;
+				return $term_id;
 			}
 			$this->logger->verbose(
 				'Category meta lookup missed',
@@ -440,6 +442,66 @@ class Skwirrel_WC_Sync_Category_Sync {
 			]
 		);
 		return $term_id;
+	}
+
+	/**
+	 * Reconcile an existing (meta-matched) term's name/parent with the Skwirrel
+	 * values, but only when they actually differ — never clobber manual WC edits.
+	 *
+	 * @param int    $term_id        WC term ID.
+	 * @param string $name           Skwirrel category name.
+	 * @param string $taxonomy       Taxonomy slug (product_cat).
+	 * @param int    $parent_term_id Mapped WC parent term ID (0 for root/unknown).
+	 */
+	private function maybe_update_term( int $term_id, string $name, string $taxonomy, int $parent_term_id ): void {
+		$term = get_term( $term_id, $taxonomy );
+		if ( ! $term instanceof WP_Term ) {
+			return;
+		}
+
+		$update = [];
+		if ( '' !== $name && $name !== $term->name ) {
+			$update['name'] = $name;
+		}
+		if ( $parent_term_id > 0 && (int) $term->parent !== $parent_term_id ) {
+			// Guard against a cyclic move: re-parenting a term under itself or
+			// under one of its own descendants makes wp_update_term() silently
+			// root the term (parent => 0) and still return success — which would
+			// log a false "updated" and retry every sync. Skip the parent change
+			// in that case; the name update (if any) still applies.
+			if ( $parent_term_id === $term_id || term_is_ancestor_of( $term_id, $parent_term_id, $taxonomy ) ) {
+				$this->logger->warning(
+					'Skipped cyclic category re-parent',
+					[
+						'term_id'          => $term_id,
+						'requested_parent' => $parent_term_id,
+					]
+				);
+			} else {
+				$update['parent'] = $parent_term_id;
+			}
+		}
+		if ( empty( $update ) ) {
+			return;
+		}
+
+		$result = wp_update_term( $term_id, $taxonomy, $update );
+		if ( is_wp_error( $result ) ) {
+			$this->logger->warning(
+				'Failed to update category term',
+				[
+					'name'    => $name,
+					'term_id' => $term_id,
+					'error'   => $result->get_error_message(),
+				]
+			);
+			return;
+		}
+
+		$this->logger->info(
+			'Category term updated (rename/parent)',
+			array_merge( [ 'term_id' => $term_id ], $update )
+		);
 	}
 
 	/**

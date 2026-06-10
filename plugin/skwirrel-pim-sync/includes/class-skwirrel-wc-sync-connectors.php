@@ -97,6 +97,13 @@ final class Skwirrel_WC_Sync_Connectors {
 		$args = [
 			'name'           => __( 'Skwirrel PIM', 'skwirrel-pim-sync' ),
 			'description'    => __( 'API token for syncing products from the Skwirrel PIM system to WooCommerce.', 'skwirrel-pim-sync' ),
+			// WP 7.0.0 requires a non-empty `type`. The Connectors admin screen
+			// only renders `ai_provider` connectors today; non-AI types register
+			// cleanly but have no native UI yet, so we keep the plugin's own
+			// token field as the actual UI (see Admin_Settings). 'service' is the
+			// honest descriptor and is forward-compatible once core lifts the
+			// ai_provider screen restriction.
+			'type'           => 'service',
 			'authentication' => [
 				'method'          => 'api_key',
 				'setting_name'    => self::CREDENTIAL_OPTION,

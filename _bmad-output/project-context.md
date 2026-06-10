@@ -17,8 +17,8 @@ _This file contains critical rules and patterns that AI agents must follow when 
 ## Technology Stack & Versions
 
 - **PHP 8.3+** — `declare(strict_types=1)` in the bootstrap; type everything. Target syntax must run on 8.3 (no 8.4-only features).
-- **WordPress 6.9+** (tested & usable floor; header `Requires at least:` still reads `6.0` — bump pending) · **WooCommerce 8.0+** (9.6+ for native brands, current release 10.8).
-  - WP 7.0 ships the **Connectors API** — the plugin integrates with it (since 3.10.0) while staying compatible down to 6.9. Prefer the Connectors API over legacy mechanisms when wiring sync hooks.
+- **WordPress 7.0+ is the primary development target** — build and test against 7.0+ first. **6.9+ is the backward-compatibility floor**: older installs must keep working, but new work is designed for 7.0+, not held back by 6.9. (Header `Requires at least:` still reads `6.0` — bump pending.) · **WooCommerce 8.0+** (9.6+ for native brands, current release 10.8).
+  - WP 7.0 ships the **Connectors API** — the plugin integrates with it (since 3.10.0) and it is the preferred path going forward. Use the Connectors API over legacy mechanisms when wiring sync hooks; provide a graceful fallback only where 6.9 compatibility requires it.
 - **HPOS-compatible** — plugin declares `custom_order_tables` compatibility; never touch legacy order-post-meta APIs directly.
 - **No Composer autoloader in the plugin** — every class is loaded via `require_once` in `skwirrel-pim-sync.php`. New classes MUST be added there manually.
 - **No build step, no frontend JS framework** — admin UI is plain PHP-rendered forms; styling via two static CSS files.
@@ -97,4 +97,4 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Update when the stack changes (PHP/WP/WC versions, tooling) or when a release process step changes.
 - Review periodically; remove rules that have become obvious.
 
-Last Updated: 2026-06-10
+Last Updated: 2026-06-10 (WP 7.0+ primary target; 6.9+ compat floor)

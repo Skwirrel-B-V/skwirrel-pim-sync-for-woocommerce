@@ -22,6 +22,9 @@ phpunit.xml
 .phpunit.cache/
 .pest/
 
+# BMAD local board state
+.bmad-board/
+
 # Skwirrel ERP reference
 skwirrel/
 /mu-plugins/essec-skwirrel-specs.php

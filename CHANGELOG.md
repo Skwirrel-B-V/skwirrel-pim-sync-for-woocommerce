@@ -2,6 +2,26 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.10.2]
+
+### Fix — scheduled syncs silently stopped after a plugin update on WP 7.0 (F2)
+
+* **Symptom**: after a WordPress.org auto-update (and the move to WP 7.0 / WooCommerce 10.x), scheduled syncs stopped firing on some installs. The plugin kept working for manual "Sync now", but the recurring interval went quiet.
+* **Root cause** (`includes/class-skwirrel-wc-sync-action-scheduler.php`): the recurring Action Scheduler job was armed only on activation and on settings save. An auto-update never re-runs the activation hook, so a schedule that was lost (or never re-armed against the new version) was never restored. WooCommerce 10.x's Action Scheduler housekeeping could also drop an orphaned action with nothing to re-create it.
+* **Fix**: a stored-version-vs-`SKWIRREL_WC_SYNC_VERSION` check on `admin_init` (`maybe_upgrade_reschedule()`, mirroring the existing `Connectors::maybe_migrate_token` pattern) re-arms the schedule on every plugin version change and records the new version in the `skwirrel_wc_sync_version` option. A cheap idempotent self-heal (`ensure_scheduled()` + `is_scheduled()` via `as_next_scheduled_action`) re-arms the job on any admin page load when an interval is configured but no action exists. Both paths reuse the existing `schedule()`/`unschedule()` logic, honor an empty `sync_interval` (no schedule), and never create a duplicate recurring action.
+
+### Fix — WP 7.0 Connectors registration emitted a `_doing_it_wrong` notice (F1)
+
+* On WordPress 7.0, `register()` requires a non-empty `type`. The Skwirrel connector now registers with `'type' => 'service'` (`includes/class-skwirrel-wc-sync-connectors.php`), silencing the `_doing_it_wrong` notice. The plugin's own token field remains the actual UI until core lifts the `ai_provider` screen restriction.
+
+### Fix — category renames and parent moves in Skwirrel did not propagate (F3)
+
+* Previously, when a category already matched an existing WooCommerce term by `_skwirrel_category_id`, the term was returned unchanged — so renaming or re-parenting a category in Skwirrel never updated the WooCommerce category. `find_or_create_category_term()` now reconciles the meta-matched term via `wp_update_term()` (`includes/class-skwirrel-wc-sync-category-sync.php::maybe_update_term`), updating the name and/or parent **only** when the Skwirrel value actually differs — manual WooCommerce edits to unchanged fields are never clobbered. A `WP_Error` is warning-logged and the existing term is still returned; successful updates are info-logged. Both the tree-build and per-product assignment paths are covered, as both route through `find_or_create_category_term()`.
+
+### Compatibility — minimum WordPress raised to 6.9
+
+* Bumped `Requires at least:` from `6.0` to `6.9` in both the plugin header (`skwirrel-pim-sync.php`) and `readme.txt`. WordPress 7.0+ is now the primary development and test target; 6.9 is the backward-compatibility floor. `Tested up to:` remains `7.0`. No functional code changes — header/metadata only.
+
 ## [3.10.1]
 
 ### Fix — delta sync touched every product when no checkpoint existed

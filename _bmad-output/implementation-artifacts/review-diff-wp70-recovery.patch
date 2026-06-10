@@ -1,0 +1,511 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 3e652b8..3094f9c 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,26 @@
+ 
+ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
+ 
++## [3.10.2]
++
++### Fix — scheduled syncs silently stopped after a plugin update on WP 7.0 (F2)
++
++* **Symptom**: after a WordPress.org auto-update (and the move to WP 7.0 / WooCommerce 10.x), scheduled syncs stopped firing on some installs. The plugin kept working for manual "Sync now", but the recurring interval went quiet.
++* **Root cause** (`includes/class-skwirrel-wc-sync-action-scheduler.php`): the recurring Action Scheduler job was armed only on activation and on settings save. An auto-update never re-runs the activation hook, so a schedule that was lost (or never re-armed against the new version) was never restored. WooCommerce 10.x's Action Scheduler housekeeping could also drop an orphaned action with nothing to re-create it.
++* **Fix**: a stored-version-vs-`SKWIRREL_WC_SYNC_VERSION` check on `admin_init` (`maybe_upgrade_reschedule()`, mirroring the existing `Connectors::maybe_migrate_token` pattern) re-arms the schedule on every plugin version change and records the new version in the `skwirrel_wc_sync_version` option. A cheap idempotent self-heal (`ensure_scheduled()` + `is_scheduled()` via `as_next_scheduled_action`) re-arms the job on any admin page load when an interval is configured but no action exists. Both paths reuse the existing `schedule()`/`unschedule()` logic, honor an empty `sync_interval` (no schedule), and never create a duplicate recurring action.
++
++### Fix — WP 7.0 Connectors registration emitted a `_doing_it_wrong` notice (F1)
++
++* On WordPress 7.0, `register()` requires a non-empty `type`. The Skwirrel connector now registers with `'type' => 'service'` (`includes/class-skwirrel-wc-sync-connectors.php`), silencing the `_doing_it_wrong` notice. The plugin's own token field remains the actual UI until core lifts the `ai_provider` screen restriction.
++
++### Fix — category renames and parent moves in Skwirrel did not propagate (F3)
++
++* Previously, when a category already matched an existing WooCommerce term by `_skwirrel_category_id`, the term was returned unchanged — so renaming or re-parenting a category in Skwirrel never updated the WooCommerce category. `find_or_create_category_term()` now reconciles the meta-matched term via `wp_update_term()` (`includes/class-skwirrel-wc-sync-category-sync.php::maybe_update_term`), updating the name and/or parent **only** when the Skwirrel value actually differs — manual WooCommerce edits to unchanged fields are never clobbered. A `WP_Error` is warning-logged and the existing term is still returned; successful updates are info-logged. Both the tree-build and per-product assignment paths are covered, as both route through `find_or_create_category_term()`.
++
++### Compatibility — minimum WordPress raised to 6.9
++
++* Bumped `Requires at least:` from `6.0` to `6.9` in both the plugin header (`skwirrel-pim-sync.php`) and `readme.txt`. WordPress 7.0+ is now the primary development and test target; 6.9 is the backward-compatibility floor. `Tested up to:` remains `7.0`. No functional code changes — header/metadata only.
++
+ ## [3.10.1]
+ 
+ ### Fix — delta sync touched every product when no checkpoint existed
+diff --git a/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-action-scheduler.php b/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-action-scheduler.php
+index 267fd87..58e3d9a 100644
+--- a/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-action-scheduler.php
++++ b/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-action-scheduler.php
+@@ -15,6 +15,9 @@ class Skwirrel_WC_Sync_Action_Scheduler {
+ 
+ 	private const HOOK_SYNC = 'skwirrel_wc_sync_run';
+ 
++	/** @var string Option tracking the plugin version that last armed the schedule. */
++	private const VERSION_OPTION = 'skwirrel_wc_sync_version';
++
+ 	private static ?self $instance = null;
+ 
+ 	public static function instance(): self {
+@@ -27,6 +30,7 @@ class Skwirrel_WC_Sync_Action_Scheduler {
+ 	private function __construct() {
+ 		add_action( self::HOOK_SYNC, [ $this, 'run_scheduled_sync' ] );
+ 		add_filter( 'cron_schedules', [ $this, 'add_cron_schedules' ] );
++		add_action( 'admin_init', [ $this, 'maybe_upgrade_reschedule' ] );
+ 	}
+ 
+ 	public function schedule(): void {
+@@ -50,6 +54,62 @@ class Skwirrel_WC_Sync_Action_Scheduler {
+ 		}
+ 	}
+ 
++	/**
++	 * Whether a recurring sync action is already armed.
++	 */
++	private function is_scheduled(): bool {
++		if ( function_exists( 'as_next_scheduled_action' ) ) {
++			return false !== as_next_scheduled_action( self::HOOK_SYNC, [], 'skwirrel-pim-sync' );
++		}
++		return (bool) wp_next_scheduled( self::HOOK_SYNC );
++	}
++
++	/**
++	 * Idempotent self-heal: arm the recurring schedule when an interval is
++	 * configured but no action is currently scheduled. No-op otherwise.
++	 */
++	public function ensure_scheduled(): void {
++		$opts     = get_option( 'skwirrel_wc_sync_settings', [] );
++		$interval = $opts['sync_interval'] ?? '';
++		if ( empty( $interval ) ) {
++			return;
++		}
++		if ( $this->is_scheduled() ) {
++			return;
++		}
++		$this->schedule();
++	}
++
++	/**
++	 * Re-arm the recurring schedule after a plugin version change, and
++	 * self-heal a lost action on every admin page load.
++	 *
++	 * WP.org auto-updates (and manual/SFTP installs) skip the activation hook,
++	 * so a stored-version-vs-constant check on admin_init is the robust trigger.
++	 * schedule() itself honors an empty interval (it unschedules), so an upgrade
++	 * with sync_interval='' correctly results in no scheduled action while still
++	 * updating the version option.
++	 */
++	public function maybe_upgrade_reschedule(): void {
++		$stored  = (string) get_option( self::VERSION_OPTION, '' );
++		$current = defined( 'SKWIRREL_WC_SYNC_VERSION' ) ? (string) SKWIRREL_WC_SYNC_VERSION : '';
++
++		if ( $stored !== $current && '' !== $current ) {
++			$this->schedule();
++			update_option( self::VERSION_OPTION, $current, false );
++			( new Skwirrel_WC_Sync_Logger() )->info(
++				'Plugin upgraded — recurring sync schedule re-armed.',
++				[
++					'from' => $stored,
++					'to'   => $current,
++				]
++			);
++			return;
++		}
++
++		$this->ensure_scheduled();
++	}
++
+ 	public function unschedule(): void {
+ 		if ( function_exists( 'as_unschedule_all_actions' ) ) {
+ 			as_unschedule_all_actions( self::HOOK_SYNC, [], 'skwirrel-pim-sync' );
+diff --git a/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-category-sync.php b/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-category-sync.php
+index 4aae5af..2739c1e 100644
+--- a/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-category-sync.php
++++ b/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-category-sync.php
+@@ -348,15 +348,17 @@ class Skwirrel_WC_Sync_Category_Sync {
+ 			);
+ 			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+ 			if ( $existing_term_id ) {
++				$term_id = (int) $existing_term_id;
++				$this->maybe_update_term( $term_id, $name, $taxonomy, $parent_term_id );
+ 				$this->logger->verbose(
+ 					'Category found by meta',
+ 					[
+ 						'skwirrel_id' => $skwirrel_id,
+-						'term_id'     => (int) $existing_term_id,
++						'term_id'     => $term_id,
+ 						'name'        => $name,
+ 					]
+ 				);
+-				return (int) $existing_term_id;
++				return $term_id;
+ 			}
+ 			$this->logger->verbose(
+ 				'Category meta lookup missed',
+@@ -442,6 +444,51 @@ class Skwirrel_WC_Sync_Category_Sync {
+ 		return $term_id;
+ 	}
+ 
++	/**
++	 * Reconcile an existing (meta-matched) term's name/parent with the Skwirrel
++	 * values, but only when they actually differ — never clobber manual WC edits.
++	 *
++	 * @param int    $term_id        WC term ID.
++	 * @param string $name           Skwirrel category name.
++	 * @param string $taxonomy       Taxonomy slug (product_cat).
++	 * @param int    $parent_term_id Mapped WC parent term ID (0 for root/unknown).
++	 */
++	private function maybe_update_term( int $term_id, string $name, string $taxonomy, int $parent_term_id ): void {
++		$term = get_term( $term_id, $taxonomy );
++		if ( ! $term instanceof WP_Term ) {
++			return;
++		}
++
++		$update = [];
++		if ( '' !== $name && $name !== $term->name ) {
++			$update['name'] = $name;
++		}
++		if ( $parent_term_id > 0 && (int) $term->parent !== $parent_term_id ) {
++			$update['parent'] = $parent_term_id;
++		}
++		if ( empty( $update ) ) {
++			return;
++		}
++
++		$result = wp_update_term( $term_id, $taxonomy, $update );
++		if ( is_wp_error( $result ) ) {
++			$this->logger->warning(
++				'Failed to update category term',
++				[
++					'name'    => $name,
++					'term_id' => $term_id,
++					'error'   => $result->get_error_message(),
++				]
++			);
++			return;
++		}
++
++		$this->logger->info(
++			'Category term updated (rename/parent)',
++			array_merge( [ 'term_id' => $term_id ], $update )
++		);
++	}
++
+ 	/**
+ 	 * Find an existing WC term by its Skwirrel category ID in term meta.
+ 	 *
+diff --git a/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-connectors.php b/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-connectors.php
+index b9b7d4c..df8be44 100644
+--- a/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-connectors.php
++++ b/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-connectors.php
+@@ -97,6 +97,13 @@ final class Skwirrel_WC_Sync_Connectors {
+ 		$args = [
+ 			'name'           => __( 'Skwirrel PIM', 'skwirrel-pim-sync' ),
+ 			'description'    => __( 'API token for syncing products from the Skwirrel PIM system to WooCommerce.', 'skwirrel-pim-sync' ),
++			// WP 7.0.0 requires a non-empty `type`. The Connectors admin screen
++			// only renders `ai_provider` connectors today; non-AI types register
++			// cleanly but have no native UI yet, so we keep the plugin's own
++			// token field as the actual UI (see Admin_Settings). 'service' is the
++			// honest descriptor and is forward-compatible once core lifts the
++			// ai_provider screen restriction.
++			'type'           => 'service',
+ 			'authentication' => [
+ 				'method'          => 'api_key',
+ 				'setting_name'    => self::CREDENTIAL_OPTION,
+diff --git a/plugin/skwirrel-pim-sync/readme.txt b/plugin/skwirrel-pim-sync/readme.txt
+index 5aefaaa..178f48f 100644
+--- a/plugin/skwirrel-pim-sync/readme.txt
++++ b/plugin/skwirrel-pim-sync/readme.txt
+@@ -1,10 +1,10 @@
+ === Skwirrel PIM sync for WooCommerce ===
+ Contributors: jkoomen
+ Tags: woocommerce, sync, pim, skwirrel, product-sync
+-Requires at least: 6.0
++Requires at least: 6.9
+ Tested up to: 7.0
+ Requires PHP: 8.3
+-Stable tag: 3.10.1
++Stable tag: 3.10.2
+ License: GPLv2 or later
+ License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ 
+@@ -78,6 +78,13 @@ Returning `true` tells the sync the attachment is still valid even though the lo
+ 
+ == Changelog ==
+ 
++= 3.10.2 =
++
++* Fix: scheduled syncs no longer silently stop after a plugin auto-update on WordPress 7.0. The recurring sync job was previously armed only on activation/settings-save, so a WP.org auto-update (which skips activation) never re-armed it. The schedule now re-arms automatically on every plugin version change and self-heals a lost Action Scheduler action on any admin page load — idempotently, honoring a disabled interval, and never creating a duplicate job.
++* Fix: the WordPress 7.0 Connectors registration now passes a non-empty `type` (`service`), silencing the `_doing_it_wrong` notice emitted on 7.0.
++* Fix: category renames and parent moves in Skwirrel now propagate to existing WooCommerce categories. Previously only brand-new categories were created; a category already matched by its Skwirrel ID was left untouched. The matched term is now updated via `wp_update_term()` only when the name or parent actually differs, so manual WooCommerce edits to unchanged fields are preserved.
++* Compatibility: minimum supported WordPress raised to 6.9 (`Requires at least: 6.9`). WordPress 7.0+ is now the primary development and test target; 6.9 remains the backward-compatibility floor. No functional code changes.
++
+ = 3.10.1 =
+ 
+ * Fix: scheduled delta sync no longer touches every product on every run when no `last_sync` checkpoint exists. Previously, when `skwirrel_wc_sync_last_sync` was empty (first run after install, after a Reset Settings / Purge, or after a string of failed runs), `getProductsByFilter` was called with only `dynamic_selection_id` and no `updated_on` filter — so the API returned every product in the selection, and the run silently degraded to a full pass. The fix establishes the checkpoint upfront (writes `last_sync = sync_started_at` before the API call) so the *next* scheduled delta run actually narrows. This current run still does the full pass (which is correct — we need an initial baseline), but no further runs do unless the checkpoint is wiped again.
+diff --git a/plugin/skwirrel-pim-sync/skwirrel-pim-sync.php b/plugin/skwirrel-pim-sync/skwirrel-pim-sync.php
+index ac0e095..649d17d 100644
+--- a/plugin/skwirrel-pim-sync/skwirrel-pim-sync.php
++++ b/plugin/skwirrel-pim-sync/skwirrel-pim-sync.php
+@@ -4,10 +4,10 @@
+  * Plugin Name: Skwirrel PIM sync for WooCommerce
+  * Plugin URI: https://github.com/Skwirrel-B-V/skwirrel-pim-sync-for-woocommerce
+  * Description: Sync plugin for Skwirrel PIM via Skwirrel JSON-RPC API to WooCommerce.
+- * Version: 3.10.1
++ * Version: 3.10.2
+  * Author: Skwirrel B.V.
+  * Author URI: https://skwirrel.eu
+- * Requires at least: 6.0
++ * Requires at least: 6.9
+  * Requires PHP: 8.3
+  * WC requires at least: 8.0
+  * WC tested up to: 10.6
+@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
+ 	exit;
+ }
+ 
+-define( 'SKWIRREL_WC_SYNC_VERSION', '3.10.1' );
++define( 'SKWIRREL_WC_SYNC_VERSION', '3.10.2' );
+ define( 'SKWIRREL_WC_SYNC_PLUGIN_FILE', __FILE__ );
+ define( 'SKWIRREL_WC_SYNC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+ define( 'SKWIRREL_WC_SYNC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+
+=== NEW UNTRACKED TEST FILES ===
+--- new file: tests/Unit/ActionSchedulerRearmTest.php ---
+<?php
+
+declare(strict_types=1);
+
+// Stub the Action Scheduler API. State is driven by globals so each test can
+// assert on scheduling decisions without a running WooCommerce/WP install.
+if ( ! function_exists( 'as_next_scheduled_action' ) ) {
+	function as_next_scheduled_action( string $hook, array $args = [], string $group = '' ) {
+		return $GLOBALS['_test_as_scheduled'] ?? false;
+	}
+}
+if ( ! function_exists( 'as_schedule_recurring_action' ) ) {
+	function as_schedule_recurring_action( int $timestamp, int $interval, string $hook, array $args = [], string $group = '' ): int {
+		$GLOBALS['_test_as_calls'][] = [ 'recurring', $hook, $interval, $group ];
+		$GLOBALS['_test_as_scheduled'] = true;
+		return 1;
+	}
+}
+if ( ! function_exists( 'as_unschedule_all_actions' ) ) {
+	function as_unschedule_all_actions( string $hook, array $args = [], string $group = '' ): void {
+		$GLOBALS['_test_as_calls'][] = [ 'unschedule_all', $hook, $group ];
+		$GLOBALS['_test_as_scheduled'] = false;
+	}
+}
+if ( ! function_exists( 'wp_clear_scheduled_hook' ) ) {
+	function wp_clear_scheduled_hook( string $hook, array $args = [] ): void {}
+}
+if ( ! function_exists( 'wp_next_scheduled' ) ) {
+	function wp_next_scheduled( string $hook, $args = [] ) {
+		return $GLOBALS['_test_wp_cron_scheduled'] ?? false;
+	}
+}
+
+if ( ! defined( 'WEEK_IN_SECONDS' ) ) {
+	define( 'WEEK_IN_SECONDS', 604800 );
+}
+
+require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-logger.php';
+require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-action-scheduler.php';
+
+if ( ! defined( 'SKWIRREL_WC_SYNC_VERSION' ) ) {
+	define( 'SKWIRREL_WC_SYNC_VERSION', '3.10.2' );
+}
+
+beforeEach(function () {
+	$GLOBALS['_test_options']           = [];
+	$GLOBALS['_test_as_calls']          = [];
+	$GLOBALS['_test_as_scheduled']      = false;
+	$GLOBALS['_test_wp_cron_scheduled'] = false;
+});
+
+/**
+ * Helper: count recurring-action arming calls captured by the AS stub.
+ */
+function rearm_recurring_calls(): array {
+	return array_values(
+		array_filter(
+			$GLOBALS['_test_as_calls'] ?? [],
+			static fn ( array $call ): bool => 'recurring' === $call[0]
+		)
+	);
+}
+
+test('upgrade with interval set arms exactly one action and updates the version option', function () {
+	$GLOBALS['_test_options']['skwirrel_wc_sync_version']  = '3.10.1';
+	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [ 'sync_interval' => 'daily' ];
+
+	Skwirrel_WC_Sync_Action_Scheduler::instance()->maybe_upgrade_reschedule();
+
+	expect(rearm_recurring_calls())->toHaveCount(1);
+	expect($GLOBALS['_test_options']['skwirrel_wc_sync_version'])->toBe('3.10.2');
+	expect($GLOBALS['_test_as_scheduled'])->toBeTrue();
+});
+
+test('upgrade with empty interval schedules nothing but still updates the version option', function () {
+	$GLOBALS['_test_options']['skwirrel_wc_sync_version']  = '3.10.1';
+	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [ 'sync_interval' => '' ];
+
+	Skwirrel_WC_Sync_Action_Scheduler::instance()->maybe_upgrade_reschedule();
+
+	expect(rearm_recurring_calls())->toHaveCount(0);
+	expect($GLOBALS['_test_as_scheduled'])->toBeFalse();
+	expect($GLOBALS['_test_options']['skwirrel_wc_sync_version'])->toBe('3.10.2');
+});
+
+test('version match with interval set but no action self-heals exactly one action', function () {
+	$GLOBALS['_test_options']['skwirrel_wc_sync_version']  = '3.10.2';
+	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [ 'sync_interval' => 'daily' ];
+	$GLOBALS['_test_as_scheduled']                         = false;
+
+	Skwirrel_WC_Sync_Action_Scheduler::instance()->maybe_upgrade_reschedule();
+
+	expect(rearm_recurring_calls())->toHaveCount(1);
+	expect($GLOBALS['_test_as_scheduled'])->toBeTrue();
+});
+
+test('version match with interval set and action already armed creates no duplicate', function () {
+	$GLOBALS['_test_options']['skwirrel_wc_sync_version']  = '3.10.2';
+	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [ 'sync_interval' => 'daily' ];
+	$GLOBALS['_test_as_scheduled']                         = true;
+
+	Skwirrel_WC_Sync_Action_Scheduler::instance()->maybe_upgrade_reschedule();
+
+	expect(rearm_recurring_calls())->toHaveCount(0);
+});
+
+test('ensure_scheduled is a no-op when the interval is empty', function () {
+	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [ 'sync_interval' => '' ];
+
+	Skwirrel_WC_Sync_Action_Scheduler::instance()->ensure_scheduled();
+
+	expect(rearm_recurring_calls())->toHaveCount(0);
+});
+--- new file: tests/Unit/CategoryRenameTest.php ---
+<?php
+
+declare(strict_types=1);
+
+// Minimal WP_Term stub — only ->name and ->parent are read by maybe_update_term().
+if ( ! class_exists( 'WP_Term' ) ) {
+	class WP_Term {
+		public string $name = '';
+		public int $parent  = 0;
+
+		public function __construct( string $name = '', int $parent = 0 ) {
+			$this->name   = $name;
+			$this->parent = $parent;
+		}
+	}
+}
+
+// get_term() returns whatever the test stages in $GLOBALS['_test_term'].
+if ( ! function_exists( 'get_term' ) ) {
+	function get_term( int $term_id, string $taxonomy = '' ) {
+		return $GLOBALS['_test_term'] ?? null;
+	}
+}
+
+// wp_update_term() captures its call args (or returns a staged WP_Error).
+if ( ! function_exists( 'wp_update_term' ) ) {
+	function wp_update_term( int $term_id, string $taxonomy, array $args = [] ) {
+		$GLOBALS['_test_update_calls'][] = [
+			'term_id'  => $term_id,
+			'taxonomy' => $taxonomy,
+			'args'     => $args,
+		];
+		if ( isset( $GLOBALS['_test_update_error'] ) ) {
+			return $GLOBALS['_test_update_error'];
+		}
+		return [ 'term_id' => $term_id ];
+	}
+}
+
+require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-logger.php';
+require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-category-sync.php';
+
+/**
+ * Invoke the private maybe_update_term() via reflection.
+ *
+ * @param array{0:string,1:int} ...$_ Unused — documents the call shape.
+ */
+function invoke_maybe_update_term( int $term_id, string $name, string $taxonomy, int $parent_term_id ): void {
+	$sync   = new Skwirrel_WC_Sync_Category_Sync( new Skwirrel_WC_Sync_Logger() );
+	$method = new ReflectionMethod( Skwirrel_WC_Sync_Category_Sync::class, 'maybe_update_term' );
+	$method->invoke( $sync, $term_id, $name, $taxonomy, $parent_term_id );
+}
+
+beforeEach(function () {
+	$GLOBALS['_test_update_calls'] = [];
+	unset( $GLOBALS['_test_update_error'], $GLOBALS['_test_term'] );
+});
+
+test('updates name when the Skwirrel name differs', function () {
+	$GLOBALS['_test_term'] = new WP_Term( 'Oude naam', 0 );
+
+	invoke_maybe_update_term( 42, 'Nieuwe naam', 'product_cat', 0 );
+
+	expect($GLOBALS['_test_update_calls'])->toHaveCount(1);
+	expect($GLOBALS['_test_update_calls'][0]['args'])->toBe([ 'name' => 'Nieuwe naam' ]);
+});
+
+test('updates parent when the mapped parent differs and is > 0', function () {
+	$GLOBALS['_test_term'] = new WP_Term( 'Schroeven', 5 );
+
+	invoke_maybe_update_term( 42, 'Schroeven', 'product_cat', 9 );
+
+	expect($GLOBALS['_test_update_calls'])->toHaveCount(1);
+	expect($GLOBALS['_test_update_calls'][0]['args'])->toBe([ 'parent' => 9 ]);
+});
+
+test('updates both name and parent when both differ', function () {
+	$GLOBALS['_test_term'] = new WP_Term( 'Oud', 5 );
+
+	invoke_maybe_update_term( 42, 'Nieuw', 'product_cat', 9 );
+
+	expect($GLOBALS['_test_update_calls'])->toHaveCount(1);
+	expect($GLOBALS['_test_update_calls'][0]['args'])->toBe([ 'name' => 'Nieuw', 'parent' => 9 ]);
+});
+
+test('does not call wp_update_term when nothing differs', function () {
+	$GLOBALS['_test_term'] = new WP_Term( 'Schroeven', 5 );
+
+	invoke_maybe_update_term( 42, 'Schroeven', 'product_cat', 5 );
+
+	expect($GLOBALS['_test_update_calls'])->toHaveCount(0);
+});
+
+test('does not include name when the Skwirrel name is empty', function () {
+	$GLOBALS['_test_term'] = new WP_Term( 'Schroeven', 5 );
+
+	invoke_maybe_update_term( 42, '', 'product_cat', 9 );
+
+	expect($GLOBALS['_test_update_calls'])->toHaveCount(1);
+	expect($GLOBALS['_test_update_calls'][0]['args'])->toBe([ 'parent' => 9 ]);
+});
+
+test('does not call wp_update_term when parent is 0 (unknown) and name unchanged', function () {
+	$GLOBALS['_test_term'] = new WP_Term( 'Schroeven', 5 );
+
+	invoke_maybe_update_term( 42, 'Schroeven', 'product_cat', 0 );
+
+	expect($GLOBALS['_test_update_calls'])->toHaveCount(0);
+});
+
+test('returns gracefully and still logs nothing fatal on WP_Error', function () {
+	$GLOBALS['_test_term']        = new WP_Term( 'Oud', 0 );
+	$GLOBALS['_test_update_error'] = new WP_Error( 'db_error', 'boom' );
+
+	invoke_maybe_update_term( 42, 'Nieuw', 'product_cat', 0 );
+
+	// wp_update_term was attempted exactly once; the WP_Error path must not throw.
+	expect($GLOBALS['_test_update_calls'])->toHaveCount(1);
+});
+
+test('no-op when get_term does not return a WP_Term', function () {
+	$GLOBALS['_test_term'] = null;
+
+	invoke_maybe_update_term( 42, 'Nieuw', 'product_cat', 9 );
+
+	expect($GLOBALS['_test_update_calls'])->toHaveCount(0);
+});
