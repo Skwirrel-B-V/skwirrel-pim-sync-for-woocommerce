@@ -1,12 +1,13 @@
 {
-	"core": "WordPress/WordPress#6.9.4",
+	"core": "WordPress/WordPress#7.0",
 	"phpVersion": "8.3",
 	"plugins": [
-		"https://downloads.wordpress.org/plugin/woocommerce.zip",
+		"https://downloads.wordpress.org/plugin/woocommerce.10.8.0.zip",
 		"./plugin/skwirrel-pim-sync",
 		"https://downloads.wordpress.org/plugin/plugin-check.zip"
 	],
 	"mappings": {
+		"wp-content/mu-plugins": "./mu-plugins",
 		"wp-content/plugins/skwirrel-pim-sync/tests": "./tests",
 		"wp-content/plugins/skwirrel-pim-sync/vendor": "./vendor",
 		"wp-content/plugins/skwirrel-pim-sync/composer.json": "./composer.json",

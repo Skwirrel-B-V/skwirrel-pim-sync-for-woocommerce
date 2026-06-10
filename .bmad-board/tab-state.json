@@ -1,0 +1,21 @@
+{
+  "tabs": [
+    {
+      "slashCommand": null,
+      "claudeSessionId": null,
+      "label": "Claude Code",
+      "emoji": "▷",
+      "icon": "terminal-window",
+      "oscTitle": "Claude Code",
+      "storySlug": null,
+      "storyPhase": null,
+      "storyScope": null,
+      "epicNumber": null,
+      "storyNumber": null,
+      "alias": null,
+      "clean": true
+    }
+  ],
+  "activeIndex": 0,
+  "savedAt": "2026-06-10T11:02:13.126Z"
+}
