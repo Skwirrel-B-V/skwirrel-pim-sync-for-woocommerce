@@ -1,21 +1,6 @@
 {
   "tabs": [
     {
-      "slashCommand": null,
-      "claudeSessionId": null,
-      "label": "Claude Code",
-      "emoji": "▷",
-      "icon": "terminal-window",
-      "oscTitle": "Claude Code",
-      "storySlug": null,
-      "storyPhase": null,
-      "storyScope": null,
-      "epicNumber": null,
-      "storyNumber": null,
-      "alias": null,
-      "clean": true
-    },
-    {
       "slashCommand": "/bmad-help We have a skwirrel wordpress plugin to connect Wordpress Woocommerce Shop with our PIM system",
       "claudeSessionId": null,
       "label": "BMAD Help We have a skwirrel wordpress plugin to connect Wordpress Woocommerce Shop with our PIM system",
@@ -31,6 +16,6 @@
       "clean": false
     }
   ],
-  "activeIndex": 1,
-  "savedAt": "2026-06-11T06:05:42.911Z"
+  "activeIndex": 0,
+  "savedAt": "2026-06-11T08:52:18.986Z"
 }
