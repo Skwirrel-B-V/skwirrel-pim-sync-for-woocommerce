@@ -82,7 +82,10 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 * Fix: scheduled syncs no longer silently stop after a plugin auto-update on WordPress 7.0. The recurring sync job was previously armed only on activation/settings-save, so a WP.org auto-update (which skips activation) never re-armed it. The schedule now re-arms automatically on every plugin version change and self-heals a lost Action Scheduler action on any admin page load — idempotently, honoring a disabled interval, and never creating a duplicate job.
 * Fix: the WordPress 7.0 Connectors registration now passes a non-empty `type` (`service`), silencing the `_doing_it_wrong` notice emitted on 7.0.
+* Fix: the "Settings → Connectors" link on the dashboard now points to the correct WordPress 7.0 Connections Screen (`options-connectors.php`) instead of a non-existent page.
+* New: the Skwirrel connector now shows the Skwirrel logo on the WordPress 7.0 Connections Screen instead of the default plug icon.
 * Fix: category renames and parent moves in Skwirrel now propagate to existing WooCommerce categories. Previously only brand-new categories were created; a category already matched by its Skwirrel ID was left untouched. The matched term is now updated via `wp_update_term()` only when the name or parent actually differs, so manual WooCommerce edits to unchanged fields are preserved.
+* Fix: product documents/downloads now attach correctly on WordPress 7.0 / WooCommerce 10.x. The plugin's auto-registration of the uploads folder as an approved download directory was calling a WooCommerce method that no longer exists (`is_approved_directory()`), so the directory was never approved and every downloadable file was rejected. It now uses the correct `is_valid_path()` check and registers the directory automatically — no manual step required.
 * Compatibility: minimum supported WordPress raised to 6.9 (`Requires at least: 6.9`). WordPress 7.0+ is now the primary development and test target; 6.9 remains the backward-compatibility floor. No functional code changes.
 
 = 3.10.1 =

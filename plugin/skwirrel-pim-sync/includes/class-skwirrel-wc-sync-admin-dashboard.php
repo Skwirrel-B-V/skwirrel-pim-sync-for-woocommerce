@@ -532,7 +532,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							<p class="skw-field-hint">
 								<?php
 								$has_token      = '' !== Skwirrel_WC_Sync_Admin_Settings::get_auth_token();
-								$connectors_url = admin_url( 'options-general.php?page=connectors' );
+								$connectors_url = admin_url( 'options-connectors.php' );
 								$status_label   = $has_token
 									? esc_html__( 'Token configured.', 'skwirrel-pim-sync' )
 									: esc_html__( 'No token configured.', 'skwirrel-pim-sync' );

@@ -2266,8 +2266,11 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				return;
 			}
 
-			// Check if already approved and enabled.
-			if ( $register->is_approved_directory( $base_url . '/test.pdf' ) ) {
+			// Check if already approved and enabled. The Register class exposes
+			// is_valid_path() (WC 6.5+); the older is_approved_directory() name
+			// does not exist and throws, which would silently skip the add/enable
+			// below and cause every downloadable file to fail validation.
+			if ( $register->is_valid_path( $base_url . '/test.pdf' ) ) {
 				return;
 			}
 

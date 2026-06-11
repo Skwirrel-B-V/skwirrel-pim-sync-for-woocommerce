@@ -97,6 +97,11 @@ final class Skwirrel_WC_Sync_Connectors {
 		$args = [
 			'name'           => __( 'Skwirrel PIM', 'skwirrel-pim-sync' ),
 			'description'    => __( 'API token for syncing products from the Skwirrel PIM system to WooCommerce.', 'skwirrel-pim-sync' ),
+			// Branded logo on the Connections Screen — WP 7.0 reads `logo_url`
+			// (class-wp-connector-registry.php). Uses the bundled Skwirrel mark;
+			// the WP.org icon-*.jpg assets are SVN-only and would not resolve on
+			// the installed site. Empty string falls back to the default icon.
+			'logo_url'       => defined( 'SKWIRREL_WC_SYNC_PLUGIN_URL' ) ? SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/s.png' : '',
 			// WP 7.0.0 requires a non-empty `type`. The Connectors admin screen
 			// only renders `ai_provider` connectors today; non-AI types register
 			// cleanly but have no native UI yet, so we keep the plugin's own
