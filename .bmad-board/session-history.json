@@ -1,5 +1,29 @@
 [
   {
+    "id": "session-1781082533714-2",
+    "tabId": 2,
+    "command": "/bmad-help We have a skwirrel wordpress plugin to connect Wordpress Woocommerce Shop with our PIM system",
+    "label": "BMAD Help We have a skwirrel wordpress plugin to connect Wordpress Woocommerce Shop with our PIM system",
+    "emoji": "❓",
+    "icon": "question",
+    "claudeSessionId": "98482286-35d6-45db-971f-90a8d2639e6c",
+    "createdAt": "2026-06-11T06:05:41.164Z",
+    "projectPath": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress",
+    "projectName": "wordpress"
+  },
+  {
+    "id": "session-1781157932637-1",
+    "tabId": 1,
+    "command": null,
+    "label": "Terminal",
+    "emoji": "▷",
+    "icon": "terminal-window",
+    "claudeSessionId": "0155f7b3-937d-4128-baa3-9ecd3e6a34b4",
+    "createdAt": "2026-06-11T06:05:32.637Z",
+    "projectPath": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress",
+    "projectName": "wordpress"
+  },
+  {
     "id": "session-1781089330385-1",
     "tabId": 1,
     "command": null,
@@ -80,18 +104,6 @@
     "icon": "terminal-window",
     "claudeSessionId": "e0d16469-dc32-4b9a-8d01-82c7fdedfab8",
     "createdAt": "2026-06-10T09:14:08.385Z",
-    "projectPath": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress",
-    "projectName": "wordpress"
-  },
-  {
-    "id": "session-1781082533714-2",
-    "tabId": 2,
-    "command": "/bmad-help We have a skwirrel wordpress plugin to connect Wordpress Woocommerce Shop with our PIM system",
-    "label": "BMAD Help We have a skwirrel wordpress plugin to connect Wordpress Woocommerce Shop with our PIM system",
-    "emoji": "❓",
-    "icon": "question",
-    "claudeSessionId": "98482286-35d6-45db-971f-90a8d2639e6c",
-    "createdAt": "2026-06-10T09:08:53.714Z",
     "projectPath": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress",
     "projectName": "wordpress"
   },

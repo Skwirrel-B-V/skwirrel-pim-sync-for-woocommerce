@@ -14,6 +14,14 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 
 * On WordPress 7.0, `register()` requires a non-empty `type`. The Skwirrel connector now registers with `'type' => 'service'` (`includes/class-skwirrel-wc-sync-connectors.php`), silencing the `_doing_it_wrong` notice. The plugin's own token field remains the actual UI until core lifts the `ai_provider` screen restriction.
 
+### Fix — "Settings → Connectors" link pointed to the wrong admin URL
+
+* The dashboard's API-token hint linked to `options-general.php?page=connectors`, which is not where WordPress 7.0 hosts the Connections Screen. Corrected to `options-connectors.php` (`includes/class-skwirrel-wc-sync-admin-dashboard.php`) so the link actually opens the Connectors page.
+
+### New — branded Skwirrel logo on the WP 7.0 Connections Screen
+
+* The Skwirrel connector previously showed the default plug icon. It now registers a `logo_url` (`includes/class-skwirrel-wc-sync-connectors.php`) pointing at the bundled Skwirrel mark (`assets/s.png`), so the Connections Screen shows our branding. Degrades gracefully to the default icon if the URL is unavailable.
+
 ### Fix — category renames and parent moves in Skwirrel did not propagate (F3)
 
 * Previously, when a category already matched an existing WooCommerce term by `_skwirrel_category_id`, the term was returned unchanged — so renaming or re-parenting a category in Skwirrel never updated the WooCommerce category. `find_or_create_category_term()` now reconciles the meta-matched term via `wp_update_term()` (`includes/class-skwirrel-wc-sync-category-sync.php::maybe_update_term`), updating the name and/or parent **only** when the Skwirrel value actually differs — manual WooCommerce edits to unchanged fields are never clobbered. A `WP_Error` is warning-logged and the existing term is still returned; successful updates are info-logged. Both the tree-build and per-product assignment paths are covered, as both route through `find_or_create_category_term()`.
