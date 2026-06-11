@@ -26,6 +26,12 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 
 * Previously, when a category already matched an existing WooCommerce term by `_skwirrel_category_id`, the term was returned unchanged — so renaming or re-parenting a category in Skwirrel never updated the WooCommerce category. `find_or_create_category_term()` now reconciles the meta-matched term via `wp_update_term()` (`includes/class-skwirrel-wc-sync-category-sync.php::maybe_update_term`), updating the name and/or parent **only** when the Skwirrel value actually differs — manual WooCommerce edits to unchanged fields are never clobbered. A `WP_Error` is warning-logged and the existing term is still returned; successful updates are info-logged. Both the tree-build and per-product assignment paths are covered, as both route through `find_or_create_category_term()`.
 
+### Fix — product documents/downloads silently failed to attach (undefined `is_approved_directory()`)
+
+* **Symptom**: on WooCommerce's current API (WP 7.0 / WC 10.x), every product with downloadable files logged `Failed to auto-approve uploads download directory` followed by a cascade of `Downloadable files save failed … not located within an approved directory`. No documents/downloads were attached to any product.
+* **Root cause** (`includes/class-skwirrel-wc-sync-product-upserter.php`): `ensure_uploads_approved_download_directory()` pre-checked the uploads folder with `$register->is_approved_directory()`, a method that does not exist on `…ApprovedDirectories\Register`. The call threw, the surrounding `try/catch` swallowed it, and the `add_approved_directory()` + `enable_by_id()` calls below it never ran — so the uploads directory was never registered in WooCommerce's approved-download allowlist and every downloadable file was rejected.
+* **Fix**: use the correct `is_valid_path()` method (WC 6.5+). The uploads base URL is now auto-registered and enabled as intended, once per sync, before the first document save — no manual "Approved download directories" step for the store owner. Pre-existing issue, not introduced in this release.
+
 ### Compatibility — minimum WordPress raised to 6.9
 
 * Bumped `Requires at least:` from `6.0` to `6.9` in both the plugin header (`skwirrel-pim-sync.php`) and `readme.txt`. WordPress 7.0+ is now the primary development and test target; 6.9 is the backward-compatibility floor. `Tested up to:` remains `7.0`. No functional code changes — header/metadata only.
