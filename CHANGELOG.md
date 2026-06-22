@@ -2,6 +2,24 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.11.0]
+
+### Change — batch sync now commits each product fully in one pass (per-product-atomic)
+
+* **Why**: a single-product sync from the product edit screen always worked, but a "normal" batch sync could leave products half-built or duplicated. The cause was structural: batch sync drained the queue in **six global phases** (create → taxonomy → attributes → media → relations → purge), processing *every* product at each phase before moving on. If a run died between phases (timeout, OOM, hard kill), products created in the first phase persisted with no categories/attributes/images, and — because the delta checkpoint had often already advanced — a later delta never went back to finish them. (Investigation findings F4/F6/F7.)
+* **Fix** (`includes/class-skwirrel-wc-sync-service.php`): the four per-product phase loops (create, taxonomy, attributes, media) are collapsed into **one loop that fully commits each product before moving to the next** — the same shape as single-product sync. Only genuinely cross-entity work stays deferred to a thin tail: the variable-parent attribute-term flush, virtual/grouped-parent media, and cross-sell/upsell relations (which need every product to exist first), then purge. An interrupted run now leaves only *un-started* products incomplete; they are picked up cleanly on the next run, never bare or duplicated. This is a correctness change, not a speed regression — it does the identical work in **one** pass instead of ~five, with fewer object-cache flushes and queue round-trips; total time is unchanged (still dominated by image downloads, which are deduplicated by `_skwirrel_url_hash`).
+
+### Fix — duplicate products with suffixed SKUs (F7)
+
+* **Symptom**: re-syncs and simple↔grouped oscillation could create duplicate products with a suffixed SKU like `4250366870007-14768`.
+* **Root cause** (`includes/class-skwirrel-wc-sync-product-upserter.php`): when the identity lookup missed but the SKU was already owned by an existing product, the upsert *minted a new `-{product_id}` SKU and created a second product* instead of reconciling with the existing one. The logic was duplicated across `create_or_update_product()` and `upsert_product()`, free to drift.
+* **Fix**: a single shared `resolve_sku_identity()` helper now decides the collision outcome for both methods — **reuse** the existing product when an identically-keyed *simple* product is found, and **skip** (let the grouped-product path own it) when the SKU belongs to a *variable* product. A suffixed duplicate is never minted on the new-product path. Covered by `tests/Unit/IdentityReuseTest.php`.
+
+### Fix — interrupted syncs advanced the delta checkpoint too early, stranding images (F4)
+
+* **Root cause** (`includes/class-skwirrel-wc-sync-service.php`): on an initial delta run with no checkpoint, `skwirrel_wc_sync_last_sync` was written **up front**, before any product was committed. A run that died afterwards left the checkpoint advanced past products it never finished, so the next delta skipped them and their images never backfilled.
+* **Fix**: the checkpoint is now written **only on provable completion** (end of run), stamped with the run *start* time so products changed upstream *during* the run are still caught next time. A crash before completion leaves `last_sync` untouched → the next run re-pulls and idempotently re-commits. This refines the 3.10.1 "seed the checkpoint so the next run narrows" behavior: the narrowing intent is preserved for successful runs, without the silent-skip risk on a failed one.
+
 ## [3.10.3]
 
 ### Fix — `wp_skwirrel_sync_queue` table grew without bound, eventually filling the disk

@@ -78,6 +78,12 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 == Changelog ==
 
+= 3.11.0 =
+
+* Change: a "normal" batch sync now imports each product fully in one pass — create, categories, attributes, and images together — exactly like syncing a single product from the product screen. Previously batch sync worked in separate global phases (all products created first, then all categorised, then all imaged, …), so a run interrupted by a timeout or server limit could leave products half-built (created but without images or attributes) and a later sync would not go back to finish them. Each product is now committed completely before the next, so an interrupted run only leaves not-yet-started products, which are picked up cleanly next time. Same work, same speed — just no half-finished products.
+* Fix: re-syncs no longer create duplicate products with a suffixed SKU (e.g. `4250366870007-14768`). When a product's SKU already exists, the sync now reuses the existing product (or, for grouped/variable products, leaves it to the grouped-product path) instead of minting a second copy.
+* Fix: an interrupted sync no longer "loses" products. The delta checkpoint that tracks what has been synced is now advanced only when a run fully completes (and is stamped with the run's start time), so a run that dies partway through is simply re-done next time instead of silently skipping the products it never finished.
+
 = 3.10.3 =
 
 * Fix: the internal `wp_skwirrel_sync_queue` working table no longer grows without bound. This table is temporary scratch space used during a sync, and is cleaned up when a run finishes. Runs that ended abnormally — a fatal error, an out-of-memory kill, a server timeout, or a hard-killed process — left their rows behind, and over time these accumulated and could fill the disk. Each sync now sweeps away leftovers from earlier interrupted runs at the start, and cleanup is hardened to run on every failure path, so the table stays small automatically. (No product data is affected — this is purely temporary working data.)

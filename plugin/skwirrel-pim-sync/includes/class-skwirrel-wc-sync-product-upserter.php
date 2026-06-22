@@ -119,41 +119,14 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 		}
 
-		// Voorkom dubbele SKU bij nieuw product: als een ander product al deze SKU heeft,
-		// genereer een unieke SKU met suffix
-		$is_new = ! $wc_id;
-		if ( $is_new ) {
-			$existing_sku_id = wc_get_product_id_by_sku( $sku );
-			if ( $existing_sku_id ) {
-				$original_sku = $sku;
-				$sku          = $sku . '-' . ( $skwirrel_product_id ?? uniqid() );
-				$this->logger->warning(
-					'Dubbele SKU voorkomen bij nieuw product',
-					[
-						'original_sku'        => $original_sku,
-						'new_sku'             => $sku,
-						'existing_wc_id'      => $existing_sku_id,
-						'skwirrel_product_id' => $skwirrel_product_id,
-					]
-				);
-			}
-		} else {
-			// Bestaand product: controleer of SKU is veranderd en geen conflict veroorzaakt
-			$existing_sku_id = wc_get_product_id_by_sku( $sku );
-			if ( $existing_sku_id && (int) $existing_sku_id !== (int) $wc_id ) {
-				$original_sku = $sku;
-				$sku          = $sku . '-' . ( $skwirrel_product_id ?? uniqid() );
-				$this->logger->warning(
-					'SKU conflict bij update, unieke SKU gegenereerd',
-					[
-						'original_sku'      => $original_sku,
-						'new_sku'           => $sku,
-						'wc_id'             => $wc_id,
-						'conflicting_wc_id' => $existing_sku_id,
-					]
-				);
-			}
+		// Voorkom dubbele SKU — single-sourced; hergebruik-of-sla-over i.p.v. een duplicaat aanmaken (F7).
+		$identity = $this->resolve_sku_identity( (int) $wc_id, $sku, $skwirrel_product_id );
+		if ( $identity['skip'] ) {
+			return 'skipped';
 		}
+		$wc_id  = $identity['wc_id'];
+		$is_new = $identity['is_new'];
+		$sku    = $identity['sku'];
 
 		$this->logger->verbose(
 			'Upsert product',
@@ -1198,19 +1171,17 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$wc_id = $this->lookup->find_by_skwirrel_product_id( (int) $skwirrel_product_id );
 		}
 
-		// Duplicate SKU protection
-		$is_new = ! $wc_id;
-		if ( $is_new ) {
-			$existing_sku_id = wc_get_product_id_by_sku( $sku );
-			if ( $existing_sku_id ) {
-				$sku = $sku . '-' . ( $skwirrel_product_id ?? uniqid() );
-			}
-		} else {
-			$existing_sku_id = wc_get_product_id_by_sku( $sku );
-			if ( $existing_sku_id && (int) $existing_sku_id !== (int) $wc_id ) {
-				$sku = $sku . '-' . ( $skwirrel_product_id ?? uniqid() );
-			}
+		// Duplicate SKU protection — single-sourced; reuse-or-skip instead of minting duplicates (F7).
+		$identity = $this->resolve_sku_identity( (int) $wc_id, $sku, $skwirrel_product_id );
+		if ( $identity['skip'] ) {
+			return [
+				'wc_id'   => 0,
+				'outcome' => 'skipped',
+			];
 		}
+		$wc_id  = $identity['wc_id'];
+		$is_new = $identity['is_new'];
+		$sku    = $identity['sku'];
 
 		if ( $is_new ) {
 			$wc_product = new WC_Product_Simple();
@@ -1996,6 +1967,94 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				'unresolved'  => count( $unresolved ),
 			]
 		);
+	}
+
+	/**
+	 * Resolve SKU-based identity + collision for a simple-product upsert.
+	 *
+	 * Single-sources the decision shared by create_or_update_product() and upsert_product()
+	 * so the two near-identical methods can never drift. Given the wc_id resolved by the lookup
+	 * chain (0 = no identity match yet) and the desired SKU, it decides:
+	 *
+	 *  - skip  : the SKU is owned by an existing *variable* product — this simple payload is that
+	 *            product's variable/variation representation (the simple<->1-member-group
+	 *            oscillation, F7). Minting a suffixed simple here is exactly what produced
+	 *            duplicates like `4250366870007-14768`; skip instead and let the grouped-product
+	 *            path own it.
+	 *  - reuse : the SKU is owned by an existing *simple* product whose identity meta we failed to
+	 *            match — reuse it (update in place) rather than minting a duplicate.
+	 *  - keep  : no collision (or, on the update path, a clash against a *different* product, in
+	 *            which case the SKU is suffixed to avoid a unique-SKU violation).
+	 *
+	 * @param int             $wc_id               WC id resolved by the lookup chain (0 if none).
+	 * @param string          $sku                 Desired SKU for this product.
+	 * @param int|string|null $skwirrel_product_id Skwirrel product_id (used for the update-path suffix).
+	 * @return array{wc_id: int, is_new: bool, sku: string, skip: bool}
+	 */
+	private function resolve_sku_identity( int $wc_id, string $sku, $skwirrel_product_id ): array {
+		$is_new = ! $wc_id;
+
+		if ( $is_new ) {
+			$existing_sku_id = wc_get_product_id_by_sku( $sku );
+			if ( $existing_sku_id ) {
+				$existing = wc_get_product( $existing_sku_id );
+				if ( $existing && $existing->is_type( 'variable' ) ) {
+					// SKU owned by a variable product — do not mint a duplicate suffixed simple (F7).
+					$this->logger->warning(
+						'SKU owned by a variable product; skipping to avoid a duplicate simple (F7)',
+						[
+							'sku'                 => $sku,
+							'wc_variable_id'      => (int) $existing_sku_id,
+							'skwirrel_product_id' => $skwirrel_product_id,
+						]
+					);
+					return [
+						'wc_id'  => 0,
+						'is_new' => true,
+						'sku'    => $sku,
+						'skip'   => true,
+					];
+				}
+				// SKU owned by an existing simple product we missed on meta — reuse it, never duplicate.
+				$this->logger->info(
+					'Reusing existing product by SKU instead of minting a duplicate (F7)',
+					[
+						'sku'                 => $sku,
+						'reused_wc_id'        => (int) $existing_sku_id,
+						'skwirrel_product_id' => $skwirrel_product_id,
+					]
+				);
+				return [
+					'wc_id'  => (int) $existing_sku_id,
+					'is_new' => false,
+					'sku'    => $sku,
+					'skip'   => false,
+				];
+			}
+		} else {
+			$existing_sku_id = wc_get_product_id_by_sku( $sku );
+			if ( $existing_sku_id && (int) $existing_sku_id !== (int) $wc_id ) {
+				// Desired SKU taken by a *different* product — suffix to avoid a unique-SKU clash.
+				$original_sku = $sku;
+				$sku          = $sku . '-' . ( $skwirrel_product_id ?? uniqid() );
+				$this->logger->warning(
+					'SKU conflict on update; generated a unique SKU',
+					[
+						'original_sku'      => $original_sku,
+						'new_sku'           => $sku,
+						'wc_id'             => $wc_id,
+						'conflicting_wc_id' => (int) $existing_sku_id,
+					]
+				);
+			}
+		}
+
+		return [
+			'wc_id'  => $wc_id,
+			'is_new' => $is_new,
+			'sku'    => $sku,
+			'skip'   => false,
+		];
 	}
 
 	/**
