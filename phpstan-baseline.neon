@@ -973,24 +973,6 @@ parameters:
 			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php
 
 		-
-			message: '#^Variable \$created might not be defined\.$#'
-			identifier: variable.undefined
-			count: 2
-			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php
-
-		-
-			message: '#^Variable \$failed might not be defined\.$#'
-			identifier: variable.undefined
-			count: 2
-			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php
-
-		-
-			message: '#^Variable \$updated might not be defined\.$#'
-			identifier: variable.undefined
-			count: 2
-			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php
-
-		-
 			message: '#^Method Skwirrel_WC_Sync_Slug_Resolver\:\:get_settings\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1

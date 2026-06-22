@@ -2,6 +2,20 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.10.3]
+
+### Fix — `wp_skwirrel_sync_queue` table grew without bound, eventually filling the disk
+
+* **Symptom**: on a large-catalog install the `wp_skwirrel_sync_queue` table ballooned to ~8.8 GB / ~95k rows and kept growing across syncs, eventually exhausting disk and blocking admin logins. The table is meant to be transient scratch space that holds the full API payload per product (`product_data LONGTEXT`) only for the duration of a single run.
+* **Root cause** (`includes/class-skwirrel-wc-sync-service.php`): the queue was only ever cleaned per-run, by `$queue->cleanup()` (DELETE `WHERE sync_run_id = <this run>`), at the success and *anticipated*-failure paths (API/pagination error, user abort). Any run that died another way left all of its rows orphaned forever, and nothing ever swept them: (1) the `catch` only handled `\RuntimeException` (user abort) — any other `\Throwable` propagated past the cleanup; (2) the `finally` block did not clean the queue; (3) the fatal-error/OOM shutdown handler recorded the crash but never touched the queue table; (4) a hard kill (server timeout, OOM-killer, `kill -9`, deploy mid-sync) bypassed every PHP-level handler. For a multi-hour full sync these unanticipated deaths are the *common* case, so orphaned rows accumulated unboundedly.
+* **Fix** (defense in depth):
+  * **Start-of-run orphan sweep** — `Skwirrel_WC_Sync_Queue::cleanup_orphans()` deletes every row whose `sync_run_id` differs from the current run, right after the queue is created. The run mutex (3.10.0) guarantees single concurrency, so any pre-existing row belongs to a dead run and is safe to drop. This is the key fix and the only one that self-heals after a hard kill, where no handler runs. Removed rows are warning-logged.
+  * **`cleanup()` moved into `finally`** — a single, idempotent cleanup point that covers every thrown-exception path (the prior per-path cleanups become no-ops).
+  * **`catch ( \Throwable $e )`** added alongside the existing `RuntimeException` catch — unexpected errors are now logged, recorded as a failed run, and cleaned up instead of silently leaking rows.
+  * **Shutdown handler** now calls the new static `Skwirrel_WC_Sync_Queue::delete_run( $sync_run_id )` (run id passed into the closure by reference) so a fatal error / OOM also drops its run's rows.
+  * The `$created/$updated/$failed` counters are initialised before the `try` so the new catch can report progress-so-far even on an early crash (this also retired three now-obsolete PHPStan baseline entries).
+* **Operator note**: an already-bloated table can be reclaimed when no sync is running with `TRUNCATE TABLE wp_skwirrel_sync_queue;` (a plain `DELETE` does not return InnoDB disk to the OS). Going forward the start-of-run sweep keeps it bounded automatically.
+
 ## [3.10.2]
 
 ### Fix — scheduled syncs silently stopped after a plugin update on WP 7.0 (F2)

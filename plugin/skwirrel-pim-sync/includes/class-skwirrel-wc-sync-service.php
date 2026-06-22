@@ -107,14 +107,23 @@ class Skwirrel_WC_Sync_Service {
 		$shutdown_trigger    = $trigger;
 		$shutdown_log_file   = $log_filename;
 		$shutdown_registered = true;
+		// Populated once the run id is generated (below). On a fatal crash the
+		// handler uses it to delete this run's queue rows, which the normal
+		// end-of-run cleanup never reaches.
+		$shutdown_run_id = null;
 		register_shutdown_function(
-			static function () use ( $shutdown_trigger, $shutdown_log_file, &$shutdown_registered ): void {
+			static function () use ( $shutdown_trigger, $shutdown_log_file, &$shutdown_registered, &$shutdown_run_id ): void {
 				if ( ! $shutdown_registered ) { // @phpstan-ignore booleanNot.alwaysFalse (by-reference variable is set to false in finally block)
 					return; // Sync completed normally, nothing to do.
 				}
 				$error = error_get_last();
 				if ( null === $error || ! in_array( $error['type'], [ E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR ], true ) ) {
 					return;
+				}
+				// Remove this run's queue rows — a fatal error bypasses the
+				// try/finally cleanup, so without this they orphan forever.
+				if ( null !== $shutdown_run_id ) { // @phpstan-ignore notIdentical.alwaysFalse (by-reference variable is assigned the run id inside the try block)
+					Skwirrel_WC_Sync_Queue::delete_run( $shutdown_run_id );
 				}
 				// Record a failed sync so the dashboard shows the crash.
 				Skwirrel_WC_Sync_History::update_last_result(
@@ -132,6 +141,12 @@ class Skwirrel_WC_Sync_Service {
 				);
 			}
 		);
+
+		// Initialised before the try so the catch blocks below can report
+		// progress-so-far even when a crash happens before the main loop.
+		$created = 0;
+		$updated = 0;
+		$failed  = 0;
 
 		try {
 			global $wpdb;
@@ -158,9 +173,6 @@ class Skwirrel_WC_Sync_Service {
 			}
 
 			$options     = $this->get_options();
-			$created     = 0;
-			$updated     = 0;
-			$failed      = 0;
 			$delta_since = get_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, '' );
 
 			$collection_ids = $this->get_collection_ids();
@@ -351,6 +363,22 @@ class Skwirrel_WC_Sync_Service {
 			$sync_run_id = wp_generate_uuid4();
 			$queue       = new Skwirrel_WC_Sync_Queue( $sync_run_id );
 			$fetched     = 0;
+
+			// Expose the run id to the shutdown handler so a fatal crash can
+			// still drop this run's rows.
+			$shutdown_run_id = $sync_run_id;
+
+			// Sweep rows abandoned by earlier interrupted runs. The mutex
+			// guarantees single concurrency, so anything not tagged with the
+			// current run id is dead. This is the backstop that survives even
+			// hard kills, where neither finally nor the shutdown handler runs.
+			$orphans = $queue->cleanup_orphans();
+			if ( $orphans > 0 ) {
+				$this->logger->warning(
+					'Removed orphaned queue rows from previous interrupted sync run(s)',
+					[ 'rows' => $orphans ]
+				);
+			}
 
 			// One API call per configured selection ID — `dynamic_selection_id`
 			// is a single-int filter on Skwirrel's side, so a comma-separated
@@ -878,9 +906,19 @@ class Skwirrel_WC_Sync_Service {
 
 		} catch ( \RuntimeException $e ) {
 			// Abort requested by user — record as a non-error cancellation.
-			if ( isset( $queue ) ) {
-				$queue->cleanup();
-			}
+			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $e->getMessage(), 0, 0, 0, 0, $trigger, $log_filename );
+			return [
+				'success' => false,
+				'error'   => $e->getMessage(),
+				'created' => $created,
+				'updated' => $updated,
+				'failed'  => $failed,
+			];
+		} catch ( \Throwable $e ) {
+			// Any other failure (type error, OOM-adjacent error, third-party
+			// hook throwing, …). Without this catch it would propagate past
+			// the queue cleanup and leave this run's rows orphaned.
+			$this->logger->error( 'Sync failed with an unexpected error', [ 'error' => $e->getMessage() ] );
 			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $e->getMessage(), 0, 0, 0, 0, $trigger, $log_filename );
 			return [
 				'success' => false,
@@ -891,6 +929,13 @@ class Skwirrel_WC_Sync_Service {
 			];
 		} finally {
 			$shutdown_registered = false; // Disable shutdown handler — sync completed.
+			// Single cleanup point for this run's rows. Idempotent: the success
+			// and per-error paths above may already have cleaned up, in which
+			// case this deletes nothing. Covers every thrown-exception path,
+			// including the RuntimeException/Throwable catches above.
+			if ( isset( $queue ) ) {
+				$queue->cleanup();
+			}
 			$this->logger->stop_sync_log();
 			// Belt-and-braces release — covers the config-error early returns
 			// that bypass update_last_result(). delete_transient is idempotent.

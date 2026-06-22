@@ -267,13 +267,55 @@ class Skwirrel_WC_Sync_Queue {
 	 * Delete all rows for this sync run.
 	 */
 	public function cleanup(): void {
+		self::delete_run( $this->sync_run_id );
+	}
+
+	/**
+	 * Delete all rows belonging to a specific sync run.
+	 *
+	 * Static so it can be called from a shutdown handler (fatal error / OOM)
+	 * where only the run id — not the Queue instance — is in scope.
+	 *
+	 * @param string $sync_run_id The run whose rows should be removed.
+	 */
+	public static function delete_run( string $sync_run_id ): void {
 		global $wpdb;
+		if ( ! self::table_exists() ) {
+			return;
+		}
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$wpdb->delete(
 			self::table_name(),
-			[ 'sync_run_id' => $this->sync_run_id ],
+			[ 'sync_run_id' => $sync_run_id ],
 			[ '%s' ]
 		);
+	}
+
+	/**
+	 * Remove rows left behind by other (dead) sync runs.
+	 *
+	 * The run mutex guarantees only one sync executes at a time, so any row
+	 * whose sync_run_id differs from the current run belongs to a run that
+	 * died before it could call cleanup() — a fatal error, an out-of-memory
+	 * kill, a server-side timeout, or a hard-killed process. None of those
+	 * reach the normal end-of-run cleanup or even the shutdown handler, so
+	 * without this sweep their rows accumulate forever and the table grows
+	 * without bound. Running it at the start of every sync is self-healing.
+	 *
+	 * @return int Number of orphaned rows removed.
+	 */
+	public function cleanup_orphans(): int {
+		global $wpdb;
+		$table = self::table_name();
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$deleted = $wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$table} WHERE sync_run_id <> %s",
+				$this->sync_run_id
+			)
+		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return (int) $deleted;
 	}
 
 	/**
