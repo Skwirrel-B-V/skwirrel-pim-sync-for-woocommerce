@@ -561,8 +561,9 @@ class Skwirrel_WC_Sync_Service {
 			$processed = 0;
 			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
 			while ( $row = $queue->get_next_for_phase( 4 ) ) {
-				$outcome = 'skipped';
-				$wc_id   = 0;
+				$outcome         = 'skipped';
+				$wc_id           = 0;
+				$pending_publish = false;
 				try {
 					$result_item = $row->group_info
 						? $this->upserter->create_or_update_variation(
@@ -571,8 +572,9 @@ class Skwirrel_WC_Sync_Service {
 						)
 						: $this->upserter->create_or_update_product( $row->product );
 
-					$wc_id   = $result_item['wc_id'];
-					$outcome = $result_item['outcome'];
+					$wc_id           = $result_item['wc_id'];
+					$outcome         = $result_item['outcome'];
+					$pending_publish = (bool) ( $result_item['pending_publish'] ?? false );
 
 					if ( 'created' === $outcome ) {
 						++$created;
@@ -651,6 +653,26 @@ class Skwirrel_WC_Sync_Service {
 					} catch ( Throwable $e ) {
 						$this->logger->warning(
 							'Media assignment failed',
+							[
+								'wc_id' => $wc_id,
+								'error' => $e->getMessage(),
+							]
+						);
+					}
+				}
+
+				// Now fully committed: publish a product that was held as draft during creation
+				// (so a crash mid-commit can never leave a bare, published product visible).
+				if ( $pending_publish && $wc_id && 'skipped' !== $outcome ) {
+					try {
+						$new_product = wc_get_product( $wc_id );
+						if ( $new_product ) {
+							$new_product->set_status( 'publish' );
+							$new_product->save();
+						}
+					} catch ( Throwable $e ) {
+						$this->logger->warning(
+							'Final publish failed',
 							[
 								'wc_id' => $wc_id,
 								'error' => $e->getMessage(),

@@ -176,7 +176,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$wc_product->set_short_description( $this->mapper->get_short_description( $product ) );
 		$wc_product->set_description( $this->mapper->get_long_description( $product ) );
-		$wc_product->set_status( $this->mapper->get_status( $product ) );
+		$status_plan = $this->resolve_initial_status( $is_new, $this->mapper->get_status( $product ) );
+		$wc_product->set_status( $status_plan['status'] );
 
 		$price = $this->mapper->get_regular_price( $product );
 		if ( $this->mapper->is_price_on_request( $product ) ) {
@@ -365,6 +366,12 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					'names'      => array_keys( $attrs ),
 				]
 			);
+		}
+
+		// Publish a newly-created product now that it is fully committed (held as draft above).
+		if ( $status_plan['pending_publish'] ) {
+			$wc_product->set_status( 'publish' );
+			$wc_product->save();
 		}
 
 		return $is_new ? 'created' : 'updated';
@@ -1141,7 +1148,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * handled by separate phase methods.
 	 *
 	 * @param array $product Skwirrel product data.
-	 * @return array{wc_id: int, outcome: string} WC product ID and 'created'|'updated'|'skipped'.
+	 * @return array{wc_id: int, outcome: string, pending_publish?: bool} WC product ID, 'created'|'updated'|'skipped', and (on create) whether the caller must publish it once fully committed.
 	 */
 	public function create_or_update_product( array $product ): array {
 		$key = $this->mapper->get_unique_key( $product );
@@ -1214,7 +1221,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$wc_product->set_short_description( $this->mapper->get_short_description( $product ) );
 		$wc_product->set_description( $this->mapper->get_long_description( $product ) );
-		$wc_product->set_status( $this->mapper->get_status( $product ) );
+		$status_plan = $this->resolve_initial_status( $is_new, $this->mapper->get_status( $product ) );
+		$wc_product->set_status( $status_plan['status'] );
 
 		$price = $this->mapper->get_regular_price( $product );
 		if ( $this->mapper->is_price_on_request( $product ) ) {
@@ -1269,8 +1277,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 
 		return [
-			'wc_id'   => $id,
-			'outcome' => $is_new ? 'created' : 'updated',
+			'wc_id'           => $id,
+			'outcome'         => $is_new ? 'created' : 'updated',
+			'pending_publish' => $status_plan['pending_publish'],
 		];
 	}
 
@@ -2054,6 +2063,33 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'is_new' => $is_new,
 			'sku'    => $sku,
 			'skip'   => false,
+		];
+	}
+
+	/**
+	 * Decide the post status to set when first writing a product, and whether the caller
+	 * must flip it to its real status after the per-product commit completes.
+	 *
+	 * A new product whose real status is 'publish' is written as 'draft' first, so a run
+	 * that dies mid-commit (e.g. during image download) never leaves a bare, *published*
+	 * product on the storefront; the caller publishes it only once it is fully committed.
+	 * Existing products — and new draft/trashed ones — keep their real status (we never
+	 * unpublish a live product mid-resync).
+	 *
+	 * @param bool   $is_new       Whether the product is being created (vs updated).
+	 * @param string $final_status The product's real target status (publish|draft|trash).
+	 * @return array{status: string, pending_publish: bool}
+	 */
+	private function resolve_initial_status( bool $is_new, string $final_status ): array {
+		if ( $is_new && 'publish' === $final_status ) {
+			return [
+				'status'          => 'draft',
+				'pending_publish' => true,
+			];
+		}
+		return [
+			'status'          => $final_status,
+			'pending_publish' => false,
 		];
 	}
 
