@@ -917,21 +917,18 @@ class Skwirrel_WC_Sync_Service {
 			// are still caught by the next delta. A crash before this point leaves last_sync
 			// untouched → the next run re-pulls and idempotently re-commits (no silent skip).
 			//
-			// If any product committed only partially, HOLD the checkpoint. Clearing that row's
-			// `_skwirrel_updated_on` alone wouldn't rescue a delta run — the API delta filter
-			// (`product_updated_on >= last_sync`) would never return a row whose upstream timestamp
-			// didn't change. Leaving last_sync put makes the next delta re-pull the changed set: the
-			// partial row reprocesses (gate sees its cleared timestamp) while the rest are skipped
-			// cheaply as unchanged. Persistent failures keep re-pulling — surfaced via this warning.
-			//
-			// The settings signature is held on the SAME condition. If a settings-change full pass
-			// commits a product only partially, persisting the new signature here would re-enable the
-			// gate next run and skip that product as 'unchanged' — leaving the new settings unapplied.
-			// Holding both means the next run sees a signature mismatch, stays in full-pass mode, and
-			// finishes applying the change before the gate re-engages.
+			// If any product committed only partially, do NOT advance last_sync AND invalidate the
+			// stored settings signature. Holding last_sync alone can't rescue every case: a failed
+			// product (or a virtual product's parent media) may have an upstream `product_updated_on`
+			// older than the checkpoint, so a delta `updated_on >= last_sync` filter would never
+			// re-fetch it. Writing an EMPTY signature guarantees the next run sees a mismatch,
+			// disables the gate, and runs a full pass that reprocesses everything — retrying the
+			// partial row(s). A clean pass then re-stamps both. (Persistent failures keep forcing a
+			// full pass — surfaced via this warning so the admin can fix the underlying data.)
 			if ( $partial_commit ) {
+				update_option( 'skwirrel_wc_sync_last_sync_sig', '' );
 				$this->logger->warning(
-					'Holding delta checkpoint + settings signature: at least one product committed only partially (an aspect failed); it will be retried on the next run.'
+					'Partial commit (an aspect failed) — invalidating the change-gate signature so the next run does a full reprocess, and holding the delta checkpoint; the affected product(s) will be retried.'
 				);
 			} else {
 				update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z', $sync_started_at ) );
