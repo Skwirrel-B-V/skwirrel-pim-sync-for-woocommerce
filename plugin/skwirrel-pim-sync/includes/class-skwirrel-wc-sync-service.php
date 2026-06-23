@@ -563,6 +563,10 @@ class Skwirrel_WC_Sync_Service {
 
 			if ( $delta && 0 === $fetched ) {
 				$this->logger->info( 'Delta sync: no products updated since last sync (across all configured selections)' );
+				// Clean no-op completion — restore the signature we invalidated at run start (this
+				// early return bypasses the end-of-run block), so an idle catalog stays gated/fast
+				// instead of forcing a full pass on the next run.
+				update_option( 'skwirrel_wc_sync_last_sync_sig', $sync_sig );
 				$this->logger->stop_sync_log();
 				Skwirrel_WC_Sync_History::update_last_result( true, 0, 0, 0, '', 0, 0, 0, 0, $trigger, $log_filename );
 				return [
