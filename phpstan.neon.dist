@@ -15,3 +15,4 @@ parameters:
     - vendor/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php
   scanFiles:
     - plugin/skwirrel-pim-sync/skwirrel-pim-sync.php
+    - phpstan-stubs/wp-connectors.stub

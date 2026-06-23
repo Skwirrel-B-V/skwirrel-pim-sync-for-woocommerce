@@ -1,0 +1,11 @@
+<?php
+/**
+ * Static-analysis stubs for the WordPress 7.0 Connectors API.
+ *
+ * These functions are not present in the WordPress stub set bundled with phpstan-wordpress, so
+ * PHPStan cannot resolve the (indirect) call in Skwirrel_WC_Sync_Connectors::is_registered().
+ * They are PHPStan-only — never loaded at runtime; every call site is guarded with
+ * function_exists() and only executes on WordPress 7.0+.
+ */
+
+function wp_is_connector_registered( string $connector_id ): bool {}
