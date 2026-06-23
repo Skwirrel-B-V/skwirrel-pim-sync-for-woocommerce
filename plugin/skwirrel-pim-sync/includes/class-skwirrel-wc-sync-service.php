@@ -572,6 +572,9 @@ class Skwirrel_WC_Sync_Service {
 			// =====================================================================
 			$with_attrs    = 0;
 			$without_attrs = 0;
+			// Set if any product committed only partially (an aspect failed). Used to hold the
+			// delta checkpoint so a partial row is re-pulled and retried on the next run.
+			$partial_commit = false;
 
 			Skwirrel_WC_Sync_History::update_phase_progress(
 				Skwirrel_WC_Sync_History::PHASE_PRODUCTS,
@@ -691,9 +694,11 @@ class Skwirrel_WC_Sync_Service {
 					}
 				}
 
-				// Now fully committed: publish a product that was held as draft during creation
-				// (so a crash mid-commit can never leave a bare, published product visible).
-				if ( $pending_publish && $wc_id && 'skipped' !== $outcome ) {
+				// Publish a product that was held as draft during creation — but ONLY if every
+				// aspect succeeded. Publishing after a taxonomy/attribute/media failure would put a
+				// bare product live and defeat the draft-until-complete safety; leave it draft and
+				// let the next run (it reprocesses — see below) publish it once fully committed.
+				if ( $pending_publish && $wc_id && 'skipped' !== $outcome && ! $aspect_failed ) {
 					try {
 						$new_product = wc_get_product( $wc_id );
 						if ( $new_product ) {
@@ -718,6 +723,7 @@ class Skwirrel_WC_Sync_Service {
 				// safe as the meta it trusts; create_or_update_*() stamp it optimistically).
 				if ( $aspect_failed && $wc_id ) {
 					delete_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key() );
+					$partial_commit = true;
 				}
 
 				// Per-product checkpoint: this product is fully committed (resumable on interruption).
@@ -812,7 +818,10 @@ class Skwirrel_WC_Sync_Service {
 					// still retry — a now-created target can resolve even though this product itself
 					// did not change; the page payload still holds its related-product data.
 					$is_unchanged_row = 'unchanged' === $row->outcome;
-					$retry_relations  = $is_unchanged_row && '' !== (string) get_post_meta( $row->wc_id, '_skwirrel_pending_relations', true );
+					// `_skwirrel_pending_relations` is stored as an array — test emptiness directly,
+					// never string-cast it (that emits an "Array to string conversion" warning).
+					$pending_rel     = $is_unchanged_row ? get_post_meta( $row->wc_id, '_skwirrel_pending_relations', true ) : '';
+					$retry_relations = ! empty( $pending_rel );
 					if ( $row->wc_id && 'skipped' !== $row->outcome && ( ! $is_unchanged_row || $retry_relations ) ) {
 						try {
 							$this->upserter->assign_relations( $row->wc_id, $row->product );
@@ -875,7 +884,20 @@ class Skwirrel_WC_Sync_Service {
 			// Stamp it with the run *start* time so products changed upstream *during* this run
 			// are still caught by the next delta. A crash before this point leaves last_sync
 			// untouched → the next run re-pulls and idempotently re-commits (no silent skip).
-			update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z', $sync_started_at ) );
+			//
+			// If any product committed only partially, HOLD the checkpoint. Clearing that row's
+			// `_skwirrel_updated_on` alone wouldn't rescue a delta run — the API delta filter
+			// (`product_updated_on >= last_sync`) would never return a row whose upstream timestamp
+			// didn't change. Leaving last_sync put makes the next delta re-pull the changed set: the
+			// partial row reprocesses (gate sees its cleared timestamp) while the rest are skipped
+			// cheaply as unchanged. Persistent failures keep re-pulling — surfaced via this warning.
+			if ( $partial_commit ) {
+				$this->logger->warning(
+					'Holding delta checkpoint: at least one product committed only partially (an aspect failed); it will be retried on the next run.'
+				);
+			} else {
+				update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z', $sync_started_at ) );
+			}
 			// Remember the settings signature so the next run's change gate can engage.
 			update_option( 'skwirrel_wc_sync_last_sync_sig', $sync_sig );
 			Skwirrel_WC_Sync_History::update_last_result( true, $created, $updated, $failed, '', $with_attrs, $without_attrs, $trashed, $categories_removed, $trigger, $log_filename, $unchanged );
