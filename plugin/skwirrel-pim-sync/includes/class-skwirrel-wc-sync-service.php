@@ -797,8 +797,14 @@ class Skwirrel_WC_Sync_Service {
 					if ( ! empty( $options['use_virtual_product_content'] ) ) {
 						$this->upserter->apply_virtual_product_content( $row->virtual_parent_id, $row->product );
 					}
-					$this->upserter->assign_media( $row->virtual_parent_id, $row->product );
+					// A swallowed image/download failure on the variable parent's media must also
+					// hold the checkpoint — otherwise a delta won't return this virtual product
+					// again unless Skwirrel changes it, leaving the parent without its media.
+					if ( ! $this->upserter->assign_media( $row->virtual_parent_id, $row->product ) ) {
+						$partial_commit = true;
+					}
 				} catch ( Throwable $e ) {
+					$partial_commit = true;
 					$this->logger->warning(
 						'Virtual product processing failed',
 						[
