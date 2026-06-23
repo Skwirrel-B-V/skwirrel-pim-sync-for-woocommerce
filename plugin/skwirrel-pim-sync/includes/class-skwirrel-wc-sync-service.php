@@ -681,7 +681,12 @@ class Skwirrel_WC_Sync_Service {
 
 					// --- Media: images, downloads, documents (slowest step) ---
 					try {
-						$this->upserter->assign_media( $wc_id, $row->product );
+						// assign_media() returns false on a swallowed image/download failure (the importer
+						// logs and returns 0 rather than throwing) — treat that as a partial commit so the
+						// product is not published bare / gated unretried.
+						if ( ! $this->upserter->assign_media( $wc_id, $row->product ) ) {
+							$aspect_failed = true;
+						}
 					} catch ( Throwable $e ) {
 						$aspect_failed = true;
 						$this->logger->warning(
@@ -1562,6 +1567,7 @@ class Skwirrel_WC_Sync_Service {
 			'sync_images',
 			'sync_grouped_products',
 			'sync_related_products',
+			'related_products_type',
 			'sync_manufacturers',
 			'sync_custom_classes',
 			'sync_trade_item_custom_classes',

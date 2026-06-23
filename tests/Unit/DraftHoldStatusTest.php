@@ -42,9 +42,9 @@ beforeEach(function () {
  *
  * @return array{status: string, pending_publish: bool}
  */
-function invokeResolveStatus(object $upserter, bool $is_new, string $final_status): array {
+function invokeResolveStatus(object $upserter, bool $is_new, string $final_status, bool $is_incomplete = false): array {
     $ref = new ReflectionMethod($upserter, 'resolve_initial_status');
-    return $ref->invoke($upserter, $is_new, $final_status);
+    return $ref->invoke($upserter, $is_new, $is_incomplete, $final_status);
 }
 
 test('new publishable product is held as draft and flagged for publish', function () {
@@ -54,11 +54,19 @@ test('new publishable product is held as draft and flagged for publish', functio
     expect($result['pending_publish'])->toBeTrue();
 });
 
-test('existing publishable product keeps publish and is never re-held', function () {
+test('existing (complete) publishable product keeps publish and is never re-held', function () {
     $result = invokeResolveStatus($this->upserter, false, 'publish');
 
     expect($result['status'])->toBe('publish');
     expect($result['pending_publish'])->toBeFalse();
+});
+
+test('existing-but-incomplete publishable product is held as draft (partial-run retry)', function () {
+    // No stored _skwirrel_updated_on → an earlier run created it then failed an aspect.
+    $result = invokeResolveStatus($this->upserter, false, 'publish', true);
+
+    expect($result['status'])->toBe('draft');
+    expect($result['pending_publish'])->toBeTrue();
 });
 
 test('new draft product stays draft with no pending publish', function () {

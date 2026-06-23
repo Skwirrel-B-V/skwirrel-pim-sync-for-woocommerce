@@ -212,7 +212,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$wc_product->set_short_description( $this->mapper->get_short_description( $product ) );
 		$wc_product->set_description( $this->mapper->get_long_description( $product ) );
-		$status_plan = $this->resolve_initial_status( $is_new, $this->mapper->get_status( $product ) );
+		// A previously-incomplete product (no stored timestamp) is held draft like a new one.
+		$is_incomplete = ! $is_new && '' === (string) get_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key(), true );
+		$status_plan   = $this->resolve_initial_status( $is_new, $is_incomplete, $this->mapper->get_status( $product ) );
 		$wc_product->set_status( $status_plan['status'] );
 
 		$price = $this->mapper->get_regular_price( $product );
@@ -1250,16 +1252,17 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		// unchanged — skip the re-save/attributes/media, but still stamp synced_at so the stale-purge
 		// never trashes it.
 		$incoming_updated_on = (string) ( $product['product_updated_on'] ?? '' );
-		if ( ! $is_new ) {
-			$stored_updated_on = (string) get_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key(), true );
-			if ( $this->is_unchanged( $is_new, $stored_updated_on, $incoming_updated_on ) ) {
-				update_post_meta( $wc_id, $this->mapper->get_synced_at_meta_key(), time() );
-				return [
-					'wc_id'   => (int) $wc_id,
-					'outcome' => 'unchanged',
-				];
-			}
+		$stored_updated_on   = $is_new ? '' : (string) get_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key(), true );
+		if ( $this->is_unchanged( $is_new, $stored_updated_on, $incoming_updated_on ) ) {
+			update_post_meta( $wc_id, $this->mapper->get_synced_at_meta_key(), time() );
+			return [
+				'wc_id'   => (int) $wc_id,
+				'outcome' => 'unchanged',
+			];
 		}
+		// An existing product with no stored timestamp was created and then left incomplete by an
+		// earlier partial run — keep it held as draft (like a new product) until this retry finishes.
+		$is_incomplete = ! $is_new && '' === $stored_updated_on;
 
 		$wc_product->set_sku( $sku );
 		$wc_product->set_name( $this->mapper->get_name( $product ) );
@@ -1274,7 +1277,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$wc_product->set_short_description( $this->mapper->get_short_description( $product ) );
 		$wc_product->set_description( $this->mapper->get_long_description( $product ) );
-		$status_plan = $this->resolve_initial_status( $is_new, $this->mapper->get_status( $product ) );
+		$status_plan = $this->resolve_initial_status( $is_new, $is_incomplete, $this->mapper->get_status( $product ) );
 		$wc_product->set_status( $status_plan['status'] );
 
 		$price = $this->mapper->get_regular_price( $product );
@@ -1868,23 +1871,39 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 *
 	 * @param int   $wc_id   WooCommerce product ID.
 	 * @param array $product Skwirrel product data.
-	 * @return void
+	 * @return bool True when all requested media was applied; false when an image failed to import
+	 *              or a download/document save threw (lets the caller treat the row as incomplete).
 	 */
-	public function assign_media( int $wc_id, array $product ): void {
+	public function assign_media( int $wc_id, array $product ): bool {
 		if ( ! $wc_id ) {
-			return;
+			return false;
 		}
 
 		$wc_product = wc_get_product( $wc_id );
 		if ( ! $wc_product ) {
-			return;
+			return false;
 		}
+
+		$complete = true;
 
 		$img_ids = $this->mapper->get_image_attachment_ids( $product, $wc_id );
 		if ( ! empty( $img_ids ) ) {
 			$wc_product->set_image_id( $img_ids[0] );
 			$wc_product->set_gallery_image_ids( array_slice( $img_ids, 1 ) );
 			$wc_product->save();
+		}
+		// Image downloads are swallowed (import returns 0 and logs), so check the failure count
+		// explicitly — a missing image must mark the product incomplete, not silently complete.
+		$image_failures = $this->mapper->get_last_image_failure_count();
+		if ( $image_failures > 0 ) {
+			$complete = false;
+			$this->logger->warning(
+				'Some product images failed to import',
+				[
+					'wc_id'    => $wc_id,
+					'failures' => $image_failures,
+				]
+			);
 		}
 
 		try {
@@ -1896,6 +1915,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$wc_product->save();
 			}
 		} catch ( \Throwable $e ) {
+			$complete = false;
 			$this->logger->warning(
 				'Downloadable files save failed',
 				[
@@ -1909,6 +1929,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$documents = $this->mapper->get_document_attachments( $product, $wc_id );
 			update_post_meta( $wc_id, '_skwirrel_document_attachments', $documents );
 		} catch ( \Throwable $e ) {
+			$complete = false;
 			$this->logger->warning(
 				'Document attachments save failed',
 				[
@@ -1917,6 +1938,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				]
 			);
 		}
+
+		return $complete;
 	}
 
 	/**
@@ -2139,18 +2162,20 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * Decide the post status to set when first writing a product, and whether the caller
 	 * must flip it to its real status after the per-product commit completes.
 	 *
-	 * A new product whose real status is 'publish' is written as 'draft' first, so a run
-	 * that dies mid-commit (e.g. during image download) never leaves a bare, *published*
-	 * product on the storefront; the caller publishes it only once it is fully committed.
-	 * Existing products — and new draft/trashed ones — keep their real status (we never
-	 * unpublish a live product mid-resync).
+	 * A product that is not yet proven fully committed — a brand-new one, OR an existing one left
+	 * incomplete by an earlier partial run (no stored `_skwirrel_updated_on`) — whose real status is
+	 * 'publish' is written as 'draft' first, so a run that dies mid-commit (e.g. during image
+	 * download) never leaves a bare, *published* product on the storefront; the caller publishes it
+	 * only once it is fully committed. Already-complete existing products — and new draft/trashed
+	 * ones — keep their real status (we never unpublish a live product mid-resync).
 	 *
-	 * @param bool   $is_new       Whether the product is being created (vs updated).
-	 * @param string $final_status The product's real target status (publish|draft|trash).
+	 * @param bool   $is_new        Whether the product is being created (vs updated).
+	 * @param bool   $is_incomplete Existing product with no stored timestamp (a partial-run retry).
+	 * @param string $final_status  The product's real target status (publish|draft|trash).
 	 * @return array{status: string, pending_publish: bool}
 	 */
-	private function resolve_initial_status( bool $is_new, string $final_status ): array {
-		if ( $is_new && 'publish' === $final_status ) {
+	private function resolve_initial_status( bool $is_new, bool $is_incomplete, string $final_status ): array {
+		if ( ( $is_new || $is_incomplete ) && 'publish' === $final_status ) {
 			return [
 				'status'          => 'draft',
 				'pending_publish' => true,

@@ -19,6 +19,9 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 	/** @phpstan-ignore property.onlyWritten */
 	private string $image_language;
 
+	/** Number of image attachments with a valid URL that failed to import on the last call. */
+	private int $last_image_failures = 0;
+
 	public function __construct( string $image_language = 'nl' ) {
 		$this->logger         = new Skwirrel_WC_Sync_Logger();
 		$this->media_importer = new Skwirrel_WC_Sync_Media_Importer();
@@ -101,8 +104,9 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			return [];
 		}
 
-		$attachments = $product['_attachments'] ?? $product['attachments'] ?? [];
-		$ids         = [];
+		$attachments               = $product['_attachments'] ?? $product['attachments'] ?? [];
+		$ids                       = [];
+		$this->last_image_failures = 0;
 		foreach ( $attachments as $att ) {
 			if ( ! empty( $att['for_internal_use'] ) ) {
 				continue;
@@ -138,7 +142,11 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			$meta     = $this->get_attachment_meta_for_language( $att );
 			$api_meta = $this->build_api_meta( $att );
 			$id       = $this->media_importer->import_image( $url, $att['file_name'] ?? '', $product_id, $meta['title'], $meta['description'], $api_meta );
-			if ( $id && ! in_array( $id, array_column( $ids, 'id' ), true ) ) {
+			if ( ! $id ) {
+				// Valid image URL that the importer could not download/store — a real failure
+				// (network/copy/upload), not a skip. Count it so the caller can hold the change gate.
+				++$this->last_image_failures;
+			} elseif ( ! in_array( $id, array_column( $ids, 'id' ), true ) ) {
 				$ids[] = [
 					'id'    => $id,
 					'order' => $order,
@@ -158,6 +166,14 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			);
 		}
 		return $result;
+	}
+
+	/**
+	 * Number of image attachments with a valid URL that failed to import during the most recent
+	 * get_image_attachment_ids() call (download/copy/upload errors — not skips). 0 means complete.
+	 */
+	public function get_last_image_failure_count(): int {
+		return $this->last_image_failures;
 	}
 
 	/**
