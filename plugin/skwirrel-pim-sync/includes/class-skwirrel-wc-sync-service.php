@@ -907,15 +907,20 @@ class Skwirrel_WC_Sync_Service {
 			// didn't change. Leaving last_sync put makes the next delta re-pull the changed set: the
 			// partial row reprocesses (gate sees its cleared timestamp) while the rest are skipped
 			// cheaply as unchanged. Persistent failures keep re-pulling — surfaced via this warning.
+			//
+			// The settings signature is held on the SAME condition. If a settings-change full pass
+			// commits a product only partially, persisting the new signature here would re-enable the
+			// gate next run and skip that product as 'unchanged' — leaving the new settings unapplied.
+			// Holding both means the next run sees a signature mismatch, stays in full-pass mode, and
+			// finishes applying the change before the gate re-engages.
 			if ( $partial_commit ) {
 				$this->logger->warning(
-					'Holding delta checkpoint: at least one product committed only partially (an aspect failed); it will be retried on the next run.'
+					'Holding delta checkpoint + settings signature: at least one product committed only partially (an aspect failed); it will be retried on the next run.'
 				);
 			} else {
 				update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z', $sync_started_at ) );
+				update_option( 'skwirrel_wc_sync_last_sync_sig', $sync_sig );
 			}
-			// Remember the settings signature so the next run's change gate can engage.
-			update_option( 'skwirrel_wc_sync_last_sync_sig', $sync_sig );
 			Skwirrel_WC_Sync_History::update_last_result( true, $created, $updated, $failed, '', $with_attrs, $without_attrs, $trashed, $categories_removed, $trigger, $log_filename, $unchanged );
 
 			$this->logger->info(
@@ -1573,10 +1578,11 @@ class Skwirrel_WC_Sync_Service {
 	 * @return string md5 signature.
 	 */
 	private function compute_sync_signature( array $options ): string {
-		// Denylist, not allowlist: hash EVERY setting except those that demonstrably do not change a
-		// product's stored output (connection/auth, performance, logging, scheduling, and the
-		// selection *filter*). This way a newly-added output setting is covered automatically instead
-		// of silently slipping past the gate until someone remembers to allowlist it.
+		// Denylist, not allowlist: hash EVERY setting except those that demonstrably do not change
+		// what gets synced (connection/auth, performance, logging, scheduling). This way a newly-added
+		// output setting is covered automatically instead of slipping past the gate until someone
+		// remembers to allowlist it. NB: collection_ids IS included — a selection change must force a
+		// full pass so products newly in scope (but unchanged upstream) are still fetched + imported.
 		$ignore   = array_flip(
 			[
 				'endpoint_url',
@@ -1590,7 +1596,6 @@ class Skwirrel_WC_Sync_Service {
 				'log_retention',
 				'log_mode_manual',
 				'log_mode_scheduled',
-				'collection_ids',
 				'show_delete_warning',
 			]
 		);
