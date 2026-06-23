@@ -182,7 +182,7 @@ class Skwirrel_WC_Sync_Service {
 			$sync_sig     = $this->compute_sync_signature( $options );
 			$gate_enabled = (
 				'' !== $sync_sig
-				&& $sync_sig === get_option( 'skwirrel_wc_sync_last_sync_sig', '' )
+				&& get_option( 'skwirrel_wc_sync_last_sync_sig', '' ) === $sync_sig
 				// A pending slug-resync must reprocess everything: unchanged rows skip slug
 				// resolution, yet update_last_result() clears the flag on success — gating here
 				// would drop the "slugs need resync" state without ever updating the slugs.
