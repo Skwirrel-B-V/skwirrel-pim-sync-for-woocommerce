@@ -297,12 +297,19 @@ class Skwirrel_WC_Sync_Service {
 			$use_filter        = false;
 			$filter            = [];
 			$initial_delta_run = false;
-			if ( $delta && ! empty( $delta_since ) ) {
+			if ( $delta && ! empty( $delta_since ) && $gate_enabled ) {
 				$use_filter           = true;
 				$filter['updated_on'] = [
 					'datetime' => $delta_since,
 					'operator' => '>=',
 				];
+			} elseif ( $delta && ! empty( $delta_since ) && ! $gate_enabled ) {
+				// Output-affecting settings (or the plugin version / slug options) changed since the
+				// last run, so the change gate is off. A delta `updated_on` filter would only fetch
+				// upstream-changed products, leaving the rest of the catalog on the OLD settings.
+				// Drop the filter for this run → a full pass that re-applies the new settings to every
+				// product (each is still committed individually; the gate re-engages next run).
+				$this->logger->info( 'Settings/version change detected — running this delta as a full pass so the new settings apply to every product.' );
 			} elseif ( $delta && empty( $delta_since ) ) {
 				// Delta requested but no checkpoint yet — first delta run after install,
 				// reset, purge, or a string of failed runs. The API call falls through
@@ -722,13 +729,17 @@ class Skwirrel_WC_Sync_Service {
 					}
 				}
 
-				// If any aspect failed, this product is only partially synced — drop the change-gate
-				// timestamp so the NEXT run reprocesses it instead of skipping it as 'unchanged' and
-				// leaving the missing categories/attributes/images unretried (the gate is only as
-				// safe as the meta it trusts; create_or_update_*() stamp it optimistically).
-				if ( $aspect_failed && $wc_id ) {
-					delete_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key() );
-					$partial_commit = true;
+					// Stamp the change-gate timestamp ONLY now that the product is fully committed (all aspects
+					// + the held-draft publish succeeded). create_or_update_*() no longer stamp it optimistically,
+					// so a partial commit — OR a hard crash/kill mid-product — simply leaves it unstamped and the
+					// next run reprocesses it (the gate sees no/old timestamp). A partial commit also holds the
+					// delta checkpoint (below) so a scheduled delta re-pulls and retries the row.
+				if ( $wc_id && in_array( $outcome, [ 'created', 'updated' ], true ) ) {
+					if ( $aspect_failed ) {
+						$partial_commit = true;
+					} else {
+						update_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key(), (string) ( $row->product['product_updated_on'] ?? '' ) );
+					}
 				}
 
 				// Per-product checkpoint: this product is fully committed (resumable on interruption).
@@ -1562,29 +1573,29 @@ class Skwirrel_WC_Sync_Service {
 	 * @return string md5 signature.
 	 */
 	private function compute_sync_signature( array $options ): string {
-		$keys     = [
-			'sync_categories',
-			'sync_images',
-			'sync_grouped_products',
-			'sync_related_products',
-			'related_products_type',
-			'sync_manufacturers',
-			'sync_custom_classes',
-			'sync_trade_item_custom_classes',
-			'image_language',
-			'include_languages',
-			'use_sku_field',
-			'custom_class_filter_mode',
-			'custom_class_filter_ids',
-			'custom_collection_id',
-			'super_category_id',
-			'use_virtual_product_content',
-			'prices_managed_outside_skwirrel',
-		];
-		$relevant = [];
-		foreach ( $keys as $k ) {
-			$relevant[ $k ] = $options[ $k ] ?? null;
-		}
+		// Denylist, not allowlist: hash EVERY setting except those that demonstrably do not change a
+		// product's stored output (connection/auth, performance, logging, scheduling, and the
+		// selection *filter*). This way a newly-added output setting is covered automatically instead
+		// of silently slipping past the gate until someone remembers to allowlist it.
+		$ignore   = array_flip(
+			[
+				'endpoint_url',
+				'auth_type',
+				'auth_token',
+				'timeout',
+				'retries',
+				'batch_size',
+				'sync_interval',
+				'verbose_logging',
+				'log_retention',
+				'log_mode_manual',
+				'log_mode_scheduled',
+				'collection_ids',
+				'show_delete_warning',
+			]
+		);
+		$relevant = array_diff_key( $options, $ignore );
+		ksort( $relevant );
 		// Slug/permalink settings live in a separate option but also affect output (e.g.
 		// update_slug_on_resync), so a change there must likewise force a full reprocess.
 		$relevant['__permalinks'] = get_option( 'skwirrel_wc_sync_permalinks', [] );

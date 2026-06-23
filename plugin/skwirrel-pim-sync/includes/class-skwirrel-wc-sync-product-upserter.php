@@ -291,7 +291,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		update_post_meta( $id, $this->mapper->get_external_id_meta_key(), $key );
 		update_post_meta( $id, $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		update_post_meta( $id, $this->mapper->get_synced_at_meta_key(), time() );
-		update_post_meta( $id, $this->mapper->get_updated_on_meta_key(), (string) ( $product['product_updated_on'] ?? '' ) );
+		// NB: _skwirrel_updated_on (the change-gate key) is stamped only AFTER the product is fully
+		// committed (all aspects + publish) — by the caller (batch loop) / end of this method
+		// (single) — so a partial commit or crash never marks an incomplete product as "synced".
 
 		// Store raw API response for debugging.
 		update_post_meta( $id, '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
@@ -306,11 +308,18 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			update_post_meta( $id, '_product_gtin', $gtin );
 		}
 
-		$img_ids = $this->mapper->get_image_attachment_ids( $product, $id );
+		// Track media completeness: a swallowed image-import failure (importer returns 0) or a
+		// download/document save error keeps this product held as draft and unstamped, so the next
+		// sync reprocesses it instead of leaving a bare product live / gated 'unchanged'.
+		$media_complete = true;
+		$img_ids        = $this->mapper->get_image_attachment_ids( $product, $id );
 		if ( ! empty( $img_ids ) ) {
 			$wc_product->set_image_id( $img_ids[0] );           // First image = featured
 			$wc_product->set_gallery_image_ids( array_slice( $img_ids, 1 ) ); // All others = gallery
 			$wc_product->save();
+		}
+		if ( $this->mapper->get_last_image_failure_count() > 0 ) {
+			$media_complete = false;
 		}
 
 		try {
@@ -322,6 +331,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$wc_product->save();
 			}
 		} catch ( \Throwable $e ) {
+			$media_complete = false;
 			$this->logger->warning(
 				'Downloadable files save failed, continuing with sync',
 				[
@@ -335,6 +345,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$documents = $this->mapper->get_document_attachments( $product, $id );
 			update_post_meta( $id, '_skwirrel_document_attachments', $documents );
 		} catch ( \Throwable $e ) {
+			$media_complete = false;
 			$this->logger->warning(
 				'Document attachments save failed, continuing with sync',
 				[
@@ -407,10 +418,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			);
 		}
 
-		// Publish a newly-created product now that it is fully committed (held as draft above).
-		if ( $status_plan['pending_publish'] ) {
-			$wc_product->set_status( 'publish' );
-			$wc_product->save();
+		// Publish a held-draft product AND stamp the change-gate timestamp ONLY when every aspect
+		// (including media) succeeded. On a partial commit leave it draft and unstamped so the next
+		// sync retries — never a bare product live, never gated 'unchanged' while incomplete.
+		if ( $media_complete ) {
+			if ( $status_plan['pending_publish'] ) {
+				$wc_product->set_status( 'publish' );
+				$wc_product->save();
+			}
+			update_post_meta( $id, $this->mapper->get_updated_on_meta_key(), (string) ( $product['product_updated_on'] ?? '' ) );
 		}
 
 		return $is_new ? 'created' : 'updated';
@@ -610,7 +626,6 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$variation->update_meta_data( $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		$variation->update_meta_data( $this->mapper->get_external_id_meta_key(), $this->mapper->get_unique_key( $product ) ?? '' );
 		$variation->update_meta_data( $this->mapper->get_synced_at_meta_key(), (string) time() );
-		$variation->update_meta_data( $this->mapper->get_updated_on_meta_key(), (string) ( $product['product_updated_on'] ?? '' ) );
 		$variation->update_meta_data( '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
 
 		// Store grouped_product_id on variation for single-product sync lookup.
@@ -1318,7 +1333,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		update_post_meta( $id, $this->mapper->get_external_id_meta_key(), $key );
 		update_post_meta( $id, $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		update_post_meta( $id, $this->mapper->get_synced_at_meta_key(), time() );
-		update_post_meta( $id, $this->mapper->get_updated_on_meta_key(), (string) ( $product['product_updated_on'] ?? '' ) );
+		// NB: _skwirrel_updated_on (the change-gate key) is stamped only AFTER the product is fully
+		// committed (all aspects + publish) — by the caller (batch loop) / end of this method
+		// (single) — so a partial commit or crash never marks an incomplete product as "synced".
 
 		// Store raw API response for debugging.
 		update_post_meta( $id, '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
@@ -1546,7 +1563,6 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$variation->update_meta_data( $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		$variation->update_meta_data( $this->mapper->get_external_id_meta_key(), $this->mapper->get_unique_key( $product ) ?? '' );
 		$variation->update_meta_data( $this->mapper->get_synced_at_meta_key(), (string) time() );
-		$variation->update_meta_data( $this->mapper->get_updated_on_meta_key(), (string) ( $product['product_updated_on'] ?? '' ) );
 		$variation->update_meta_data( '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
 
 		// Store grouped_product_id on variation for single-product sync lookup.
