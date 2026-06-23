@@ -555,7 +555,7 @@ class Skwirrel_WC_Sync_Service {
 				Skwirrel_WC_Sync_History::PHASE_PRODUCTS,
 				0,
 				$total,
-				__( 'Creating & updating products…', 'skwirrel-pim-sync' )
+				__( 'Creating & syncing products…', 'skwirrel-pim-sync' )
 			);
 
 			$processed = 0;
@@ -692,7 +692,7 @@ class Skwirrel_WC_Sync_Service {
 						Skwirrel_WC_Sync_History::PHASE_PRODUCTS,
 						$processed,
 						$total,
-						__( 'Creating & updating products…', 'skwirrel-pim-sync' )
+						__( 'Creating & syncing products…', 'skwirrel-pim-sync' )
 					);
 					$this->check_abort();
 				}
@@ -706,15 +706,16 @@ class Skwirrel_WC_Sync_Service {
 			// Deferred: virtual products — apply content & media to the parent variable product.
 			// (Regular products already got their media inside the per-product loop above.)
 			// =====================================================================
-			$media_total = $total + $virtual_total;
-			$media_i     = $total; // Regular products are done; virtuals continue the count.
+			// Count only the variable-product parents finalized here — regular products already
+			// got their media inside the per-product loop above, so this step is virtuals-only.
+			$virtual_done = 0;
 
 			if ( $virtual_total > 0 ) {
 				Skwirrel_WC_Sync_History::update_phase_progress(
 					Skwirrel_WC_Sync_History::PHASE_MEDIA,
-					$media_i,
-					$media_total,
-					__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
+					$virtual_done,
+					$virtual_total,
+					__( 'Finalizing variable products…', 'skwirrel-pim-sync' )
 				);
 			}
 
@@ -739,14 +740,14 @@ class Skwirrel_WC_Sync_Service {
 				$queue->mark_phase_completed( $row->id, 4 );
 				self::free_wpdb_memory();
 				wp_cache_flush();
-				++$media_i;
+				++$virtual_done;
 
-				if ( 0 === $media_i % 10 || $media_i === $media_total ) {
+				if ( 0 === $virtual_done % 10 || $virtual_done === $virtual_total ) {
 					Skwirrel_WC_Sync_History::update_phase_progress(
 						Skwirrel_WC_Sync_History::PHASE_MEDIA,
-						$media_i,
-						$media_total,
-						__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
+						$virtual_done,
+						$virtual_total,
+						__( 'Finalizing variable products…', 'skwirrel-pim-sync' )
 					);
 					$this->check_abort();
 				}

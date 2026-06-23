@@ -345,8 +345,10 @@ class Skwirrel_WC_Sync_History {
 			'status'  => $current >= $total && $total > 0 ? 'completed' : 'in_progress',
 		];
 
-		// Mark earlier phases as completed
-		$phase_order = [ self::PHASE_FETCH, self::PHASE_PRODUCTS, self::PHASE_TAXONOMY, self::PHASE_ATTRIBUTES, self::PHASE_MEDIA, self::PHASE_RELATIONS, self::PHASE_CLEANUP ];
+		// Mark earlier phases as completed. Order matches the per-product-atomic flow:
+		// categories/attributes/images are committed inside PHASE_PRODUCTS, so PHASE_TAXONOMY
+		// and PHASE_ATTRIBUTES are no longer reported as separate phases.
+		$phase_order = [ self::PHASE_FETCH, self::PHASE_PRODUCTS, self::PHASE_MEDIA, self::PHASE_RELATIONS, self::PHASE_CLEANUP ];
 		$reached     = false;
 		foreach ( $phase_order as $p ) {
 			if ( $p === $phase ) {

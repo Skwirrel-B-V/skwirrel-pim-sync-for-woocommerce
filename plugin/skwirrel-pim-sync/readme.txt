@@ -84,6 +84,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * Safety: a newly-created product now stays a draft until its categories, attributes, and images are all in place, then goes live. This prevents a sync that is interrupted while importing a brand-new product from briefly showing an empty product on your shop. (Existing products are never affected — they are never unpublished during a sync.)
 * Fix: re-syncs no longer create duplicate products with a suffixed SKU (e.g. `4250366870007-14768`). When a product's SKU already exists, the sync now reuses the existing product (or, for grouped/variable products, leaves it to the grouped-product path) instead of minting a second copy.
 * Fix: an interrupted sync no longer "loses" products. The delta checkpoint that tracks what has been synced is now advanced only when a run fully completes (and is stamped with the run's start time), so a run that dies partway through is simply re-done next time instead of silently skipping the products it never finished.
+* Fix: the live "Sync in progress" panel now shows the steps that actually run (Fetch, Create & sync products, Finalize variable products, Link related products, Cleanup) instead of the old phase list, so steps no longer appear stuck and the counts make sense.
 
 = 3.10.3 =
 

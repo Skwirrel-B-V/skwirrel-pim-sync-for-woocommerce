@@ -293,22 +293,31 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 * Render sync progress banner.
 	 */
 	private function render_sync_progress(): void {
-		$progress = Skwirrel_WC_Sync_History::get_sync_progress();
-		$opts     = get_option( self::OPTION_KEY, array() );
+		$progress      = Skwirrel_WC_Sync_History::get_sync_progress();
+		$opts          = get_option( self::OPTION_KEY, array() );
+		$current_phase = $progress['current_phase'] ?? '';
 
-		$taxonomy_label = ! empty( $opts['sync_manufacturers'] )
-			? __( 'Assign categories, brands & manufacturers', 'skwirrel-pim-sync' )
-			: __( 'Assign categories & brands', 'skwirrel-pim-sync' );
-
+		// Show only the steps the per-product-atomic sync actually runs. Categories,
+		// attributes and images are committed inside the per-product loop, so they are
+		// no longer separate steps. The variable-finalize and relations steps appear
+		// only when their settings are enabled.
 		$phases = array(
-			Skwirrel_WC_Sync_History::PHASE_FETCH      => __( 'Fetch products from API', 'skwirrel-pim-sync' ),
-			Skwirrel_WC_Sync_History::PHASE_PRODUCTS   => __( 'Create & update products', 'skwirrel-pim-sync' ),
-			Skwirrel_WC_Sync_History::PHASE_TAXONOMY   => $taxonomy_label,
-			Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES => __( 'Connect attributes', 'skwirrel-pim-sync' ),
-			Skwirrel_WC_Sync_History::PHASE_MEDIA      => __( 'Download images & documents', 'skwirrel-pim-sync' ),
-			Skwirrel_WC_Sync_History::PHASE_RELATIONS  => __( 'Link related products', 'skwirrel-pim-sync' ),
-			Skwirrel_WC_Sync_History::PHASE_CLEANUP    => __( 'Cleanup & finalize', 'skwirrel-pim-sync' ),
+			Skwirrel_WC_Sync_History::PHASE_FETCH    => __( 'Fetch products from API', 'skwirrel-pim-sync' ),
+			Skwirrel_WC_Sync_History::PHASE_PRODUCTS => __( 'Create & sync products', 'skwirrel-pim-sync' ),
 		);
+		if ( ! empty( $opts['sync_grouped_products'] ) ) {
+			$phases[ Skwirrel_WC_Sync_History::PHASE_MEDIA ] = __( 'Finalize variable products', 'skwirrel-pim-sync' );
+		}
+		if ( ! empty( $opts['sync_related_products'] ) ) {
+			$phases[ Skwirrel_WC_Sync_History::PHASE_RELATIONS ] = __( 'Link related products', 'skwirrel-pim-sync' );
+		}
+		$phases[ Skwirrel_WC_Sync_History::PHASE_CLEANUP ] = __( 'Cleanup & finalize', 'skwirrel-pim-sync' );
+
+		// Status is derived from the current phase's position in this list so a step can
+		// never get stuck pending: everything before the current phase is completed, the
+		// current phase uses its own stored status, everything after is pending.
+		$phase_keys    = array_keys( $phases );
+		$current_index = array_search( $current_phase, $phase_keys, true );
 
 		$live_log_url = add_query_arg( 'tab', 'debug', admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ) . '#skwirrel-live-log';
 		?>
@@ -323,9 +332,20 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<?php foreach ( $phases as $key => $label ) : ?>
 					<?php
 					$phase_data = $progress['phases'][ $key ] ?? null;
-					$status     = $phase_data['status'] ?? 'pending';
-					$current    = $phase_data['current'] ?? 0;
-					$total      = $phase_data['total'] ?? 0;
+					$position   = array_search( $key, $phase_keys, true );
+
+					if ( false === $current_index ) {
+						$status = 'pending';
+					} elseif ( $position < $current_index ) {
+						$status = 'completed';
+					} elseif ( $position === $current_index ) {
+						$status = $phase_data['status'] ?? 'in_progress';
+					} else {
+						$status = 'pending';
+					}
+
+					$current = $phase_data['current'] ?? 0;
+					$total   = $phase_data['total'] ?? 0;
 
 					$counter = '';
 					if ( $phase_data && $total > 0 ) {
