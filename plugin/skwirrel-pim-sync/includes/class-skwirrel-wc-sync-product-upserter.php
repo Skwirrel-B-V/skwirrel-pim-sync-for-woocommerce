@@ -212,8 +212,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$wc_product->set_short_description( $this->mapper->get_short_description( $product ) );
 		$wc_product->set_description( $this->mapper->get_long_description( $product ) );
-		// A previously-incomplete product (no stored timestamp) is held draft like a new one.
-		$is_incomplete = ! $is_new && '' === (string) get_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key(), true );
+		// Incomplete = currently draft AND missing the gate stamp (a partial-run retry). A legacy
+		// <3.11 product also lacks the stamp but is already published — never re-hold it as draft.
+		$is_incomplete = ! $is_new && '' === (string) get_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key(), true ) && 'draft' === $wc_product->get_status();
 		$status_plan   = $this->resolve_initial_status( $is_new, $is_incomplete, $this->mapper->get_status( $product ) );
 		$wc_product->set_status( $status_plan['status'] );
 
@@ -1275,9 +1276,11 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				'outcome' => 'unchanged',
 			];
 		}
-		// An existing product with no stored timestamp was created and then left incomplete by an
-		// earlier partial run — keep it held as draft (like a new product) until this retry finishes.
-		$is_incomplete = ! $is_new && '' === $stored_updated_on;
+		// "Incomplete" = an existing product this plugin created as draft and then failed to finish.
+		// It is detectable by being *currently draft* AND missing the gate stamp. A legacy product
+		// upgrading from <3.11 also lacks the stamp but is already published/complete — it must NOT be
+		// re-held as draft (a transient aspect failure would otherwise take a live product offline).
+		$is_incomplete = ! $is_new && '' === $stored_updated_on && 'draft' === $wc_product->get_status();
 
 		$wc_product->set_sku( $sku );
 		$wc_product->set_name( $this->mapper->get_name( $product ) );
