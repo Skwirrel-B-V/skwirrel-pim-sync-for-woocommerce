@@ -85,6 +85,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * Fix: re-syncs no longer create duplicate products with a suffixed SKU (e.g. `4250366870007-14768`). When a product's SKU already exists, the sync now reuses the existing product (or, for grouped/variable products, leaves it to the grouped-product path) instead of minting a second copy.
 * Fix: an interrupted sync no longer "loses" products. The delta checkpoint that tracks what has been synced is now advanced only when a run fully completes (and is stamped with the run's start time), so a run that dies partway through is simply re-done next time instead of silently skipping the products it never finished.
 * Fix: the live "Sync in progress" panel now shows the steps that actually run (Fetch, Create & sync products, Finalize variable products, Link related products, Cleanup) instead of the old phase list, so steps no longer appear stuck and the counts make sense.
+* Change: re-syncs now report products as "unchanged" instead of marking every product "updated". A product counts as updated only when it actually changed in Skwirrel (its update timestamp advanced) — not just because a sync ran. Unchanged products are skipped (no re-save), so a repeat sync of a mostly-unchanged catalog finishes in seconds, and the result shows a new "Unchanged" count. Changing a sync setting (or upgrading the plugin) automatically reprocesses everything once.
 
 = 3.10.3 =
 

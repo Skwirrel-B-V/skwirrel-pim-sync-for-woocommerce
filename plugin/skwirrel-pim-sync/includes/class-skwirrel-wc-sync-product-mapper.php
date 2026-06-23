@@ -17,6 +17,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	private const EXTERNAL_ID_META = '_skwirrel_external_id';
 	private const PRODUCT_ID_META  = '_skwirrel_product_id';
 	private const SYNCED_AT_META   = '_skwirrel_synced_at';
+	private const UPDATED_ON_META  = '_skwirrel_updated_on';
 	public const CATEGORY_ID_META  = '_skwirrel_category_id';
 
 	private Skwirrel_WC_Sync_Logger $logger;
@@ -523,6 +524,10 @@ class Skwirrel_WC_Sync_Product_Mapper {
 
 	public function get_synced_at_meta_key(): string {
 		return self::SYNCED_AT_META;
+	}
+
+	public function get_updated_on_meta_key(): string {
+		return self::UPDATED_ON_META;
 	}
 
 	// ------------------------------------------------------------------

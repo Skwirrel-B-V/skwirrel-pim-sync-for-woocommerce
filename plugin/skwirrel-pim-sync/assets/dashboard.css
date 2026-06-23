@@ -616,6 +616,7 @@
 .skw-c-blue { color: var(--skw-blue); }
 .skw-c-red { color: #dc2626; }
 .skw-c-yellow { color: #d97706; }
+.skw-c-muted { color: #6b7280; }
 
 /* ==========================================================================
    History Controls

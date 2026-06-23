@@ -177,6 +177,8 @@ class Skwirrel_WC_Sync_History {
 	 * @param int    $trashed            Number of stale products trashed.
 	 * @param int    $categories_removed Number of stale categories removed.
 	 * @param string $trigger            What initiated the sync: 'manual', 'scheduled', or 'purge'.
+	 * @param string $log_file           Per-sync log filename (empty if none).
+	 * @param int    $unchanged          Number of products skipped as unchanged.
 	 *
 	 * @return void
 	 */
@@ -191,12 +193,14 @@ class Skwirrel_WC_Sync_History {
 		int $trashed = 0,
 		int $categories_removed = 0,
 		string $trigger = self::TRIGGER_MANUAL,
-		string $log_file = ''
+		string $log_file = '',
+		int $unchanged = 0
 	): void {
 		$result = [
 			'success'            => $ok,
 			'created'            => $created,
 			'updated'            => $updated,
+			'unchanged'          => $unchanged,
 			'failed'             => $failed,
 			'trashed'            => $trashed,
 			'categories_removed' => $categories_removed,

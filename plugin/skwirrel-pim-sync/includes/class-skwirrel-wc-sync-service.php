@@ -144,9 +144,10 @@ class Skwirrel_WC_Sync_Service {
 
 		// Initialised before the try so the catch blocks below can report
 		// progress-so-far even when a crash happens before the main loop.
-		$created = 0;
-		$updated = 0;
-		$failed  = 0;
+		$created   = 0;
+		$updated   = 0;
+		$unchanged = 0;
+		$failed    = 0;
 
 		try {
 			global $wpdb;
@@ -174,6 +175,20 @@ class Skwirrel_WC_Sync_Service {
 
 			$options     = $this->get_options();
 			$delta_since = get_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, '' );
+
+			// Change gate: skip products whose Skwirrel `product_updated_on` has not advanced since
+			// the last sync — but only when the output-affecting settings (and plugin version) are
+			// unchanged, so a settings change (or the first run) still forces a full reprocess.
+			$sync_sig     = $this->compute_sync_signature( $options );
+			$gate_enabled = ( '' !== $sync_sig && $sync_sig === get_option( 'skwirrel_wc_sync_last_sync_sig', '' ) );
+			$this->upserter->set_change_gate_enabled( $gate_enabled );
+			$this->logger->info(
+				'Change gate',
+				[
+					'enabled' => $gate_enabled,
+					'reason'  => $gate_enabled ? 'settings unchanged — unchanged products will be skipped' : 'first run or settings changed — full reprocess',
+				]
+			);
 
 			$collection_ids = $this->get_collection_ids();
 			if ( empty( $collection_ids ) ) {
@@ -580,6 +595,8 @@ class Skwirrel_WC_Sync_Service {
 						++$created;
 					} elseif ( 'updated' === $outcome ) {
 						++$updated;
+					} elseif ( 'unchanged' === $outcome ) {
+						++$unchanged;
 					} else {
 						++$failed;
 					}
@@ -598,7 +615,9 @@ class Skwirrel_WC_Sync_Service {
 				// Persist identity + outcome so the deferred relations pass can find this row.
 				$queue->update_after_phase1( $row->id, $wc_id, $outcome );
 
-				if ( $wc_id && 'skipped' !== $outcome ) {
+				// 'unchanged' products (and 'skipped') get none of the per-product aspect work —
+				// this is where skipping the attribute API refetch + media saves the time.
+				if ( $wc_id && 'skipped' !== $outcome && 'unchanged' !== $outcome ) {
 					// --- Taxonomy: categories, brands, manufacturers (parent for variations) ---
 					try {
 						$tax_target = $row->group_info['wc_variable_id'] ?? $wc_id;
@@ -768,7 +787,7 @@ class Skwirrel_WC_Sync_Service {
 				$rel_i = 0;
 				// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
 				while ( $row = $queue->get_next_for_phase( 5 ) ) {
-					if ( $row->wc_id && 'skipped' !== $row->outcome ) {
+					if ( $row->wc_id && 'skipped' !== $row->outcome && 'unchanged' !== $row->outcome ) {
 						try {
 							$this->upserter->assign_relations( $row->wc_id, $row->product );
 						} catch ( Throwable $e ) {
@@ -831,13 +850,16 @@ class Skwirrel_WC_Sync_Service {
 			// are still caught by the next delta. A crash before this point leaves last_sync
 			// untouched → the next run re-pulls and idempotently re-commits (no silent skip).
 			update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z', $sync_started_at ) );
-			Skwirrel_WC_Sync_History::update_last_result( true, $created, $updated, $failed, '', $with_attrs, $without_attrs, $trashed, $categories_removed, $trigger, $log_filename );
+			// Remember the settings signature so the next run's change gate can engage.
+			update_option( 'skwirrel_wc_sync_last_sync_sig', $sync_sig );
+			Skwirrel_WC_Sync_History::update_last_result( true, $created, $updated, $failed, '', $with_attrs, $without_attrs, $trashed, $categories_removed, $trigger, $log_filename, $unchanged );
 
 			$this->logger->info(
 				'Sync completed',
 				[
 					'created'            => $created,
 					'updated'            => $updated,
+					'unchanged'          => $unchanged,
 					'failed'             => $failed,
 					'trashed'            => $trashed,
 					'categories_removed' => $categories_removed,
@@ -850,6 +872,7 @@ class Skwirrel_WC_Sync_Service {
 				'success'            => true,
 				'created'            => $created,
 				'updated'            => $updated,
+				'unchanged'          => $unchanged,
 				'failed'             => $failed,
 				'trashed'            => $trashed,
 				'categories_removed' => $categories_removed,
@@ -857,7 +880,7 @@ class Skwirrel_WC_Sync_Service {
 
 		} catch ( \RuntimeException $e ) {
 			// Abort requested by user — record as a non-error cancellation.
-			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $e->getMessage(), 0, 0, 0, 0, $trigger, $log_filename );
+			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $e->getMessage(), 0, 0, 0, 0, $trigger, $log_filename, $unchanged );
 			return [
 				'success' => false,
 				'error'   => $e->getMessage(),
@@ -870,7 +893,7 @@ class Skwirrel_WC_Sync_Service {
 			// hook throwing, …). Without this catch it would propagate past
 			// the queue cleanup and leave this run's rows orphaned.
 			$this->logger->error( 'Sync failed with an unexpected error', [ 'error' => $e->getMessage() ] );
-			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $e->getMessage(), 0, 0, 0, 0, $trigger, $log_filename );
+			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $e->getMessage(), 0, 0, 0, 0, $trigger, $log_filename, $unchanged );
 			return [
 				'success' => false,
 				'error'   => $e->getMessage(),
@@ -1473,6 +1496,43 @@ class Skwirrel_WC_Sync_Service {
 		];
 		$saved    = get_option( 'skwirrel_wc_sync_settings', [] );
 		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );
+	}
+
+	/**
+	 * Build a signature of the settings that affect sync OUTPUT (plus the plugin version).
+	 *
+	 * When this signature differs from the one stored at the end of the previous run, the change
+	 * gate is disabled so every product reprocesses once — otherwise a settings change (e.g. turning
+	 * on categories) would be silently skipped for products whose `product_updated_on` is unchanged.
+	 *
+	 * @param array<string, mixed> $options Plugin settings.
+	 * @return string md5 signature.
+	 */
+	private function compute_sync_signature( array $options ): string {
+		$keys     = [
+			'sync_categories',
+			'sync_images',
+			'sync_grouped_products',
+			'sync_related_products',
+			'sync_manufacturers',
+			'sync_custom_classes',
+			'sync_trade_item_custom_classes',
+			'image_language',
+			'include_languages',
+			'use_sku_field',
+			'custom_class_filter_mode',
+			'custom_class_filter_ids',
+			'custom_collection_id',
+			'super_category_id',
+			'use_virtual_product_content',
+			'prices_managed_outside_skwirrel',
+		];
+		$relevant = [];
+		foreach ( $keys as $k ) {
+			$relevant[ $k ] = $options[ $k ] ?? null;
+		}
+		$relevant['__version'] = defined( 'SKWIRREL_WC_SYNC_VERSION' ) ? SKWIRREL_WC_SYNC_VERSION : '';
+		return md5( (string) wp_json_encode( $relevant ) );
 	}
 
 	/**

@@ -15,7 +15,7 @@
 declare(strict_types=1);
 
 beforeEach(function () {
-	foreach (['settings', 'auth_token', 'last_sync', 'last_result', 'history'] as $k) {
+	foreach (['settings', 'auth_token', 'last_sync', 'last_result', 'history', 'last_sync_sig'] as $k) {
 		delete_option("skwirrel_wc_sync_{$k}");
 	}
 
@@ -48,8 +48,7 @@ afterEach(function () {
  * @param array<string, mixed> $product Skwirrel product payload.
  */
 function atomicStubSingleProduct(array $product): void {
-	$fetch_call_count = 0;
-	add_filter('pre_http_request', function ($pre, $args, $url) use (&$fetch_call_count, $product) {
+	add_filter('pre_http_request', function ($pre, $args, $url) use ($product) {
 		if (strpos($url, 'test.skwirrel.example') === false) {
 			return $pre;
 		}
@@ -66,8 +65,10 @@ function atomicStubSingleProduct(array $product): void {
 			if ($is_attr_fetch) {
 				$result = ['products' => [$product]];
 			} else {
-				++$fetch_call_count;
-				$result = ['products' => 1 === $fetch_call_count ? [$product] : []];
+				// Page-based (not a call counter) so the stub returns the product on page 1 of
+				// every run — needed for tests that run the sync more than once.
+				$page   = (int) ($params['page'] ?? 1);
+				$result = ['products' => 1 === $page ? [$product] : []];
 			}
 		}
 
@@ -146,6 +147,43 @@ test('a product whose SKU already exists is reused, never duplicated with a suff
 		) d"
 	);
 	expect((int) $dupes)->toBe(0);
+});
+
+test('a second full sync reports the product as unchanged when product_updated_on has not advanced', function () {
+	atomicStubSingleProduct([
+		'product_id'              => 920001,
+		'product_type'            => 'STANDARD',
+		'external_product_id'     => 'EXT-920001',
+		'internal_product_code'   => 'SKU-920001',
+		'product_erp_description' => 'Gate Widget',
+		'product_updated_on'      => '2026-06-23T10:00:00+02:00',
+		'_product_status'         => ['product_status_description' => 'active'],
+	]);
+
+	$service = new Skwirrel_WC_Sync_Service();
+
+	// Run 1: first run (no stored settings signature yet) → gate disabled → product is created.
+	$r1 = $service->run_sync(false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL);
+	expect($r1['success'])->toBeTrue();
+	expect($r1['created'])->toBe(1);
+	expect($r1['unchanged'] ?? 0)->toBe(0);
+
+	$wc_id      = wc_get_product_id_by_sku('SKU-920001');
+	$modified_1 = get_post_field('post_modified_gmt', $wc_id);
+
+	// Run 2: signature matches and product_updated_on is identical → unchanged, not updated,
+	// and the product is not re-saved (post_modified unchanged), but synced_at still advances.
+	$synced_before = (int) get_post_meta($wc_id, '_skwirrel_synced_at', true);
+	sleep(1);
+	$r2 = $service->run_sync(false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL);
+
+	expect($r2['success'])->toBeTrue();
+	expect($r2['created'])->toBe(0);
+	expect($r2['updated'])->toBe(0);
+	expect($r2['unchanged'])->toBe(1);
+
+	expect(get_post_field('post_modified_gmt', $wc_id))->toBe($modified_1); // not re-saved
+	expect((int) get_post_meta($wc_id, '_skwirrel_synced_at', true))->toBeGreaterThan($synced_before); // still seen (purge-safe)
 });
 
 test('an initial delta run advances last_sync only after completing', function () {

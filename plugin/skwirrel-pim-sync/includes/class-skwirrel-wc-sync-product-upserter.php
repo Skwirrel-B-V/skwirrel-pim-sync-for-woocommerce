@@ -32,6 +32,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	/** @var array<int, array<string, bool>> Deferred attribute visibility: parent_id => [label => visible] */
 	private array $deferred_parent_attr_visibility = [];
 
+	/** When true, a re-sync skips products whose Skwirrel `product_updated_on` has not advanced. */
+	private bool $change_gate_enabled = false;
+
 	/**
 	 *
 	 * @param Skwirrel_WC_Sync_Logger          $logger          Logger instance.
@@ -58,6 +61,39 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$this->brand_sync       = $brand_sync;
 		$this->taxonomy_manager = $taxonomy_manager;
 		$this->slug_resolver    = $slug_resolver;
+	}
+
+	/**
+	 * Enable/disable the change gate for the current run. When enabled, an existing product whose
+	 * Skwirrel `product_updated_on` matches the stored value is reported 'unchanged' and skipped.
+	 * The service disables it for the first run / after a settings change so everything reprocesses.
+	 *
+	 * @param bool $enabled Whether to skip unchanged products this run.
+	 */
+	public function set_change_gate_enabled( bool $enabled ): void {
+		$this->change_gate_enabled = $enabled;
+	}
+
+	/**
+	 * Decide whether an existing product can be skipped as unchanged.
+	 *
+	 * Pure decision (no side effects) so it is unit-testable: only an existing product (not new),
+	 * with the gate enabled and a non-empty incoming `product_updated_on` that equals the stored
+	 * value, counts as unchanged. Anything missing/different is treated as changed.
+	 *
+	 * @param bool   $is_new              Whether the product is being created.
+	 * @param string $stored_updated_on   `_skwirrel_updated_on` currently on the WC product.
+	 * @param string $incoming_updated_on `product_updated_on` from the fresh payload.
+	 * @return bool True when the product is unchanged and may be skipped.
+	 */
+	public function is_unchanged( bool $is_new, string $stored_updated_on, string $incoming_updated_on ): bool {
+		if ( ! $this->change_gate_enabled || $is_new ) {
+			return false;
+		}
+		if ( '' === $stored_updated_on || '' === $incoming_updated_on ) {
+			return false;
+		}
+		return $stored_updated_on === $incoming_updated_on;
 	}
 
 	/**
@@ -253,6 +289,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		update_post_meta( $id, $this->mapper->get_external_id_meta_key(), $key );
 		update_post_meta( $id, $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		update_post_meta( $id, $this->mapper->get_synced_at_meta_key(), time() );
+		update_post_meta( $id, $this->mapper->get_updated_on_meta_key(), (string) ( $product['product_updated_on'] ?? '' ) );
 
 		// Store raw API response for debugging.
 		update_post_meta( $id, '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
@@ -571,6 +608,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$variation->update_meta_data( $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		$variation->update_meta_data( $this->mapper->get_external_id_meta_key(), $this->mapper->get_unique_key( $product ) ?? '' );
 		$variation->update_meta_data( $this->mapper->get_synced_at_meta_key(), (string) time() );
+		$variation->update_meta_data( $this->mapper->get_updated_on_meta_key(), (string) ( $product['product_updated_on'] ?? '' ) );
 		$variation->update_meta_data( '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
 
 		// Store grouped_product_id on variation for single-product sync lookup.
@@ -1208,6 +1246,21 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 		}
 
+		// Change gate: an existing product whose Skwirrel `product_updated_on` has not advanced is
+		// unchanged — skip the re-save/attributes/media, but still stamp synced_at so the stale-purge
+		// never trashes it.
+		$incoming_updated_on = (string) ( $product['product_updated_on'] ?? '' );
+		if ( ! $is_new ) {
+			$stored_updated_on = (string) get_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key(), true );
+			if ( $this->is_unchanged( $is_new, $stored_updated_on, $incoming_updated_on ) ) {
+				update_post_meta( $wc_id, $this->mapper->get_synced_at_meta_key(), time() );
+				return [
+					'wc_id'   => (int) $wc_id,
+					'outcome' => 'unchanged',
+				];
+			}
+		}
+
 		$wc_product->set_sku( $sku );
 		$wc_product->set_name( $this->mapper->get_name( $product ) );
 
@@ -1262,6 +1315,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		update_post_meta( $id, $this->mapper->get_external_id_meta_key(), $key );
 		update_post_meta( $id, $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		update_post_meta( $id, $this->mapper->get_synced_at_meta_key(), time() );
+		update_post_meta( $id, $this->mapper->get_updated_on_meta_key(), (string) ( $product['product_updated_on'] ?? '' ) );
 
 		// Store raw API response for debugging.
 		update_post_meta( $id, '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
@@ -1327,6 +1381,20 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				return [
 					'wc_id'   => 0,
 					'outcome' => 'skipped',
+				];
+			}
+		}
+
+		// Change gate: an existing variation whose Skwirrel `product_updated_on` has not advanced is
+		// unchanged — skip the re-save, but still stamp synced_at so the stale-purge never trashes it.
+		$incoming_updated_on = (string) ( $product['product_updated_on'] ?? '' );
+		if ( $variation_id ) {
+			$stored_updated_on = (string) get_post_meta( $variation_id, $this->mapper->get_updated_on_meta_key(), true );
+			if ( $this->is_unchanged( false, $stored_updated_on, $incoming_updated_on ) ) {
+				update_post_meta( $variation_id, $this->mapper->get_synced_at_meta_key(), time() );
+				return [
+					'wc_id'   => (int) $variation_id,
+					'outcome' => 'unchanged',
 				];
 			}
 		}
@@ -1475,6 +1543,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$variation->update_meta_data( $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		$variation->update_meta_data( $this->mapper->get_external_id_meta_key(), $this->mapper->get_unique_key( $product ) ?? '' );
 		$variation->update_meta_data( $this->mapper->get_synced_at_meta_key(), (string) time() );
+		$variation->update_meta_data( $this->mapper->get_updated_on_meta_key(), (string) ( $product['product_updated_on'] ?? '' ) );
 		$variation->update_meta_data( '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
 
 		// Store grouped_product_id on variation for single-product sync lookup.

@@ -135,10 +135,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 
 		// Last sync status summary.
 		if ( $last_result ) {
-			$created = (int) ( $last_result['created'] ?? 0 );
-			$updated = (int) ( $last_result['updated'] ?? 0 );
-			$failed  = (int) ( $last_result['failed'] ?? 0 );
-			$total   = $created + $updated + $failed;
+			$created   = (int) ( $last_result['created'] ?? 0 );
+			$updated   = (int) ( $last_result['updated'] ?? 0 );
+			$unchanged = (int) ( $last_result['unchanged'] ?? 0 );
+			$failed    = (int) ( $last_result['failed'] ?? 0 );
+			$total     = $created + $updated + $unchanged + $failed;
 		}
 
 		?>
@@ -162,6 +163,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							&mdash;
 							<span class="skw-c-green"><?php echo esc_html( (string) $created ); ?> <?php esc_html_e( 'created', 'skwirrel-pim-sync' ); ?></span>,
 							<span class="skw-c-blue"><?php echo esc_html( (string) $updated ); ?> <?php esc_html_e( 'updated', 'skwirrel-pim-sync' ); ?></span>,
+							<span class="skw-c-muted"><?php echo esc_html( (string) $unchanged ); ?> <?php esc_html_e( 'unchanged', 'skwirrel-pim-sync' ); ?></span>,
 							<span class="skw-c-red"><?php echo esc_html( (string) $failed ); ?> <?php esc_html_e( 'failed', 'skwirrel-pim-sync' ); ?></span>
 						<?php else : ?>
 							<?php echo ! empty( $last_result['timestamp'] ) ? esc_html( $this->format_datetime( $last_result['timestamp'] ) ) : ''; ?>
@@ -438,6 +440,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<th class="skw-th-left"><?php esc_html_e( 'Status', 'skwirrel-pim-sync' ); ?></th>
 						<th class="skw-th-right"><?php esc_html_e( 'Created', 'skwirrel-pim-sync' ); ?></th>
 						<th class="skw-th-right"><?php esc_html_e( 'Updated', 'skwirrel-pim-sync' ); ?></th>
+						<th class="skw-th-right"><?php esc_html_e( 'Unchanged', 'skwirrel-pim-sync' ); ?></th>
 						<th class="skw-th-right"><?php esc_html_e( 'Failed', 'skwirrel-pim-sync' ); ?></th>
 						<th class="skw-th-right"><?php esc_html_e( 'Deleted', 'skwirrel-pim-sync' ); ?></th>
 						<th class="skw-th-right"><?php esc_html_e( 'Total', 'skwirrel-pim-sync' ); ?></th>
@@ -455,9 +458,10 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						$is_purge      = ( Skwirrel_WC_Sync_History::TRIGGER_PURGE === $entry_trigger );
 						$created       = (int) ( $entry['created'] ?? 0 );
 						$updated       = (int) ( $entry['updated'] ?? 0 );
+						$unchanged     = (int) ( $entry['unchanged'] ?? 0 );
 						$failed        = (int) ( $entry['failed'] ?? 0 );
 						$trashed       = (int) ( $entry['trashed'] ?? 0 );
-						$total         = $is_purge ? $trashed : ( $created + $updated + $failed );
+						$total         = $is_purge ? $trashed : ( $created + $updated + $unchanged + $failed );
 						$trigger_label = $trigger_labels[ $entry_trigger ] ?? $trigger_labels[ Skwirrel_WC_Sync_History::TRIGGER_MANUAL ];
 						$log_file      = $entry['log_file'] ?? '';
 						$log_exists    = '' !== $log_file && file_exists( Skwirrel_WC_Sync_Logger::get_log_directory() . $log_file );
@@ -477,7 +481,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							}
 							?>
 							<tr class="skw-date-row">
-								<th colspan="9" class="skw-date-header"><?php echo esc_html( $date_label ); ?></th>
+								<th colspan="10" class="skw-date-header"><?php echo esc_html( $date_label ); ?></th>
 							</tr>
 						<?php endif; ?>
 						<tr class="skw-entry-row <?php echo $is_purge ? 'skw-row-purge' : ''; ?>">
@@ -494,6 +498,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							</td>
 							<td class="skw-td-right skw-c-green"><?php echo esc_html( (string) $created ); ?></td>
 							<td class="skw-td-right skw-c-blue"><?php echo esc_html( (string) $updated ); ?></td>
+							<td class="skw-td-right skw-c-muted"><?php echo esc_html( (string) $unchanged ); ?></td>
 							<td class="skw-td-right skw-c-red"><?php echo esc_html( (string) $failed ); ?></td>
 							<td class="skw-td-right skw-c-yellow"><?php echo esc_html( (string) $trashed ); ?></td>
 							<td class="skw-td-right skw-td-bold"><?php echo esc_html( (string) $total ); ?></td>
