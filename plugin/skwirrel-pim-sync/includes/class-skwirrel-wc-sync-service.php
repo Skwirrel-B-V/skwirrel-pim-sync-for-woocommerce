@@ -653,27 +653,37 @@ class Skwirrel_WC_Sync_Service {
 
 					// --- Attributes: re-fetch ETIM + custom classes, then assign ---
 					try {
-						$attr_product = $this->fetch_product_attributes( $client, $row->product, $attr_includes );
+						$attr_fetch_ok = true;
+						$attr_product  = $this->fetch_product_attributes( $client, $row->product, $attr_includes, $attr_fetch_ok );
 
-						/**
-						 * Fires after the attribute-enriched payload is fetched, before WC attribute assignment.
-						 *
-						 * Allows third-party code (e.g. site-specific MU-plugins) to persist the enriched
-						 * payload — including `_etim` and `_custom_classes` — as post meta for custom
-						 * frontend rendering, alongside the standard WooCommerce attribute table.
-						 *
-						 * @param int                       $wc_id        WC product or variation ID being synced.
-						 * @param array<string, mixed>      $attr_product Enriched product payload.
-						 * @param array<string, mixed>|null $group_info   Group mapping (with `wc_variable_id`) or null for simple products.
-						 */
-						do_action( 'skwirrel_wc_sync_after_attributes_fetched', $wc_id, $attr_product, $row->group_info );
-
-						$attr_count = $this->upserter->assign_attributes( $wc_id, $attr_product, $row->group_info );
-						unset( $attr_product );
-						if ( $attr_count > 0 ) {
-							++$with_attrs;
+						if ( ! $attr_fetch_ok ) {
+							// The attribute refetch (a separate API call) failed and returned the lightweight
+							// payload with no ETIM/custom classes. Do NOT assign from it (that would clear
+							// existing attributes); mark the commit partial so the gate timestamp isn't stamped
+							// and the row is retried next run.
+							$aspect_failed = true;
+							unset( $attr_product );
 						} else {
-							++$without_attrs;
+							/**
+							 * Fires after the attribute-enriched payload is fetched, before WC attribute assignment.
+							 *
+							 * Allows third-party code (e.g. site-specific MU-plugins) to persist the enriched
+							 * payload — including `_etim` and `_custom_classes` — as post meta for custom
+							 * frontend rendering, alongside the standard WooCommerce attribute table.
+							 *
+							 * @param int                       $wc_id        WC product or variation ID being synced.
+							 * @param array<string, mixed>      $attr_product Enriched product payload.
+							 * @param array<string, mixed>|null $group_info   Group mapping (with `wc_variable_id`) or null for simple products.
+							 */
+							do_action( 'skwirrel_wc_sync_after_attributes_fetched', $wc_id, $attr_product, $row->group_info );
+
+							$attr_count = $this->upserter->assign_attributes( $wc_id, $attr_product, $row->group_info );
+							unset( $attr_product );
+							if ( $attr_count > 0 ) {
+								++$with_attrs;
+							} else {
+								++$without_attrs;
+							}
 						}
 					} catch ( Throwable $e ) {
 						$aspect_failed = true;
@@ -1646,7 +1656,8 @@ class Skwirrel_WC_Sync_Service {
 	 * @param array                           $attr_includes   Attribute-specific include flags.
 	 * @return array Product array with attribute data merged in.
 	 */
-	private function fetch_product_attributes( Skwirrel_WC_Sync_JsonRpc_Client $client, array $product, array $attr_includes ): array {
+	private function fetch_product_attributes( Skwirrel_WC_Sync_JsonRpc_Client $client, array $product, array $attr_includes, bool &$ok = true ): array {
+		$ok         = true;
 		$product_id = $product['product_id'] ?? $product['id'] ?? null;
 		if ( null === $product_id ) {
 			return $product;
@@ -1668,6 +1679,7 @@ class Skwirrel_WC_Sync_Service {
 		);
 
 		if ( ! $result['success'] ) {
+			$ok = false;
 			$this->logger->warning( 'Attribute fetch failed for product', [ 'product_id' => $product_id ] );
 			return $product;
 		}
@@ -1676,6 +1688,7 @@ class Skwirrel_WC_Sync_Service {
 		unset( $result );
 
 		if ( null === $fetched ) {
+			$ok = false;
 			return $product;
 		}
 
