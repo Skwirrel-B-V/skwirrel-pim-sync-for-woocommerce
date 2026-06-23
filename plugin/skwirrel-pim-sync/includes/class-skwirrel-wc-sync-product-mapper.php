@@ -259,6 +259,13 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		return $this->attachment->get_last_image_failure_count();
 	}
 
+	/**
+	 * Total media-import failures (images + downloadable files + documents) from the most recent calls.
+	 */
+	public function get_last_media_failure_count(): int {
+		return $this->attachment->get_last_media_failure_count();
+	}
+
 	public function get_downloadable_files( array $product, int $product_id = 0 ): array {
 		return $this->attachment->get_downloadable_files( $product, $product_id );
 	}

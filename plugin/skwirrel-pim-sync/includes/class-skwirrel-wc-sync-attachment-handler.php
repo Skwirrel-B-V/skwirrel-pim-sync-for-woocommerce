@@ -22,6 +22,12 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 	/** Number of image attachments with a valid URL that failed to import on the last call. */
 	private int $last_image_failures = 0;
 
+	/** Number of downloadable files with a valid URL that failed to import on the last call. */
+	private int $last_file_failures = 0;
+
+	/** Number of document attachments with a valid URL that failed to import on the last call. */
+	private int $last_doc_failures = 0;
+
 	public function __construct( string $image_language = 'nl' ) {
 		$this->logger         = new Skwirrel_WC_Sync_Logger();
 		$this->media_importer = new Skwirrel_WC_Sync_Media_Importer();
@@ -99,14 +105,14 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 	 * @param int $product_id WooCommerce product post ID to attach media to (0 = no parent).
 	 */
 	public function get_image_attachment_ids( array $product, int $product_id = 0 ): array {
-		$opts = get_option( 'skwirrel_wc_sync_settings', [] );
+		$this->last_image_failures = 0;
+		$opts                      = get_option( 'skwirrel_wc_sync_settings', [] );
 		if ( isset( $opts['sync_images'] ) && ! $opts['sync_images'] ) {
 			return [];
 		}
 
-		$attachments               = $product['_attachments'] ?? $product['attachments'] ?? [];
-		$ids                       = [];
-		$this->last_image_failures = 0;
+		$attachments = $product['_attachments'] ?? $product['attachments'] ?? [];
+		$ids         = [];
 		foreach ( $attachments as $att ) {
 			if ( ! empty( $att['for_internal_use'] ) ) {
 				continue;
@@ -177,12 +183,23 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 	}
 
 	/**
+	 * Total media-import failures (images + downloadable files + documents) across the most recent
+	 * get_image_attachment_ids() / get_downloadable_files() / get_document_attachments() calls.
+	 * 0 means every requested file was imported. import_file()/import_image() return 0 (not throw)
+	 * on a download/copy/insert error, so this is the only way the caller learns media is incomplete.
+	 */
+	public function get_last_media_failure_count(): int {
+		return $this->last_image_failures + $this->last_file_failures + $this->last_doc_failures;
+	}
+
+	/**
 	 * Get downloadable file URLs/names for product (MAN, DAT, etc.).
 	 * @param int $product_id WooCommerce product post ID to attach media to (0 = no parent).
 	 */
 	public function get_downloadable_files( array $product, int $product_id = 0 ): array {
-		$attachments = $product['_attachments'] ?? $product['attachments'] ?? [];
-		$files       = [];
+		$this->last_file_failures = 0;
+		$attachments              = $product['_attachments'] ?? $product['attachments'] ?? [];
+		$files                    = [];
 		foreach ( $attachments as $att ) {
 			if ( ! empty( $att['for_internal_use'] ) ) {
 				continue;
@@ -199,14 +216,17 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			$name     = $att['file_name'] ?? 'Download';
 			$api_meta = $this->build_api_meta( $att );
 			$id       = $this->media_importer->import_file( $url, $name, $product_id, $api_meta );
-			if ( $id ) {
-				$guid = wp_get_attachment_url( $id );
-				if ( $guid ) {
-					$files[] = [
-						'name' => $name,
-						'file' => $guid,
-					];
-				}
+			if ( ! $id ) {
+				// Valid file URL the importer could not download/store — a real failure.
+				++$this->last_file_failures;
+				continue;
+			}
+			$guid = wp_get_attachment_url( $id );
+			if ( $guid ) {
+				$files[] = [
+					'name' => $name,
+					'file' => $guid,
+				];
 			}
 		}
 		return $files;
@@ -219,9 +239,10 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 	 * @return array<int, array{id: int, url: string, name: string, type: string, type_label: string}>
 	 */
 	public function get_document_attachments( array $product, int $product_id = 0 ): array {
-		$raw         = $product['_attachments'] ?? $product['attachments'] ?? [];
-		$attachments = is_array( $raw ) && isset( $raw[0] ) ? $raw : ( is_array( $raw ) ? array_values( $raw ) : [] );
-		$docs        = [];
+		$this->last_doc_failures = 0;
+		$raw                     = $product['_attachments'] ?? $product['attachments'] ?? [];
+		$attachments             = is_array( $raw ) && isset( $raw[0] ) ? $raw : ( is_array( $raw ) ? array_values( $raw ) : [] );
+		$docs                    = [];
 		foreach ( $attachments as $att ) {
 			if ( ! is_array( $att ) ) {
 				continue;
@@ -245,17 +266,20 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			}
 			$api_meta = $this->build_api_meta( $att );
 			$id       = $this->media_importer->import_file( $url, $name, $product_id, $api_meta );
-			if ( $id ) {
-				$guid = wp_get_attachment_url( $id );
-				if ( $guid ) {
-					$docs[] = [
-						'id'         => $id,
-						'url'        => $guid,
-						'name'       => $name,
-						'type'       => $code,
-						'type_label' => $this->get_document_type_label( $code ),
-					];
-				}
+			if ( ! $id ) {
+				// Valid document URL the importer could not download/store — a real failure.
+				++$this->last_doc_failures;
+				continue;
+			}
+			$guid = wp_get_attachment_url( $id );
+			if ( $guid ) {
+				$docs[] = [
+					'id'         => $id,
+					'url'        => $guid,
+					'name'       => $name,
+					'type'       => $code,
+					'type_label' => $this->get_document_type_label( $code ),
+				];
 			}
 		}
 		return $docs;

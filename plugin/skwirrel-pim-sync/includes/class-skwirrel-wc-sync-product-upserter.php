@@ -319,9 +319,6 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$wc_product->set_gallery_image_ids( array_slice( $img_ids, 1 ) ); // All others = gallery
 			$wc_product->save();
 		}
-		if ( $this->mapper->get_last_image_failure_count() > 0 ) {
-			$media_complete = false;
-		}
 
 		try {
 			$downloads = $this->mapper->get_downloadable_files( $product, $id );
@@ -354,6 +351,12 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					'error' => $e->getMessage(),
 				]
 			);
+		}
+
+		// Swallowed image/file/document import failures (importer returns 0, no throw) must also
+		// keep the product held as draft/unstamped, so check the combined count after all media.
+		if ( $this->mapper->get_last_media_failure_count() > 0 ) {
+			$media_complete = false;
 		}
 
 		// Save custom class text meta (T/B types)
@@ -1911,20 +1914,6 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$wc_product->set_gallery_image_ids( array_slice( $img_ids, 1 ) );
 			$wc_product->save();
 		}
-		// Image downloads are swallowed (import returns 0 and logs), so check the failure count
-		// explicitly — a missing image must mark the product incomplete, not silently complete.
-		$image_failures = $this->mapper->get_last_image_failure_count();
-		if ( $image_failures > 0 ) {
-			$complete = false;
-			$this->logger->warning(
-				'Some product images failed to import',
-				[
-					'wc_id'    => $wc_id,
-					'failures' => $image_failures,
-				]
-			);
-		}
-
 		try {
 			$downloads = $this->mapper->get_downloadable_files( $product, $wc_id );
 			if ( ! empty( $downloads ) ) {
@@ -1954,6 +1943,21 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				[
 					'wc_id' => $wc_id,
 					'error' => $e->getMessage(),
+				]
+			);
+		}
+
+		// Image/file/document imports are swallowed (the importer returns 0 and logs rather than
+		// throwing), so check the combined failure count explicitly — any missing media must mark the
+		// product incomplete (so it isn't gate-stamped / published) instead of silently complete.
+		$media_failures = $this->mapper->get_last_media_failure_count();
+		if ( $media_failures > 0 ) {
+			$complete = false;
+			$this->logger->warning(
+				'Some product media failed to import',
+				[
+					'wc_id'    => $wc_id,
+					'failures' => $media_failures,
 				]
 			);
 		}

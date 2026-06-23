@@ -197,6 +197,13 @@ class Skwirrel_WC_Sync_Service {
 				]
 			);
 
+			// Crash-safety: invalidate the stored signature for the DURATION of this run. If the
+			// process is killed or fatals mid-run (after products are saved but before the completion
+			// block), the empty signature forces the NEXT run into a full reprocess to repair them. A
+			// clean completion re-stamps the real signature below. ($gate_enabled above was already
+			// computed from the pre-run stored value, so this does not affect the current run's gate.)
+			update_option( 'skwirrel_wc_sync_last_sync_sig', '' );
+
 			$collection_ids = $this->get_collection_ids();
 			if ( empty( $collection_ids ) ) {
 				$this->logger->error( 'Sync aborted: no selection IDs configured' );
