@@ -180,7 +180,14 @@ class Skwirrel_WC_Sync_Service {
 			// the last sync — but only when the output-affecting settings (and plugin version) are
 			// unchanged, so a settings change (or the first run) still forces a full reprocess.
 			$sync_sig     = $this->compute_sync_signature( $options );
-			$gate_enabled = ( '' !== $sync_sig && $sync_sig === get_option( 'skwirrel_wc_sync_last_sync_sig', '' ) );
+			$gate_enabled = (
+				'' !== $sync_sig
+				&& $sync_sig === get_option( 'skwirrel_wc_sync_last_sync_sig', '' )
+				// A pending slug-resync must reprocess everything: unchanged rows skip slug
+				// resolution, yet update_last_result() clears the flag on success — gating here
+				// would drop the "slugs need resync" state without ever updating the slugs.
+				&& ! get_option( 'skwirrel_wc_sync_slug_resync_needed' )
+			);
 			$this->upserter->set_change_gate_enabled( $gate_enabled );
 			$this->logger->info(
 				'Change gate',
@@ -579,6 +586,7 @@ class Skwirrel_WC_Sync_Service {
 				$outcome         = 'skipped';
 				$wc_id           = 0;
 				$pending_publish = false;
+				$aspect_failed   = false;
 				try {
 					$result_item = $row->group_info
 						? $this->upserter->create_or_update_variation(
@@ -623,6 +631,7 @@ class Skwirrel_WC_Sync_Service {
 						$tax_target = $row->group_info['wc_variable_id'] ?? $wc_id;
 						$this->upserter->assign_taxonomy( $tax_target, $row->product );
 					} catch ( Throwable $e ) {
+						$aspect_failed = true;
 						$this->logger->warning(
 							'Taxonomy assignment failed',
 							[
@@ -657,6 +666,7 @@ class Skwirrel_WC_Sync_Service {
 							++$without_attrs;
 						}
 					} catch ( Throwable $e ) {
+						$aspect_failed = true;
 						$this->logger->warning(
 							'Attribute assignment failed',
 							[
@@ -670,6 +680,7 @@ class Skwirrel_WC_Sync_Service {
 					try {
 						$this->upserter->assign_media( $wc_id, $row->product );
 					} catch ( Throwable $e ) {
+						$aspect_failed = true;
 						$this->logger->warning(
 							'Media assignment failed',
 							[
@@ -690,6 +701,7 @@ class Skwirrel_WC_Sync_Service {
 							$new_product->save();
 						}
 					} catch ( Throwable $e ) {
+						$aspect_failed = true;
 						$this->logger->warning(
 							'Final publish failed',
 							[
@@ -698,6 +710,14 @@ class Skwirrel_WC_Sync_Service {
 							]
 						);
 					}
+				}
+
+				// If any aspect failed, this product is only partially synced — drop the change-gate
+				// timestamp so the NEXT run reprocesses it instead of skipping it as 'unchanged' and
+				// leaving the missing categories/attributes/images unretried (the gate is only as
+				// safe as the meta it trusts; create_or_update_*() stamp it optimistically).
+				if ( $aspect_failed && $wc_id ) {
+					delete_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key() );
 				}
 
 				// Per-product checkpoint: this product is fully committed (resumable on interruption).
@@ -787,7 +807,13 @@ class Skwirrel_WC_Sync_Service {
 				$rel_i = 0;
 				// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
 				while ( $row = $queue->get_next_for_phase( 5 ) ) {
-					if ( $row->wc_id && 'skipped' !== $row->outcome && 'unchanged' !== $row->outcome ) {
+					// Unchanged rows normally skip relations, but a product carrying
+					// `_skwirrel_pending_relations` (targets that didn't exist on an earlier run) must
+					// still retry — a now-created target can resolve even though this product itself
+					// did not change; the page payload still holds its related-product data.
+					$is_unchanged_row = 'unchanged' === $row->outcome;
+					$retry_relations  = $is_unchanged_row && '' !== (string) get_post_meta( $row->wc_id, '_skwirrel_pending_relations', true );
+					if ( $row->wc_id && 'skipped' !== $row->outcome && ( ! $is_unchanged_row || $retry_relations ) ) {
 						try {
 							$this->upserter->assign_relations( $row->wc_id, $row->product );
 						} catch ( Throwable $e ) {
@@ -1531,7 +1557,10 @@ class Skwirrel_WC_Sync_Service {
 		foreach ( $keys as $k ) {
 			$relevant[ $k ] = $options[ $k ] ?? null;
 		}
-		$relevant['__version'] = defined( 'SKWIRREL_WC_SYNC_VERSION' ) ? SKWIRREL_WC_SYNC_VERSION : '';
+		// Slug/permalink settings live in a separate option but also affect output (e.g.
+		// update_slug_on_resync), so a change there must likewise force a full reprocess.
+		$relevant['__permalinks'] = get_option( 'skwirrel_wc_sync_permalinks', [] );
+		$relevant['__version']    = defined( 'SKWIRREL_WC_SYNC_VERSION' ) ? SKWIRREL_WC_SYNC_VERSION : '';
 		return md5( (string) wp_json_encode( $relevant ) );
 	}
 
