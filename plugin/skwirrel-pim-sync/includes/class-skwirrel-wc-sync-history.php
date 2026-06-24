@@ -103,6 +103,25 @@ class Skwirrel_WC_Sync_History {
 	}
 
 	/**
+	 * Whether a run's heartbeat is still fresh (a step ran within HEARTBEAT_TTL seconds).
+	 *
+	 * Read-only counterpart to acquire_sync_mutex(): the batched runner uses this to decide
+	 * whether an existing run-state belongs to a live run (refuse a second start) or a stalled
+	 * one (resume it), without taking the mutex.
+	 */
+	public static function is_heartbeat_fresh(): bool {
+		$mutex = get_transient( self::SYNC_MUTEX );
+		return is_numeric( $mutex ) && ( time() - (int) $mutex ) < self::HEARTBEAT_TTL;
+	}
+
+	/**
+	 * Clear the UI "sync in progress" badge transient.
+	 */
+	public static function clear_sync_in_progress(): void {
+		delete_transient( self::SYNC_IN_PROGRESS );
+	}
+
+	/**
 	 * Acquire the run_sync() mutex if no fresh run is already in progress.
 	 *
 	 * A stored timestamp older than HEARTBEAT_TTL is treated as a dead prior run

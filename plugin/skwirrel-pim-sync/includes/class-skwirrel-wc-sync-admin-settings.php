@@ -341,17 +341,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		}
 		check_admin_referer( 'skwirrel_wc_sync_run', '_wpnonce' );
 
-		$token = bin2hex( random_bytes( 16 ) );
-		set_transient( self::BG_SYNC_TRANSIENT . '_' . $token, '1', 120 );
+		// Show the "sync running" badge from the moment the user clicks.
 		set_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS, (string) time(), 60 );
-
-		$url = add_query_arg(
-			[
-				'action' => self::BG_SYNC_ACTION,
-				'token'  => $token,
-			],
-			admin_url( 'admin-ajax.php' )
-		);
 
 		$redirect = add_query_arg(
 			[
@@ -359,6 +350,28 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'tab'  => 'sync',
 			],
 			admin_url( 'admin.php' )
+		);
+
+		// Preferred path: enqueue the resumable batched runner via Action Scheduler. One bounded step
+		// per async action means no single server time limit (php-fpm request_terminate_timeout, nginx
+		// fastcgi_read_timeout, proxy gateway) can kill the whole run, and it resumes automatically —
+		// fixing manual full syncs that died part-way and had to be restarted by hand.
+		if ( function_exists( 'as_enqueue_async_action' ) ) {
+			Skwirrel_WC_Sync_Service::start_async( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
+			wp_safe_redirect( $redirect );
+			exit;
+		}
+
+		// Fallback (no Action Scheduler): detached loopback request that runs the sync synchronously.
+		$token = bin2hex( random_bytes( 16 ) );
+		set_transient( self::BG_SYNC_TRANSIENT . '_' . $token, '1', 120 );
+
+		$url = add_query_arg(
+			[
+				'action' => self::BG_SYNC_ACTION,
+				'token'  => $token,
+			],
+			admin_url( 'admin-ajax.php' )
 		);
 
 		wp_safe_redirect( $redirect );

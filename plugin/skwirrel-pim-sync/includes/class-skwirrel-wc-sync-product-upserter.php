@@ -35,6 +35,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	/** When true, a re-sync skips products whose Skwirrel `product_updated_on` has not advanced. */
 	private bool $change_gate_enabled = false;
 
+	/** Post meta storing the content-hash of the last fully-committed payload (for the JSON-diff gate). */
+	public const CONTENT_HASH_META = '_skwirrel_content_hash';
+
+	/** Content-hash mode for this run: 'off' | 'observe' (compute+report, no skip) | 'enforce' (skip on match). */
+	private string $content_hash_mode = 'off';
+
+	/** Settings signature folded into the content hash so a settings/version change invalidates all hashes. */
+	private string $content_hash_sig = '';
+
 	/**
 	 *
 	 * @param Skwirrel_WC_Sync_Logger          $logger          Logger instance.
@@ -72,6 +81,55 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 */
 	public function set_change_gate_enabled( bool $enabled ): void {
 		$this->change_gate_enabled = $enabled;
+	}
+
+	/**
+	 * Configure content-hash change detection for the current run.
+	 *
+	 * @param string $mode 'off', 'observe' (compute + report match/mismatch, no behavior change), or
+	 *                     'enforce' (authoritative: skip an existing product when its stored hash equals
+	 *                     the incoming one). In enforce mode the hash supersedes the timestamp gate.
+	 * @param string $sig  Settings signature to fold in, so a settings/version change → all hashes differ.
+	 */
+	public function set_content_hash_context( string $mode, string $sig ): void {
+		$this->content_hash_mode = in_array( $mode, [ 'off', 'observe', 'enforce' ], true ) ? $mode : 'off';
+		$this->content_hash_sig  = $sig;
+	}
+
+	/**
+	 * Content hash of a payload for the JSON-diff gate: md5 of the settings signature + a key-sorted
+	 * JSON of the payload. Key-sorting makes it independent of API key order; folding in the signature
+	 * makes a settings/version change invalidate every product's hash (so output re-applies). Returns
+	 * '' when hashing is off. Top-level volatile keys can be dropped via the
+	 * `skwirrel_wc_sync_content_hash_exclude` filter (returns an array of keys).
+	 *
+	 * @param array<string, mixed> $product Raw payload (already includes ETIM/custom classes/etc).
+	 */
+	private function content_hash( array $product ): string {
+		if ( 'off' === $this->content_hash_mode ) {
+			return '';
+		}
+		$payload = $product;
+		foreach ( (array) apply_filters( 'skwirrel_wc_sync_content_hash_exclude', [], $product ) as $key ) {
+			unset( $payload[ $key ] );
+		}
+		self::ksort_recursive( $payload );
+		return md5( $this->content_hash_sig . '|' . (string) wp_json_encode( $payload ) );
+	}
+
+	/**
+	 * Recursively ksort an array in place so its JSON encoding is independent of key order.
+	 *
+	 * @param array<mixed> $arr
+	 */
+	private static function ksort_recursive( array &$arr ): void {
+		foreach ( $arr as &$value ) {
+			if ( is_array( $value ) ) {
+				self::ksort_recursive( $value );
+			}
+		}
+		unset( $value );
+		ksort( $arr );
 	}
 
 	/**
@@ -1272,11 +1330,34 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		// never trashes it.
 		$incoming_updated_on = (string) ( $product['product_updated_on'] ?? '' );
 		$stored_updated_on   = $is_new ? '' : (string) get_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key(), true );
-		if ( $this->is_unchanged( $is_new, $stored_updated_on, $incoming_updated_on ) ) {
+
+		// Content-hash gate. Computed for off/observe/enforce; the hash is STORED only on full commit
+		// (by the caller), so a partial/failed product has no stored hash and is never skipped.
+		$incoming_hash = $this->content_hash( $product );
+		$hash_status   = 'na';
+		if ( '' !== $incoming_hash && ! $is_new ) {
+			$stored_hash = (string) get_post_meta( $wc_id, self::CONTENT_HASH_META, true );
+			$hash_status = '' === $stored_hash ? 'new' : ( $stored_hash === $incoming_hash ? 'match' : 'mismatch' );
+		}
+
+		if ( 'enforce' === $this->content_hash_mode ) {
+			// Hash is authoritative: skip only on a real match, otherwise reprocess (supersedes the timestamp gate).
+			if ( ! $is_new && 'match' === $hash_status ) {
+				update_post_meta( $wc_id, $this->mapper->get_synced_at_meta_key(), time() );
+				return [
+					'wc_id'        => (int) $wc_id,
+					'outcome'      => 'unchanged',
+					'content_hash' => $incoming_hash,
+					'hash_status'  => $hash_status,
+				];
+			}
+		} elseif ( $this->is_unchanged( $is_new, $stored_updated_on, $incoming_updated_on ) ) {
 			update_post_meta( $wc_id, $this->mapper->get_synced_at_meta_key(), time() );
 			return [
-				'wc_id'   => (int) $wc_id,
-				'outcome' => 'unchanged',
+				'wc_id'        => (int) $wc_id,
+				'outcome'      => 'unchanged',
+				'content_hash' => $incoming_hash,
+				'hash_status'  => $hash_status,
 			];
 		}
 		// "Incomplete" = an existing product this plugin created as draft and then failed to finish.
@@ -1360,6 +1441,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'wc_id'           => $id,
 			'outcome'         => $is_new ? 'created' : 'updated',
 			'pending_publish' => $status_plan['pending_publish'],
+			'content_hash'    => $incoming_hash,
+			'hash_status'     => $hash_status,
 		];
 	}
 
@@ -1414,13 +1497,32 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		// Change gate: an existing variation whose Skwirrel `product_updated_on` has not advanced is
 		// unchanged — skip the re-save, but still stamp synced_at so the stale-purge never trashes it.
 		$incoming_updated_on = (string) ( $product['product_updated_on'] ?? '' );
+		$incoming_hash       = $this->content_hash( $product );
+		$hash_status         = 'na';
 		if ( $variation_id ) {
 			$stored_updated_on = (string) get_post_meta( $variation_id, $this->mapper->get_updated_on_meta_key(), true );
-			if ( $this->is_unchanged( false, $stored_updated_on, $incoming_updated_on ) ) {
+			if ( '' !== $incoming_hash ) {
+				$stored_hash = (string) get_post_meta( $variation_id, self::CONTENT_HASH_META, true );
+				$hash_status = '' === $stored_hash ? 'new' : ( $stored_hash === $incoming_hash ? 'match' : 'mismatch' );
+			}
+
+			if ( 'enforce' === $this->content_hash_mode ) {
+				if ( 'match' === $hash_status ) {
+					update_post_meta( $variation_id, $this->mapper->get_synced_at_meta_key(), time() );
+					return [
+						'wc_id'        => (int) $variation_id,
+						'outcome'      => 'unchanged',
+						'content_hash' => $incoming_hash,
+						'hash_status'  => $hash_status,
+					];
+				}
+			} elseif ( $this->is_unchanged( false, $stored_updated_on, $incoming_updated_on ) ) {
 				update_post_meta( $variation_id, $this->mapper->get_synced_at_meta_key(), time() );
 				return [
-					'wc_id'   => (int) $variation_id,
-					'outcome' => 'unchanged',
+					'wc_id'        => (int) $variation_id,
+					'outcome'      => 'unchanged',
+					'content_hash' => $incoming_hash,
+					'hash_status'  => $hash_status,
 				];
 			}
 		}
@@ -1609,8 +1711,10 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		do_action( 'skwirrel_wc_sync_after_variation_save', $vid, $variation_attrs, $product );
 
 		return [
-			'wc_id'   => $vid,
-			'outcome' => $variation_id ? 'updated' : 'created',
+			'wc_id'        => $vid,
+			'outcome'      => $variation_id ? 'updated' : 'created',
+			'content_hash' => $incoming_hash,
+			'hash_status'  => $hash_status,
 		];
 	}
 
