@@ -27,6 +27,10 @@ beforeEach(function () {
 	delete_option( 'skwirrel_wc_sync_last_result' );
 	delete_option( 'skwirrel_wc_sync_history' );
 	delete_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
+	// Also clear the actual lock key (SYNC_MUTEX): the mutual-exclusion test sets it
+	// and the refused run returns before the finally that would release it, so without
+	// this a fresh mutex would leak into the next test and block its run_sync().
+	delete_transient( Skwirrel_WC_Sync_History::SYNC_MUTEX );
 
 	update_option( 'skwirrel_wc_sync_settings', [
 		'endpoint_url'                   => 'https://test.skwirrel.example/jsonrpc',
@@ -105,8 +109,11 @@ function safetyStub( array $responders ): void {
 test( 'run_sync refuses to start while another sync heartbeat is fresh', function () {
 	// Pretend an in-flight sync just refreshed its heartbeat — the lock must
 	// trip before any HTTP request, regardless of what the API would return.
+	// Exclusivity is owned by SYNC_MUTEX (the key acquire_sync_mutex() checks);
+	// SYNC_IN_PROGRESS is only the UI badge and does not gate a run. sync_heartbeat()
+	// refreshes both, so a real in-flight run has a fresh SYNC_MUTEX timestamp.
 	set_transient(
-		Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS,
+		Skwirrel_WC_Sync_History::SYNC_MUTEX,
 		(string) time(),
 		Skwirrel_WC_Sync_History::HEARTBEAT_TTL
 	);

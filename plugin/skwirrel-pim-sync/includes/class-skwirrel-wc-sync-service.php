@@ -144,9 +144,10 @@ class Skwirrel_WC_Sync_Service {
 
 		// Initialised before the try so the catch blocks below can report
 		// progress-so-far even when a crash happens before the main loop.
-		$created = 0;
-		$updated = 0;
-		$failed  = 0;
+		$created   = 0;
+		$updated   = 0;
+		$unchanged = 0;
+		$failed    = 0;
 
 		try {
 			global $wpdb;
@@ -174,6 +175,34 @@ class Skwirrel_WC_Sync_Service {
 
 			$options     = $this->get_options();
 			$delta_since = get_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, '' );
+
+			// Change gate: skip products whose Skwirrel `product_updated_on` has not advanced since
+			// the last sync — but only when the output-affecting settings (and plugin version) are
+			// unchanged, so a settings change (or the first run) still forces a full reprocess.
+			$sync_sig     = $this->compute_sync_signature( $options );
+			$gate_enabled = (
+				'' !== $sync_sig
+				&& get_option( 'skwirrel_wc_sync_last_sync_sig', '' ) === $sync_sig
+				// A pending slug-resync must reprocess everything: unchanged rows skip slug
+				// resolution, yet update_last_result() clears the flag on success — gating here
+				// would drop the "slugs need resync" state without ever updating the slugs.
+				&& ! get_option( 'skwirrel_wc_sync_slug_resync_needed' )
+			);
+			$this->upserter->set_change_gate_enabled( $gate_enabled );
+			$this->logger->info(
+				'Change gate',
+				[
+					'enabled' => $gate_enabled,
+					'reason'  => $gate_enabled ? 'settings unchanged — unchanged products will be skipped' : 'first run or settings changed — full reprocess',
+				]
+			);
+
+			// Crash-safety: invalidate the stored signature for the DURATION of this run. If the
+			// process is killed or fatals mid-run (after products are saved but before the completion
+			// block), the empty signature forces the NEXT run into a full reprocess to repair them. A
+			// clean completion re-stamps the real signature below. ($gate_enabled above was already
+			// computed from the pre-run stored value, so this does not affect the current run's gate.)
+			update_option( 'skwirrel_wc_sync_last_sync_sig', '' );
 
 			$collection_ids = $this->get_collection_ids();
 			if ( empty( $collection_ids ) ) {
@@ -275,23 +304,29 @@ class Skwirrel_WC_Sync_Service {
 			$use_filter        = false;
 			$filter            = [];
 			$initial_delta_run = false;
-			if ( $delta && ! empty( $delta_since ) ) {
+			if ( $delta && ! empty( $delta_since ) && $gate_enabled ) {
 				$use_filter           = true;
 				$filter['updated_on'] = [
 					'datetime' => $delta_since,
 					'operator' => '>=',
 				];
+			} elseif ( $delta && ! empty( $delta_since ) && ! $gate_enabled ) {
+				// Output-affecting settings (or the plugin version / slug options) changed since the
+				// last run, so the change gate is off. A delta `updated_on` filter would only fetch
+				// upstream-changed products, leaving the rest of the catalog on the OLD settings.
+				// Drop the filter for this run → a full pass that re-applies the new settings to every
+				// product (each is still committed individually; the gate re-engages next run).
+				$this->logger->info( 'Settings/version change detected — running this delta as a full pass so the new settings apply to every product.' );
 			} elseif ( $delta && empty( $delta_since ) ) {
 				// Delta requested but no checkpoint yet — first delta run after install,
 				// reset, purge, or a string of failed runs. The API call falls through
-				// to "everything in selection" (no updated_on filter), but we establish
-				// the checkpoint upfront so the *next* scheduled run is a real delta.
-				// Safe: no products in the selection can be missed by this run, because
-				// no filter narrows the API response.
+				// to "everything in selection" (no updated_on filter). We do NOT seed
+				// last_sync here: it is written only on provable completion (end of run,
+				// stamped with $sync_started_at) so an interrupted run can never advance
+				// the checkpoint past products it never committed (the F4 image-loss bug).
 				$initial_delta_run = true;
-				update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z', $sync_started_at ) );
 				$this->logger->info(
-					'Delta sync requested but no checkpoint exists — running as initial full pass and seeding last_sync for subsequent delta runs.'
+					'Delta sync requested but no checkpoint exists — running as initial full pass; last_sync will be seeded on completion.'
 				);
 			}
 			// `dynamic_selection_id` is a single-int filter on the Skwirrel side,
@@ -528,6 +563,10 @@ class Skwirrel_WC_Sync_Service {
 
 			if ( $delta && 0 === $fetched ) {
 				$this->logger->info( 'Delta sync: no products updated since last sync (across all configured selections)' );
+				// Clean no-op completion — restore the signature we invalidated at run start (this
+				// early return bypasses the end-of-run block), so an idle catalog stays gated/fast
+				// instead of forcing a full pass on the next run.
+				update_option( 'skwirrel_wc_sync_last_sync_sig', $sync_sig );
 				$this->logger->stop_sync_log();
 				Skwirrel_WC_Sync_History::update_last_result( true, 0, 0, 0, '', 0, 0, 0, 0, $trigger, $log_filename );
 				return [
@@ -544,20 +583,31 @@ class Skwirrel_WC_Sync_Service {
 
 			// =====================================================================
 			$this->check_abort();
-			// Phase 1: Products — create/update with basic fields
+			// Per-product commit — each product is fully created/updated, categorised,
+			// attributed and given its media in ONE pass before moving to the next, so an
+			// interrupted run leaves only un-started products incomplete (never bare or
+			// duplicated). Replaces the former separate Phase 1–4 global loops.
 			// =====================================================================
+			$with_attrs    = 0;
+			$without_attrs = 0;
+			// Set if any product committed only partially (an aspect failed). Used to hold the
+			// delta checkpoint so a partial row is re-pulled and retried on the next run.
+			$partial_commit = false;
+
 			Skwirrel_WC_Sync_History::update_phase_progress(
 				Skwirrel_WC_Sync_History::PHASE_PRODUCTS,
 				0,
 				$total,
-				__( 'Creating & updating products…', 'skwirrel-pim-sync' )
+				__( 'Creating & syncing products…', 'skwirrel-pim-sync' )
 			);
 
 			$processed = 0;
 			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
-			while ( $row = $queue->get_next_for_phase( 1 ) ) {
-				$outcome = 'skipped';
-				$wc_id   = 0;
+			while ( $row = $queue->get_next_for_phase( 4 ) ) {
+				$outcome         = 'skipped';
+				$wc_id           = 0;
+				$pending_publish = false;
+				$aspect_failed   = false;
 				try {
 					$result_item = $row->group_info
 						? $this->upserter->create_or_update_variation(
@@ -566,13 +616,16 @@ class Skwirrel_WC_Sync_Service {
 						)
 						: $this->upserter->create_or_update_product( $row->product );
 
-					$wc_id   = $result_item['wc_id'];
-					$outcome = $result_item['outcome'];
+					$wc_id           = $result_item['wc_id'];
+					$outcome         = $result_item['outcome'];
+					$pending_publish = (bool) ( $result_item['pending_publish'] ?? false );
 
 					if ( 'created' === $outcome ) {
 						++$created;
 					} elseif ( 'updated' === $outcome ) {
 						++$updated;
+					} elseif ( 'unchanged' === $outcome ) {
+						++$unchanged;
 					} else {
 						++$failed;
 					}
@@ -588,7 +641,130 @@ class Skwirrel_WC_Sync_Service {
 					);
 				}
 
+				// Persist identity + outcome so the deferred relations pass can find this row.
 				$queue->update_after_phase1( $row->id, $wc_id, $outcome );
+
+				// 'unchanged' products (and 'skipped') get none of the per-product aspect work —
+				// this is where skipping the attribute API refetch + media saves the time.
+				if ( $wc_id && 'skipped' !== $outcome && 'unchanged' !== $outcome ) {
+					// --- Taxonomy: categories, brands, manufacturers (parent for variations) ---
+					try {
+						$tax_target = $row->group_info['wc_variable_id'] ?? $wc_id;
+						$this->upserter->assign_taxonomy( $tax_target, $row->product );
+					} catch ( Throwable $e ) {
+						$aspect_failed = true;
+						$this->logger->warning(
+							'Taxonomy assignment failed',
+							[
+								'wc_id' => $wc_id,
+								'error' => $e->getMessage(),
+							]
+						);
+					}
+
+					// --- Attributes: re-fetch ETIM + custom classes, then assign ---
+					try {
+						$attr_fetch_ok = true;
+						$attr_product  = $this->fetch_product_attributes( $client, $row->product, $attr_includes, $attr_fetch_ok );
+
+						if ( ! $attr_fetch_ok ) {
+							// The attribute refetch (a separate API call) failed and returned the lightweight
+							// payload with no ETIM/custom classes. Do NOT assign from it (that would clear
+							// existing attributes); mark the commit partial so the gate timestamp isn't stamped
+							// and the row is retried next run.
+							$aspect_failed = true;
+							unset( $attr_product );
+						} else {
+							/**
+							 * Fires after the attribute-enriched payload is fetched, before WC attribute assignment.
+							 *
+							 * Allows third-party code (e.g. site-specific MU-plugins) to persist the enriched
+							 * payload — including `_etim` and `_custom_classes` — as post meta for custom
+							 * frontend rendering, alongside the standard WooCommerce attribute table.
+							 *
+							 * @param int                       $wc_id        WC product or variation ID being synced.
+							 * @param array<string, mixed>      $attr_product Enriched product payload.
+							 * @param array<string, mixed>|null $group_info   Group mapping (with `wc_variable_id`) or null for simple products.
+							 */
+							do_action( 'skwirrel_wc_sync_after_attributes_fetched', $wc_id, $attr_product, $row->group_info );
+
+							$attr_count = $this->upserter->assign_attributes( $wc_id, $attr_product, $row->group_info );
+							unset( $attr_product );
+							if ( $attr_count > 0 ) {
+								++$with_attrs;
+							} else {
+								++$without_attrs;
+							}
+						}
+					} catch ( Throwable $e ) {
+						$aspect_failed = true;
+						$this->logger->warning(
+							'Attribute assignment failed',
+							[
+								'wc_id' => $wc_id,
+								'error' => $e->getMessage(),
+							]
+						);
+					}
+
+					// --- Media: images, downloads, documents (slowest step) ---
+					try {
+						// assign_media() returns false on a swallowed image/download failure (the importer
+						// logs and returns 0 rather than throwing) — treat that as a partial commit so the
+						// product is not published bare / gated unretried.
+						if ( ! $this->upserter->assign_media( $wc_id, $row->product ) ) {
+							$aspect_failed = true;
+						}
+					} catch ( Throwable $e ) {
+						$aspect_failed = true;
+						$this->logger->warning(
+							'Media assignment failed',
+							[
+								'wc_id' => $wc_id,
+								'error' => $e->getMessage(),
+							]
+						);
+					}
+				}
+
+				// Publish a product that was held as draft during creation — but ONLY if every
+				// aspect succeeded. Publishing after a taxonomy/attribute/media failure would put a
+				// bare product live and defeat the draft-until-complete safety; leave it draft and
+				// let the next run (it reprocesses — see below) publish it once fully committed.
+				if ( $pending_publish && $wc_id && 'skipped' !== $outcome && ! $aspect_failed ) {
+					try {
+						$new_product = wc_get_product( $wc_id );
+						if ( $new_product ) {
+							$new_product->set_status( 'publish' );
+							$new_product->save();
+						}
+					} catch ( Throwable $e ) {
+						$aspect_failed = true;
+						$this->logger->warning(
+							'Final publish failed',
+							[
+								'wc_id' => $wc_id,
+								'error' => $e->getMessage(),
+							]
+						);
+					}
+				}
+
+					// Stamp the change-gate timestamp ONLY now that the product is fully committed (all aspects
+					// + the held-draft publish succeeded). create_or_update_*() no longer stamp it optimistically,
+					// so a partial commit — OR a hard crash/kill mid-product — simply leaves it unstamped and the
+					// next run reprocesses it (the gate sees no/old timestamp). A partial commit also holds the
+					// delta checkpoint (below) so a scheduled delta re-pulls and retries the row.
+				if ( $wc_id && in_array( $outcome, [ 'created', 'updated' ], true ) ) {
+					if ( $aspect_failed ) {
+						$partial_commit = true;
+					} else {
+						update_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key(), (string) ( $row->product['product_updated_on'] ?? '' ) );
+					}
+				}
+
+				// Per-product checkpoint: this product is fully committed (resumable on interruption).
+				$queue->mark_phase_completed( $row->id, 4 );
 				self::free_wpdb_memory();
 				wp_cache_flush();
 				++$processed;
@@ -598,178 +774,31 @@ class Skwirrel_WC_Sync_Service {
 						Skwirrel_WC_Sync_History::PHASE_PRODUCTS,
 						$processed,
 						$total,
-						__( 'Creating & updating products…', 'skwirrel-pim-sync' )
+						__( 'Creating & syncing products…', 'skwirrel-pim-sync' )
 					);
 					$this->check_abort();
 				}
 			}
 
-			// =====================================================================
-			$this->check_abort();
-			// Phase 2: Taxonomy — categories, brands, manufacturers
-			// =====================================================================
-			$taxonomy_label = ! empty( $options['sync_manufacturers'] )
-			? __( 'Assigning categories, brands & manufacturers…', 'skwirrel-pim-sync' )
-			: __( 'Assigning categories & brands…', 'skwirrel-pim-sync' );
-
-			Skwirrel_WC_Sync_History::update_phase_progress(
-				Skwirrel_WC_Sync_History::PHASE_TAXONOMY,
-				0,
-				$total,
-				$taxonomy_label
-			);
-
-			$processed = 0;
-			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
-			while ( $row = $queue->get_next_for_phase( 2 ) ) {
-				if ( $row->wc_id && 'skipped' !== $row->outcome ) {
-					try {
-						// For variations, taxonomy goes to the parent variable product
-						$tax_target = $row->group_info['wc_variable_id'] ?? $row->wc_id;
-						$this->upserter->assign_taxonomy( $tax_target, $row->product );
-					} catch ( Throwable $e ) {
-						$this->logger->warning(
-							'Taxonomy assignment failed',
-							[
-								'wc_id' => $row->wc_id,
-								'error' => $e->getMessage(),
-							]
-						);
-					}
-				}
-
-				$queue->mark_phase_completed( $row->id, 2 );
-				self::free_wpdb_memory();
-				wp_cache_flush();
-				++$processed;
-
-				if ( 0 === $processed % 50 || $total === $processed ) {
-					Skwirrel_WC_Sync_History::update_phase_progress(
-						Skwirrel_WC_Sync_History::PHASE_TAXONOMY,
-						$processed,
-						$total,
-						$taxonomy_label
-					);
-					$this->check_abort();
-				}
-			}
-
-			// =====================================================================
-			$this->check_abort();
-			// Phase 3: Attributes — ETIM + custom class
-			// =====================================================================
-			$with_attrs    = 0;
-			$without_attrs = 0;
-
-			Skwirrel_WC_Sync_History::update_phase_progress(
-				Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES,
-				0,
-				$total,
-				__( 'Fetching & connecting attributes…', 'skwirrel-pim-sync' )
-			);
-
-			$processed = 0;
-			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
-			while ( $row = $queue->get_next_for_phase( 3 ) ) {
-				if ( $row->wc_id && 'skipped' !== $row->outcome ) {
-					try {
-						// Re-fetch this product with attribute includes (ETIM + custom classes).
-						$attr_product = $this->fetch_product_attributes( $client, $row->product, $attr_includes );
-
-						/**
-						 * Fires after the attribute-enriched payload is fetched, before WC attribute assignment.
-						 *
-						 * Allows third-party code (e.g. site-specific MU-plugins) to persist the enriched
-						 * payload — including `_etim` and `_custom_classes` — as post meta for custom
-						 * frontend rendering, alongside the standard WooCommerce attribute table.
-						 *
-						 * @param int                  $wc_id        WC product or variation ID being synced.
-						 * @param array<string, mixed> $attr_product Enriched product payload.
-						 * @param array<string, mixed>|null $group_info Group mapping (with `wc_variable_id`) or null for simple products.
-						 */
-						do_action( 'skwirrel_wc_sync_after_attributes_fetched', $row->wc_id, $attr_product, $row->group_info );
-
-						$attr_count = $this->upserter->assign_attributes( $row->wc_id, $attr_product, $row->group_info );
-						unset( $attr_product );
-						if ( $attr_count > 0 ) {
-							++$with_attrs;
-						} else {
-							++$without_attrs;
-						}
-					} catch ( Throwable $e ) {
-						$this->logger->warning(
-							'Attribute assignment failed',
-							[
-								'wc_id' => $row->wc_id,
-								'error' => $e->getMessage(),
-							]
-						);
-					}
-				}
-
-				$queue->mark_phase_completed( $row->id, 3 );
-				self::free_wpdb_memory();
-				wp_cache_flush();
-				++$processed;
-
-				if ( 0 === $processed % 25 || $total === $processed ) {
-					Skwirrel_WC_Sync_History::update_phase_progress(
-						Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES,
-						$processed,
-						$total,
-						__( 'Fetching & connecting attributes…', 'skwirrel-pim-sync' )
-					);
-					$this->check_abort();
-				}
-			}
-
-			// Flush deferred parent attribute terms
+			// Flush deferred parent attribute terms (after ALL variations are committed above).
 			$this->upserter->flush_parent_attribute_terms();
 
 			// =====================================================================
 			$this->check_abort();
-			// Phase 4: Media — images + documents (slowest phase)
+			// Deferred: virtual products — apply content & media to the parent variable product.
+			// (Regular products already got their media inside the per-product loop above.)
 			// =====================================================================
-			$media_total = $total + $virtual_total;
+			// Count only the variable-product parents finalized here — regular products already
+			// got their media inside the per-product loop above, so this step is virtuals-only.
+			$virtual_done = 0;
 
-			Skwirrel_WC_Sync_History::update_phase_progress(
-				Skwirrel_WC_Sync_History::PHASE_MEDIA,
-				0,
-				$media_total,
-				__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
-			);
-
-			$media_i = 0;
-			// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
-			while ( $row = $queue->get_next_for_phase( 4 ) ) {
-				if ( $row->wc_id && 'skipped' !== $row->outcome ) {
-					try {
-						$this->upserter->assign_media( $row->wc_id, $row->product );
-					} catch ( Throwable $e ) {
-						$this->logger->warning(
-							'Media assignment failed',
-							[
-								'wc_id' => $row->wc_id,
-								'error' => $e->getMessage(),
-							]
-						);
-					}
-				}
-
-				$queue->mark_phase_completed( $row->id, 4 );
-				self::free_wpdb_memory();
-				wp_cache_flush();
-				++$media_i;
-
-				if ( 0 === $media_i % 10 || $media_i === $media_total ) {
-					Skwirrel_WC_Sync_History::update_phase_progress(
-						Skwirrel_WC_Sync_History::PHASE_MEDIA,
-						$media_i,
-						$media_total,
-						__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
-					);
-					$this->check_abort();
-				}
+			if ( $virtual_total > 0 ) {
+				Skwirrel_WC_Sync_History::update_phase_progress(
+					Skwirrel_WC_Sync_History::PHASE_MEDIA,
+					$virtual_done,
+					$virtual_total,
+					__( 'Finalizing variable products…', 'skwirrel-pim-sync' )
+				);
 			}
 
 			// Virtual products: apply content & images/documents to parent variable product
@@ -779,8 +808,14 @@ class Skwirrel_WC_Sync_Service {
 					if ( ! empty( $options['use_virtual_product_content'] ) ) {
 						$this->upserter->apply_virtual_product_content( $row->virtual_parent_id, $row->product );
 					}
-					$this->upserter->assign_media( $row->virtual_parent_id, $row->product );
+					// A swallowed image/download failure on the variable parent's media must also
+					// hold the checkpoint — otherwise a delta won't return this virtual product
+					// again unless Skwirrel changes it, leaving the parent without its media.
+					if ( ! $this->upserter->assign_media( $row->virtual_parent_id, $row->product ) ) {
+						$partial_commit = true;
+					}
 				} catch ( Throwable $e ) {
+					$partial_commit = true;
 					$this->logger->warning(
 						'Virtual product processing failed',
 						[
@@ -793,14 +828,14 @@ class Skwirrel_WC_Sync_Service {
 				$queue->mark_phase_completed( $row->id, 4 );
 				self::free_wpdb_memory();
 				wp_cache_flush();
-				++$media_i;
+				++$virtual_done;
 
-				if ( 0 === $media_i % 10 || $media_i === $media_total ) {
+				if ( 0 === $virtual_done % 10 || $virtual_done === $virtual_total ) {
 					Skwirrel_WC_Sync_History::update_phase_progress(
 						Skwirrel_WC_Sync_History::PHASE_MEDIA,
-						$media_i,
-						$media_total,
-						__( 'Downloading images & documents…', 'skwirrel-pim-sync' )
+						$virtual_done,
+						$virtual_total,
+						__( 'Finalizing variable products…', 'skwirrel-pim-sync' )
 					);
 					$this->check_abort();
 				}
@@ -821,7 +856,16 @@ class Skwirrel_WC_Sync_Service {
 				$rel_i = 0;
 				// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
 				while ( $row = $queue->get_next_for_phase( 5 ) ) {
-					if ( $row->wc_id && 'skipped' !== $row->outcome ) {
+					// Unchanged rows normally skip relations, but a product carrying
+					// `_skwirrel_pending_relations` (targets that didn't exist on an earlier run) must
+					// still retry — a now-created target can resolve even though this product itself
+					// did not change; the page payload still holds its related-product data.
+					$is_unchanged_row = 'unchanged' === $row->outcome;
+					// `_skwirrel_pending_relations` is stored as an array — test emptiness directly,
+					// never string-cast it (that emits an "Array to string conversion" warning).
+					$pending_rel     = $is_unchanged_row ? get_post_meta( $row->wc_id, '_skwirrel_pending_relations', true ) : '';
+					$retry_relations = ! empty( $pending_rel );
+					if ( $row->wc_id && 'skipped' !== $row->outcome && ( ! $is_unchanged_row || $retry_relations ) ) {
 						try {
 							$this->upserter->assign_relations( $row->wc_id, $row->product );
 						} catch ( Throwable $e ) {
@@ -879,14 +923,36 @@ class Skwirrel_WC_Sync_Service {
 				}
 			}
 
-			update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z' ) );
-			Skwirrel_WC_Sync_History::update_last_result( true, $created, $updated, $failed, '', $with_attrs, $without_attrs, $trashed, $categories_removed, $trigger, $log_filename );
+			// Advance the delta checkpoint only now that the whole run has provably completed.
+			// Stamp it with the run *start* time so products changed upstream *during* this run
+			// are still caught by the next delta. A crash before this point leaves last_sync
+			// untouched → the next run re-pulls and idempotently re-commits (no silent skip).
+			//
+			// If any product committed only partially, do NOT advance last_sync AND invalidate the
+			// stored settings signature. Holding last_sync alone can't rescue every case: a failed
+			// product (or a virtual product's parent media) may have an upstream `product_updated_on`
+			// older than the checkpoint, so a delta `updated_on >= last_sync` filter would never
+			// re-fetch it. Writing an EMPTY signature guarantees the next run sees a mismatch,
+			// disables the gate, and runs a full pass that reprocesses everything — retrying the
+			// partial row(s). A clean pass then re-stamps both. (Persistent failures keep forcing a
+			// full pass — surfaced via this warning so the admin can fix the underlying data.)
+			if ( $partial_commit ) {
+				update_option( 'skwirrel_wc_sync_last_sync_sig', '' );
+				$this->logger->warning(
+					'Partial commit (an aspect failed) — invalidating the change-gate signature so the next run does a full reprocess, and holding the delta checkpoint; the affected product(s) will be retried.'
+				);
+			} else {
+				update_option( Skwirrel_WC_Sync_History::OPTION_LAST_SYNC, gmdate( 'Y-m-d\TH:i:s\Z', $sync_started_at ) );
+				update_option( 'skwirrel_wc_sync_last_sync_sig', $sync_sig );
+			}
+			Skwirrel_WC_Sync_History::update_last_result( true, $created, $updated, $failed, '', $with_attrs, $without_attrs, $trashed, $categories_removed, $trigger, $log_filename, $unchanged );
 
 			$this->logger->info(
 				'Sync completed',
 				[
 					'created'            => $created,
 					'updated'            => $updated,
+					'unchanged'          => $unchanged,
 					'failed'             => $failed,
 					'trashed'            => $trashed,
 					'categories_removed' => $categories_removed,
@@ -899,6 +965,7 @@ class Skwirrel_WC_Sync_Service {
 				'success'            => true,
 				'created'            => $created,
 				'updated'            => $updated,
+				'unchanged'          => $unchanged,
 				'failed'             => $failed,
 				'trashed'            => $trashed,
 				'categories_removed' => $categories_removed,
@@ -906,7 +973,7 @@ class Skwirrel_WC_Sync_Service {
 
 		} catch ( \RuntimeException $e ) {
 			// Abort requested by user — record as a non-error cancellation.
-			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $e->getMessage(), 0, 0, 0, 0, $trigger, $log_filename );
+			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $e->getMessage(), 0, 0, 0, 0, $trigger, $log_filename, $unchanged );
 			return [
 				'success' => false,
 				'error'   => $e->getMessage(),
@@ -919,7 +986,7 @@ class Skwirrel_WC_Sync_Service {
 			// hook throwing, …). Without this catch it would propagate past
 			// the queue cleanup and leave this run's rows orphaned.
 			$this->logger->error( 'Sync failed with an unexpected error', [ 'error' => $e->getMessage() ] );
-			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $e->getMessage(), 0, 0, 0, 0, $trigger, $log_filename );
+			Skwirrel_WC_Sync_History::update_last_result( false, $created, $updated, $failed, $e->getMessage(), 0, 0, 0, 0, $trigger, $log_filename, $unchanged );
 			return [
 				'success' => false,
 				'error'   => $e->getMessage(),
@@ -1525,6 +1592,47 @@ class Skwirrel_WC_Sync_Service {
 	}
 
 	/**
+	 * Build a signature of the settings that affect sync OUTPUT (plus the plugin version).
+	 *
+	 * When this signature differs from the one stored at the end of the previous run, the change
+	 * gate is disabled so every product reprocesses once — otherwise a settings change (e.g. turning
+	 * on categories) would be silently skipped for products whose `product_updated_on` is unchanged.
+	 *
+	 * @param array<string, mixed> $options Plugin settings.
+	 * @return string md5 signature.
+	 */
+	private function compute_sync_signature( array $options ): string {
+		// Denylist, not allowlist: hash EVERY setting except those that demonstrably do not change
+		// what gets synced (connection/auth, performance, logging, scheduling). This way a newly-added
+		// output setting is covered automatically instead of slipping past the gate until someone
+		// remembers to allowlist it. NB: collection_ids IS included — a selection change must force a
+		// full pass so products newly in scope (but unchanged upstream) are still fetched + imported.
+		$ignore   = array_flip(
+			[
+				'endpoint_url',
+				'auth_type',
+				'auth_token',
+				'timeout',
+				'retries',
+				'batch_size',
+				'sync_interval',
+				'verbose_logging',
+				'log_retention',
+				'log_mode_manual',
+				'log_mode_scheduled',
+				'show_delete_warning',
+			]
+		);
+		$relevant = array_diff_key( $options, $ignore );
+		ksort( $relevant );
+		// Slug/permalink settings live in a separate option but also affect output (e.g.
+		// update_slug_on_resync), so a change there must likewise force a full reprocess.
+		$relevant['__permalinks'] = get_option( 'skwirrel_wc_sync_permalinks', [] );
+		$relevant['__version']    = defined( 'SKWIRREL_WC_SYNC_VERSION' ) ? SKWIRREL_WC_SYNC_VERSION : '';
+		return md5( (string) wp_json_encode( $relevant ) );
+	}
+
+	/**
 	 * Get collection IDs from settings. Returns array of int IDs, or empty array for "sync all".
 	 */
 	private function get_collection_ids(): array {
@@ -1562,7 +1670,8 @@ class Skwirrel_WC_Sync_Service {
 	 * @param array                           $attr_includes   Attribute-specific include flags.
 	 * @return array Product array with attribute data merged in.
 	 */
-	private function fetch_product_attributes( Skwirrel_WC_Sync_JsonRpc_Client $client, array $product, array $attr_includes ): array {
+	private function fetch_product_attributes( Skwirrel_WC_Sync_JsonRpc_Client $client, array $product, array $attr_includes, bool &$ok = true ): array {
+		$ok         = true;
 		$product_id = $product['product_id'] ?? $product['id'] ?? null;
 		if ( null === $product_id ) {
 			return $product;
@@ -1584,6 +1693,7 @@ class Skwirrel_WC_Sync_Service {
 		);
 
 		if ( ! $result['success'] ) {
+			$ok = false;
 			$this->logger->warning( 'Attribute fetch failed for product', [ 'product_id' => $product_id ] );
 			return $product;
 		}
@@ -1592,6 +1702,7 @@ class Skwirrel_WC_Sync_Service {
 		unset( $result );
 
 		if ( null === $fetched ) {
+			$ok = false;
 			return $product;
 		}
 

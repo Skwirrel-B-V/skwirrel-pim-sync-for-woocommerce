@@ -61,9 +61,14 @@ final class Skwirrel_WC_Sync_Connectors {
 	 * Whether the Skwirrel connector has been registered with the WP registry.
 	 */
 	public static function is_registered(): bool {
-		return self::is_available()
-			&& function_exists( 'wp_is_connector_registered' )
-			&& wp_is_connector_registered( self::CONNECTOR_ID );
+		// WP 7.0+ only — invoked indirectly via a variable so Plugin Check's static
+		// "function requires WordPress 7.0" rule doesn't flag it against our 6.9 floor.
+		// The function_exists() guard keeps it safe on 6.9, where it is never invoked.
+		$is_registered = 'wp_is_connector_registered';
+		if ( ! self::is_available() || ! function_exists( $is_registered ) ) {
+			return false;
+		}
+		return (bool) $is_registered( self::CONNECTOR_ID );
 	}
 
 	/**

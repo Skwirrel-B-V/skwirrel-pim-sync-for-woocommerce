@@ -2,6 +2,39 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.11.0]
+
+### Change — batch sync now commits each product fully in one pass (per-product-atomic)
+
+* **Why**: a single-product sync from the product edit screen always worked, but a "normal" batch sync could leave products half-built or duplicated. The cause was structural: batch sync drained the queue in **six global phases** (create → taxonomy → attributes → media → relations → purge), processing *every* product at each phase before moving on. If a run died between phases (timeout, OOM, hard kill), products created in the first phase persisted with no categories/attributes/images, and — because the delta checkpoint had often already advanced — a later delta never went back to finish them. (Investigation findings F4/F6/F7.)
+* **Fix** (`includes/class-skwirrel-wc-sync-service.php`): the four per-product phase loops (create, taxonomy, attributes, media) are collapsed into **one loop that fully commits each product before moving to the next** — the same shape as single-product sync. Only genuinely cross-entity work stays deferred to a thin tail: the variable-parent attribute-term flush, virtual/grouped-parent media, and cross-sell/upsell relations (which need every product to exist first), then purge. An interrupted run now leaves only *un-started* products incomplete; they are picked up cleanly on the next run, never bare or duplicated. This is a correctness change, not a speed regression — it does the identical work in **one** pass instead of ~five, with fewer object-cache flushes and queue round-trips; total time is unchanged (still dominated by image downloads, which are deduplicated by `_skwirrel_url_hash`).
+
+### Change — re-syncs report (and skip) unchanged products instead of marking everything "updated"
+
+* **Why**: a manual full sync re-saved every product and reported it as "updated" — even when nothing had changed in Skwirrel — so the result always read e.g. "0 created, 1126 updated". As the user put it: *if only the timestamp differs, it's not really updated.* It also churned `post_modified` on every product and spent minutes re-doing identical work.
+* **Fix**: each product carries a `product_updated_on` timestamp (the same field delta sync already filters on). The upsert now compares it against a stored `_skwirrel_updated_on`; if it hasn't advanced, the product is reported **`unchanged`** and the per-product work (the attribute API refetch, re-save and media pass) is **skipped** — while still stamping `_skwirrel_synced_at` so the stale-purge never trashes it. The result now reads e.g. "0 created, 12 updated, 1114 unchanged, 0 failed", and a re-sync of a mostly-unchanged catalog drops from minutes to seconds.
+* **Settings-aware**: a global signature of the output-affecting settings (+ plugin version) is stored each run; if it changes (e.g. you turn category sync on, or upgrade the plugin), the gate is disabled for one run so **everything reprocesses once**, then quiets down. The first run after upgrading to this version also reprocesses everything (no stored timestamps yet).
+* **Scope**: gating applies to simple products and variations; variable-product *parents* and the variation-finalize pass are not gated yet (a small residual "updated" count). Single-product "Sync now" from the product screen is never gated. New columns: an **Unchanged** count on the dashboard result + history tables. (`includes/class-skwirrel-wc-sync-product-upserter.php`, `includes/class-skwirrel-wc-sync-service.php`.)
+
+### Fix — live progress card now shows the real sync steps
+
+* After the per-product rewrite the "Sync in progress…" card still listed the old six phases, so "Assign categories & brands" and "Connect attributes" hung as never-completing steps (they're now done inside the products step) and "Download images & documents" showed a misleading combined count. The card now lists only the steps that actually run — **Fetch products from API → Create & sync products → Finalize variable products → Link related products → Cleanup & finalize** (the variable and relations steps appear only when those settings are enabled) — and each step's state is derived from the current phase's position so none can get stuck pending (`includes/class-skwirrel-wc-sync-admin-dashboard.php`, `includes/class-skwirrel-wc-sync-service.php`).
+
+### Safety — new products stay `draft` until fully committed
+
+* A newly-created product is now written as `draft` and flipped to its real status (`publish`) only after its categories, attributes, and media are all in place. This closes the remaining window where a crash *mid-product* (e.g. during image download) could leave a freshly-created product **published but bare** on the storefront. Scoped to creation via a single shared `resolve_initial_status()` helper used by both `create_or_update_product()` (batch) and `upsert_product()` (single-product) — existing products keep their real status and are never unpublished mid-resync. Covered by `tests/Unit/DraftHoldStatusTest.php`.
+
+### Fix — duplicate products with suffixed SKUs (F7)
+
+* **Symptom**: re-syncs and simple↔grouped oscillation could create duplicate products with a suffixed SKU like `4250366870007-14768`.
+* **Root cause** (`includes/class-skwirrel-wc-sync-product-upserter.php`): when the identity lookup missed but the SKU was already owned by an existing product, the upsert *minted a new `-{product_id}` SKU and created a second product* instead of reconciling with the existing one. The logic was duplicated across `create_or_update_product()` and `upsert_product()`, free to drift.
+* **Fix**: a single shared `resolve_sku_identity()` helper now decides the collision outcome for both methods — **reuse** the existing product when an identically-keyed *simple* product is found, and **skip** (let the grouped-product path own it) when the SKU belongs to a *variable* product. A suffixed duplicate is never minted on the new-product path. Covered by `tests/Unit/IdentityReuseTest.php`.
+
+### Fix — interrupted syncs advanced the delta checkpoint too early, stranding images (F4)
+
+* **Root cause** (`includes/class-skwirrel-wc-sync-service.php`): on an initial delta run with no checkpoint, `skwirrel_wc_sync_last_sync` was written **up front**, before any product was committed. A run that died afterwards left the checkpoint advanced past products it never finished, so the next delta skipped them and their images never backfilled.
+* **Fix**: the checkpoint is now written **only on provable completion** (end of run), stamped with the run *start* time so products changed upstream *during* the run are still caught next time. A crash before completion leaves `last_sync` untouched → the next run re-pulls and idempotently re-commits. This refines the 3.10.1 "seed the checkpoint so the next run narrows" behavior: the narrowing intent is preserved for successful runs, without the silent-skip risk on a failed one.
+
 ## [3.10.3]
 
 ### Fix — `wp_skwirrel_sync_queue` table grew without bound, eventually filling the disk
