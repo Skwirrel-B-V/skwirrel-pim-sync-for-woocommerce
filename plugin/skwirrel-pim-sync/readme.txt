@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 3.11.1
+Stable tag: 3.11.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,13 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.11.2 =
+
+* Improvement: the sync status now updates live, without reloading the page. On the Skwirrel admin pages you see the full progress banner; on any other admin page a small status toast appears in the corner with the current step, a counter and a "View live log" link — you can move it between the bottom-right and top-right corner and hide it for the session.
+* Improvement: "Test connection" now saves your connection settings (subdomain and token) first and shows the result instantly, so it works right after you enter a new environment — no separate save needed.
+* Improvement: the "Batch size" setting moved into the Sync options section and now allows up to 100 products per request.
+* Improvement: the "Edit permalink settings" link opens in a new browser tab.
 
 = 3.11.1 =
 

@@ -51,6 +51,13 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		add_action( 'wp_ajax_skwirrel_wc_sync_tail_log', [ $this, 'handle_tail_log' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_download_log', [ $this, 'handle_download_log' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_abort', [ $this, 'handle_abort_sync' ] );
+		// Reactive sync status: a status endpoint + a poller everywhere. The full banner lives only on
+		// the plugin's own pages; other admin pages get a compact, movable, dismissible corner toast.
+		add_action( 'wp_ajax_skwirrel_wc_sync_status', [ $this, 'handle_sync_status' ] );
+		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_status_banner_assets' ] );
+		add_action( 'admin_footer', [ $this, 'render_status_toast' ] );
+		// Inline "Test connection": autosaves the environment/connection settings, then tests them.
+		add_action( 'wp_ajax_skwirrel_wc_sync_test_connection', [ $this, 'handle_test_connection_ajax' ] );
 	}
 
 	public function add_menu(): void {
@@ -117,7 +124,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out['timeout']           = isset( $input['timeout'] ) ? max( 5, min( 120, (int) $input['timeout'] ) ) : 30;
 		$out['retries']           = isset( $input['retries'] ) ? max( 0, min( 5, (int) $input['retries'] ) ) : 2;
 		$out['sync_interval']     = $input['sync_interval'] ?? '';
-		$out['batch_size']        = isset( $input['batch_size'] ) ? max( 1, min( 50, (int) $input['batch_size'] ) ) : 10;
+		$out['batch_size']        = isset( $input['batch_size'] ) ? max( 1, min( 100, (int) $input['batch_size'] ) ) : 10;
 		$out['sync_categories']   = ! empty( $input['sync_categories'] );
 		$out['super_category_id'] = isset( $input['super_category_id'] ) ? sanitize_text_field( trim( $input['super_category_id'] ) ) : '';
 		if ( $out['sync_categories'] && ( '' === $out['super_category_id'] || 0 >= (int) $out['super_category_id'] ) ) {
@@ -333,6 +340,53 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 		wp_safe_redirect( $redirect );
 		exit;
+	}
+
+	/**
+	 * AJAX: autosave the connection settings (endpoint/auth type/token) from the form, then test them.
+	 *
+	 * The classic "Test connection" tested the *saved* settings, so it failed right after a user typed
+	 * a new subdomain/token but had not saved yet. This persists the environment settings first (so the
+	 * test — and any later sync — use exactly what the user entered) and returns the result inline.
+	 */
+	public function handle_test_connection_ajax(): void {
+		check_ajax_referer( 'skwirrel_test_connection_nonce', '_nonce' );
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( [ 'message' => __( 'Access denied.', 'skwirrel-pim-sync' ) ], 403 );
+		}
+
+		$endpoint = isset( $_POST['endpoint_url'] ) ? self::normalize_endpoint_url( esc_url_raw( wp_unslash( $_POST['endpoint_url'] ) ) ) : '';
+		$token_in = isset( $_POST['auth_token'] ) ? trim( (string) wp_unslash( $_POST['auth_token'] ) ) : '';
+
+		if ( '' === $endpoint ) {
+			wp_send_json_error( [ 'message' => __( 'Enter a Skwirrel subdomain first.', 'skwirrel-pim-sync' ) ] );
+		}
+
+		// Autosave the environment/connection settings so the saved config matches what is tested.
+		$opts = get_option( self::OPTION_KEY, [] );
+		if ( ! is_array( $opts ) ) {
+			$opts = [];
+		}
+		$opts['endpoint_url'] = $endpoint;
+		$opts['auth_type']    = 'token';
+		$token                = $this->sanitize_token( $token_in ); // New token, or the stored one when masked/empty.
+		update_option( self::TOKEN_OPTION_KEY, $token, false );
+		$opts['auth_token'] = '' !== self::get_auth_token() ? self::MASK : '';
+		update_option( self::OPTION_KEY, $opts, false );
+
+		$client = new Skwirrel_WC_Sync_JsonRpc_Client(
+			$endpoint,
+			'token',
+			self::get_auth_token(),
+			(int) ( $opts['timeout'] ?? 30 ),
+			(int) ( $opts['retries'] ?? 2 )
+		);
+		$result = $client->test_connection();
+
+		if ( ! empty( $result['success'] ) ) {
+			wp_send_json_success( [ 'message' => __( 'Connection successful — settings saved.', 'skwirrel-pim-sync' ) ] );
+		}
+		wp_send_json_error( [ 'message' => (string) ( $result['error']['message'] ?? __( 'Connection failed.', 'skwirrel-pim-sync' ) ) ] );
 	}
 
 	public function handle_sync_now(): void {
@@ -784,6 +838,170 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		wp_send_json_success();
 	}
 
+	/**
+	 * AJAX: report whether a sync is in progress + the current banner markup, for the reactive poller.
+	 */
+	public function handle_sync_status(): void {
+		check_ajax_referer( 'skwirrel_sync_status_nonce', '_nonce' );
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( 'Access denied', 403 );
+		}
+		$in_progress = (bool) get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
+		$summary     = Skwirrel_WC_Sync_Admin_Dashboard::get_current_step_summary();
+		wp_send_json_success(
+			[
+				'in_progress' => $in_progress,
+				// Full banner markup for the plugin's own pages; step/counter for the corner toast elsewhere.
+				'banner_html' => $in_progress ? Skwirrel_WC_Sync_Admin_Dashboard::get_sync_banner_html() : '',
+				'step'        => $in_progress ? $summary['label'] : '',
+				'counter'     => $in_progress ? $summary['counter'] : '',
+			]
+		);
+	}
+
+	/**
+	 * Render the compact, movable, dismissible sync toast in the corner of every admin page EXCEPT the
+	 * plugin's own pages (which show the full in-page banner). Rendered hidden; the poller shows it while
+	 * a sync runs and updates the step + counter in place — no page reload.
+	 */
+	public function render_status_toast(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return;
+		}
+		$screen = get_current_screen();
+		if ( $screen && false !== strpos( (string) $screen->id, self::PAGE_SLUG ) ) {
+			return;
+		}
+		$live_log_url = add_query_arg( 'tab', 'debug', admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ) . '#skwirrel-live-log';
+		?>
+		<div id="skwirrel-sync-toast" class="skw-toast" hidden>
+			<div class="skw-toast-head">
+				<span class="skw-toast-title"><?php esc_html_e( 'Skwirrel sync', 'skwirrel-pim-sync' ); ?></span>
+				<div class="skw-toast-actions">
+					<button type="button" class="skw-toast-move" aria-label="<?php esc_attr_e( 'Move to the other corner', 'skwirrel-pim-sync' ); ?>" title="<?php esc_attr_e( 'Move to the other corner', 'skwirrel-pim-sync' ); ?>">
+						<svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path d="M10 3a1 1 0 0 1 .7.29l3 3a1 1 0 1 1-1.4 1.42L11 5.4V9a1 1 0 1 1-2 0V5.41L7.7 7.71A1 1 0 0 1 6.3 6.3l3-3A1 1 0 0 1 10 3Zm0 14a1 1 0 0 1-.7-.29l-3-3a1 1 0 1 1 1.4-1.42L9 14.6V11a1 1 0 1 1 2 0v3.59l1.3-1.3a1 1 0 0 1 1.4 1.42l-3 3A1 1 0 0 1 10 17Z" /></svg>
+					</button>
+					<button type="button" class="skw-toast-close" aria-label="<?php esc_attr_e( 'Hide for this session', 'skwirrel-pim-sync' ); ?>" title="<?php esc_attr_e( 'Hide for this session', 'skwirrel-pim-sync' ); ?>">&times;</button>
+				</div>
+			</div>
+			<div class="skw-toast-body">
+				<span class="skw-toast-step"></span>
+				<span class="skw-toast-counter"></span>
+			</div>
+			<a class="skw-toast-loglink" href="<?php echo esc_url( $live_log_url ); ?>"><?php esc_html_e( 'View live log', 'skwirrel-pim-sync' ); ?> →</a>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Enqueue the reactive status poller + banner styles on every admin page (for users who can sync),
+	 * so a running sync stays visible and updates in place — no page reload — wherever the user is.
+	 */
+	public function enqueue_status_banner_assets(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return;
+		}
+		// Banner styles. The CSS vars are re-declared on #skwirrel-sync-banner in dashboard.css so the
+		// banner renders correctly outside the .skw-dashboard wrapper. Same handle as the dashboard
+		// style, so WordPress loads it only once on the plugin's own pages.
+		wp_enqueue_style( 'skwirrel-pim-sync-dashboard', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/dashboard.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
+
+		wp_register_script( 'skwirrel-pim-sync-status', false, [], SKWIRREL_WC_SYNC_VERSION, true );
+		wp_enqueue_script( 'skwirrel-pim-sync-status' );
+
+		$dashboard_url  = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		$completed_html =
+			'<div class="skw-progress-banner skw-progress-done">'
+			. '<div class="skw-progress-header">'
+			. '<svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" /></svg>'
+			. '<span>' . esc_html__( 'Sync completed.', 'skwirrel-pim-sync' ) . '</span>'
+			. '<a href="' . esc_url( $dashboard_url ) . '" class="skw-btn skw-btn-live-log">' . esc_html__( 'View results', 'skwirrel-pim-sync' ) . '</a>'
+			. '</div></div>';
+
+		wp_localize_script(
+			'skwirrel-pim-sync-status',
+			'skwirrelPimSyncStatus',
+			[
+				'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
+				'nonce'          => wp_create_nonce( 'skwirrel_sync_status_nonce' ),
+				'abortNonce'     => wp_create_nonce( 'skwirrel_abort_sync_nonce' ),
+				'interval'       => 4000,
+				'completedHtml'  => $completed_html,
+				'completedLabel' => __( 'Sync completed.', 'skwirrel-pim-sync' ),
+				'abortConfirm'   => __( 'Stop the running sync?', 'skwirrel-pim-sync' ),
+				'stoppingLabel'  => __( 'Stopping…', 'skwirrel-pim-sync' ),
+				'errorLabel'     => __( 'Error', 'skwirrel-pim-sync' ),
+			]
+		);
+
+		wp_add_inline_script( 'skwirrel-pim-sync-status', $this->status_poller_js() );
+	}
+
+	/**
+	 * The reactive status poller (JS body, no <script> wrapper): polls the status endpoint and swaps
+	 * #skwirrel-sync-banner in place, and wires the Stop-sync button via event delegation so it keeps
+	 * working after every re-render and on every admin page. Pauses while the tab is hidden.
+	 */
+	private function status_poller_js(): string {
+		return '(function(){'
+			. ' var cfg = window.skwirrelPimSyncStatus; if (!cfg) return;'
+			. ' var banner = document.getElementById("skwirrel-sync-banner");'
+			. ' var toast = document.getElementById("skwirrel-sync-toast");'
+			. ' if (!banner && !toast) return;'
+			. ' var active = banner ? !!banner.querySelector(".skw-progress-banner") : false;'
+			// Toast controls: position preference (persisted) + hide-for-session.
+			. ' function lsGet(k){ try { return window.localStorage.getItem(k); } catch(e){ return null; } }'
+			. ' function lsSet(k,v){ try { window.localStorage.setItem(k,v); } catch(e){} }'
+			. ' function closed(){ try { return window.sessionStorage.getItem("skwirrelToastClosed")==="1"; } catch(e){ return false; } }'
+			. ' if (toast) {'
+			. '  if (lsGet("skwirrelToastPos")==="top") toast.classList.add("skw-toast-top");'
+			. '  var moveBtn = toast.querySelector(".skw-toast-move");'
+			. '  var closeBtn = toast.querySelector(".skw-toast-close");'
+			. '  if (moveBtn) moveBtn.addEventListener("click", function(){ var t = toast.classList.toggle("skw-toast-top"); lsSet("skwirrelToastPos", t ? "top" : "bottom"); });'
+			. '  if (closeBtn) closeBtn.addEventListener("click", function(){ toast.hidden = true; try { window.sessionStorage.setItem("skwirrelToastClosed","1"); } catch(e){} });'
+			. ' }'
+			// Stop-sync (banner only) via delegation, so it survives re-renders and works everywhere.
+			. ' document.addEventListener("click", function(e){'
+			. '  var btn = e.target.closest ? e.target.closest(".skw-btn-abort-sync") : null;'
+			. '  if (!btn) return;'
+			. '  e.preventDefault();'
+			. '  if (!window.confirm(cfg.abortConfirm)) return;'
+			. '  btn.disabled = true; btn.textContent = cfg.stoppingLabel;'
+			. '  var fd = new FormData(); fd.append("action","skwirrel_wc_sync_abort"); fd.append("_nonce", cfg.abortNonce);'
+			. '  fetch(cfg.ajaxUrl, {method:"POST", body:fd}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.success){ btn.textContent = cfg.errorLabel; } }).catch(function(){});'
+			. ' });'
+			. ' function render(d){'
+			. '  if (banner) {'
+			. '   if (d.in_progress) { banner.innerHTML = d.banner_html; active = true; }'
+			. '   else if (active) { active = false; banner.innerHTML = cfg.completedHtml; }'
+			. '   return;'
+			. '  }'
+			. '  if (!toast) return;'
+			. '  if (d.in_progress && !closed()) {'
+			. '   toast.querySelector(".skw-toast-step").textContent = d.step || "";'
+			. '   toast.querySelector(".skw-toast-counter").textContent = d.counter || "";'
+			. '   toast.hidden = false; active = true;'
+			. '  } else if (!d.in_progress && active) {'
+			. '   active = false;'
+			. '   toast.querySelector(".skw-toast-step").textContent = cfg.completedLabel;'
+			. '   toast.querySelector(".skw-toast-counter").textContent = "";'
+			. '   toast.classList.add("skw-toast-done");'
+			. '   setTimeout(function(){ toast.hidden = true; toast.classList.remove("skw-toast-done"); }, 6000);'
+			. '  }'
+			. ' }'
+			. ' function poll(){'
+			. '  if (document.hidden) { setTimeout(poll, cfg.interval); return; }'
+			. '  var fd = new FormData(); fd.append("action","skwirrel_wc_sync_status"); fd.append("_nonce", cfg.nonce);'
+			. '  fetch(cfg.ajaxUrl, {method:"POST", body:fd})'
+			. '   .then(function(r){ return r.json(); })'
+			. '   .then(function(r){ if (r && r.success) render(r.data); })'
+			. '   .catch(function(){})'
+			. '   .finally(function(){ setTimeout(poll, cfg.interval); });'
+			. ' }'
+			. ' setTimeout(poll, 600);'
+			. '})();';
+	}
+
 	public function enqueue_assets( string $hook ): void {
 		// Only load plugin page assets on our settings page.
 		if ( false === strpos( $hook, self::PAGE_SLUG ) ) {
@@ -815,6 +1033,11 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'downloadLogNonce'      => wp_create_nonce( 'skwirrel_download_log_nonce' ),
 				'abortSyncNonce'        => wp_create_nonce( 'skwirrel_abort_sync_nonce' ),
 				'abortSyncConfirm'      => __( 'Stop the running sync?', 'skwirrel-pim-sync' ),
+				'testConnectionNonce'   => wp_create_nonce( 'skwirrel_test_connection_nonce' ),
+				'testingLabel'          => __( 'Testing…', 'skwirrel-pim-sync' ),
+				'testSubdomainLabel'    => __( 'Enter a subdomain first.', 'skwirrel-pim-sync' ),
+				'testFailedLabel'       => __( 'Connection failed.', 'skwirrel-pim-sync' ),
+				'testNetworkLabel'      => __( 'Network error.', 'skwirrel-pim-sync' ),
 			]
 		);
 
@@ -888,17 +1111,34 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '   if (period === "all" && !confirm(skwirrelPimSync.clearHistoryConfirm)) { e.preventDefault(); }'
 			. '  });'
 			. ' }'
-			. ' document.querySelectorAll(".skw-btn-abort-sync").forEach(function(btn) {'
-			. '  btn.addEventListener("click", function(e) {'
-			. '   e.preventDefault();'
-			. '   if (!confirm(skwirrelPimSync.abortSyncConfirm)) return;'
-			. '   btn.disabled = true;'
-			. '   btn.textContent = "' . esc_js( __( 'Stopping…', 'skwirrel-pim-sync' ) ) . '";'
-			. '   fetch(skwirrelPimSync.ajaxUrl + "?action=skwirrel_wc_sync_abort&_nonce=" + encodeURIComponent(skwirrelPimSync.abortSyncNonce), {method:"POST"})'
-			. '    .then(function(r){ return r.json(); })'
-			. '    .then(function(d){ if(!d.success) btn.textContent = "' . esc_js( __( 'Error', 'skwirrel-pim-sync' ) ) . '"; });'
-			. '  });'
+			// Inline "Test connection": autosave the environment/connection settings, then test them.
+			. ' var testBtn = document.getElementById("skwirrel-test-connection");'
+			. ' if (testBtn) testBtn.addEventListener("click", function(){'
+			. '  var res = document.getElementById("skwirrel-test-result");'
+			. '  var subEl = document.getElementById("skwirrel_subdomain");'
+			. '  var sub = subEl ? subEl.value.trim() : "";'
+			. '  function setRes(txt, cls){ if(res){ res.textContent = txt; res.className = "skw-test-result" + (cls ? " " + cls : ""); } }'
+			. '  if (!sub) { setRes(skwirrelPimSync.testSubdomainLabel, "skw-test-error"); if(subEl) subEl.focus(); return; }'
+			. '  var tokenEl = document.getElementById("auth_token");'
+			. '  var fd = new FormData();'
+			. '  fd.append("action", "skwirrel_wc_sync_test_connection");'
+			. '  fd.append("_nonce", skwirrelPimSync.testConnectionNonce);'
+			. '  fd.append("endpoint_url", "https://" + sub + ".skwirrel.eu/jsonrpc");'
+			. '  if (tokenEl) fd.append("auth_token", tokenEl.value);'
+			. '  testBtn.disabled = true;'
+			. '  setRes(skwirrelPimSync.testingLabel, "");'
+			. '  fetch(skwirrelPimSync.ajaxUrl, { method: "POST", body: fd })'
+			. '   .then(function(r){ return r.json(); })'
+			. '   .then(function(r){'
+			. '    var ok = r && r.success;'
+			. '    var msg = (r && r.data && r.data.message) ? r.data.message : skwirrelPimSync.testFailedLabel;'
+			. '    setRes(msg, ok ? "skw-test-success" : "skw-test-error");'
+			. '   })'
+			. '   .catch(function(){ setRes(skwirrelPimSync.testNetworkLabel, "skw-test-error"); })'
+			. '   .finally(function(){ testBtn.disabled = false; });'
 			. ' });'
+			// The Stop-sync button is wired by the global status poller (event delegation), so it keeps
+			// working after the banner re-renders and on every admin page.
 			. '})();'
 		);
 
@@ -1043,12 +1283,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '})();'
 		);
 
-		// Auto-reload when sync is in progress — only on the dashboard.
+		// The reactive status poller (enqueued on every admin page) now refreshes the sync banner in
+		// place — no full-page reload. $current_tab is still needed for the live-log block below.
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tab parameter is display-only
 		$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'dashboard';
-		if ( in_array( $current_tab, [ 'dashboard', 'sync' ], true ) && get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ) ) {
-			wp_add_inline_script( 'skwirrel-pim-sync-admin', 'setTimeout(function(){ window.location.reload(); }, 5000);' );
-		}
 
 		// Live log tail — only on the debug tab.
 		if ( 'debug' === $current_tab ) {

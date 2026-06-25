@@ -2,6 +2,27 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.11.2]
+
+### Change — reactive sync status (no reloads): live banner on Skwirrel pages, corner toast elsewhere
+
+* **Why**: the blue "sync in progress" block only reflected the state captured at page render — you had to reload to see progress — and it was confined to the dashboard.
+* **Fix**: a lightweight AJAX poller now updates the status in place (no page reload). On the plugin's own pages the full banner (steps + counters + Stop sync) refreshes live; on every other admin page a compact corner **toast** shows the current step + counter + a "View live log" link, with controls to move it between the bottom-right and top-right corner (remembered) and to hide it for the session. The previous full-page auto-reload and the per-page Stop-sync binding were removed in favour of the poller (`includes/class-skwirrel-wc-sync-admin-settings.php`, `…-admin-dashboard.php`, `assets/dashboard.css`).
+
+### Change — "Test connection" autosaves the environment first
+
+* **Why**: "Test connection" tested the *saved* settings, so it failed right after you typed a new subdomain/token but had not saved yet.
+* **Fix**: the button now autosaves the connection settings (endpoint/auth type/token) from the form via AJAX, then tests them, and reports the result inline — no page navigation (`includes/class-skwirrel-wc-sync-admin-settings.php`, `…-admin-dashboard.php`).
+
+### Change — batch size moved into Sync options, max raised to 100
+
+* **Why**: the "batch size" field rendered next to the scheduled-sync settings, implying it only affected automated runs, when it governs the API page size for every sync.
+* **Fix**: the field now lives in the general **Sync options** section, and its maximum is raised from 50 to **100** (default unchanged), in both the input field and the server-side sanitiser.
+
+### Change — "Edit permalink settings" link opens in a new tab
+
+* The link to Settings → Permalinks (where the product-slug source/suffix are configured) now opens in a new browser tab, so configuring slugs no longer navigates away from the Skwirrel settings page.
+
 ## [3.11.1]
 
 ### Fix — variable-product parents + virtual content are now gated (closes the 3.11.0 residual "updated" count)
