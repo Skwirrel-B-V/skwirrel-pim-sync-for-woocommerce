@@ -2,6 +2,14 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.11.3]
+
+### Change — dashboard UI tweaks
+
+* The Settings **"Save settings"** button now uses the same rounded corners (`border-radius: 6px`) as the other `.skw-btn` buttons (e.g. the red delete buttons), instead of the native WP square-ish radius.
+* The in-page sync **progress banner** now has top spacing so it no longer sits flush against the header.
+* The sync **history** records table now uses the full available page width (the history view drops the 960 px content cap via a `.skw-content-wide` modifier).
+
 ## [3.11.2]
 
 ### Change — reactive sync status (no reloads): live banner on Skwirrel pages, corner toast elsewhere

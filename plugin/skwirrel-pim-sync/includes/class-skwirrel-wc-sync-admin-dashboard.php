@@ -84,7 +84,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			</div>
 
 			<?php // -- Content -- ?>
-			<div class="skw-content">
+			<div class="skw-content<?php echo 'history' === $active_view ? ' skw-content-wide' : ''; ?>">
 				<?php
 				switch ( $active_view ) {
 					case 'history':

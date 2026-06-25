@@ -129,6 +129,16 @@
 	max-width: 960px;
 }
 
+/* History page uses the full available width for the records table. */
+.skw-content-wide {
+	max-width: none;
+}
+
+/* Native WP "Save settings" button: match the rounded corners of the .skw-btn (e.g. red) buttons. */
+.skw-dashboard .button-primary {
+	border-radius: 6px;
+}
+
 /* ==========================================================================
    Status Card (last sync result)
    ========================================================================== */
@@ -375,9 +385,9 @@
 	box-sizing: border-box;
 }
 
-/* When injected outside the dashboard layout, give the banner sensible standalone spacing. */
+/* In-page banner on the dashboard: space it from the header and the content below. */
 .skw-dashboard #skwirrel-sync-banner .skw-progress-banner {
-	margin: 0;
+	margin: 24px 24px 0 4px;
 }
 
 /* Completed state shown by the poller when a running sync finishes (no reload). */
