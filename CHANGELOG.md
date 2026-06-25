@@ -23,6 +23,15 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 
 * The link to Settings → Permalinks (where the product-slug source/suffix are configured) now opens in a new browser tab, so configuring slugs no longer navigates away from the Skwirrel settings page.
 
+### Change — dynamic minimum auto-sync interval from the last full sync's duration
+
+* **Why**: the schedule allowed "Hourly", even when a full sync takes 45–75 minutes — so the next auto-sync could fire while the previous one was still running.
+* **Fix** (`includes/class-skwirrel-wc-sync-action-scheduler.php`, `…-service.php`, `…-admin-dashboard.php`, `…-admin-settings.php`): added finer recurrences (every **2/3/4/6/8 hours**); the plugin now records each full sync's duration and enforces at least one full hour of rest beyond it, rounded up to the next whole hour — 45 min → **2 h**, 75 min → **3 h** (`ceil((duration + 1 h) / 1 h)`). Shorter recurrences are disabled in the interval dropdown (with an explanatory hint) and clamped server-side in `sanitize_settings()`; until the first full sync is timed, the minimum defaults to 2 hours. Covered by `tests/Unit/SyncIntervalMinimumTest.php`.
+
+### Change — UI: align with the WordPress admin theme
+
+* The main accent colour now follows the WordPress admin accent (`var(--wp-admin-theme-color)`), so the plugin matches WP 7.0's default and whatever admin colour scheme the user picked. The page header background follows the user's colour scheme too (the WP menu colour, resolved server-side from `$_wp_admin_css_colors` since core exposes no CSS variable for it; light schemes fall back to the default dark so the white header text stays legible). The dashboard tile icons and the corner sync toast use the Skwirrel lime accent (`#DDFF6D`) with dark (`#282828`) icons; the Danger Zone tile keeps its red accent. The Settings "Save settings" button now uses the native WordPress primary button.
+
 ## [3.11.1]
 
 ### Fix — variable-product parents + virtual content are now gated (closes the 3.11.0 residual "updated" count)

@@ -60,6 +60,37 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		add_action( 'wp_ajax_skwirrel_wc_sync_test_connection', [ $this, 'handle_test_connection_ajax' ] );
 	}
 
+	/**
+	 * Whether a hex colour is dark (perceptual luminance below 50%). Used to keep the white header
+	 * text legible: light admin colour schemes fall back to the default dark menu colour.
+	 */
+	private static function is_dark_hex( string $hex ): bool {
+		$hex = ltrim( trim( $hex ), '#' );
+		if ( 3 === strlen( $hex ) ) {
+			$hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+		}
+		if ( 6 !== strlen( $hex ) || ! ctype_xdigit( $hex ) ) {
+			return true;
+		}
+		$lum = ( 0.2126 * hexdec( substr( $hex, 0, 2 ) ) + 0.7152 * hexdec( substr( $hex, 2, 2 ) ) + 0.0722 * hexdec( substr( $hex, 4, 2 ) ) ) / 255;
+		return $lum < 0.5;
+	}
+
+	/**
+	 * The plugin header background, taken from the current user's admin colour scheme so the header
+	 * matches the WP admin menu (no core CSS variable exposes this). Light schemes fall back to the
+	 * default dark menu colour so the white header text stays legible.
+	 */
+	public static function header_background_color(): string {
+		$scheme = get_user_option( 'admin_color' );
+		$scheme = is_string( $scheme ) && '' !== $scheme ? $scheme : 'fresh';
+		$colors = isset( $GLOBALS['_wp_admin_css_colors'][ $scheme ]->colors )
+			? (array) $GLOBALS['_wp_admin_css_colors'][ $scheme ]->colors
+			: [];
+		$base   = isset( $colors[0] ) ? (string) $colors[0] : '';
+		return ( '' !== $base && self::is_dark_hex( $base ) ) ? $base : '#1d2327';
+	}
+
 	public function add_menu(): void {
 		add_submenu_page(
 			'woocommerce',
@@ -120,10 +151,19 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		if ( ! empty( $token ) ) {
 			update_option( self::TOKEN_OPTION_KEY, $token, false );
 		}
-		$out['auth_token']        = ! empty( $token ) ? self::MASK : '';
-		$out['timeout']           = isset( $input['timeout'] ) ? max( 5, min( 120, (int) $input['timeout'] ) ) : 30;
-		$out['retries']           = isset( $input['retries'] ) ? max( 0, min( 5, (int) $input['retries'] ) ) : 2;
-		$out['sync_interval']     = $input['sync_interval'] ?? '';
+		$out['auth_token'] = ! empty( $token ) ? self::MASK : '';
+		$out['timeout']    = isset( $input['timeout'] ) ? max( 5, min( 120, (int) $input['timeout'] ) ) : 30;
+		$out['retries']    = isset( $input['retries'] ) ? max( 0, min( 5, (int) $input['retries'] ) ) : 2;
+		// Enforce the dynamic minimum rest window server-side: a too-short interval (e.g. forced via a
+		// crafted POST) is bumped up to the smallest recurrence that still leaves a full hour of rest.
+		$interval = (string) ( $input['sync_interval'] ?? '' );
+		if ( '' !== $interval ) {
+			$min_seconds = Skwirrel_WC_Sync_Action_Scheduler::get_min_interval_seconds();
+			if ( Skwirrel_WC_Sync_Action_Scheduler::interval_seconds( $interval ) < $min_seconds ) {
+				$interval = Skwirrel_WC_Sync_Action_Scheduler::smallest_interval_at_least( $min_seconds );
+			}
+		}
+		$out['sync_interval']     = $interval;
 		$out['batch_size']        = isset( $input['batch_size'] ) ? max( 1, min( 100, (int) $input['batch_size'] ) ) : 10;
 		$out['sync_categories']   = ! empty( $input['sync_categories'] );
 		$out['super_category_id'] = isset( $input['super_category_id'] ) ? sanitize_text_field( trim( $input['super_category_id'] ) ) : '';
@@ -1010,6 +1050,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 		wp_enqueue_style( 'skwirrel-pim-sync-admin', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/admin.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
 		wp_enqueue_style( 'skwirrel-pim-sync-dashboard', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/dashboard.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
+		// Make the plugin header follow the user's admin colour scheme (the WP menu colour).
+		wp_add_inline_style( 'skwirrel-pim-sync-dashboard', '.skw-dashboard{--skw-header-bg:' . esc_attr( self::header_background_color() ) . ';}' );
 		// Google Fonts URL: pass the plugin version (not null) so Plugin Check
 		// is satisfied. Google ignores any extra query params anyway, so this
 		// only changes browser cache busting on plugin upgrades.

@@ -5,10 +5,15 @@
 
 /* -- Reset WP admin defaults inside dashboard -- */
 .skw-dashboard {
-	--skw-blue: #5F84C1;
-	--skw-blue-light: #C2D7FF;
+	/* Main accent follows the WordPress admin accent (auto-matches the user's colour scheme / WP 7.0
+	   default). Fixed fallbacks first for browsers without color-mix(). */
+	--skw-blue: #3858e9;
+	--skw-blue: var(--wp-admin-theme-color, #3858e9);
+	--skw-blue-light: #c2d0f7;
+	--skw-blue-light: color-mix(in srgb, var(--wp-admin-theme-color, #3858e9) 30%, #fff);
+	--skw-blue-tint: #ebeefb;
+	--skw-blue-tint: color-mix(in srgb, var(--wp-admin-theme-color, #3858e9) 8%, #fff);
 	--skw-blue-dark: #304261;
-	--skw-blue-tint: #E7EFFF;
 	--skw-green: #DDFF6D;
 	--skw-green-dark: #B8C53E;
 	--skw-dark: #282828;
@@ -33,8 +38,10 @@
    Header
    ========================================================================== */
 
+/* --skw-header-bg is injected server-side from the user's admin colour scheme (the WP menu colour),
+   so the header follows whatever admin theme the user picked. Falls back to the default menu dark. */
 .skw-header {
-	background: var(--skw-dark);
+	background: var(--skw-header-bg, #1d2327);
 	margin: -1px 0 0 -20px;
 	padding: 20px 0;
 }
@@ -231,8 +238,8 @@
 .skw-bg-slate,
 .skw-bg-yellow,
 .skw-bg-rose {
-	background: var(--skw-blue-tint);
-	color: var(--skw-blue);
+	background: var(--skw-green);
+	color: var(--skw-dark);
 }
 
 .skw-bg-red {
@@ -341,10 +348,13 @@
    dashboard's CSS variables + font are re-declared on the host to render correctly outside
    .skw-dashboard (e.g. inside a core admin_notices slot). Hidden while empty. */
 #skwirrel-sync-banner {
-	--skw-blue: #5F84C1;
-	--skw-blue-light: #C2D7FF;
+	--skw-blue: #3858e9;
+	--skw-blue: var(--wp-admin-theme-color, #3858e9);
+	--skw-blue-light: #c2d0f7;
+	--skw-blue-light: color-mix(in srgb, var(--wp-admin-theme-color, #3858e9) 30%, #fff);
+	--skw-blue-tint: #ebeefb;
+	--skw-blue-tint: color-mix(in srgb, var(--wp-admin-theme-color, #3858e9) 8%, #fff);
 	--skw-blue-dark: #304261;
-	--skw-blue-tint: #E7EFFF;
 	--skw-green: #DDFF6D;
 	--skw-green-dark: #B8C53E;
 	--skw-dark: #282828;
@@ -408,8 +418,8 @@
 	max-width: calc(100vw - 40px);
 	padding: 12px 14px;
 	background: #fff;
-	border: 1px solid #c2d7ff;
-	border-left: 4px solid #5f84c1;
+	border: 1px solid #e6e8d8;
+	border-left: 4px solid #ddff6d;
 	border-radius: 10px;
 	box-shadow: 0 8px 24px rgba(48, 66, 97, 0.18);
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -450,7 +460,8 @@
 	width: 8px;
 	height: 8px;
 	border-radius: 50%;
-	background: #5f84c1;
+	background: #ddff6d;
+	box-shadow: 0 0 0 2px rgba(184, 197, 62, 0.35);
 	animation: skw-toast-pulse 1.4s ease-in-out infinite;
 }
 
@@ -508,7 +519,7 @@
 .skw-toast-loglink {
 	display: inline-block;
 	margin-top: 8px;
-	color: #5f84c1;
+	color: #6b7a1e;
 	font-weight: 500;
 	text-decoration: none;
 }

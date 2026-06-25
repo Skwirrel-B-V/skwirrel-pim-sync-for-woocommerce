@@ -573,7 +573,7 @@ class Skwirrel_WC_Sync_Service {
 			update_option( 'skwirrel_wc_sync_last_sync_sig', $ctx['sync_sig'] );
 			Skwirrel_WC_Sync_History::update_last_result( true, 0, 0, 0, '', 0, 0, 0, 0, $ctx['trigger'], $ctx['log_file'], 0 );
 			( new Skwirrel_WC_Sync_Queue( $ctx['run_id'] ) )->cleanup();
-			$this->finish_run( $ctx );
+			$this->finish_run();
 			return 'done';
 		}
 
@@ -982,6 +982,12 @@ class Skwirrel_WC_Sync_Service {
 		$ctx['trashed']            = $trashed;
 		$ctx['categories_removed'] = $categories_removed;
 
+		// Record FULL-sync duration: it is the worst-case run length, and the minimum auto-sync interval
+		// must leave a full hour of rest beyond it (see Action_Scheduler::get_min_interval_seconds()).
+		if ( empty( $ctx['delta'] ) && ! $ctx['partial_commit'] ) {
+			Skwirrel_WC_Sync_Action_Scheduler::record_full_sync_duration( max( 0, time() - (int) $ctx['started_at'] ) );
+		}
+
 		$this->logger->info(
 			'Sync completed',
 			[
@@ -1012,7 +1018,7 @@ class Skwirrel_WC_Sync_Service {
 			);
 		}
 
-		$this->finish_run( $ctx );
+		$this->finish_run();
 		return 'done';
 	}
 
@@ -1038,16 +1044,14 @@ class Skwirrel_WC_Sync_Service {
 		( new Skwirrel_WC_Sync_Queue( $ctx['run_id'] ) )->cleanup();
 		Skwirrel_WC_Sync_History::update_last_result( false, $ctx['created'], $ctx['updated'], $ctx['failed'], $message, 0, 0, 0, 0, $ctx['trigger'], $ctx['log_file'], $ctx['unchanged'] );
 		$ctx['step'] = 'failed';
-		$this->finish_run( $ctx );
+		$this->finish_run();
 		return 'failed';
 	}
 
 	/**
 	 * Common end-of-run teardown: stop the log, clear run state/group map, release the mutex.
-	 *
-	 * @param array<string, mixed> $ctx Run context.
 	 */
-	private function finish_run( array $ctx ): void {
+	private function finish_run(): void {
 		$this->logger->stop_sync_log();
 		self::clear_run_state();
 		self::clear_group_map();

@@ -84,6 +84,8 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * Improvement: "Test connection" now saves your connection settings (subdomain and token) first and shows the result instantly, so it works right after you enter a new environment — no separate save needed.
 * Improvement: the "Batch size" setting moved into the Sync options section and now allows up to 100 products per request.
 * Improvement: the "Edit permalink settings" link opens in a new browser tab.
+* Improvement: the scheduled sync interval now has finer options (every 2/3/4/6/8 hours) and enforces a safe minimum based on how long your last full sync took — there is always at least one full hour of rest between automatic syncs, so runs can never overlap (a 45-minute sync requires at least 2 hours, 75 minutes requires 3 hours).
+* Improvement: the interface now matches your WordPress admin theme — the accent colour follows your admin colour scheme and the header matches the admin menu — with Skwirrel lime icon accents.
 
 = 3.11.1 =
 

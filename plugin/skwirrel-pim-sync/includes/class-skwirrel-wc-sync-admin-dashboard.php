@@ -662,11 +662,43 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<div class="skw-field-row">
 						<div class="skw-field">
 							<label for="sync_interval" class="skw-label"><?php esc_html_e( 'Sync interval', 'skwirrel-pim-sync' ); ?></label>
+							<?php
+							$current_interval = (string) ( $opts['sync_interval'] ?? '' );
+							$min_seconds      = Skwirrel_WC_Sync_Action_Scheduler::get_min_interval_seconds();
+							$min_hours        = (int) round( $min_seconds / HOUR_IN_SECONDS );
+							$full_duration    = Skwirrel_WC_Sync_Action_Scheduler::get_full_sync_duration();
+							?>
 							<select id="sync_interval" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_interval]" class="skw-select">
 								<?php foreach ( Skwirrel_WC_Sync_Action_Scheduler::get_interval_options() as $k => $v ) : ?>
-									<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $opts['sync_interval'] ?? '', $k ); ?>><?php echo esc_html( $v ); ?></option>
+									<?php
+									$secs = Skwirrel_WC_Sync_Action_Scheduler::interval_seconds( $k );
+									// Disable any recurrence shorter than the minimum rest window — but never the
+									// "Disabled" option nor the value already saved (so an existing setting still shows).
+									$too_short = ( '' !== $k && $secs > 0 && $secs < $min_seconds && $k !== $current_interval );
+									?>
+									<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $current_interval, $k ); ?> <?php disabled( $too_short ); ?>>
+										<?php echo esc_html( $v ); ?><?php echo $too_short ? esc_html__( ' — too short', 'skwirrel-pim-sync' ) : ''; ?>
+									</option>
 								<?php endforeach; ?>
 							</select>
+							<p class="skw-field-hint">
+								<?php
+								if ( $full_duration > 0 ) {
+									printf(
+										/* translators: 1: last full sync duration in minutes, 2: minimum interval in hours */
+										esc_html__( 'Your last full sync took ~%1$d min, so auto-syncs must be at least %2$d hours apart (one full hour of rest between runs).', 'skwirrel-pim-sync' ),
+										(int) round( $full_duration / 60 ),
+										(int) $min_hours
+									);
+								} else {
+									printf(
+										/* translators: %d: minimum interval in hours */
+										esc_html__( 'Auto-syncs must be at least %d hours apart until the first full sync has run to measure its duration.', 'skwirrel-pim-sync' ),
+										(int) $min_hours
+									);
+								}
+								?>
+							</p>
 						</div>
 					</div>
 				</div>
@@ -933,7 +965,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</div>
 
 				<div class="skw-field-actions">
-					<button type="submit" class="skw-btn skw-btn-primary"><?php esc_html_e( 'Save settings', 'skwirrel-pim-sync' ); ?></button>
+					<button type="submit" class="button button-primary button-large"><?php esc_html_e( 'Save settings', 'skwirrel-pim-sync' ); ?></button>
 				</div>
 			</form>
 		</div>
