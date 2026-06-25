@@ -126,12 +126,12 @@
 	margin-left: -20px;
 	padding-left: 24px;
 	padding-right: 24px;
-	max-width: 960px;
+	max-width: 1280px;
 }
 
-/* History page uses the full available width for the records table. */
+/* History page: same 1280px cap (the records table benefits from the extra width). */
 .skw-content-wide {
-	max-width: none;
+	max-width: 1280px;
 }
 
 /* Native WP "Save settings" button: match the rounded corners of the .skw-btn (e.g. red) buttons. */

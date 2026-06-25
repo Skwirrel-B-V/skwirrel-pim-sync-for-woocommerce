@@ -80,7 +80,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 = 3.11.3 =
 
-* Improvement: small dashboard tweaks — the "Save settings" button matches the other buttons' rounded corners, the sync progress block has more breathing room below the header, and the sync history table now uses the full page width.
+* Improvement: small dashboard tweaks — the "Save settings" button matches the other buttons' rounded corners, the sync progress block has more breathing room below the header, and the dashboard now uses up to 1280px width so the cards and history table have more room.
 
 = 3.11.2 =
 
