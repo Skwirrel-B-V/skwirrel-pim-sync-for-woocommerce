@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 3.11.0
+Stable tag: 3.11.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,12 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.11.1 =
+
+* Fix: re-syncs no longer report variable (grouped) products as "updated" when nothing changed. In 3.11.0 the "unchanged" gate covered simple products and variations but not the variable-product parents or their shared content/images, so an unchanged catalog still showed a residual "updated" count and re-applied that content every run. Those are now included in the gate, so a repeat sync of an unchanged catalog reports 0 updated and skips the redundant work.
+* Fix: change detection now compares the actual product content rather than the "last modified" timestamp. Products that Skwirrel re-stamps without a real content change are now correctly recognised as unchanged and skipped.
+* Maintenance: internal code-quality cleanups (static analysis and coding-standards fixes). No functional change.
 
 = 3.11.0 =
 

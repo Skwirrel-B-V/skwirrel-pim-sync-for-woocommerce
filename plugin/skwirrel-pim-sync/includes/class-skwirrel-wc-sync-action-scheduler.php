@@ -136,7 +136,8 @@ class Skwirrel_WC_Sync_Action_Scheduler {
 	/**
 	 * Run sync. Called by Action Scheduler or WP-Cron.
 	 *
-	 * @param array $args Optional. ['delta' => bool] - use delta sync (default true for scheduled).
+	 * @param array<string, mixed>|bool $args Optional. ['delta' => bool] (whole array, WP-Cron) or the
+	 *                                        spread 'delta' value (Action Scheduler). Default [].
 	 */
 	public function run_scheduled_sync( $args = [] ): void {
 		// Action Scheduler spreads stored arg VALUES positionally, while the WP-Cron fallback passes
@@ -161,7 +162,7 @@ class Skwirrel_WC_Sync_Action_Scheduler {
 	/**
 	 * Action Scheduler handler for a single batched step. Delegates to the Service state machine.
 	 *
-	 * @param array|string $arg ['run_id' => …] (whole array) or the run id (spread value).
+	 * @param array<string, mixed>|string $arg ['run_id' => …] (whole array) or the run id (spread value).
 	 */
 	public function run_step_action( $arg = '' ): void {
 		$run_id = is_array( $arg ) ? ( $arg['run_id'] ?? '' ) : (string) $arg;

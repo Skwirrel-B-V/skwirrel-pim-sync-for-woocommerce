@@ -38,11 +38,26 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	/** Post meta storing the content-hash of the last fully-committed payload (for the JSON-diff gate). */
 	public const CONTENT_HASH_META = '_skwirrel_content_hash';
 
+	/** Post meta on a variable parent: content-hash of the last fully-built group definition (group gate). */
+	public const GROUP_HASH_META = '_skwirrel_group_hash';
+
+	/** Post meta on a variable parent: content-hash of the last fully-applied virtual product (virtual gate). */
+	public const VIRTUAL_CONTENT_HASH_META = '_skwirrel_virtual_content_hash';
+
 	/** Content-hash mode for this run: 'off' | 'observe' (compute+report, no skip) | 'enforce' (skip on match). */
 	private string $content_hash_mode = 'off';
 
 	/** Settings signature folded into the content hash so a settings/version change invalidates all hashes. */
 	private string $content_hash_sig = '';
+
+	/**
+	 * Payload keys ALWAYS stripped before hashing: pure modification metadata, never content. Leaving
+	 * `product_updated_on` in would make the content hash a mirror of the timestamp gate (the API bumps
+	 * it on re-fetch even when the product content is identical), so enforce mode would gain nothing over
+	 * the timestamp gate. Site-specific volatile keys can be added on top via the
+	 * `skwirrel_wc_sync_content_hash_exclude` filter.
+	 */
+	private const HASH_EXCLUDE_KEYS = [ 'product_updated_on' ];
 
 	/**
 	 *
@@ -100,8 +115,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * Content hash of a payload for the JSON-diff gate: md5 of the settings signature + a key-sorted
 	 * JSON of the payload. Key-sorting makes it independent of API key order; folding in the signature
 	 * makes a settings/version change invalidate every product's hash (so output re-applies). Returns
-	 * '' when hashing is off. Top-level volatile keys can be dropped via the
-	 * `skwirrel_wc_sync_content_hash_exclude` filter (returns an array of keys).
+	 * '' when hashing is off. Modification-metadata keys in HASH_EXCLUDE_KEYS are always stripped first
+	 * (so the hash reflects content, not the API's re-fetch timestamp); additional site-specific volatile
+	 * keys can be dropped via the `skwirrel_wc_sync_content_hash_exclude` filter (returns an array of keys).
 	 *
 	 * @param array<string, mixed> $product Raw payload (already includes ETIM/custom classes/etc).
 	 */
@@ -109,8 +125,23 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		if ( 'off' === $this->content_hash_mode ) {
 			return '';
 		}
-		$payload = $product;
-		foreach ( (array) apply_filters( 'skwirrel_wc_sync_content_hash_exclude', [], $product ) as $key ) {
+		return $this->payload_signature( $product );
+	}
+
+	/**
+	 * Content fingerprint of any payload, computed UNCONDITIONALLY (independent of content_hash_mode).
+	 * The grouped-product and virtual-content gates key off `change_gate_enabled` rather than the
+	 * product-level observe/enforce hash mode, so they need the raw signature even when the product hash
+	 * is 'off'. Same recipe as content_hash(): strip metadata keys, key-sort, fold in the settings sig.
+	 *
+	 * @param array<string, mixed> $payload Payload to fingerprint.
+	 */
+	public function payload_signature( array $payload ): string {
+		$exclude_keys = array_merge(
+			self::HASH_EXCLUDE_KEYS,
+			(array) apply_filters( 'skwirrel_wc_sync_content_hash_exclude', [], $payload )
+		);
+		foreach ( $exclude_keys as $key ) {
 			unset( $payload[ $key ] );
 		}
 		self::ksort_recursive( $payload );
@@ -840,11 +871,12 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client         JSON-RPC client instance.
 	 * @param array                           $options        Plugin settings array.
 	 * @param array<int>                      $collection_ids Selection IDs to filter by.
-	 * @return array{created: int, updated: int, map: array}
+	 * @return array{created: int, updated: int, unchanged: int, map: array}
 	 */
 	public function sync_grouped_products_first( Skwirrel_WC_Sync_JsonRpc_Client $client, array $options, array $collection_ids = [] ): array {
 		$created              = 0;
 		$updated              = 0;
+		$unchanged            = 0;
 		$skipped              = 0;
 		$product_to_group_map = [];
 		$batch_size           = (int) ( $options['batch_size'] ?? 10 );
@@ -933,6 +965,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 						++$created;
 					} elseif ( 'updated' === $outcome ) {
 						++$updated;
+					} elseif ( 'unchanged' === $outcome ) {
+						++$unchanged;
 					}
 				} catch ( Throwable $e ) {
 					$this->logger->error(
@@ -955,16 +989,18 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$this->logger->info(
 			'Grouped products loaded',
 			[
-				'variable_products'     => $created + $updated,
+				'variable_products'     => $created + $updated + $unchanged,
 				'product_ids_in_groups' => count( $product_ids_in_groups ),
 				'skipped_by_selection'  => $skipped,
+				'unchanged'             => $unchanged,
 				'filtered_by_selection' => null !== $allowed_product_ids,
 			]
 		);
 		return [
-			'created' => $created,
-			'updated' => $updated,
-			'map'     => $product_to_group_map,
+			'created'   => $created,
+			'updated'   => $updated,
+			'unchanged' => $unchanged,
+			'map'       => $product_to_group_map,
 		];
 	}
 
@@ -1077,6 +1113,24 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$wc_id  = $this->lookup->find_by_grouped_product_id( (int) $grouped_id );
 		$is_new = ! $wc_id;
 
+		// Variation axis codes derive purely from the group payload and are needed to populate
+		// $product_to_group_map on every run (variations and the virtual product route through it),
+		// so compute them up front — before the gate that may skip the WC rebuild.
+		$etim_variation_codes   = $this->extract_etim_variation_codes( $group );
+		$custom_variation_codes = $this->extract_custom_variation_codes( $group );
+		$virtual_product_id     = $group['virtual_product_id'] ?? null;
+
+		// Change gate (Option A): an existing parent whose group definition is byte-identical to the
+		// last fully-built one needs no rebuild. We still populate the map below, but skip the WC save,
+		// taxonomy assignment and meta writes — and report 'unchanged' instead of a phantom 'updated'.
+		$group_hash = $this->change_gate_enabled ? $this->payload_signature( $group ) : '';
+		if ( ! $is_new && '' !== $group_hash
+			&& (string) get_post_meta( (int) $wc_id, self::GROUP_HASH_META, true ) === $group_hash ) {
+			update_post_meta( (int) $wc_id, $this->mapper->get_synced_at_meta_key(), time() );
+			$this->build_group_map( $products, (int) $wc_id, (int) $grouped_id, $etim_variation_codes, $custom_variation_codes, $virtual_product_id, $product_to_group_map );
+			return 'unchanged';
+		}
+
 		if ( $is_new ) {
 			$wc_product = new WC_Product_Variable();
 		} else {
@@ -1114,39 +1168,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$wc_product->set_stock_status( 'instock' ); // Parent must be in stock
 		$wc_product->set_manage_stock( false ); // Don't manage stock at parent level
 
-		$etim_features        = $group['_etim_features'] ?? [];
-		$etim_variation_codes = [];
-		if ( is_array( $etim_features ) ) {
-			$raw = isset( $etim_features[0] ) ? $etim_features : array_values( $etim_features );
-			foreach ( $raw as $f ) {
-				if ( is_array( $f ) && ! empty( $f['etim_feature_code'] ) ) {
-					$etim_variation_codes[] = [
-						'code'  => $f['etim_feature_code'],
-						'order' => (int) ( $f['order'] ?? 999 ),
-						'label' => $this->mapper->resolve_etim_feature_label( $f ),
-					];
-				}
-			}
-			usort( $etim_variation_codes, fn( $a, $b ) => $a['order'] <=> $b['order'] );
-		}
-
-		// Custom features as variation axes (from getGroupedProducts include_custom_features).
-		// Schema: { custom_feature_id: int, order?: int, label?: string }
-		$custom_features        = $group['_custom_features'] ?? [];
-		$custom_variation_codes = [];
-		if ( is_array( $custom_features ) ) {
-			$raw = isset( $custom_features[0] ) ? $custom_features : array_values( $custom_features );
-			foreach ( $raw as $f ) {
-				if ( is_array( $f ) && ! empty( $f['custom_feature_id'] ) ) {
-					$custom_variation_codes[] = [
-						'id'    => (int) $f['custom_feature_id'],
-						'order' => (int) ( $f['order'] ?? 999 ),
-						'label' => (string) ( $f['label'] ?? '' ),
-					];
-				}
-			}
-			usort( $custom_variation_codes, fn( $a, $b ) => $a['order'] <=> $b['order'] );
-		}
+		// $etim_variation_codes and $custom_variation_codes were computed before the change gate above.
 
 		// Preserve existing parent term options. Pre-sync only registers axis structure;
 		// the canonical term-list is rebuilt by flush_parent_attribute_terms() at the end of
@@ -1208,11 +1230,92 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		update_post_meta( $id, '_skwirrel_api_response', wp_json_encode( $group, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
 
 		// Store virtual_product_id if present (this product has images for the variable product)
-		$virtual_product_id = $group['virtual_product_id'] ?? null;
 		if ( $virtual_product_id ) {
 			update_post_meta( $id, '_skwirrel_virtual_product_id', (int) $virtual_product_id );
 		}
 
+		// Stamp the group gate hash so the next identical run can skip this rebuild (no-op when the
+		// gate is disabled, i.e. $group_hash === '').
+		if ( '' !== $group_hash ) {
+			update_post_meta( $id, self::GROUP_HASH_META, $group_hash );
+		}
+
+		$this->build_group_map( $products, (int) $id, (int) $grouped_id, $etim_variation_codes, $custom_variation_codes, $virtual_product_id, $product_to_group_map );
+
+		$this->category_sync->assign_categories( $id, $group );
+		$this->brand_sync->assign_brand( $id, $group );
+		if ( ! empty( $this->get_options()['sync_manufacturers'] ) ) {
+			$this->brand_sync->assign_manufacturer( $id, $group );
+		}
+
+		return $is_new ? 'created' : 'updated';
+	}
+
+	/**
+	 * Extract ETIM variation axes from a group payload, sorted by `order`. Pure function of the payload.
+	 *
+	 * @param array<string,mixed> $group Grouped-product payload.
+	 * @return list<array{code: string, order: int, label: string}>
+	 */
+	private function extract_etim_variation_codes( array $group ): array {
+		$etim_features = $group['_etim_features'] ?? [];
+		$codes         = [];
+		if ( is_array( $etim_features ) ) {
+			$raw = isset( $etim_features[0] ) ? $etim_features : array_values( $etim_features );
+			foreach ( $raw as $f ) {
+				if ( is_array( $f ) && ! empty( $f['etim_feature_code'] ) ) {
+					$codes[] = [
+						'code'  => $f['etim_feature_code'],
+						'order' => (int) ( $f['order'] ?? 999 ),
+						'label' => $this->mapper->resolve_etim_feature_label( $f ),
+					];
+				}
+			}
+			usort( $codes, fn( $a, $b ) => $a['order'] <=> $b['order'] );
+		}
+		return $codes;
+	}
+
+	/**
+	 * Extract custom-feature variation axes from a group payload, sorted by `order`. Pure function.
+	 * Schema: { custom_feature_id: int, order?: int, label?: string }.
+	 *
+	 * @param array<string,mixed> $group Grouped-product payload.
+	 * @return list<array{id: int, order: int, label: string}>
+	 */
+	private function extract_custom_variation_codes( array $group ): array {
+		$custom_features = $group['_custom_features'] ?? [];
+		$codes           = [];
+		if ( is_array( $custom_features ) ) {
+			$raw = isset( $custom_features[0] ) ? $custom_features : array_values( $custom_features );
+			foreach ( $raw as $f ) {
+				if ( is_array( $f ) && ! empty( $f['custom_feature_id'] ) ) {
+					$codes[] = [
+						'id'    => (int) $f['custom_feature_id'],
+						'order' => (int) ( $f['order'] ?? 999 ),
+						'label' => (string) ( $f['label'] ?? '' ),
+					];
+				}
+			}
+			usort( $codes, fn( $a, $b ) => $a['order'] <=> $b['order'] );
+		}
+		return $codes;
+	}
+
+	/**
+	 * Populate $product_to_group_map for one group's members + virtual product. Built on EVERY run
+	 * (even when the parent rebuild is gate-skipped) because the product loop routes variations and the
+	 * virtual item through this map.
+	 *
+	 * @param array<int,mixed>                                       $products             Group member items.
+	 * @param int                                                    $wc_variable_id       WC variable parent ID.
+	 * @param int                                                    $grouped_id           Skwirrel grouped product ID.
+	 * @param list<array{code: string, order: int, label: string}>  $etim_variation_codes ETIM axes.
+	 * @param list<array{id: int, order: int, label: string}>       $custom_variation_codes Custom axes.
+	 * @param int|string|null                                        $virtual_product_id   Virtual product ID, if any.
+	 * @param array<int|string,mixed>                                $product_to_group_map Map to populate (by reference).
+	 */
+	private function build_group_map( array $products, int $wc_variable_id, int $grouped_id, array $etim_variation_codes, array $custom_variation_codes, $virtual_product_id, array &$product_to_group_map ): void {
 		foreach ( $products as $item ) {
 			$product_id = null;
 			$sku        = null;
@@ -1224,10 +1327,10 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 			if ( $product_id && '' !== $sku ) {
 				$info                                      = [
-					'grouped_product_id'     => (int) $grouped_id,
+					'grouped_product_id'     => $grouped_id,
 					'order'                  => $order,
 					'sku'                    => $sku,
-					'wc_variable_id'         => $id,
+					'wc_variable_id'         => $wc_variable_id,
 					'etim_variation_codes'   => $etim_variation_codes,
 					'custom_variation_codes' => $custom_variation_codes,
 					'virtual_product_id'     => $virtual_product_id,
@@ -1237,21 +1340,13 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 		}
 
-		// If this group has a virtual product, track it for image assignment
+		// If this group has a virtual product, track it for image assignment.
 		if ( $virtual_product_id ) {
 			$product_to_group_map[ 'virtual:' . (int) $virtual_product_id ] = [
-				'wc_variable_id'          => $id,
+				'wc_variable_id'          => $wc_variable_id,
 				'is_virtual_for_variable' => true,
 			];
 		}
-
-		$this->category_sync->assign_categories( $id, $group );
-		$this->brand_sync->assign_brand( $id, $group );
-		if ( ! empty( $this->get_options()['sync_manufacturers'] ) ) {
-			$this->brand_sync->assign_manufacturer( $id, $group );
-		}
-
-		return $is_new ? 'created' : 'updated';
 	}
 
 	// =========================================================================
@@ -1264,8 +1359,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * Does NOT assign categories, brands, attributes, or media — those are
 	 * handled by separate phase methods.
 	 *
-	 * @param array $product Skwirrel product data.
-	 * @return array{wc_id: int, outcome: string, pending_publish?: bool} WC product ID, 'created'|'updated'|'skipped', and (on create) whether the caller must publish it once fully committed.
+	 * @param array<string, mixed> $product Skwirrel product data.
+	 * @return array{wc_id: int, outcome: string, pending_publish?: bool, content_hash?: string, hash_status?: 'na'|'new'|'match'|'mismatch'} WC product ID, 'created'|'updated'|'skipped'|'unchanged', whether the caller must publish it once fully committed, and the content-hash gate telemetry.
 	 */
 	public function create_or_update_product( array $product ): array {
 		$key = $this->mapper->get_unique_key( $product );
@@ -1451,9 +1546,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 *
 	 * Variation attributes are included because they define the variation identity.
 	 *
-	 * @param array $product    Skwirrel product data.
-	 * @param array $group_info Group mapping info.
-	 * @return array{wc_id: int, outcome: string}
+	 * @param array<string, mixed> $product    Skwirrel product data.
+	 * @param array<string, mixed> $group_info Group mapping info.
+	 * @return array{wc_id: int, outcome: string, content_hash?: string, hash_status?: 'na'|'new'|'match'|'mismatch'}
 	 */
 	public function create_or_update_variation( array $product, array $group_info ): array {
 		$wc_variable_id = $group_info['wc_variable_id'] ?? 0;
@@ -1990,6 +2085,39 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				'name'               => '' !== $name ? $name : '(kept existing)',
 			]
 		);
+	}
+
+	/**
+	 * Gate (Option A) + apply a virtual product's content and media to its variable parent. When the
+	 * change gate is on and the virtual payload is byte-identical to the last fully-applied one, the
+	 * whole apply (content + media) is skipped — mirroring how an unchanged simple product skips its
+	 * media. The gate hash is stamped only on a FULLY successful apply, so a media failure never lets
+	 * the next run skip an incomplete parent.
+	 *
+	 * @param int                 $wc_variable_id  WC variable parent ID.
+	 * @param array<string,mixed> $virtual_product Skwirrel virtual product payload.
+	 * @param bool                $apply_content   Whether to apply name/descriptions (use_virtual_product_content).
+	 * @return string 'unchanged' (gate-skipped) | 'applied' (fully applied) | 'partial' (media failed, not stamped).
+	 */
+	public function sync_virtual_to_parent( int $wc_variable_id, array $virtual_product, bool $apply_content ): string {
+		$hash = $this->change_gate_enabled ? $this->payload_signature( $virtual_product ) : '';
+		if ( '' !== $hash
+			&& (string) get_post_meta( $wc_variable_id, self::VIRTUAL_CONTENT_HASH_META, true ) === $hash ) {
+			return 'unchanged';
+		}
+
+		if ( $apply_content ) {
+			$this->apply_virtual_product_content( $wc_variable_id, $virtual_product );
+		}
+
+		if ( ! $this->assign_media( $wc_variable_id, $virtual_product ) ) {
+			return 'partial';
+		}
+
+		if ( '' !== $hash ) {
+			update_post_meta( $wc_variable_id, self::VIRTUAL_CONTENT_HASH_META, $hash );
+		}
+		return 'applied';
 	}
 
 	/**

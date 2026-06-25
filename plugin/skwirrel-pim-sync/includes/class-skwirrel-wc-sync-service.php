@@ -113,7 +113,7 @@ class Skwirrel_WC_Sync_Service {
 	 * Does NOT perform any pre-sync API work — that happens in the (re-entrant) 'init'
 	 * step so it benefits from the timeout-resilient batched model.
 	 *
-	 * @return array{ok: bool, ctx?: array, result?: array}
+	 * @return array{ok: bool, ctx?: array<string, mixed>, result?: array<string, mixed>}
 	 */
 	private function begin_run( bool $delta, string $trigger ): array {
 		// Concurrency guard for run start: refuse a second run while another's heartbeat is fresh.
@@ -229,8 +229,8 @@ class Skwirrel_WC_Sync_Service {
 			'include_contexts'             => [ 1 ],
 		];
 
-		$sync_cc       = ! empty( $options['sync_custom_classes'] );
-		$sync_ti_cc    = ! empty( $options['sync_trade_item_custom_classes'] );
+		$sync_cc        = ! empty( $options['sync_custom_classes'] );
+		$sync_ti_cc     = ! empty( $options['sync_trade_item_custom_classes'] );
 		$cc_filter_mode = '';
 		$cc_raw         = '';
 		$cc_parsed      = [];
@@ -281,41 +281,41 @@ class Skwirrel_WC_Sync_Service {
 		self::clear_group_map();
 
 		$ctx = [
-			'run_id'           => $sync_run_id,
-			'step'             => 'init',
-			'delta'            => $delta,
-			'trigger'          => $trigger,
-			'started_at'       => time(),
-			'sync_sig'         => $sync_sig,
-			'gate_enabled'     => $gate_enabled,
-			'log_file'         => $log_filename,
-			'options'          => $options,
-			'api_includes'     => $api_includes,
-			'batch_size'       => $batch_size,
-			'collection_ids'   => $collection_ids,
-			'fetch_filter'     => $fetch_filter,
-			'sel_index'        => 0,
-			'page'             => 1,
-			'fetched'          => 0,
-			'total'            => 0,
-			'virtual_total'    => 0,
-			'processed'        => 0,
-			'virtual_done'     => 0,
-			'rel_done'         => 0,
-			'created'          => 0,
-			'updated'          => 0,
-			'unchanged'        => 0,
-			'failed'           => 0,
-			'with_attrs'       => 0,
-			'without_attrs'    => 0,
-			'partial_commit'   => false,
-			'seen_categories'  => [],
-			'stall'            => 0,
-			'last_progress'    => 0,
-			'hash_mode'        => $hash_mode,
-			'hash_match'       => 0,
-			'hash_mismatch'    => 0,
-			'hash_new'         => 0,
+			'run_id'          => $sync_run_id,
+			'step'            => 'init',
+			'delta'           => $delta,
+			'trigger'         => $trigger,
+			'started_at'      => time(),
+			'sync_sig'        => $sync_sig,
+			'gate_enabled'    => $gate_enabled,
+			'log_file'        => $log_filename,
+			'options'         => $options,
+			'api_includes'    => $api_includes,
+			'batch_size'      => $batch_size,
+			'collection_ids'  => $collection_ids,
+			'fetch_filter'    => $fetch_filter,
+			'sel_index'       => 0,
+			'page'            => 1,
+			'fetched'         => 0,
+			'total'           => 0,
+			'virtual_total'   => 0,
+			'processed'       => 0,
+			'virtual_done'    => 0,
+			'rel_done'        => 0,
+			'created'         => 0,
+			'updated'         => 0,
+			'unchanged'       => 0,
+			'failed'          => 0,
+			'with_attrs'      => 0,
+			'without_attrs'   => 0,
+			'partial_commit'  => false,
+			'seen_categories' => [],
+			'stall'           => 0,
+			'last_progress'   => 0,
+			'hash_mode'       => $hash_mode,
+			'hash_match'      => 0,
+			'hash_mismatch'   => 0,
+			'hash_new'        => 0,
 		];
 
 		$this->logger->info(
@@ -340,7 +340,7 @@ class Skwirrel_WC_Sync_Service {
 	/**
 	 * Helper: record a configuration failure during begin_run and release the run.
 	 *
-	 * @return array{ok: false, result: array}
+	 * @return array{ok: false, result: array<string, mixed>}
 	 */
 	private function begin_fail( string $message, string $trigger, string $log_filename ): array {
 		$this->logger->error( 'Sync aborted: ' . $message );
@@ -363,7 +363,7 @@ class Skwirrel_WC_Sync_Service {
 	/**
 	 * Execute a single step of the resumable state machine.
 	 *
-	 * @param array $ctx      Run context (mutated in place; persisted by the caller).
+	 * @param array<string, mixed> $ctx      Run context (mutated in place; persisted by the caller).
 	 * @param float $deadline microtime(true) value after which the step should yield.
 	 * @return string 'continue' (more work — re-invoke), 'done', or 'failed'.
 	 */
@@ -397,6 +397,8 @@ class Skwirrel_WC_Sync_Service {
 	/**
 	 * Step: pre-sync. Idempotent (re-entrant on resume) — category/brand/custom-class syncs are
 	 * upserts and grouped-product shells are looked up by key, so re-running is safe.
+	 *
+	 * @param array<string, mixed> $ctx Run context (mutated in place).
 	 */
 	private function step_init( array &$ctx ): string {
 		$client = $this->get_client();
@@ -426,6 +428,7 @@ class Skwirrel_WC_Sync_Service {
 			$product_to_group_map = $grouped_result['map'];
 			$ctx['created']      += $grouped_result['created'];
 			$ctx['updated']      += $grouped_result['updated'];
+			$ctx['unchanged']    += $grouped_result['unchanged'];
 		}
 		self::save_group_map( $ctx['run_id'], $product_to_group_map );
 
@@ -451,22 +454,26 @@ class Skwirrel_WC_Sync_Service {
 	 * One API call per configured selection ID (`dynamic_selection_id` is a single-int filter),
 	 * paginated. Yields to the next action when the time budget is hit; the cursor
 	 * (sel_index/page) is persisted so the next invocation continues seamlessly.
+	 *
+	 * @param array<string, mixed> $ctx      Run context (mutated in place).
+	 * @param float                $deadline Wall-clock time budget for this action.
 	 */
 	private function step_fetch( array &$ctx, float $deadline ): string {
 		$client = $this->get_client();
 		if ( ! $client ) {
 			return $this->fail_run( $ctx, 'Invalid configuration' );
 		}
-		$queue          = new Skwirrel_WC_Sync_Queue( $ctx['run_id'] );
-		$group_map      = self::load_group_map( $ctx['run_id'] );
-		$collection_ids = $ctx['collection_ids'];
-		$batch_size     = (int) $ctx['batch_size'];
+		$queue           = new Skwirrel_WC_Sync_Queue( $ctx['run_id'] );
+		$group_map       = self::load_group_map( $ctx['run_id'] );
+		$collection_ids  = $ctx['collection_ids'];
+		$batch_size      = (int) $ctx['batch_size'];
+		$selection_count = count( $collection_ids );
 
-		while ( $ctx['sel_index'] < count( $collection_ids ) ) {
+		while ( $ctx['sel_index'] < $selection_count ) {
 			$this->check_abort();
-			$selection_id            = (int) $collection_ids[ $ctx['sel_index'] ];
-			$filter                  = array_merge( (array) ( $ctx['fetch_filter'] ?? [] ), [ 'dynamic_selection_id' => $selection_id ] );
-			$page                    = (int) $ctx['page'];
+			$selection_id = (int) $collection_ids[ $ctx['sel_index'] ];
+			$filter       = array_merge( (array) ( $ctx['fetch_filter'] ?? [] ), [ 'dynamic_selection_id' => $selection_id ] );
+			$page         = (int) $ctx['page'];
 
 			$result = $this->fetch_products_page( $client, true, $filter, $ctx['api_includes'], $batch_size, $page );
 			if ( ! $result['success'] ) {
@@ -480,13 +487,29 @@ class Skwirrel_WC_Sync_Service {
 					$page,
 					$selection_id
 				);
-				$this->logger->error( 'Fetch failed; aborting sync', array_merge( (array) $err, [ 'selection_id' => $selection_id, 'page' => $page ] ) );
+				$this->logger->error(
+					'Fetch failed; aborting sync',
+					array_merge(
+						(array) $err,
+						[
+							'selection_id' => $selection_id,
+							'page'         => $page,
+						]
+					)
+				);
 				return $this->fail_run( $ctx, $msg );
 			}
 
 			$products   = $result['result']['products'] ?? [];
 			$page_count = count( $products );
-			$this->logger->verbose( 'Fetching batch', [ 'selection_id' => $selection_id, 'page' => $page, 'count' => $page_count ] );
+			$this->logger->verbose(
+				'Fetching batch',
+				[
+					'selection_id' => $selection_id,
+					'page'         => $page,
+					'count'        => $page_count,
+				]
+			);
 
 			foreach ( $products as $product ) {
 				$skwirrel_product_id = $product['product_id'] ?? $product['id'] ?? null;
@@ -576,6 +599,9 @@ class Skwirrel_WC_Sync_Service {
 	 * leaves only un-started products incomplete. Deferred parent attribute terms are flushed at
 	 * the end of every action (not just the final one) because they accumulate on a per-process
 	 * upserter instance and would otherwise be lost when the run spans multiple actions.
+	 *
+	 * @param array<string, mixed> $ctx      Run context (mutated in place).
+	 * @param float                $deadline Wall-clock time budget for this action.
 	 */
 	private function step_process( array &$ctx, float $deadline ): string {
 		$queue = new Skwirrel_WC_Sync_Queue( $ctx['run_id'] );
@@ -628,6 +654,10 @@ class Skwirrel_WC_Sync_Service {
 	/**
 	 * Commit one product (or variation) row: create/update, taxonomy, attributes, media,
 	 * held-draft publish, change-gate stamp and per-product checkpoint. Mutates $ctx counters.
+	 *
+	 * @param object                  $row   Queue row (product payload + group info).
+	 * @param Skwirrel_WC_Sync_Queue  $queue Run queue.
+	 * @param array<string, mixed>    $ctx   Run context (mutated in place).
 	 */
 	private function commit_product_row( object $row, Skwirrel_WC_Sync_Queue $queue, array &$ctx ): void {
 		$outcome         = 'skipped';
@@ -688,7 +718,13 @@ class Skwirrel_WC_Sync_Service {
 				$this->upserter->assign_taxonomy( $tax_target, $row->product );
 			} catch ( Throwable $e ) {
 				$aspect_failed = true;
-				$this->logger->warning( 'Taxonomy assignment failed', [ 'wc_id' => $wc_id, 'error' => $e->getMessage() ] );
+				$this->logger->warning(
+					'Taxonomy assignment failed',
+					[
+						'wc_id' => $wc_id,
+						'error' => $e->getMessage(),
+					]
+				);
 			}
 
 			// --- Attributes: ETIM + custom classes are already on the row (included in the batch
@@ -705,7 +741,13 @@ class Skwirrel_WC_Sync_Service {
 				}
 			} catch ( Throwable $e ) {
 				$aspect_failed = true;
-				$this->logger->warning( 'Attribute assignment failed', [ 'wc_id' => $wc_id, 'error' => $e->getMessage() ] );
+				$this->logger->warning(
+					'Attribute assignment failed',
+					[
+						'wc_id' => $wc_id,
+						'error' => $e->getMessage(),
+					]
+				);
 			}
 
 			// --- Media: images, downloads, documents (slowest step) ---
@@ -715,7 +757,13 @@ class Skwirrel_WC_Sync_Service {
 				}
 			} catch ( Throwable $e ) {
 				$aspect_failed = true;
-				$this->logger->warning( 'Media assignment failed', [ 'wc_id' => $wc_id, 'error' => $e->getMessage() ] );
+				$this->logger->warning(
+					'Media assignment failed',
+					[
+						'wc_id' => $wc_id,
+						'error' => $e->getMessage(),
+					]
+				);
 			}
 		}
 
@@ -729,7 +777,13 @@ class Skwirrel_WC_Sync_Service {
 				}
 			} catch ( Throwable $e ) {
 				$aspect_failed = true;
-				$this->logger->warning( 'Final publish failed', [ 'wc_id' => $wc_id, 'error' => $e->getMessage() ] );
+				$this->logger->warning(
+					'Final publish failed',
+					[
+						'wc_id' => $wc_id,
+						'error' => $e->getMessage(),
+					]
+				);
 			}
 		}
 
@@ -754,6 +808,9 @@ class Skwirrel_WC_Sync_Service {
 
 	/**
 	 * Step: virtual products — apply content & media to the parent variable product, time-boxed.
+	 *
+	 * @param array<string, mixed> $ctx      Run context (mutated in place).
+	 * @param float                $deadline Wall-clock time budget for this action.
 	 */
 	private function step_virtual( array &$ctx, float $deadline ): string {
 		$queue   = new Skwirrel_WC_Sync_Queue( $ctx['run_id'] );
@@ -767,15 +824,23 @@ class Skwirrel_WC_Sync_Service {
 				break;
 			}
 			try {
-				if ( ! empty( $options['use_virtual_product_content'] ) ) {
-					$this->upserter->apply_virtual_product_content( $row->virtual_parent_id, $row->product );
-				}
-				if ( ! $this->upserter->assign_media( $row->virtual_parent_id, $row->product ) ) {
+				$virtual_outcome = $this->upserter->sync_virtual_to_parent(
+					$row->virtual_parent_id,
+					$row->product,
+					! empty( $options['use_virtual_product_content'] )
+				);
+				if ( 'partial' === $virtual_outcome ) {
 					$ctx['partial_commit'] = true;
 				}
 			} catch ( Throwable $e ) {
 				$ctx['partial_commit'] = true;
-				$this->logger->warning( 'Virtual product processing failed', [ 'wc_variable_id' => $row->virtual_parent_id, 'error' => $e->getMessage() ] );
+				$this->logger->warning(
+					'Virtual product processing failed',
+					[
+						'wc_variable_id' => $row->virtual_parent_id,
+						'error'          => $e->getMessage(),
+					]
+				);
 			}
 
 			$queue->mark_phase_completed( $row->id, 4 );
@@ -810,6 +875,9 @@ class Skwirrel_WC_Sync_Service {
 
 	/**
 	 * Step: relations — cross-sells & upsells (phase 5), time-boxed. Skipped when disabled.
+	 *
+	 * @param array<string, mixed> $ctx      Run context (mutated in place).
+	 * @param float                $deadline Wall-clock time budget for this action.
 	 */
 	private function step_relations( array &$ctx, float $deadline ): string {
 		$options = $ctx['options'];
@@ -834,7 +902,13 @@ class Skwirrel_WC_Sync_Service {
 				try {
 					$this->upserter->assign_relations( $row->wc_id, $row->product );
 				} catch ( Throwable $e ) {
-					$this->logger->warning( 'Relations assignment failed', [ 'wc_id' => $row->wc_id, 'error' => $e->getMessage() ] );
+					$this->logger->warning(
+						'Relations assignment failed',
+						[
+							'wc_id' => $row->wc_id,
+							'error' => $e->getMessage(),
+						]
+					);
 				}
 			}
 
@@ -862,6 +936,8 @@ class Skwirrel_WC_Sync_Service {
 
 	/**
 	 * Step: cleanup — purge stale products/categories, advance the delta checkpoint, persist history.
+	 *
+	 * @param array<string, mixed> $ctx Run context (mutated in place).
 	 */
 	private function step_finalize( array &$ctx ): string {
 		$options = $ctx['options'];
@@ -943,6 +1019,8 @@ class Skwirrel_WC_Sync_Service {
 	/**
 	 * Merge the category IDs seen during this process into the persisted set (needed for
 	 * stale-category purge, which must span all step actions of the run).
+	 *
+	 * @param array<string, mixed> $ctx Run context (mutated in place).
 	 */
 	private function merge_seen_categories( array &$ctx ): void {
 		$seen                   = $this->category_sync->get_seen_category_ids();
@@ -952,6 +1030,8 @@ class Skwirrel_WC_Sync_Service {
 	/**
 	 * Record a run as failed, clean up its queue/state, and release the run.
 	 *
+	 * @param array<string, mixed> $ctx     Run context (mutated in place).
+	 * @param string               $message Failure message.
 	 * @return string Always 'failed'.
 	 */
 	private function fail_run( array &$ctx, string $message ): string {
@@ -964,6 +1044,8 @@ class Skwirrel_WC_Sync_Service {
 
 	/**
 	 * Common end-of-run teardown: stop the log, clear run state/group map, release the mutex.
+	 *
+	 * @param array<string, mixed> $ctx Run context.
 	 */
 	private function finish_run( array $ctx ): void {
 		$this->logger->stop_sync_log();
@@ -976,6 +1058,9 @@ class Skwirrel_WC_Sync_Service {
 	/**
 	 * Build the public result array from the run context.
 	 *
+	 * @param array<string, mixed> $ctx     Run context.
+	 * @param bool                 $success Whether the run succeeded.
+	 * @param string               $error   Error message when not successful.
 	 * @return array{success: bool, created: int, updated: int, unchanged: int, failed: int, error?: string}
 	 */
 	private function result_from_ctx( array $ctx, bool $success, string $error = '' ): array {
@@ -1021,18 +1106,27 @@ class Skwirrel_WC_Sync_Service {
 			if ( is_array( $state ) && ! empty( $state['run_id'] ) ) {
 				if ( Skwirrel_WC_Sync_History::is_heartbeat_fresh() ) {
 					// A run is alive and a step is (or will be) chained — do not start a second.
-					return [ 'started' => false, 'reason' => 'already_running' ];
+					return [
+						'started' => false,
+						'reason'  => 'already_running',
+					];
 				}
 				// State exists but the heartbeat lapsed (a step fatally died / AS stalled): resume it.
 				Skwirrel_WC_Sync_History::sync_heartbeat();
 				Skwirrel_WC_Sync_Action_Scheduler::enqueue_step( (string) $state['run_id'] );
-				return [ 'started' => true, 'resumed' => true ];
+				return [
+					'started' => true,
+					'resumed' => true,
+				];
 			}
 
 			// Fresh start.
 			$begin = ( new self() )->begin_run( $delta, $trigger );
 			if ( ! $begin['ok'] ) {
-				return [ 'started' => false, 'reason' => 'config_error' ];
+				return [
+					'started' => false,
+					'reason'  => 'config_error',
+				];
 			}
 			Skwirrel_WC_Sync_Action_Scheduler::enqueue_step( (string) $begin['ctx']['run_id'] );
 			return [ 'started' => true ];
@@ -1067,7 +1161,7 @@ class Skwirrel_WC_Sync_Service {
 		// including init/finalize.
 		$watermark = (int) $state['fetched'] + (int) $state['processed'] + (int) $state['virtual_done'] + (int) $state['rel_done'];
 		$sig       = $state['step'] . ':' . $watermark;
-		if ( $sig === ( $state['last_progress_sig'] ?? '' ) ) {
+		if ( ( $state['last_progress_sig'] ?? '' ) === $sig ) {
 			$state['stall'] = (int) ( $state['stall'] ?? 0 ) + 1;
 		} else {
 			$state['stall'] = 0;
@@ -1103,13 +1197,21 @@ class Skwirrel_WC_Sync_Service {
 		// On 'done'/'failed' the step already cleared the run state and released the mutex.
 	}
 
-	/** Load the persisted run state, or null when no run is active. */
+	/**
+	 * Load the persisted run state, or null when no run is active.
+	 *
+	 * @return array<string, mixed>|null
+	 */
 	public static function load_run_state(): ?array {
 		$state = get_option( self::OPTION_RUN_STATE, null );
 		return is_array( $state ) ? $state : null;
 	}
 
-	/** Persist the run state (autoload off — it changes on every step). */
+	/**
+	 * Persist the run state (autoload off — it changes on every step).
+	 *
+	 * @param array<string, mixed> $ctx Run context.
+	 */
 	public static function save_run_state( array $ctx ): void {
 		update_option( self::OPTION_RUN_STATE, $ctx, false );
 	}
@@ -1119,12 +1221,29 @@ class Skwirrel_WC_Sync_Service {
 		delete_option( self::OPTION_RUN_STATE );
 	}
 
-	/** Persist the product→group map for the run (only consumed during the fetch step). */
+	/**
+	 * Persist the product→group map for the run (only consumed during the fetch step).
+	 *
+	 * @param string                  $run_id Run identifier.
+	 * @param array<int|string, mixed> $map    Product→group map.
+	 */
 	private static function save_group_map( string $run_id, array $map ): void {
-		update_option( self::OPTION_GROUP_MAP, [ 'run_id' => $run_id, 'map' => $map ], false );
+		update_option(
+			self::OPTION_GROUP_MAP,
+			[
+				'run_id' => $run_id,
+				'map'    => $map,
+			],
+			false
+		);
 	}
 
-	/** Load the product→group map for the run (empty array if none / mismatched run). */
+	/**
+	 * Load the product→group map for the run (empty array if none / mismatched run).
+	 *
+	 * @param string $run_id Run identifier.
+	 * @return array<int|string, mixed>
+	 */
 	private static function load_group_map( string $run_id ): array {
 		$stored = get_option( self::OPTION_GROUP_MAP, [] );
 		if ( is_array( $stored ) && ( $stored['run_id'] ?? '' ) === $run_id && is_array( $stored['map'] ?? null ) ) {

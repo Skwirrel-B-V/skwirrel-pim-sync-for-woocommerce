@@ -172,8 +172,42 @@ if (!function_exists('add_action')) {
     function add_action(string $hook, $callback, int $priority = 10, int $accepted_args = 1): void {}
 }
 
+// Minimal functional filter registry so apply_filters() actually runs registered callbacks in tests.
+$GLOBALS['_test_filters'] = $GLOBALS['_test_filters'] ?? [];
+
 if (!function_exists('add_filter')) {
-    function add_filter(string $hook, $callback, int $priority = 10, int $accepted_args = 1): void {}
+    function add_filter(string $hook, $callback, int $priority = 10, int $accepted_args = 1): bool {
+        $GLOBALS['_test_filters'][$hook][] = $callback;
+        return true;
+    }
+}
+
+if (!function_exists('remove_filter')) {
+    function remove_filter(string $hook, $callback, int $priority = 10): bool {
+        if (empty($GLOBALS['_test_filters'][$hook])) {
+            return false;
+        }
+        foreach ($GLOBALS['_test_filters'][$hook] as $i => $registered) {
+            if ($registered === $callback) {
+                unset($GLOBALS['_test_filters'][$hook][$i]);
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+if (!function_exists('apply_filters')) {
+    function apply_filters(string $hook, $value, ...$args) {
+        foreach ($GLOBALS['_test_filters'][$hook] ?? [] as $callback) {
+            $value = $callback($value, ...$args);
+        }
+        return $value;
+    }
+}
+
+if (!function_exists('do_action')) {
+    function do_action(string $hook, ...$args): void {}
 }
 
 if (!function_exists('add_rewrite_rule')) {
