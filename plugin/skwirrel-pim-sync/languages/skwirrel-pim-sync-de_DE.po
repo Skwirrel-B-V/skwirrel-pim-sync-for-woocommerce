@@ -1867,3 +1867,75 @@ msgstr "WooCommerce installieren"
 #~ msgstr ""
 #~ "Die Seite wird automatisch aktualisiert, wenn die Synchronisierung "
 #~ "abgeschlossen ist."
+
+msgid " — too short"
+msgstr " — zu kurz"
+
+msgid "Auto-syncs must be at least %d hours apart until the first full sync has run to measure its duration."
+msgstr "Automatische Synchronisierungen müssen mindestens %d Stunden auseinander liegen, bis die erste vollständige Synchronisierung zur Messung ihrer Dauer ausgeführt wurde."
+
+msgid "Connection successful — settings saved."
+msgstr "Verbindung erfolgreich – Einstellungen gespeichert."
+
+msgid "Enter a Skwirrel subdomain first."
+msgstr "Geben Sie zuerst eine Skwirrel-Subdomain ein."
+
+msgid "Enter a subdomain first."
+msgstr "Geben Sie zuerst eine Subdomain ein."
+
+msgid "Every 2 hours"
+msgstr "Alle 2 Stunden"
+
+msgid "Every 3 hours"
+msgstr "Alle 3 Stunden"
+
+msgid "Every 4 hours"
+msgstr "Alle 4 Stunden"
+
+msgid "Every 6 hours"
+msgstr "Alle 6 Stunden"
+
+msgid "Every 8 hours"
+msgstr "Alle 8 Stunden"
+
+msgid "Fetch failed at page %2$d (selection %3$d): %1$s"
+msgstr "Abruf fehlgeschlagen auf Seite %2$d (Auswahl %3$d): %1$s"
+
+msgid "Hide for this session"
+msgstr "Für diese Sitzung ausblenden"
+
+msgid "Move to the other corner"
+msgstr "In die andere Ecke verschieben"
+
+msgid "Network error."
+msgstr "Netzwerkfehler."
+
+msgid "Products are being synchronized. Progress updates live below."
+msgstr "Produkte werden synchronisiert. Der Fortschritt wird unten live aktualisiert."
+
+msgid "Products per API request (1–100)."
+msgstr "Produkte pro API-Anfrage (1–100)."
+
+msgid "Progress updates automatically — no need to refresh."
+msgstr "Der Fortschritt wird automatisch aktualisiert – kein Neuladen erforderlich."
+
+msgid "Skwirrel sync"
+msgstr "Skwirrel-Synchronisierung"
+
+msgid "Starting…"
+msgstr "Wird gestartet…"
+
+msgid "Sync completed."
+msgstr "Synchronisierung abgeschlossen."
+
+msgid "Sync stalled: a step made no progress across several attempts and was aborted (check the log for a fatal error or a problem product)."
+msgstr "Synchronisierung blockiert: Ein Schritt machte über mehrere Versuche keinen Fortschritt und wurde abgebrochen (prüfen Sie das Protokoll auf einen schwerwiegenden Fehler oder ein Problemprodukt)."
+
+msgid "Testing…"
+msgstr "Wird getestet…"
+
+msgid "View results"
+msgstr "Ergebnisse anzeigen"
+
+msgid "Your last full sync took ~%1$d min, so auto-syncs must be at least %2$d hours apart (one full hour of rest between runs)."
+msgstr "Ihre letzte vollständige Synchronisierung dauerte ~%1$d Min., daher müssen automatische Synchronisierungen mindestens %2$d Stunden auseinander liegen (eine volle Stunde Pause zwischen den Läufen)."
