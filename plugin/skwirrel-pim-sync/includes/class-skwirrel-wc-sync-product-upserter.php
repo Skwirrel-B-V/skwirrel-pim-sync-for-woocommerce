@@ -1252,6 +1252,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$this->brand_sync->assign_manufacturer( $id, $group );
 		}
 
+		// Stamp the group gate hash LAST — only after every parent aspect (taxonomy/brand/manufacturer)
+		// succeeded. If any assignment above throws, the caller swallows it and we never reach here, so
+		// no hash is stored and the next run rebuilds the parent instead of skipping it as 'unchanged'.
+		// Always stamped on success (the hash is computed unconditionally above), so a gate-disabled
+		// rebuild still leaves a hash for the next run to compare against.
+		if ( '' !== $group_hash ) {
+			update_post_meta( $id, self::GROUP_HASH_META, $group_hash );
+		}
+
 		return $is_new ? 'created' : 'updated';
 	}
 

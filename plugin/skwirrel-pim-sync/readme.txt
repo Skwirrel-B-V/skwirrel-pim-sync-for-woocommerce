@@ -86,6 +86,9 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * Improvement: the "Edit permalink settings" link opens in a new browser tab.
 * Improvement: the scheduled sync interval now has finer options (every 2/3/4/6/8 hours) and enforces a safe minimum based on how long your last full sync took — there is always at least one full hour of rest between automatic syncs, so runs can never overlap (a 45-minute sync requires at least 2 hours, 75 minutes requires 3 hours).
 * Improvement: the interface now matches your WordPress admin theme — the accent colour follows your admin colour scheme and the header matches the admin menu — with Skwirrel lime icon accents.
+* Fix: the "unchanged" gate for variable (grouped) products now works on the very first sync after installing, updating, or changing a sync setting. Previously that first run rebuilt the product correctly but did not remember its fingerprint, so the next sync still reported every variable product as "updated" once more before settling down. They are now recognised as unchanged immediately.
+* Fix: a variable product whose category, brand, or manufacturer assignment fails during a sync is no longer wrongly skipped as "unchanged" on the next run — it is retried until that part succeeds.
+* Maintenance: build and packaging hygiene — removed stray development files from the shipped plugin and tidied internal code quality. No functional change.
 
 = 3.11.1 =
 

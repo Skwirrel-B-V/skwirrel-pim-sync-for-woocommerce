@@ -1884,3 +1884,75 @@ msgstr "WooCommerce installeren"
 #~ "aangemaakt bij de volgende sync.\n"
 #~ "\n"
 #~ "Weet u zeker dat u deze categorie wilt verwijderen?"
+
+msgid " — too short"
+msgstr " — te kort"
+
+msgid "Auto-syncs must be at least %d hours apart until the first full sync has run to measure its duration."
+msgstr "Automatische synchronisaties moeten minstens %d uur uit elkaar liggen totdat de eerste volledige synchronisatie is uitgevoerd om de duur te meten."
+
+msgid "Connection successful — settings saved."
+msgstr "Verbinding geslaagd — instellingen bewaard."
+
+msgid "Enter a Skwirrel subdomain first."
+msgstr "Voer eerst een Skwirrel-subdomein in."
+
+msgid "Enter a subdomain first."
+msgstr "Voer eerst een subdomein in."
+
+msgid "Every 2 hours"
+msgstr "Elke 2 uur"
+
+msgid "Every 3 hours"
+msgstr "Elke 3 uur"
+
+msgid "Every 4 hours"
+msgstr "Elke 4 uur"
+
+msgid "Every 6 hours"
+msgstr "Elke 6 uur"
+
+msgid "Every 8 hours"
+msgstr "Elke 8 uur"
+
+msgid "Fetch failed at page %2$d (selection %3$d): %1$s"
+msgstr "Ophalen mislukt op pagina %2$d (selectie %3$d): %1$s"
+
+msgid "Hide for this session"
+msgstr "Verbergen voor deze sessie"
+
+msgid "Move to the other corner"
+msgstr "Naar de andere hoek verplaatsen"
+
+msgid "Network error."
+msgstr "Netwerkfout."
+
+msgid "Products are being synchronized. Progress updates live below."
+msgstr "Producten worden gesynchroniseerd. De voortgang wordt hieronder live bijgewerkt."
+
+msgid "Products per API request (1–100)."
+msgstr "Producten per API-verzoek (1–100)."
+
+msgid "Progress updates automatically — no need to refresh."
+msgstr "De voortgang wordt automatisch bijgewerkt — vernieuwen is niet nodig."
+
+msgid "Skwirrel sync"
+msgstr "Skwirrel-synchronisatie"
+
+msgid "Starting…"
+msgstr "Starten…"
+
+msgid "Sync completed."
+msgstr "Synchronisatie voltooid."
+
+msgid "Sync stalled: a step made no progress across several attempts and was aborted (check the log for a fatal error or a problem product)."
+msgstr "Synchronisatie vastgelopen: een stap maakte geen voortgang na meerdere pogingen en is afgebroken (controleer het logbestand op een fatale fout of een probleemproduct)."
+
+msgid "Testing…"
+msgstr "Testen…"
+
+msgid "View results"
+msgstr "Resultaten bekijken"
+
+msgid "Your last full sync took ~%1$d min, so auto-syncs must be at least %2$d hours apart (one full hour of rest between runs)."
+msgstr "Je laatste volledige synchronisatie duurde ~%1$d min, dus automatische synchronisaties moeten minstens %2$d uur uit elkaar liggen (één volledig uur rust tussen runs)."

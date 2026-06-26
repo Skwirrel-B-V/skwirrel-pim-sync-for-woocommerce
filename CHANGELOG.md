@@ -32,6 +32,20 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 
 * The main accent colour now follows the WordPress admin accent (`var(--wp-admin-theme-color)`), so the plugin matches WP 7.0's default and whatever admin colour scheme the user picked. The page header background follows the user's colour scheme too (the WP menu colour, resolved server-side from `$_wp_admin_css_colors` since core exposes no CSS variable for it; light schemes fall back to the default dark so the white header text stays legible). The dashboard tile icons and the corner sync toast use the Skwirrel lime accent (`#DDFF6D`) with dark (`#282828`) icons; the Danger Zone tile keeps its red accent. The Settings "Save settings" button now uses the native WordPress primary button.
 
+### Fix — variable-product change gate now persists its hash on the first/forced run
+
+* **Why**: the 3.11.1 gate (`includes/class-skwirrel-wc-sync-product-upserter.php`) only computed the group/virtual-content hash when the change gate was *enabled*. On a gate-disabled run — the first sync after install, a version bump, or any output-affecting settings change — the rebuilt parent was therefore left **without** a stored `_skwirrel_group_hash` / `_skwirrel_virtual_content_hash`. The very next sync had nothing to compare against, so it rebuilt and reported every variable parent as "updated" once more before finally stamping the hash — exactly the residual no-op churn the 3.11.1 gate was meant to remove.
+* **Fix**: the hash is now computed **unconditionally** (the settings signature is folded in, so a settings/version change still yields a different hash and forces the rebuild); only the early skip stays gated. A gate-disabled rebuild now leaves a hash behind, so the next unchanged sync skips cleanly.
+
+### Fix — group hash is stamped only after the parent's taxonomy/brand/manufacturer work succeeds
+
+* **Why**: the unconditional stamp was written *before* the parent category/brand/manufacturer assignments. `sync_grouped_products_first()` catches and logs a per-group failure without invalidating the run signature, so if one of those assignments threw, the parent kept a valid hash while its taxonomy work was missing — and the next gate-enabled run matched the hash, returned "unchanged", and never retried the missing work.
+* **Fix**: the hash stamp now runs **last**, after `assign_categories()`/`assign_brand()`/`assign_manufacturer()`. If any of them throws, the stamp is never reached, so the parent is rebuilt next run instead of being skipped. (The virtual-content gate already stamped only after a fully successful apply.)
+
+### Maintenance — build hygiene and static-analysis cleanup
+
+* Removed stray empty dev/tooling stubs (`.phpcs.xml.dist`, `phpstan.neon.dist`, `phpunit.xml.dist`, `phpunit-integration.xml.dist`) that had been committed into the shipped `plugin/skwirrel-pim-sync/` directory; `plugin-check` rejects them as hidden/application files. The real tooling configs live at the repo root. Dropped an unused parameter from `Sync_Service::finish_run()` (PHPCS warning). No functional change.
+
 ## [3.11.1]
 
 ### Fix — variable-product parents + virtual content are now gated (closes the 3.11.0 residual "updated" count)

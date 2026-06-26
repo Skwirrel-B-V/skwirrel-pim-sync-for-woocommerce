@@ -1816,3 +1816,75 @@ msgstr "Install WooCommerce"
 
 #~ msgid "Static token (X-Skwirrel-Api-Token)"
 #~ msgstr "Static token (X-Skwirrel-Api-Token)"
+
+msgid " — too short"
+msgstr " — too short"
+
+msgid "Auto-syncs must be at least %d hours apart until the first full sync has run to measure its duration."
+msgstr "Auto-syncs must be at least %d hours apart until the first full sync has run to measure its duration."
+
+msgid "Connection successful — settings saved."
+msgstr "Connection successful — settings saved."
+
+msgid "Enter a Skwirrel subdomain first."
+msgstr "Enter a Skwirrel subdomain first."
+
+msgid "Enter a subdomain first."
+msgstr "Enter a subdomain first."
+
+msgid "Every 2 hours"
+msgstr "Every 2 hours"
+
+msgid "Every 3 hours"
+msgstr "Every 3 hours"
+
+msgid "Every 4 hours"
+msgstr "Every 4 hours"
+
+msgid "Every 6 hours"
+msgstr "Every 6 hours"
+
+msgid "Every 8 hours"
+msgstr "Every 8 hours"
+
+msgid "Fetch failed at page %2$d (selection %3$d): %1$s"
+msgstr "Fetch failed at page %2$d (selection %3$d): %1$s"
+
+msgid "Hide for this session"
+msgstr "Hide for this session"
+
+msgid "Move to the other corner"
+msgstr "Move to the other corner"
+
+msgid "Network error."
+msgstr "Network error."
+
+msgid "Products are being synchronized. Progress updates live below."
+msgstr "Products are being synchronized. Progress updates live below."
+
+msgid "Products per API request (1–100)."
+msgstr "Products per API request (1–100)."
+
+msgid "Progress updates automatically — no need to refresh."
+msgstr "Progress updates automatically — no need to refresh."
+
+msgid "Skwirrel sync"
+msgstr "Skwirrel sync"
+
+msgid "Starting…"
+msgstr "Starting…"
+
+msgid "Sync completed."
+msgstr "Sync completed."
+
+msgid "Sync stalled: a step made no progress across several attempts and was aborted (check the log for a fatal error or a problem product)."
+msgstr "Sync stalled: a step made no progress across several attempts and was aborted (check the log for a fatal error or a problem product)."
+
+msgid "Testing…"
+msgstr "Testing…"
+
+msgid "View results"
+msgstr "View results"
+
+msgid "Your last full sync took ~%1$d min, so auto-syncs must be at least %2$d hours apart (one full hour of rest between runs)."
+msgstr "Your last full sync took ~%1$d min, so auto-syncs must be at least %2$d hours apart (one full hour of rest between runs)."
