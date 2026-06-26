@@ -1237,6 +1237,13 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			update_post_meta( $id, '_skwirrel_virtual_product_id', (int) $virtual_product_id );
 		}
 
+		// Stamp the group gate hash so the next identical run can skip this rebuild. Always stamped
+		// (the hash is computed unconditionally above), so a gate-disabled rebuild still leaves a
+		// hash for the next run to compare against.
+		if ( '' !== $group_hash ) {
+			update_post_meta( $id, self::GROUP_HASH_META, $group_hash );
+		}
+
 		$this->build_group_map( $products, (int) $id, (int) $grouped_id, $etim_variation_codes, $custom_variation_codes, $virtual_product_id, $product_to_group_map );
 
 		$this->category_sync->assign_categories( $id, $group );
