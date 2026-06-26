@@ -85,6 +85,30 @@ class Skwirrel_WC_Sync_Logger {
 	}
 
 	/**
+	 * Re-open an existing per-sync log file in append mode (no new separator).
+	 *
+	 * Used by the batched runner: each step runs in a fresh PHP process with a new Logger, so to keep
+	 * all of a run's output in ONE log file every step re-attaches to the file opened at run start.
+	 * No-op when a handle is already open (synchronous path) or no filename is given.
+	 *
+	 * @param string $filename Basename of the run's log file.
+	 */
+	public function resume_sync_log( string $filename ): void {
+		if ( $this->sync_log_handle || '' === $filename ) {
+			return;
+		}
+		$dir = self::get_log_directory();
+		self::ensure_log_directory( $dir );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Direct file I/O for log performance
+		$handle = fopen( $dir . $filename, 'a' );
+		if ( $handle ) {
+			$this->sync_log_filename = $filename;
+			$this->sync_log_handle   = $handle;
+			update_option( self::ACTIVE_LOG_OPTION, $filename, false );
+		}
+	}
+
+	/**
 	 * Get the filename of the currently active sync log, across processes.
 	 *
 	 * Returns the active log if a sync is writing one now; otherwise falls back

@@ -18,11 +18,6 @@ parameters:
 			count: 1
 			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-action-scheduler.php
 
-		-
-			message: '#^Method Skwirrel_WC_Sync_Action_Scheduler\:\:run_scheduled_sync\(\) has parameter \$args with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-action-scheduler.php
 
 		-
 			message: '#^Method Skwirrel_WC_Sync_Admin_Dashboard\:\:render_history_table\(\) has parameter \$entries with no value type specified in iterable type array\.$#'
@@ -800,24 +795,6 @@ parameters:
 
 		-
 			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:build_cc_visibility_map\(\) has parameter \$product with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php
-
-		-
-			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:create_or_update_product\(\) has parameter \$product with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php
-
-		-
-			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:create_or_update_variation\(\) has parameter \$group_info with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php
-
-		-
-			message: '#^Method Skwirrel_WC_Sync_Product_Upserter\:\:create_or_update_variation\(\) has parameter \$product with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php

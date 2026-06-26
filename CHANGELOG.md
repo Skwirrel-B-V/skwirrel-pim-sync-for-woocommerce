@@ -2,6 +2,22 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.11.1]
+
+### Fix — variable-product parents + virtual content are now gated (closes the 3.11.0 residual "updated" count)
+
+* **Why**: 3.11.0 gated simple products and variations, but explicitly left **variable-product parents and the virtual/finalize pass ungated** — so every re-sync of an unchanged catalog still re-saved all variable parents and reported them as "updated" (the steady "+54 updated" floor on a no-op resync), and re-applied their content + media each run.
+* **Fix** (`includes/class-skwirrel-wc-sync-product-upserter.php`, `…-service.php`): a content-hash gate (Option A, keyed off the existing change-gate switch) now covers both ungated spots. `create_variable_product_from_group()` compares a hash of the group definition against `_skwirrel_group_hash`; on a match it **skips the WC save, taxonomy and meta writes** (still rebuilding the in-memory product→group routing map, which variations and the virtual product need every run) and reports the new outcome **`unchanged`**. The virtual apply is wrapped in `sync_virtual_to_parent()`, which skips both the content apply **and** the media pass when the virtual payload matches `_skwirrel_virtual_content_hash`. Both hashes are stamped **only on a fully successful apply** (no partial commit), so a media failure never lets the next run skip an incomplete parent. The grouped `unchanged` count flows into the dashboard/history **Unchanged** column. Result: the residual "updated" floor drops to 0 on a no-op resync.
+
+### Fix — content-hash gate no longer just mirrors the timestamp
+
+* **Why**: the content-hash (the observe/enforce JSON-diff gate) was computed over the **raw payload including `product_updated_on`**. The Skwirrel API bumps that field on re-fetch even when the product content is identical, so the hash changed in lockstep with the timestamp — making it redundant with the timestamp gate and unable to ever converge (a no-op resync still showed hundreds of "mismatches").
+* **Fix** (`includes/class-skwirrel-wc-sync-product-upserter.php`): modification-metadata keys (`product_updated_on`) are now stripped before hashing via a new `HASH_EXCLUDE_KEYS` baseline (on top of the existing `skwirrel_wc_sync_content_hash_exclude` filter), so the hash reflects **content**, not the re-fetch timestamp. Extracted `payload_signature()` as an always-on variant (independent of the product hash mode) for the new group/virtual gates. Covered by `tests/Unit/ContentHashTest.php`.
+
+### Chore — green quality gates
+
+* Fixed 27 pre-existing **PHPStan** findings carried in on the branch (missing iterable value-types on the phased-sync `$ctx` context bag across the service + action-scheduler, and the upsert result types that omitted `content_hash`/`hash_status`), and removed the now-stale baseline entries for the upsert `$product`/`$group_info` params rather than suppressing the fixed errors. Cleared 14 **PHPCS** errors in the sync service (array-spacing, a `count()`-in-loop hoist, one Yoda swap). The unit-test bootstrap gained a working `add_filter`/`apply_filters` registry.
+
 ## [3.11.0]
 
 ### Change — batch sync now commits each product fully in one pass (per-product-atomic)
