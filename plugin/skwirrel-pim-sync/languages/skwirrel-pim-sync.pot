@@ -1378,3 +1378,75 @@ msgstr ""
 #: skwirrel-pim-sync.php:52
 msgid "Install WooCommerce"
 msgstr ""
+
+msgid " — too short"
+msgstr ""
+
+msgid "Auto-syncs must be at least %d hours apart until the first full sync has run to measure its duration."
+msgstr ""
+
+msgid "Connection successful — settings saved."
+msgstr ""
+
+msgid "Enter a Skwirrel subdomain first."
+msgstr ""
+
+msgid "Enter a subdomain first."
+msgstr ""
+
+msgid "Every 2 hours"
+msgstr ""
+
+msgid "Every 3 hours"
+msgstr ""
+
+msgid "Every 4 hours"
+msgstr ""
+
+msgid "Every 6 hours"
+msgstr ""
+
+msgid "Every 8 hours"
+msgstr ""
+
+msgid "Fetch failed at page %2$d (selection %3$d): %1$s"
+msgstr ""
+
+msgid "Hide for this session"
+msgstr ""
+
+msgid "Move to the other corner"
+msgstr ""
+
+msgid "Network error."
+msgstr ""
+
+msgid "Products are being synchronized. Progress updates live below."
+msgstr ""
+
+msgid "Products per API request (1–100)."
+msgstr ""
+
+msgid "Progress updates automatically — no need to refresh."
+msgstr ""
+
+msgid "Skwirrel sync"
+msgstr ""
+
+msgid "Starting…"
+msgstr ""
+
+msgid "Sync completed."
+msgstr ""
+
+msgid "Sync stalled: a step made no progress across several attempts and was aborted (check the log for a fatal error or a problem product)."
+msgstr ""
+
+msgid "Testing…"
+msgstr ""
+
+msgid "View results"
+msgstr ""
+
+msgid "Your last full sync took ~%1$d min, so auto-syncs must be at least %2$d hours apart (one full hour of rest between runs)."
+msgstr ""

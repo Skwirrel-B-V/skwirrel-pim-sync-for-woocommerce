@@ -1123,8 +1123,11 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		// Change gate (Option A): an existing parent whose group definition is byte-identical to the
 		// last fully-built one needs no rebuild. We still populate the map below, but skip the WC save,
 		// taxonomy assignment and meta writes — and report 'unchanged' instead of a phantom 'updated'.
-		$group_hash = $this->change_gate_enabled ? $this->payload_signature( $group ) : '';
-		if ( ! $is_new && '' !== $group_hash
+		// Compute the hash unconditionally so it is persisted even when the gate is disabled (first run
+		// after install, a version bump, or any output-affecting settings change); only the early skip
+		// is gated, otherwise the next run would have no stored hash and rebuild every parent once more.
+		$group_hash = $this->payload_signature( $group );
+		if ( $this->change_gate_enabled && ! $is_new && '' !== $group_hash
 			&& (string) get_post_meta( (int) $wc_id, self::GROUP_HASH_META, true ) === $group_hash ) {
 			update_post_meta( (int) $wc_id, $this->mapper->get_synced_at_meta_key(), time() );
 			$this->build_group_map( $products, (int) $wc_id, (int) $grouped_id, $etim_variation_codes, $custom_variation_codes, $virtual_product_id, $product_to_group_map );
@@ -1234,8 +1237,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			update_post_meta( $id, '_skwirrel_virtual_product_id', (int) $virtual_product_id );
 		}
 
-		// Stamp the group gate hash so the next identical run can skip this rebuild (no-op when the
-		// gate is disabled, i.e. $group_hash === '').
+		// Stamp the group gate hash so the next identical run can skip this rebuild. Always stamped
+		// (the hash is computed unconditionally above), so a gate-disabled rebuild still leaves a
+		// hash for the next run to compare against.
 		if ( '' !== $group_hash ) {
 			update_post_meta( $id, self::GROUP_HASH_META, $group_hash );
 		}
@@ -1246,6 +1250,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$this->brand_sync->assign_brand( $id, $group );
 		if ( ! empty( $this->get_options()['sync_manufacturers'] ) ) {
 			$this->brand_sync->assign_manufacturer( $id, $group );
+		}
+
+		// Stamp the group gate hash LAST — only after every parent aspect (taxonomy/brand/manufacturer)
+		// succeeded. If any assignment above throws, the caller swallows it and we never reach here, so
+		// no hash is stored and the next run rebuilds the parent instead of skipping it as 'unchanged'.
+		// Always stamped on success (the hash is computed unconditionally above), so a gate-disabled
+		// rebuild still leaves a hash for the next run to compare against.
+		if ( '' !== $group_hash ) {
+			update_post_meta( $id, self::GROUP_HASH_META, $group_hash );
 		}
 
 		return $is_new ? 'created' : 'updated';
@@ -2100,8 +2113,10 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * @return string 'unchanged' (gate-skipped) | 'applied' (fully applied) | 'partial' (media failed, not stamped).
 	 */
 	public function sync_virtual_to_parent( int $wc_variable_id, array $virtual_product, bool $apply_content ): string {
-		$hash = $this->change_gate_enabled ? $this->payload_signature( $virtual_product ) : '';
-		if ( '' !== $hash
+		// Compute unconditionally so the hash is stamped even on a gate-disabled apply; only the early
+		// skip is gated, else the next run finds no stored hash and re-applies every parent once more.
+		$hash = $this->payload_signature( $virtual_product );
+		if ( $this->change_gate_enabled && '' !== $hash
 			&& (string) get_post_meta( $wc_variable_id, self::VIRTUAL_CONTENT_HASH_META, true ) === $hash ) {
 			return 'unchanged';
 		}
