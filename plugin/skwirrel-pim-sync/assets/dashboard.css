@@ -5,10 +5,15 @@
 
 /* -- Reset WP admin defaults inside dashboard -- */
 .skw-dashboard {
-	--skw-blue: #5F84C1;
-	--skw-blue-light: #C2D7FF;
+	/* Main accent follows the WordPress admin accent (auto-matches the user's colour scheme / WP 7.0
+	   default). Fixed fallbacks first for browsers without color-mix(). */
+	--skw-blue: #3858e9;
+	--skw-blue: var(--wp-admin-theme-color, #3858e9);
+	--skw-blue-light: #c2d0f7;
+	--skw-blue-light: color-mix(in srgb, var(--wp-admin-theme-color, #3858e9) 30%, #fff);
+	--skw-blue-tint: #ebeefb;
+	--skw-blue-tint: color-mix(in srgb, var(--wp-admin-theme-color, #3858e9) 8%, #fff);
 	--skw-blue-dark: #304261;
-	--skw-blue-tint: #E7EFFF;
 	--skw-green: #DDFF6D;
 	--skw-green-dark: #B8C53E;
 	--skw-dark: #282828;
@@ -33,8 +38,10 @@
    Header
    ========================================================================== */
 
+/* --skw-header-bg is injected server-side from the user's admin colour scheme (the WP menu colour),
+   so the header follows whatever admin theme the user picked. Falls back to the default menu dark. */
 .skw-header {
-	background: var(--skw-dark);
+	background: var(--skw-header-bg, #1d2327);
 	margin: -1px 0 0 -20px;
 	padding: 20px 0;
 }
@@ -231,8 +238,8 @@
 .skw-bg-slate,
 .skw-bg-yellow,
 .skw-bg-rose {
-	background: var(--skw-blue-tint);
-	color: var(--skw-blue);
+	background: var(--skw-green);
+	color: var(--skw-dark);
 }
 
 .skw-bg-red {
@@ -336,6 +343,190 @@
 /* ==========================================================================
    Sync Progress Banner
    ========================================================================== */
+
+/* Reactive banner host. The status poller injects the banner here on every admin page, so the
+   dashboard's CSS variables + font are re-declared on the host to render correctly outside
+   .skw-dashboard (e.g. inside a core admin_notices slot). Hidden while empty. */
+#skwirrel-sync-banner {
+	--skw-blue: #3858e9;
+	--skw-blue: var(--wp-admin-theme-color, #3858e9);
+	--skw-blue-light: #c2d0f7;
+	--skw-blue-light: color-mix(in srgb, var(--wp-admin-theme-color, #3858e9) 30%, #fff);
+	--skw-blue-tint: #ebeefb;
+	--skw-blue-tint: color-mix(in srgb, var(--wp-admin-theme-color, #3858e9) 8%, #fff);
+	--skw-blue-dark: #304261;
+	--skw-green: #DDFF6D;
+	--skw-green-dark: #B8C53E;
+	--skw-dark: #282828;
+	--skw-radius: 8px;
+	--skw-radius-lg: 12px;
+
+	font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	color: #1f2937;
+}
+
+#skwirrel-sync-banner:empty {
+	display: none;
+}
+
+#skwirrel-sync-banner *,
+#skwirrel-sync-banner *::before,
+#skwirrel-sync-banner *::after {
+	box-sizing: border-box;
+}
+
+/* When injected outside the dashboard layout, give the banner sensible standalone spacing. */
+.skw-dashboard #skwirrel-sync-banner .skw-progress-banner {
+	margin: 0;
+}
+
+/* Completed state shown by the poller when a running sync finishes (no reload). */
+.skw-progress-banner.skw-progress-done {
+	background: #f0fdf4;
+	border-color: #bbf7d0;
+}
+
+.skw-progress-done .skw-progress-header svg {
+	color: #16a34a;
+}
+
+/* Inline "Test connection" result */
+.skw-test-result {
+	margin-left: 12px;
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.skw-test-result.skw-test-success {
+	color: #16a34a;
+}
+
+.skw-test-result.skw-test-error {
+	color: #dc2626;
+}
+
+/* ==========================================================================
+   Sync Toast (compact status on non-Skwirrel admin pages)
+   ========================================================================== */
+
+#skwirrel-sync-toast {
+	position: fixed;
+	right: 20px;
+	bottom: 20px;
+	z-index: 100000;
+	width: 300px;
+	max-width: calc(100vw - 40px);
+	padding: 12px 14px;
+	background: #fff;
+	border: 1px solid #e6e8d8;
+	border-left: 4px solid #ddff6d;
+	border-radius: 10px;
+	box-shadow: 0 8px 24px rgba(48, 66, 97, 0.18);
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	font-size: 13px;
+	color: #1f2937;
+}
+
+#skwirrel-sync-toast[hidden] {
+	display: none;
+}
+
+#skwirrel-sync-toast.skw-toast-top {
+	top: 46px;
+	bottom: auto;
+}
+
+#skwirrel-sync-toast.skw-toast-done {
+	border-left-color: #16a34a;
+}
+
+.skw-toast-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 6px;
+}
+
+.skw-toast-title {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	font-weight: 600;
+	color: #304261;
+}
+
+.skw-toast-title::before {
+	content: "";
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #ddff6d;
+	box-shadow: 0 0 0 2px rgba(184, 197, 62, 0.35);
+	animation: skw-toast-pulse 1.4s ease-in-out infinite;
+}
+
+.skw-toast-done .skw-toast-title::before {
+	background: #16a34a;
+	animation: none;
+}
+
+@keyframes skw-toast-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.3; }
+}
+
+.skw-toast-actions {
+	display: flex;
+	gap: 2px;
+}
+
+.skw-toast-actions button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 3px 5px;
+	border: none;
+	background: none;
+	color: #6b7280;
+	font-size: 16px;
+	line-height: 1;
+	cursor: pointer;
+	border-radius: 5px;
+}
+
+.skw-toast-actions button:hover {
+	background: #f3f4f6;
+	color: #111827;
+}
+
+.skw-toast-body {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.skw-toast-step {
+	font-weight: 500;
+}
+
+.skw-toast-counter {
+	color: #6b7280;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.skw-toast-loglink {
+	display: inline-block;
+	margin-top: 8px;
+	color: #6b7a1e;
+	font-weight: 500;
+	text-decoration: none;
+}
+
+.skw-toast-loglink:hover {
+	text-decoration: underline;
+}
 
 .skw-progress-banner {
 	background: var(--skw-blue-tint);

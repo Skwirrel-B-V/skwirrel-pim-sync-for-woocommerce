@@ -1,25 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Method Skwirrel_WC_Sync_Action_Scheduler\:\:add_cron_schedules\(\) has parameter \$schedules with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-action-scheduler.php
-
-		-
-			message: '#^Method Skwirrel_WC_Sync_Action_Scheduler\:\:add_cron_schedules\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-action-scheduler.php
-
-		-
-			message: '#^Method Skwirrel_WC_Sync_Action_Scheduler\:\:get_interval_options\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-action-scheduler.php
-
-
-		-
 			message: '#^Method Skwirrel_WC_Sync_Admin_Dashboard\:\:render_history_table\(\) has parameter \$entries with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1

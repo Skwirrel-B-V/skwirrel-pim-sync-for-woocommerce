@@ -21,6 +21,9 @@ class Skwirrel_WC_Sync_Action_Scheduler {
 	/** @var string Option tracking the plugin version that last armed the schedule. */
 	private const VERSION_OPTION = 'skwirrel_wc_sync_version';
 
+	/** @var string Option storing the duration (seconds) of the last completed FULL sync. */
+	public const OPTION_FULL_DURATION = 'skwirrel_wc_sync_last_full_duration';
+
 	private static ?self $instance = null;
 
 	public static function instance(): self {
@@ -222,10 +225,36 @@ class Skwirrel_WC_Sync_Action_Scheduler {
 		}
 	}
 
+	/**
+	 * @param array<string, array{interval: int, display: string}> $schedules
+	 * @return array<string, array{interval: int, display: string}>
+	 */
 	public function add_cron_schedules( array $schedules ): array {
 		$schedules['skwirrel_twice_daily'] = [
 			'interval' => 12 * HOUR_IN_SECONDS,
 			'display'  => __( 'Twice daily', 'skwirrel-pim-sync' ),
+		];
+		// Finer multi-hour recurrences so the dynamic minimum interval (a full hour of rest after the
+		// last full sync's duration) has options to land on. WP-Cron has no built-in 2–8h recurrences.
+		$schedules['skwirrel_2_hours'] = [
+			'interval' => 2 * HOUR_IN_SECONDS,
+			'display'  => __( 'Every 2 hours', 'skwirrel-pim-sync' ),
+		];
+		$schedules['skwirrel_3_hours'] = [
+			'interval' => 3 * HOUR_IN_SECONDS,
+			'display'  => __( 'Every 3 hours', 'skwirrel-pim-sync' ),
+		];
+		$schedules['skwirrel_4_hours'] = [
+			'interval' => 4 * HOUR_IN_SECONDS,
+			'display'  => __( 'Every 4 hours', 'skwirrel-pim-sync' ),
+		];
+		$schedules['skwirrel_6_hours'] = [
+			'interval' => 6 * HOUR_IN_SECONDS,
+			'display'  => __( 'Every 6 hours', 'skwirrel-pim-sync' ),
+		];
+		$schedules['skwirrel_8_hours'] = [
+			'interval' => 8 * HOUR_IN_SECONDS,
+			'display'  => __( 'Every 8 hours', 'skwirrel-pim-sync' ),
 		];
 		// 'hourly', 'twicedaily' and 'daily' are core WP-Cron recurrences, but
 		// 'weekly' is not — without it the WP-Cron fallback path in schedule()
@@ -241,23 +270,80 @@ class Skwirrel_WC_Sync_Action_Scheduler {
 	}
 
 	private function interval_to_seconds( string $interval ): int {
+		return self::interval_seconds( $interval );
+	}
+
+	/** Seconds between runs for a sync_interval key (0 for 'Disabled'/unknown). */
+	public static function interval_seconds( string $interval ): int {
 		return match ( $interval ) {
 			'hourly' => HOUR_IN_SECONDS,
-			'twicedaily' => 12 * HOUR_IN_SECONDS,
-			'skwirrel_twice_daily' => 12 * HOUR_IN_SECONDS,
+			'skwirrel_2_hours' => 2 * HOUR_IN_SECONDS,
+			'skwirrel_3_hours' => 3 * HOUR_IN_SECONDS,
+			'skwirrel_4_hours' => 4 * HOUR_IN_SECONDS,
+			'skwirrel_6_hours' => 6 * HOUR_IN_SECONDS,
+			'skwirrel_8_hours' => 8 * HOUR_IN_SECONDS,
+			'twicedaily', 'skwirrel_twice_daily' => 12 * HOUR_IN_SECONDS,
 			'daily' => DAY_IN_SECONDS,
 			'weekly' => WEEK_IN_SECONDS,
 			default => 0,
 		};
 	}
 
+	/**
+	 * @return array<string, string>
+	 */
 	public static function get_interval_options(): array {
 		return [
-			''           => __( 'Disabled', 'skwirrel-pim-sync' ),
-			'hourly'     => __( 'Hourly', 'skwirrel-pim-sync' ),
-			'twicedaily' => __( 'Twice daily', 'skwirrel-pim-sync' ),
-			'daily'      => __( 'Daily', 'skwirrel-pim-sync' ),
-			'weekly'     => __( 'Weekly', 'skwirrel-pim-sync' ),
+			''                 => __( 'Disabled', 'skwirrel-pim-sync' ),
+			'hourly'           => __( 'Hourly', 'skwirrel-pim-sync' ),
+			'skwirrel_2_hours' => __( 'Every 2 hours', 'skwirrel-pim-sync' ),
+			'skwirrel_3_hours' => __( 'Every 3 hours', 'skwirrel-pim-sync' ),
+			'skwirrel_4_hours' => __( 'Every 4 hours', 'skwirrel-pim-sync' ),
+			'skwirrel_6_hours' => __( 'Every 6 hours', 'skwirrel-pim-sync' ),
+			'skwirrel_8_hours' => __( 'Every 8 hours', 'skwirrel-pim-sync' ),
+			'twicedaily'       => __( 'Twice daily', 'skwirrel-pim-sync' ),
+			'daily'            => __( 'Daily', 'skwirrel-pim-sync' ),
+			'weekly'           => __( 'Weekly', 'skwirrel-pim-sync' ),
 		];
+	}
+
+	/** Record the duration (seconds) of the last completed FULL sync; basis for the minimum interval. */
+	public static function record_full_sync_duration( int $seconds ): void {
+		if ( $seconds > 0 ) {
+			update_option( self::OPTION_FULL_DURATION, $seconds, false );
+		}
+	}
+
+	/** Duration (seconds) of the last completed full sync, or 0 when none has been timed yet. */
+	public static function get_full_sync_duration(): int {
+		return (int) get_option( self::OPTION_FULL_DURATION, 0 );
+	}
+
+	/**
+	 * Minimum allowed auto-sync interval in seconds: at least one full hour of rest AFTER the last full
+	 * sync's duration, rounded up to the next whole hour (45 min → 2 h, 75 min → 3 h). Until a full sync
+	 * has been timed, defaults to 2 hours so a fresh site cannot pick an interval shorter than one sync.
+	 */
+	public static function get_min_interval_seconds(): int {
+		$duration = self::get_full_sync_duration();
+		if ( $duration <= 0 ) {
+			return 2 * HOUR_IN_SECONDS;
+		}
+		$hours = (int) ceil( ( $duration + HOUR_IN_SECONDS ) / HOUR_IN_SECONDS );
+		return max( 2, $hours ) * HOUR_IN_SECONDS;
+	}
+
+	/** Smallest selectable interval key whose period is >= $seconds (falls back to 'weekly'). */
+	public static function smallest_interval_at_least( int $seconds ): string {
+		$best_key = 'weekly';
+		$best_sec = PHP_INT_MAX;
+		foreach ( array_keys( self::get_interval_options() ) as $key ) {
+			$sec = self::interval_seconds( $key );
+			if ( $sec >= $seconds && $sec < $best_sec ) {
+				$best_key = $key;
+				$best_sec = $sec;
+			}
+		}
+		return $best_key;
 	}
 }

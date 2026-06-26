@@ -75,10 +75,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<?php // -- Notices slot (filled by JS) -- ?>
 			<div id="skwirrel-notices" class="skw-notices"></div>
 
-			<?php // -- Sync Progress Banner -- ?>
-			<?php if ( $sync_in_progress ) : ?>
-				<?php $this->render_sync_progress(); ?>
-			<?php endif; ?>
+			<?php // -- Sync Progress Banner (reactive; the status poller refreshes this in place) -- ?>
+			<div id="skwirrel-sync-banner">
+				<?php
+				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted plugin-generated markup; dynamic values are escaped inside the renderer.
+				echo self::get_sync_banner_html();
+				?>
+			</div>
 
 			<?php // -- Content -- ?>
 			<div class="skw-content">
@@ -190,7 +193,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					</div>
 					<div class="skw-block-body">
 						<h3 class="skw-block-title"><?php esc_html_e( 'Sync in progress…', 'skwirrel-pim-sync' ); ?></h3>
-						<p class="skw-block-desc"><?php esc_html_e( 'Products are being synchronized. This page refreshes automatically.', 'skwirrel-pim-sync' ); ?></p>
+						<p class="skw-block-desc"><?php esc_html_e( 'Products are being synchronized. Progress updates live below.', 'skwirrel-pim-sync' ); ?></p>
 					</div>
 				</div>
 			<?php else : ?>
@@ -294,15 +297,28 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	/**
 	 * Render sync progress banner.
 	 */
-	private function render_sync_progress(): void {
-		$progress      = Skwirrel_WC_Sync_History::get_sync_progress();
-		$opts          = get_option( self::OPTION_KEY, array() );
-		$current_phase = $progress['current_phase'] ?? '';
+	/**
+	 * Build the sync-progress banner markup, or '' when no sync is in progress. Shared by the dashboard
+	 * page render, the global admin-notice container, and the status AJAX endpoint, so the poller can
+	 * refresh the same banner in place on every admin screen.
+	 */
+	public static function get_sync_banner_html(): string {
+		if ( ! get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ) ) {
+			return '';
+		}
+		ob_start();
+		self::render_sync_progress();
+		return (string) ob_get_clean();
+	}
 
-		// Show only the steps the per-product-atomic sync actually runs. Categories,
-		// attributes and images are committed inside the per-product loop, so they are
-		// no longer separate steps. The variable-finalize and relations steps appear
-		// only when their settings are enabled.
+	/**
+	 * The ordered phase => label map shown to users. Only the steps the per-product-atomic sync
+	 * actually runs; the variable-finalize and relations steps appear only when their settings are on.
+	 *
+	 * @param array<string, mixed> $opts Plugin settings.
+	 * @return array<string, string>
+	 */
+	private static function phase_label_map( array $opts ): array {
 		$phases = array(
 			Skwirrel_WC_Sync_History::PHASE_FETCH    => __( 'Fetch products from API', 'skwirrel-pim-sync' ),
 			Skwirrel_WC_Sync_History::PHASE_PRODUCTS => __( 'Create & sync products', 'skwirrel-pim-sync' ),
@@ -314,6 +330,45 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			$phases[ Skwirrel_WC_Sync_History::PHASE_RELATIONS ] = __( 'Link related products', 'skwirrel-pim-sync' );
 		}
 		$phases[ Skwirrel_WC_Sync_History::PHASE_CLEANUP ] = __( 'Cleanup & finalize', 'skwirrel-pim-sync' );
+		return $phases;
+	}
+
+	/**
+	 * Current step label + counter for the compact toast shown on non-Skwirrel admin pages.
+	 *
+	 * @return array{label: string, counter: string}
+	 */
+	public static function get_current_step_summary(): array {
+		$progress      = Skwirrel_WC_Sync_History::get_sync_progress();
+		$opts          = get_option( self::OPTION_KEY, array() );
+		$phases        = self::phase_label_map( is_array( $opts ) ? $opts : array() );
+		$current_phase = is_array( $progress ) ? ( $progress['current_phase'] ?? '' ) : '';
+
+		$label      = $phases[ $current_phase ] ?? __( 'Starting…', 'skwirrel-pim-sync' );
+		$phase_data = is_array( $progress ) ? ( $progress['phases'][ $current_phase ] ?? null ) : null;
+		$current    = (int) ( $phase_data['current'] ?? 0 );
+		$total      = (int) ( $phase_data['total'] ?? 0 );
+
+		$counter = '';
+		if ( $phase_data && $total > 0 ) {
+			$counter = sprintf( '%d / %d', $current, $total );
+		} elseif ( $phase_data && Skwirrel_WC_Sync_History::PHASE_FETCH === $current_phase && $current > 0 ) {
+			/* translators: %d = number of products fetched */
+			$counter = sprintf( __( '%d fetched', 'skwirrel-pim-sync' ), $current );
+		}
+
+		return array(
+			'label'   => (string) $label,
+			'counter' => $counter,
+		);
+	}
+
+	private static function render_sync_progress(): void {
+		$progress      = Skwirrel_WC_Sync_History::get_sync_progress();
+		$opts          = get_option( self::OPTION_KEY, array() );
+		$current_phase = $progress['current_phase'] ?? '';
+
+		$phases = self::phase_label_map( is_array( $opts ) ? $opts : array() );
 
 		// Status is derived from the current phase's position in this list so a step can
 		// never get stuck pending: everything before the current phase is completed, the
@@ -374,7 +429,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					</div>
 				<?php endforeach; ?>
 			</div>
-			<p class="skw-progress-note"><?php esc_html_e( 'This page refreshes automatically every 5 seconds.', 'skwirrel-pim-sync' ); ?></p>
+			<p class="skw-progress-note"><?php esc_html_e( 'Progress updates automatically — no need to refresh.', 'skwirrel-pim-sync' ); ?></p>
 		</div>
 		<?php
 	}
@@ -596,7 +651,8 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						</div>
 					</div>
 					<div class="skw-field-actions">
-						<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skwirrel_wc_sync_test' ), 'skwirrel_wc_sync_test', '_wpnonce' ) ); ?>" class="skw-btn skw-btn-secondary"><?php esc_html_e( 'Test connection', 'skwirrel-pim-sync' ); ?></a>
+						<button type="button" id="skwirrel-test-connection" class="skw-btn skw-btn-secondary"><?php esc_html_e( 'Test connection', 'skwirrel-pim-sync' ); ?></button>
+						<span id="skwirrel-test-result" class="skw-test-result" role="status" aria-live="polite"></span>
 					</div>
 				</div>
 
@@ -606,16 +662,43 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<div class="skw-field-row">
 						<div class="skw-field">
 							<label for="sync_interval" class="skw-label"><?php esc_html_e( 'Sync interval', 'skwirrel-pim-sync' ); ?></label>
+							<?php
+							$current_interval = (string) ( $opts['sync_interval'] ?? '' );
+							$min_seconds      = Skwirrel_WC_Sync_Action_Scheduler::get_min_interval_seconds();
+							$min_hours        = (int) round( $min_seconds / HOUR_IN_SECONDS );
+							$full_duration    = Skwirrel_WC_Sync_Action_Scheduler::get_full_sync_duration();
+							?>
 							<select id="sync_interval" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_interval]" class="skw-select">
 								<?php foreach ( Skwirrel_WC_Sync_Action_Scheduler::get_interval_options() as $k => $v ) : ?>
-									<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $opts['sync_interval'] ?? '', $k ); ?>><?php echo esc_html( $v ); ?></option>
+									<?php
+									$secs = Skwirrel_WC_Sync_Action_Scheduler::interval_seconds( $k );
+									// Disable any recurrence shorter than the minimum rest window — but never the
+									// "Disabled" option nor the value already saved (so an existing setting still shows).
+									$too_short = ( '' !== $k && $secs > 0 && $secs < $min_seconds && $k !== $current_interval );
+									?>
+									<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $current_interval, $k ); ?> <?php disabled( $too_short ); ?>>
+										<?php echo esc_html( $v ); ?><?php echo $too_short ? esc_html__( ' — too short', 'skwirrel-pim-sync' ) : ''; ?>
+									</option>
 								<?php endforeach; ?>
 							</select>
-						</div>
-						<div class="skw-field">
-							<label for="batch_size" class="skw-label"><?php esc_html_e( 'Batch size', 'skwirrel-pim-sync' ); ?></label>
-							<input type="number" id="batch_size" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[batch_size]" value="<?php echo esc_attr( (string) ( $opts['batch_size'] ?? 10 ) ); ?>" min="1" max="50" class="skw-input skw-input-sm" />
-							<p class="skw-field-hint"><?php esc_html_e( 'Products per API request (1–50).', 'skwirrel-pim-sync' ); ?></p>
+							<p class="skw-field-hint">
+								<?php
+								if ( $full_duration > 0 ) {
+									printf(
+										/* translators: 1: last full sync duration in minutes, 2: minimum interval in hours */
+										esc_html__( 'Your last full sync took ~%1$d min, so auto-syncs must be at least %2$d hours apart (one full hour of rest between runs).', 'skwirrel-pim-sync' ),
+										(int) round( $full_duration / 60 ),
+										(int) $min_hours
+									);
+								} else {
+									printf(
+										/* translators: %d: minimum interval in hours */
+										esc_html__( 'Auto-syncs must be at least %d hours apart until the first full sync has run to measure its duration.', 'skwirrel-pim-sync' ),
+										(int) $min_hours
+									);
+								}
+								?>
+							</p>
 						</div>
 					</div>
 				</div>
@@ -633,6 +716,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<label class="skw-checkbox skw-checkbox-indent"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_trade_item_custom_classes]" value="1" <?php checked( ! empty( $opts['sync_trade_item_custom_classes'] ) ); ?> /> <?php esc_html_e( 'Include trade item custom classes', 'skwirrel-pim-sync' ); ?></label>
 						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_gtin_attribute]" value="1" <?php checked( ! empty( $opts['show_gtin_attribute'] ) ); ?> /> <?php esc_html_e( 'Show GTIN as product attribute', 'skwirrel-pim-sync' ); ?></label>
 						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_variant_attribute]" value="1" <?php checked( ! empty( $opts['show_variant_attribute'] ) ); ?> /> <?php esc_html_e( 'Show Variant as product attribute', 'skwirrel-pim-sync' ); ?></label>
+					</div>
+					<div class="skw-field-row">
+						<div class="skw-field">
+							<label for="batch_size" class="skw-label"><?php esc_html_e( 'Batch size', 'skwirrel-pim-sync' ); ?></label>
+							<input type="number" id="batch_size" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[batch_size]" value="<?php echo esc_attr( (string) ( $opts['batch_size'] ?? 10 ) ); ?>" min="1" max="100" class="skw-input skw-input-sm" />
+							<p class="skw-field-hint"><?php esc_html_e( 'Products per API request (1–100).', 'skwirrel-pim-sync' ); ?></p>
+						</div>
 					</div>
 					<div class="skw-field-row">
 						<div class="skw-field">
@@ -820,7 +910,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<?php esc_html_e( 'Existing product URLs will be overwritten on the next sync. This may break existing links and SEO rankings.', 'skwirrel-pim-sync' ); ?>
 					</p>
 					<p class="skw-field-hint">
-						<a href="<?php echo esc_url( $permalinks_url ); ?>"><?php esc_html_e( 'Edit permalink settings', 'skwirrel-pim-sync' ); ?> →</a>
+						<a href="<?php echo esc_url( $permalinks_url ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Edit permalink settings', 'skwirrel-pim-sync' ); ?> →</a>
 					</p>
 				</div>
 
@@ -875,7 +965,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</div>
 
 				<div class="skw-field-actions">
-					<button type="submit" class="skw-btn skw-btn-primary"><?php esc_html_e( 'Save settings', 'skwirrel-pim-sync' ); ?></button>
+					<button type="submit" class="button button-primary button-large"><?php esc_html_e( 'Save settings', 'skwirrel-pim-sync' ); ?></button>
 				</div>
 			</form>
 		</div>
