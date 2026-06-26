@@ -17,6 +17,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	private const EXTERNAL_ID_META = '_skwirrel_external_id';
 	private const PRODUCT_ID_META  = '_skwirrel_product_id';
 	private const SYNCED_AT_META   = '_skwirrel_synced_at';
+	private const UPDATED_ON_META  = '_skwirrel_updated_on';
 	public const CATEGORY_ID_META  = '_skwirrel_category_id';
 
 	private Skwirrel_WC_Sync_Logger $logger;
@@ -249,6 +250,20 @@ class Skwirrel_WC_Sync_Product_Mapper {
 
 	public function get_image_attachment_ids( array $product, int $product_id = 0 ): array {
 		return $this->attachment->get_image_attachment_ids( $product, $product_id );
+	}
+
+	/**
+	 * Image-import failures from the most recent get_image_attachment_ids() call (0 = all imported).
+	 */
+	public function get_last_image_failure_count(): int {
+		return $this->attachment->get_last_image_failure_count();
+	}
+
+	/**
+	 * Total media-import failures (images + downloadable files + documents) from the most recent calls.
+	 */
+	public function get_last_media_failure_count(): int {
+		return $this->attachment->get_last_media_failure_count();
 	}
 
 	public function get_downloadable_files( array $product, int $product_id = 0 ): array {
@@ -523,6 +538,10 @@ class Skwirrel_WC_Sync_Product_Mapper {
 
 	public function get_synced_at_meta_key(): string {
 		return self::SYNCED_AT_META;
+	}
+
+	public function get_updated_on_meta_key(): string {
+		return self::UPDATED_ON_META;
 	}
 
 	// ------------------------------------------------------------------

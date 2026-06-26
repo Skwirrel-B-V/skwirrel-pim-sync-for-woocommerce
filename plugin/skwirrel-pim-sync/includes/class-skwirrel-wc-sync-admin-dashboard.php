@@ -135,10 +135,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 
 		// Last sync status summary.
 		if ( $last_result ) {
-			$created = (int) ( $last_result['created'] ?? 0 );
-			$updated = (int) ( $last_result['updated'] ?? 0 );
-			$failed  = (int) ( $last_result['failed'] ?? 0 );
-			$total   = $created + $updated + $failed;
+			$created   = (int) ( $last_result['created'] ?? 0 );
+			$updated   = (int) ( $last_result['updated'] ?? 0 );
+			$unchanged = (int) ( $last_result['unchanged'] ?? 0 );
+			$failed    = (int) ( $last_result['failed'] ?? 0 );
+			$total     = $created + $updated + $unchanged + $failed;
 		}
 
 		?>
@@ -162,6 +163,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							&mdash;
 							<span class="skw-c-green"><?php echo esc_html( (string) $created ); ?> <?php esc_html_e( 'created', 'skwirrel-pim-sync' ); ?></span>,
 							<span class="skw-c-blue"><?php echo esc_html( (string) $updated ); ?> <?php esc_html_e( 'updated', 'skwirrel-pim-sync' ); ?></span>,
+							<span class="skw-c-muted"><?php echo esc_html( (string) $unchanged ); ?> <?php esc_html_e( 'unchanged', 'skwirrel-pim-sync' ); ?></span>,
 							<span class="skw-c-red"><?php echo esc_html( (string) $failed ); ?> <?php esc_html_e( 'failed', 'skwirrel-pim-sync' ); ?></span>
 						<?php else : ?>
 							<?php echo ! empty( $last_result['timestamp'] ) ? esc_html( $this->format_datetime( $last_result['timestamp'] ) ) : ''; ?>
@@ -293,22 +295,31 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 * Render sync progress banner.
 	 */
 	private function render_sync_progress(): void {
-		$progress = Skwirrel_WC_Sync_History::get_sync_progress();
-		$opts     = get_option( self::OPTION_KEY, array() );
+		$progress      = Skwirrel_WC_Sync_History::get_sync_progress();
+		$opts          = get_option( self::OPTION_KEY, array() );
+		$current_phase = $progress['current_phase'] ?? '';
 
-		$taxonomy_label = ! empty( $opts['sync_manufacturers'] )
-			? __( 'Assign categories, brands & manufacturers', 'skwirrel-pim-sync' )
-			: __( 'Assign categories & brands', 'skwirrel-pim-sync' );
-
+		// Show only the steps the per-product-atomic sync actually runs. Categories,
+		// attributes and images are committed inside the per-product loop, so they are
+		// no longer separate steps. The variable-finalize and relations steps appear
+		// only when their settings are enabled.
 		$phases = array(
-			Skwirrel_WC_Sync_History::PHASE_FETCH      => __( 'Fetch products from API', 'skwirrel-pim-sync' ),
-			Skwirrel_WC_Sync_History::PHASE_PRODUCTS   => __( 'Create & update products', 'skwirrel-pim-sync' ),
-			Skwirrel_WC_Sync_History::PHASE_TAXONOMY   => $taxonomy_label,
-			Skwirrel_WC_Sync_History::PHASE_ATTRIBUTES => __( 'Connect attributes', 'skwirrel-pim-sync' ),
-			Skwirrel_WC_Sync_History::PHASE_MEDIA      => __( 'Download images & documents', 'skwirrel-pim-sync' ),
-			Skwirrel_WC_Sync_History::PHASE_RELATIONS  => __( 'Link related products', 'skwirrel-pim-sync' ),
-			Skwirrel_WC_Sync_History::PHASE_CLEANUP    => __( 'Cleanup & finalize', 'skwirrel-pim-sync' ),
+			Skwirrel_WC_Sync_History::PHASE_FETCH    => __( 'Fetch products from API', 'skwirrel-pim-sync' ),
+			Skwirrel_WC_Sync_History::PHASE_PRODUCTS => __( 'Create & sync products', 'skwirrel-pim-sync' ),
 		);
+		if ( ! empty( $opts['sync_grouped_products'] ) ) {
+			$phases[ Skwirrel_WC_Sync_History::PHASE_MEDIA ] = __( 'Finalize variable products', 'skwirrel-pim-sync' );
+		}
+		if ( ! empty( $opts['sync_related_products'] ) ) {
+			$phases[ Skwirrel_WC_Sync_History::PHASE_RELATIONS ] = __( 'Link related products', 'skwirrel-pim-sync' );
+		}
+		$phases[ Skwirrel_WC_Sync_History::PHASE_CLEANUP ] = __( 'Cleanup & finalize', 'skwirrel-pim-sync' );
+
+		// Status is derived from the current phase's position in this list so a step can
+		// never get stuck pending: everything before the current phase is completed, the
+		// current phase uses its own stored status, everything after is pending.
+		$phase_keys    = array_keys( $phases );
+		$current_index = array_search( $current_phase, $phase_keys, true );
 
 		$live_log_url = add_query_arg( 'tab', 'debug', admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ) . '#skwirrel-live-log';
 		?>
@@ -323,9 +334,20 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<?php foreach ( $phases as $key => $label ) : ?>
 					<?php
 					$phase_data = $progress['phases'][ $key ] ?? null;
-					$status     = $phase_data['status'] ?? 'pending';
-					$current    = $phase_data['current'] ?? 0;
-					$total      = $phase_data['total'] ?? 0;
+					$position   = array_search( $key, $phase_keys, true );
+
+					if ( false === $current_index ) {
+						$status = 'pending';
+					} elseif ( $position < $current_index ) {
+						$status = 'completed';
+					} elseif ( $position === $current_index ) {
+						$status = $phase_data['status'] ?? 'in_progress';
+					} else {
+						$status = 'pending';
+					}
+
+					$current = $phase_data['current'] ?? 0;
+					$total   = $phase_data['total'] ?? 0;
 
 					$counter = '';
 					if ( $phase_data && $total > 0 ) {
@@ -418,6 +440,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<th class="skw-th-left"><?php esc_html_e( 'Status', 'skwirrel-pim-sync' ); ?></th>
 						<th class="skw-th-right"><?php esc_html_e( 'Created', 'skwirrel-pim-sync' ); ?></th>
 						<th class="skw-th-right"><?php esc_html_e( 'Updated', 'skwirrel-pim-sync' ); ?></th>
+						<th class="skw-th-right"><?php esc_html_e( 'Unchanged', 'skwirrel-pim-sync' ); ?></th>
 						<th class="skw-th-right"><?php esc_html_e( 'Failed', 'skwirrel-pim-sync' ); ?></th>
 						<th class="skw-th-right"><?php esc_html_e( 'Deleted', 'skwirrel-pim-sync' ); ?></th>
 						<th class="skw-th-right"><?php esc_html_e( 'Total', 'skwirrel-pim-sync' ); ?></th>
@@ -435,9 +458,10 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						$is_purge      = ( Skwirrel_WC_Sync_History::TRIGGER_PURGE === $entry_trigger );
 						$created       = (int) ( $entry['created'] ?? 0 );
 						$updated       = (int) ( $entry['updated'] ?? 0 );
+						$unchanged     = (int) ( $entry['unchanged'] ?? 0 );
 						$failed        = (int) ( $entry['failed'] ?? 0 );
 						$trashed       = (int) ( $entry['trashed'] ?? 0 );
-						$total         = $is_purge ? $trashed : ( $created + $updated + $failed );
+						$total         = $is_purge ? $trashed : ( $created + $updated + $unchanged + $failed );
 						$trigger_label = $trigger_labels[ $entry_trigger ] ?? $trigger_labels[ Skwirrel_WC_Sync_History::TRIGGER_MANUAL ];
 						$log_file      = $entry['log_file'] ?? '';
 						$log_exists    = '' !== $log_file && file_exists( Skwirrel_WC_Sync_Logger::get_log_directory() . $log_file );
@@ -457,7 +481,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							}
 							?>
 							<tr class="skw-date-row">
-								<th colspan="9" class="skw-date-header"><?php echo esc_html( $date_label ); ?></th>
+								<th colspan="10" class="skw-date-header"><?php echo esc_html( $date_label ); ?></th>
 							</tr>
 						<?php endif; ?>
 						<tr class="skw-entry-row <?php echo $is_purge ? 'skw-row-purge' : ''; ?>">
@@ -474,6 +498,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							</td>
 							<td class="skw-td-right skw-c-green"><?php echo esc_html( (string) $created ); ?></td>
 							<td class="skw-td-right skw-c-blue"><?php echo esc_html( (string) $updated ); ?></td>
+							<td class="skw-td-right skw-c-muted"><?php echo esc_html( (string) $unchanged ); ?></td>
 							<td class="skw-td-right skw-c-red"><?php echo esc_html( (string) $failed ); ?></td>
 							<td class="skw-td-right skw-c-yellow"><?php echo esc_html( (string) $trashed ); ?></td>
 							<td class="skw-td-right skw-td-bold"><?php echo esc_html( (string) $total ); ?></td>

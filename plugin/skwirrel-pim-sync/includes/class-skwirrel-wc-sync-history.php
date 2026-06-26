@@ -177,6 +177,8 @@ class Skwirrel_WC_Sync_History {
 	 * @param int    $trashed            Number of stale products trashed.
 	 * @param int    $categories_removed Number of stale categories removed.
 	 * @param string $trigger            What initiated the sync: 'manual', 'scheduled', or 'purge'.
+	 * @param string $log_file           Per-sync log filename (empty if none).
+	 * @param int    $unchanged          Number of products skipped as unchanged.
 	 *
 	 * @return void
 	 */
@@ -191,12 +193,14 @@ class Skwirrel_WC_Sync_History {
 		int $trashed = 0,
 		int $categories_removed = 0,
 		string $trigger = self::TRIGGER_MANUAL,
-		string $log_file = ''
+		string $log_file = '',
+		int $unchanged = 0
 	): void {
 		$result = [
 			'success'            => $ok,
 			'created'            => $created,
 			'updated'            => $updated,
+			'unchanged'          => $unchanged,
 			'failed'             => $failed,
 			'trashed'            => $trashed,
 			'categories_removed' => $categories_removed,
@@ -345,8 +349,10 @@ class Skwirrel_WC_Sync_History {
 			'status'  => $current >= $total && $total > 0 ? 'completed' : 'in_progress',
 		];
 
-		// Mark earlier phases as completed
-		$phase_order = [ self::PHASE_FETCH, self::PHASE_PRODUCTS, self::PHASE_TAXONOMY, self::PHASE_ATTRIBUTES, self::PHASE_MEDIA, self::PHASE_RELATIONS, self::PHASE_CLEANUP ];
+		// Mark earlier phases as completed. Order matches the per-product-atomic flow:
+		// categories/attributes/images are committed inside PHASE_PRODUCTS, so PHASE_TAXONOMY
+		// and PHASE_ATTRIBUTES are no longer reported as separate phases.
+		$phase_order = [ self::PHASE_FETCH, self::PHASE_PRODUCTS, self::PHASE_MEDIA, self::PHASE_RELATIONS, self::PHASE_CLEANUP ];
 		$reached     = false;
 		foreach ( $phase_order as $p ) {
 			if ( $p === $phase ) {

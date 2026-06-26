@@ -1,5 +1,17 @@
 [
   {
+    "id": "session-1782122129695-1",
+    "tabId": 1,
+    "command": null,
+    "label": "Terminal",
+    "emoji": "▷",
+    "icon": "terminal-window",
+    "claudeSessionId": "e03e154a-efe3-4cbf-8ce1-589b3d704cbb",
+    "createdAt": "2026-06-22T09:55:29.695Z",
+    "projectPath": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress",
+    "projectName": "wordpress"
+  },
+  {
     "id": "session-1781082533714-2",
     "tabId": 2,
     "command": "/bmad-help We have a skwirrel wordpress plugin to connect Wordpress Woocommerce Shop with our PIM system",

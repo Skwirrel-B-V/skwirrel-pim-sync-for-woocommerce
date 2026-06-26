@@ -32,6 +32,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	/** @var array<int, array<string, bool>> Deferred attribute visibility: parent_id => [label => visible] */
 	private array $deferred_parent_attr_visibility = [];
 
+	/** When true, a re-sync skips products whose Skwirrel `product_updated_on` has not advanced. */
+	private bool $change_gate_enabled = false;
+
 	/**
 	 *
 	 * @param Skwirrel_WC_Sync_Logger          $logger          Logger instance.
@@ -58,6 +61,39 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$this->brand_sync       = $brand_sync;
 		$this->taxonomy_manager = $taxonomy_manager;
 		$this->slug_resolver    = $slug_resolver;
+	}
+
+	/**
+	 * Enable/disable the change gate for the current run. When enabled, an existing product whose
+	 * Skwirrel `product_updated_on` matches the stored value is reported 'unchanged' and skipped.
+	 * The service disables it for the first run / after a settings change so everything reprocesses.
+	 *
+	 * @param bool $enabled Whether to skip unchanged products this run.
+	 */
+	public function set_change_gate_enabled( bool $enabled ): void {
+		$this->change_gate_enabled = $enabled;
+	}
+
+	/**
+	 * Decide whether an existing product can be skipped as unchanged.
+	 *
+	 * Pure decision (no side effects) so it is unit-testable: only an existing product (not new),
+	 * with the gate enabled and a non-empty incoming `product_updated_on` that equals the stored
+	 * value, counts as unchanged. Anything missing/different is treated as changed.
+	 *
+	 * @param bool   $is_new              Whether the product is being created.
+	 * @param string $stored_updated_on   `_skwirrel_updated_on` currently on the WC product.
+	 * @param string $incoming_updated_on `product_updated_on` from the fresh payload.
+	 * @return bool True when the product is unchanged and may be skipped.
+	 */
+	public function is_unchanged( bool $is_new, string $stored_updated_on, string $incoming_updated_on ): bool {
+		if ( ! $this->change_gate_enabled || $is_new ) {
+			return false;
+		}
+		if ( '' === $stored_updated_on || '' === $incoming_updated_on ) {
+			return false;
+		}
+		return $stored_updated_on === $incoming_updated_on;
 	}
 
 	/**
@@ -119,41 +155,14 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 		}
 
-		// Voorkom dubbele SKU bij nieuw product: als een ander product al deze SKU heeft,
-		// genereer een unieke SKU met suffix
-		$is_new = ! $wc_id;
-		if ( $is_new ) {
-			$existing_sku_id = wc_get_product_id_by_sku( $sku );
-			if ( $existing_sku_id ) {
-				$original_sku = $sku;
-				$sku          = $sku . '-' . ( $skwirrel_product_id ?? uniqid() );
-				$this->logger->warning(
-					'Dubbele SKU voorkomen bij nieuw product',
-					[
-						'original_sku'        => $original_sku,
-						'new_sku'             => $sku,
-						'existing_wc_id'      => $existing_sku_id,
-						'skwirrel_product_id' => $skwirrel_product_id,
-					]
-				);
-			}
-		} else {
-			// Bestaand product: controleer of SKU is veranderd en geen conflict veroorzaakt
-			$existing_sku_id = wc_get_product_id_by_sku( $sku );
-			if ( $existing_sku_id && (int) $existing_sku_id !== (int) $wc_id ) {
-				$original_sku = $sku;
-				$sku          = $sku . '-' . ( $skwirrel_product_id ?? uniqid() );
-				$this->logger->warning(
-					'SKU conflict bij update, unieke SKU gegenereerd',
-					[
-						'original_sku'      => $original_sku,
-						'new_sku'           => $sku,
-						'wc_id'             => $wc_id,
-						'conflicting_wc_id' => $existing_sku_id,
-					]
-				);
-			}
+		// Voorkom dubbele SKU — single-sourced; hergebruik-of-sla-over i.p.v. een duplicaat aanmaken (F7).
+		$identity = $this->resolve_sku_identity( (int) $wc_id, $sku, $skwirrel_product_id );
+		if ( $identity['skip'] ) {
+			return 'skipped';
 		}
+		$wc_id  = $identity['wc_id'];
+		$is_new = $identity['is_new'];
+		$sku    = $identity['sku'];
 
 		$this->logger->verbose(
 			'Upsert product',
@@ -203,7 +212,11 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$wc_product->set_short_description( $this->mapper->get_short_description( $product ) );
 		$wc_product->set_description( $this->mapper->get_long_description( $product ) );
-		$wc_product->set_status( $this->mapper->get_status( $product ) );
+		// Incomplete = currently draft AND missing the gate stamp (a partial-run retry). A legacy
+		// <3.11 product also lacks the stamp but is already published — never re-hold it as draft.
+		$is_incomplete = ! $is_new && '' === (string) get_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key(), true ) && 'draft' === $wc_product->get_status();
+		$status_plan   = $this->resolve_initial_status( $is_new, $is_incomplete, $this->mapper->get_status( $product ) );
+		$wc_product->set_status( $status_plan['status'] );
 
 		$price = $this->mapper->get_regular_price( $product );
 		if ( $this->mapper->is_price_on_request( $product ) ) {
@@ -279,6 +292,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		update_post_meta( $id, $this->mapper->get_external_id_meta_key(), $key );
 		update_post_meta( $id, $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		update_post_meta( $id, $this->mapper->get_synced_at_meta_key(), time() );
+		// NB: _skwirrel_updated_on (the change-gate key) is stamped only AFTER the product is fully
+		// committed (all aspects + publish) — by the caller (batch loop) / end of this method
+		// (single) — so a partial commit or crash never marks an incomplete product as "synced".
 
 		// Store raw API response for debugging.
 		update_post_meta( $id, '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
@@ -293,7 +309,11 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			update_post_meta( $id, '_product_gtin', $gtin );
 		}
 
-		$img_ids = $this->mapper->get_image_attachment_ids( $product, $id );
+		// Track media completeness: a swallowed image-import failure (importer returns 0) or a
+		// download/document save error keeps this product held as draft and unstamped, so the next
+		// sync reprocesses it instead of leaving a bare product live / gated 'unchanged'.
+		$media_complete = true;
+		$img_ids        = $this->mapper->get_image_attachment_ids( $product, $id );
 		if ( ! empty( $img_ids ) ) {
 			$wc_product->set_image_id( $img_ids[0] );           // First image = featured
 			$wc_product->set_gallery_image_ids( array_slice( $img_ids, 1 ) ); // All others = gallery
@@ -309,6 +329,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$wc_product->save();
 			}
 		} catch ( \Throwable $e ) {
+			$media_complete = false;
 			$this->logger->warning(
 				'Downloadable files save failed, continuing with sync',
 				[
@@ -322,6 +343,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$documents = $this->mapper->get_document_attachments( $product, $id );
 			update_post_meta( $id, '_skwirrel_document_attachments', $documents );
 		} catch ( \Throwable $e ) {
+			$media_complete = false;
 			$this->logger->warning(
 				'Document attachments save failed, continuing with sync',
 				[
@@ -329,6 +351,12 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					'error' => $e->getMessage(),
 				]
 			);
+		}
+
+		// Swallowed image/file/document import failures (importer returns 0, no throw) must also
+		// keep the product held as draft/unstamped, so check the combined count after all media.
+		if ( $this->mapper->get_last_media_failure_count() > 0 ) {
+			$media_complete = false;
 		}
 
 		// Save custom class text meta (T/B types)
@@ -392,6 +420,17 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					'names'      => array_keys( $attrs ),
 				]
 			);
+		}
+
+		// Publish a held-draft product AND stamp the change-gate timestamp ONLY when every aspect
+		// (including media) succeeded. On a partial commit leave it draft and unstamped so the next
+		// sync retries — never a bare product live, never gated 'unchanged' while incomplete.
+		if ( $media_complete ) {
+			if ( $status_plan['pending_publish'] ) {
+				$wc_product->set_status( 'publish' );
+				$wc_product->save();
+			}
+			update_post_meta( $id, $this->mapper->get_updated_on_meta_key(), (string) ( $product['product_updated_on'] ?? '' ) );
 		}
 
 		return $is_new ? 'created' : 'updated';
@@ -1168,7 +1207,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * handled by separate phase methods.
 	 *
 	 * @param array $product Skwirrel product data.
-	 * @return array{wc_id: int, outcome: string} WC product ID and 'created'|'updated'|'skipped'.
+	 * @return array{wc_id: int, outcome: string, pending_publish?: bool} WC product ID, 'created'|'updated'|'skipped', and (on create) whether the caller must publish it once fully committed.
 	 */
 	public function create_or_update_product( array $product ): array {
 		$key = $this->mapper->get_unique_key( $product );
@@ -1198,19 +1237,17 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$wc_id = $this->lookup->find_by_skwirrel_product_id( (int) $skwirrel_product_id );
 		}
 
-		// Duplicate SKU protection
-		$is_new = ! $wc_id;
-		if ( $is_new ) {
-			$existing_sku_id = wc_get_product_id_by_sku( $sku );
-			if ( $existing_sku_id ) {
-				$sku = $sku . '-' . ( $skwirrel_product_id ?? uniqid() );
-			}
-		} else {
-			$existing_sku_id = wc_get_product_id_by_sku( $sku );
-			if ( $existing_sku_id && (int) $existing_sku_id !== (int) $wc_id ) {
-				$sku = $sku . '-' . ( $skwirrel_product_id ?? uniqid() );
-			}
+		// Duplicate SKU protection — single-sourced; reuse-or-skip instead of minting duplicates (F7).
+		$identity = $this->resolve_sku_identity( (int) $wc_id, $sku, $skwirrel_product_id );
+		if ( $identity['skip'] ) {
+			return [
+				'wc_id'   => 0,
+				'outcome' => 'skipped',
+			];
 		}
+		$wc_id  = $identity['wc_id'];
+		$is_new = $identity['is_new'];
+		$sku    = $identity['sku'];
 
 		if ( $is_new ) {
 			$wc_product = new WC_Product_Simple();
@@ -1230,6 +1267,24 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 		}
 
+		// Change gate: an existing product whose Skwirrel `product_updated_on` has not advanced is
+		// unchanged — skip the re-save/attributes/media, but still stamp synced_at so the stale-purge
+		// never trashes it.
+		$incoming_updated_on = (string) ( $product['product_updated_on'] ?? '' );
+		$stored_updated_on   = $is_new ? '' : (string) get_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key(), true );
+		if ( $this->is_unchanged( $is_new, $stored_updated_on, $incoming_updated_on ) ) {
+			update_post_meta( $wc_id, $this->mapper->get_synced_at_meta_key(), time() );
+			return [
+				'wc_id'   => (int) $wc_id,
+				'outcome' => 'unchanged',
+			];
+		}
+		// "Incomplete" = an existing product this plugin created as draft and then failed to finish.
+		// It is detectable by being *currently draft* AND missing the gate stamp. A legacy product
+		// upgrading from <3.11 also lacks the stamp but is already published/complete — it must NOT be
+		// re-held as draft (a transient aspect failure would otherwise take a live product offline).
+		$is_incomplete = ! $is_new && '' === $stored_updated_on && 'draft' === $wc_product->get_status();
+
 		$wc_product->set_sku( $sku );
 		$wc_product->set_name( $this->mapper->get_name( $product ) );
 
@@ -1243,7 +1298,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$wc_product->set_short_description( $this->mapper->get_short_description( $product ) );
 		$wc_product->set_description( $this->mapper->get_long_description( $product ) );
-		$wc_product->set_status( $this->mapper->get_status( $product ) );
+		$status_plan = $this->resolve_initial_status( $is_new, $is_incomplete, $this->mapper->get_status( $product ) );
+		$wc_product->set_status( $status_plan['status'] );
 
 		$price = $this->mapper->get_regular_price( $product );
 		if ( $this->mapper->is_price_on_request( $product ) ) {
@@ -1283,6 +1339,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		update_post_meta( $id, $this->mapper->get_external_id_meta_key(), $key );
 		update_post_meta( $id, $this->mapper->get_product_id_meta_key(), $product['product_id'] ?? 0 );
 		update_post_meta( $id, $this->mapper->get_synced_at_meta_key(), time() );
+		// NB: _skwirrel_updated_on (the change-gate key) is stamped only AFTER the product is fully
+		// committed (all aspects + publish) — by the caller (batch loop) / end of this method
+		// (single) — so a partial commit or crash never marks an incomplete product as "synced".
 
 		// Store raw API response for debugging.
 		update_post_meta( $id, '_skwirrel_api_response', wp_json_encode( $product, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
@@ -1298,8 +1357,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 
 		return [
-			'wc_id'   => $id,
-			'outcome' => $is_new ? 'created' : 'updated',
+			'wc_id'           => $id,
+			'outcome'         => $is_new ? 'created' : 'updated',
+			'pending_publish' => $status_plan['pending_publish'],
 		];
 	}
 
@@ -1347,6 +1407,20 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				return [
 					'wc_id'   => 0,
 					'outcome' => 'skipped',
+				];
+			}
+		}
+
+		// Change gate: an existing variation whose Skwirrel `product_updated_on` has not advanced is
+		// unchanged — skip the re-save, but still stamp synced_at so the stale-purge never trashes it.
+		$incoming_updated_on = (string) ( $product['product_updated_on'] ?? '' );
+		if ( $variation_id ) {
+			$stored_updated_on = (string) get_post_meta( $variation_id, $this->mapper->get_updated_on_meta_key(), true );
+			if ( $this->is_unchanged( false, $stored_updated_on, $incoming_updated_on ) ) {
+				update_post_meta( $variation_id, $this->mapper->get_synced_at_meta_key(), time() );
+				return [
+					'wc_id'   => (int) $variation_id,
+					'outcome' => 'unchanged',
 				];
 			}
 		}
@@ -1819,17 +1893,20 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 *
 	 * @param int   $wc_id   WooCommerce product ID.
 	 * @param array $product Skwirrel product data.
-	 * @return void
+	 * @return bool True when all requested media was applied; false when an image failed to import
+	 *              or a download/document save threw (lets the caller treat the row as incomplete).
 	 */
-	public function assign_media( int $wc_id, array $product ): void {
+	public function assign_media( int $wc_id, array $product ): bool {
 		if ( ! $wc_id ) {
-			return;
+			return false;
 		}
 
 		$wc_product = wc_get_product( $wc_id );
 		if ( ! $wc_product ) {
-			return;
+			return false;
 		}
+
+		$complete = true;
 
 		$img_ids = $this->mapper->get_image_attachment_ids( $product, $wc_id );
 		if ( ! empty( $img_ids ) ) {
@@ -1837,7 +1914,6 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$wc_product->set_gallery_image_ids( array_slice( $img_ids, 1 ) );
 			$wc_product->save();
 		}
-
 		try {
 			$downloads = $this->mapper->get_downloadable_files( $product, $wc_id );
 			if ( ! empty( $downloads ) ) {
@@ -1847,6 +1923,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$wc_product->save();
 			}
 		} catch ( \Throwable $e ) {
+			$complete = false;
 			$this->logger->warning(
 				'Downloadable files save failed',
 				[
@@ -1860,6 +1937,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$documents = $this->mapper->get_document_attachments( $product, $wc_id );
 			update_post_meta( $wc_id, '_skwirrel_document_attachments', $documents );
 		} catch ( \Throwable $e ) {
+			$complete = false;
 			$this->logger->warning(
 				'Document attachments save failed',
 				[
@@ -1868,6 +1946,23 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				]
 			);
 		}
+
+		// Image/file/document imports are swallowed (the importer returns 0 and logs rather than
+		// throwing), so check the combined failure count explicitly — any missing media must mark the
+		// product incomplete (so it isn't gate-stamped / published) instead of silently complete.
+		$media_failures = $this->mapper->get_last_media_failure_count();
+		if ( $media_failures > 0 ) {
+			$complete = false;
+			$this->logger->warning(
+				'Some product media failed to import',
+				[
+					'wc_id'    => $wc_id,
+					'failures' => $media_failures,
+				]
+			);
+		}
+
+		return $complete;
 	}
 
 	/**
@@ -1996,6 +2091,123 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				'unresolved'  => count( $unresolved ),
 			]
 		);
+	}
+
+	/**
+	 * Resolve SKU-based identity + collision for a simple-product upsert.
+	 *
+	 * Single-sources the decision shared by create_or_update_product() and upsert_product()
+	 * so the two near-identical methods can never drift. Given the wc_id resolved by the lookup
+	 * chain (0 = no identity match yet) and the desired SKU, it decides:
+	 *
+	 *  - skip  : the SKU is owned by an existing *variable* product — this simple payload is that
+	 *            product's variable/variation representation (the simple<->1-member-group
+	 *            oscillation, F7). Minting a suffixed simple here is exactly what produced
+	 *            duplicates like `4250366870007-14768`; skip instead and let the grouped-product
+	 *            path own it.
+	 *  - reuse : the SKU is owned by an existing *simple* product whose identity meta we failed to
+	 *            match — reuse it (update in place) rather than minting a duplicate.
+	 *  - keep  : no collision (or, on the update path, a clash against a *different* product, in
+	 *            which case the SKU is suffixed to avoid a unique-SKU violation).
+	 *
+	 * @param int             $wc_id               WC id resolved by the lookup chain (0 if none).
+	 * @param string          $sku                 Desired SKU for this product.
+	 * @param int|string|null $skwirrel_product_id Skwirrel product_id (used for the update-path suffix).
+	 * @return array{wc_id: int, is_new: bool, sku: string, skip: bool}
+	 */
+	private function resolve_sku_identity( int $wc_id, string $sku, $skwirrel_product_id ): array {
+		$is_new = ! $wc_id;
+
+		if ( $is_new ) {
+			$existing_sku_id = wc_get_product_id_by_sku( $sku );
+			if ( $existing_sku_id ) {
+				$existing = wc_get_product( $existing_sku_id );
+				if ( $existing && $existing->is_type( 'variable' ) ) {
+					// SKU owned by a variable product — do not mint a duplicate suffixed simple (F7).
+					$this->logger->warning(
+						'SKU owned by a variable product; skipping to avoid a duplicate simple (F7)',
+						[
+							'sku'                 => $sku,
+							'wc_variable_id'      => (int) $existing_sku_id,
+							'skwirrel_product_id' => $skwirrel_product_id,
+						]
+					);
+					return [
+						'wc_id'  => 0,
+						'is_new' => true,
+						'sku'    => $sku,
+						'skip'   => true,
+					];
+				}
+				// SKU owned by an existing simple product we missed on meta — reuse it, never duplicate.
+				$this->logger->info(
+					'Reusing existing product by SKU instead of minting a duplicate (F7)',
+					[
+						'sku'                 => $sku,
+						'reused_wc_id'        => (int) $existing_sku_id,
+						'skwirrel_product_id' => $skwirrel_product_id,
+					]
+				);
+				return [
+					'wc_id'  => (int) $existing_sku_id,
+					'is_new' => false,
+					'sku'    => $sku,
+					'skip'   => false,
+				];
+			}
+		} else {
+			$existing_sku_id = wc_get_product_id_by_sku( $sku );
+			if ( $existing_sku_id && (int) $existing_sku_id !== (int) $wc_id ) {
+				// Desired SKU taken by a *different* product — suffix to avoid a unique-SKU clash.
+				$original_sku = $sku;
+				$sku          = $sku . '-' . ( $skwirrel_product_id ?? uniqid() );
+				$this->logger->warning(
+					'SKU conflict on update; generated a unique SKU',
+					[
+						'original_sku'      => $original_sku,
+						'new_sku'           => $sku,
+						'wc_id'             => $wc_id,
+						'conflicting_wc_id' => (int) $existing_sku_id,
+					]
+				);
+			}
+		}
+
+		return [
+			'wc_id'  => $wc_id,
+			'is_new' => $is_new,
+			'sku'    => $sku,
+			'skip'   => false,
+		];
+	}
+
+	/**
+	 * Decide the post status to set when first writing a product, and whether the caller
+	 * must flip it to its real status after the per-product commit completes.
+	 *
+	 * A product that is not yet proven fully committed — a brand-new one, OR an existing one left
+	 * incomplete by an earlier partial run (no stored `_skwirrel_updated_on`) — whose real status is
+	 * 'publish' is written as 'draft' first, so a run that dies mid-commit (e.g. during image
+	 * download) never leaves a bare, *published* product on the storefront; the caller publishes it
+	 * only once it is fully committed. Already-complete existing products — and new draft/trashed
+	 * ones — keep their real status (we never unpublish a live product mid-resync).
+	 *
+	 * @param bool   $is_new        Whether the product is being created (vs updated).
+	 * @param bool   $is_incomplete Existing product with no stored timestamp (a partial-run retry).
+	 * @param string $final_status  The product's real target status (publish|draft|trash).
+	 * @return array{status: string, pending_publish: bool}
+	 */
+	private function resolve_initial_status( bool $is_new, bool $is_incomplete, string $final_status ): array {
+		if ( ( $is_new || $is_incomplete ) && 'publish' === $final_status ) {
+			return [
+				'status'          => 'draft',
+				'pending_publish' => true,
+			];
+		}
+		return [
+			'status'          => $final_status,
+			'pending_publish' => false,
+		];
 	}
 
 	/**
