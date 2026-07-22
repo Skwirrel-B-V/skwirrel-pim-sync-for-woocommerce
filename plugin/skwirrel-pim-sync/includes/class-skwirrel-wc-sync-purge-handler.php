@@ -511,6 +511,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			$this->logger->verbose( 'Stale-product handling skipped: "no longer available at source" is mapped to keep (publish).' );
 			return 0;
 		}
+		$updated_on_meta = $mapper->get_updated_on_meta_key();
 
 		// Find products with _skwirrel_external_id that were NOT updated during this sync.
 		// Safety check: meta_value must be numeric (prevent corrupt data from causing incorrect trashing).
@@ -610,6 +611,9 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			$product->set_status( $missing_state );
 			$product->save();
 			$this->reset_deprecated_counter_on_entry( (int) $post_id, $missing_state );
+			// Invalidate the change gate: if this hidden product later reappears with an unchanged
+			// product_updated_on, is_unchanged() would otherwise skip it and it would never be revived.
+			delete_post_meta( (int) $post_id, $updated_on_meta );
 			++$trashed;
 
 			// Variable product: also apply the state to its variations.
@@ -621,6 +625,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 						$variation->set_status( $missing_state );
 						$variation->save();
 						$this->reset_deprecated_counter_on_entry( (int) $vid, $missing_state );
+						delete_post_meta( (int) $vid, $updated_on_meta );
 						++$trashed;
 					}
 				}
@@ -671,6 +676,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		$grouped_meta     = Skwirrel_WC_Sync_Product_Lookup::GROUPED_PRODUCT_ID_META;
 		$count_meta       = Skwirrel_WC_Sync_Deprecated_Status::COUNT_META;
 		$ticked_meta      = Skwirrel_WC_Sync_Deprecated_Status::TICKED_META;
+		$updated_on_meta  = $mapper->get_updated_on_meta_key();
 		$status           = Skwirrel_WC_Sync_Deprecated_Status::STATUS;
 
 		// Skwirrel-managed products/variations currently in the deprecated status. Variations are
@@ -733,6 +739,8 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			$product->save();
 			delete_post_meta( $post_id, $count_meta );
 			delete_post_meta( $post_id, $ticked_meta );
+			// Invalidate the change gate so a later unchanged reappearance is reprocessed (and revived).
+			delete_post_meta( $post_id, $updated_on_meta );
 			++$trashed;
 
 			// Variable product: cascade the trash to variations and clear their counters too.
@@ -746,6 +754,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 					}
 					delete_post_meta( (int) $vid, $count_meta );
 					delete_post_meta( (int) $vid, $ticked_meta );
+					delete_post_meta( (int) $vid, $updated_on_meta );
 				}
 			}
 		}
