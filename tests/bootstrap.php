@@ -390,6 +390,7 @@ if (!class_exists('WC_Product')) {
         protected int $image_id = 0;
         protected string $sku = '';
         protected array $children = [];
+        protected string $status = 'publish';
 
         public function __construct(int $id = 0) {
             $this->id = $id;
@@ -397,6 +398,14 @@ if (!class_exists('WC_Product')) {
 
         public function get_id(): int {
             return $this->id;
+        }
+
+        public function get_status(): string {
+            return $this->status;
+        }
+
+        public function set_status(string $status): void {
+            $this->status = $status;
         }
 
         public function is_type(string $type): bool {

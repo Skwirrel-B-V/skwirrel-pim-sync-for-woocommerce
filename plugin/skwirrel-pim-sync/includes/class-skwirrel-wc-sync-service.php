@@ -39,6 +39,14 @@ class Skwirrel_WC_Sync_Service {
 			$this->taxonomy_manager,
 			new Skwirrel_WC_Sync_Slug_Resolver()
 		);
+
+		// Apply the admin-configured status handling to the shared mapper (used by both this
+		// service and the upserter) so every action of a resumable run honours the mapping.
+		$opts = $this->get_options();
+		$this->mapper->set_status_handling(
+			is_array( $opts['status_mapping'] ?? null ) ? $opts['status_mapping'] : [],
+			is_string( $opts['status_mapping_default'] ?? null ) ? $opts['status_mapping_default'] : 'publish'
+		);
 	}
 
 	/** Run-state option (autoload off): the resumable state machine's persisted context. */
@@ -665,6 +673,13 @@ class Skwirrel_WC_Sync_Service {
 		$pending_publish = false;
 		$aspect_failed   = false;
 		$content_hash    = '';
+
+		// Discover the distinct source statuses so they can be configured in Settings.
+		// Only simple products carry a mappable status; variation members are forced to publish.
+		if ( ! $row->group_info ) {
+			$this->mapper->note_seen_status( $row->product );
+		}
+
 		try {
 			$result_item = $row->group_info
 				? $this->upserter->create_or_update_variation(
@@ -960,6 +975,8 @@ class Skwirrel_WC_Sync_Service {
 			if ( $ctx['delta'] ) {
 				$this->logger->verbose( 'Purge skipped: delta sync (only during full sync)' );
 			} else {
+				// Products no longer in the feed are handled per the configurable __missing__
+				// mapping (keep / draft / trash) inside purge_stale_products().
 				$trashed = $this->purge_handler->purge_stale_products( $ctx['started_at'], $this->mapper );
 				if ( ! empty( $options['sync_categories'] ) ) {
 					$categories_removed = $this->purge_handler->purge_stale_categories( $ctx['seen_categories'] );
@@ -1846,18 +1863,21 @@ class Skwirrel_WC_Sync_Service {
 
 	private function get_options(): array {
 		$defaults = [
-			'endpoint_url'          => '',
-			'auth_type'             => 'bearer',
-			'auth_token'            => '',
-			'timeout'               => 30,
-			'retries'               => 2,
-			'batch_size'            => 10,
-			'sync_categories'       => true,
-			'sync_grouped_products' => false,
-			'sync_images'           => true,
-			'image_language'        => 'nl',
-			'include_languages'     => [ 'nl-NL', 'nl' ],
-			'verbose_logging'       => false,
+			'endpoint_url'           => '',
+			'auth_type'              => 'bearer',
+			'auth_token'             => '',
+			'timeout'                => 30,
+			'retries'                => 2,
+			'batch_size'             => 10,
+			'sync_categories'        => true,
+			'sync_grouped_products'  => false,
+			'sync_images'            => true,
+			'image_language'         => 'nl',
+			'include_languages'      => [ 'nl-NL', 'nl' ],
+			'verbose_logging'        => false,
+			'protect_from_deletion'  => true,
+			'status_mapping'         => [],
+			'status_mapping_default' => 'publish',
 		];
 		$saved    = get_option( 'skwirrel_wc_sync_settings', [] );
 		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );

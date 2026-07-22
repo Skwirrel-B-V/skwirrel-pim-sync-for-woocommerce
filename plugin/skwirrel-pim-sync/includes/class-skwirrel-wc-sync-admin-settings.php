@@ -262,14 +262,37 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out['verbose_logging']                 = ! empty( $input['verbose_logging'] );
 		$out['purge_stale_products']            = ! empty( $input['purge_stale_products'] );
 		$out['show_delete_warning']             = ! empty( $input['show_delete_warning'] );
+		$out['protect_from_deletion']           = ! empty( $input['protect_from_deletion'] );
 		$out['prices_managed_outside_skwirrel'] = ! empty( $input['prices_managed_outside_skwirrel'] );
-		$out['log_mode_manual']                 = in_array( $input['log_mode_manual'] ?? '', [ 'per_sync', 'per_day' ], true )
+
+		// Product status handling: map each source status (and the __trashed__/__missing__/__none__
+		// pseudo-statuses) to a WooCommerce state. Only whitelisted states are stored.
+		$valid_states   = [ 'publish', 'draft', 'trash' ];
+		$raw_mapping    = $input['status_mapping'] ?? [];
+		$status_mapping = [];
+		if ( is_array( $raw_mapping ) ) {
+			foreach ( $raw_mapping as $label => $state ) {
+				if ( count( $status_mapping ) >= 250 ) {
+					break; // Bound the stored map (defence against a crafted/oversized POST).
+				}
+				// Normalize the key identically to discovery/runtime so it matches at sync time.
+				$label = Skwirrel_WC_Sync_Product_Mapper::normalize_status_label( (string) $label );
+				if ( '' !== $label && in_array( $state, $valid_states, true ) ) {
+					$status_mapping[ $label ] = $state;
+				}
+			}
+		}
+		$out['status_mapping']         = $status_mapping;
+		$out['status_mapping_default'] = in_array( $input['status_mapping_default'] ?? '', $valid_states, true )
+			? $input['status_mapping_default']
+			: 'publish';
+		$out['log_mode_manual']        = in_array( $input['log_mode_manual'] ?? '', [ 'per_sync', 'per_day' ], true )
 			? $input['log_mode_manual']
 			: 'per_sync';
-		$out['log_mode_scheduled']              = in_array( $input['log_mode_scheduled'] ?? '', [ 'per_sync', 'per_day' ], true )
+		$out['log_mode_scheduled']     = in_array( $input['log_mode_scheduled'] ?? '', [ 'per_sync', 'per_day' ], true )
 			? $input['log_mode_scheduled']
 			: 'per_day';
-		$out['log_retention']                   = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
+		$out['log_retention']          = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
 			? $input['log_retention']
 			: '7days';
 		return $out;

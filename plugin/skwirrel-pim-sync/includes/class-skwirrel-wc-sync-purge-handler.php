@@ -502,6 +502,14 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		$external_id_meta = $mapper->get_external_id_meta_key();
 		$synced_at_meta   = $mapper->get_synced_at_meta_key();
 
+		// Products no longer present in the feed follow the configurable __missing__ mapping.
+		// 'publish' means "keep visible" — leave stale products untouched entirely.
+		$missing_state = $mapper->get_missing_state();
+		if ( 'publish' === $missing_state ) {
+			$this->logger->verbose( 'Stale-product handling skipped: "no longer available at source" is mapped to keep (publish).' );
+			return 0;
+		}
+
 		// Find products with _skwirrel_external_id that were NOT updated during this sync.
 		// Safety check: meta_value must be numeric (prevent corrupt data from causing incorrect trashing).
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -579,27 +587,35 @@ class Skwirrel_WC_Sync_Purge_Handler {
 				continue;
 			}
 
+			// Already in the target state from an earlier run: leave it untouched so we do not
+			// re-save it (and re-inflate the count) on every subsequent full sync — a stale
+			// product keeps its old _skwirrel_synced_at and would otherwise match forever.
+			if ( $product->get_status() === $missing_state ) {
+				continue;
+			}
+
 			$this->logger->info(
-				'Product removed from Skwirrel, moved to trash',
+				'Product no longer in Skwirrel feed — applying configured handling',
 				[
 					'wc_id' => $post_id,
 					'sku'   => $product->get_sku(),
 					'name'  => $product->get_name(),
 					'type'  => $product->get_type(),
+					'state' => $missing_state,
 				]
 			);
 
-			$product->set_status( 'trash' );
+			$product->set_status( $missing_state );
 			$product->save();
 			++$trashed;
 
-			// Variable product: also move variations to trash
+			// Variable product: also apply the state to its variations.
 			if ( $product->is_type( 'variable' ) ) {
 				$variation_ids = $product->get_children();
 				foreach ( $variation_ids as $vid ) {
 					$variation = wc_get_product( $vid );
-					if ( $variation && 'trash' !== $variation->get_status() ) {
-						$variation->set_status( 'trash' );
+					if ( $variation && $missing_state !== $variation->get_status() ) {
+						$variation->set_status( $missing_state );
 						$variation->save();
 						++$trashed;
 					}
