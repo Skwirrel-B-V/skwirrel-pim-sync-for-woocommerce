@@ -276,6 +276,25 @@ if (!function_exists('delete_option')) {
     }
 }
 
+// Stub wp_trash_post()/wp_delete_post() — tests may set a hook to observe call-time state.
+if (!function_exists('wp_trash_post')) {
+    function wp_trash_post(int $post_id = 0) {
+        if (isset($GLOBALS['_test_wp_trash_hook']) && is_callable($GLOBALS['_test_wp_trash_hook'])) {
+            ($GLOBALS['_test_wp_trash_hook'])($post_id);
+        }
+        return true;
+    }
+}
+
+if (!function_exists('wp_delete_post')) {
+    function wp_delete_post(int $post_id = 0, bool $force = false) {
+        if (isset($GLOBALS['_test_wp_delete_hook']) && is_callable($GLOBALS['_test_wp_delete_hook'])) {
+            ($GLOBALS['_test_wp_delete_hook'])($post_id, $force);
+        }
+        return true;
+    }
+}
+
 // Stub transient functions — backed by $GLOBALS['_test_transients'][$key] = [$value, $expires_at].
 // Tests can fast-forward time by mutating the stored expires_at.
 if (!function_exists('set_transient')) {

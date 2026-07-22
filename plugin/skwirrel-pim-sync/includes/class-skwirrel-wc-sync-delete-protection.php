@@ -19,6 +19,13 @@ class Skwirrel_WC_Sync_Delete_Protection {
 
 	private static ?self $instance = null;
 
+	/**
+	 * True while the sync itself is performing an owned trash/delete (simple→variation
+	 * conversion, grouped-parent replacement). Process-local so it bypasses the delete-lock
+	 * ONLY for the sync's own operations, never for a concurrent manual admin delete.
+	 */
+	private static bool $internal_op = false;
+
 	public static function instance(): self {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
@@ -310,6 +317,12 @@ class Skwirrel_WC_Sync_Delete_Protection {
 	 * @return mixed False to block, otherwise the unchanged $short_circuit.
 	 */
 	private function block_when_locked( $short_circuit, $post ) {
+		// The sync's own owned deletes (simple→variation conversion, grouped-parent
+		// replacement) run in the sync process and must never be blocked — only concurrent
+		// manual admin deletes (a different request, flag unset) should hit the lock.
+		if ( self::$internal_op ) {
+			return $short_circuit;
+		}
 		if ( ! ( $post instanceof \WP_Post ) ) {
 			return $short_circuit;
 		}
@@ -325,6 +338,30 @@ class Skwirrel_WC_Sync_Delete_Protection {
 			[ 'post_id' => $post->ID ]
 		);
 		return false;
+	}
+
+	/**
+	 * Perform a sync-owned trash/delete that must bypass the delete-lock.
+	 *
+	 * The sync legitimately trashes/deletes Skwirrel products while converting simples to
+	 * variations and replacing grouped parents. Those calls run inside the sync process, so a
+	 * process-local flag lets them through while a concurrent manual admin delete (a different
+	 * request, flag unset) stays blocked.
+	 *
+	 * @param int  $post_id Post to remove.
+	 * @param bool $force   When true, permanently delete; otherwise move to trash.
+	 */
+	public static function do_internal_delete( int $post_id, bool $force = false ): void {
+		self::$internal_op = true;
+		try {
+			if ( $force ) {
+				wp_delete_post( $post_id, true );
+			} else {
+				wp_trash_post( $post_id );
+			}
+		} finally {
+			self::$internal_op = false;
+		}
 	}
 
 	/**

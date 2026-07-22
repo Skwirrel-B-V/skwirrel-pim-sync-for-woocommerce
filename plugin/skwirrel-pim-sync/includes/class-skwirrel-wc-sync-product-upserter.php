@@ -550,7 +550,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					// Clear SKU on the old simple product so the variation can use it.
 					$existing_simple->set_sku( '' );
 					$existing_simple->save();
-					wp_trash_post( $existing_simple_id );
+					Skwirrel_WC_Sync_Delete_Protection::do_internal_delete( $existing_simple_id );
 					$this->logger->info(
 						'Converted simple to variation (trashed old simple)',
 						[
@@ -1102,7 +1102,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 						'wc_variable_id'     => $existing_wc_id,
 					]
 				);
-				wp_delete_post( $existing_wc_id, true );
+				Skwirrel_WC_Sync_Delete_Protection::do_internal_delete( $existing_wc_id, true );
 			}
 			$this->logger->verbose(
 				'Group has 1 member, will sync as simple product',
@@ -1141,7 +1141,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$wc_product = wc_get_product( $wc_id );
 			if ( ! $wc_product || ! $wc_product->is_type( 'variable' ) ) {
 				$wc_product = new WC_Product_Variable();
-				wp_delete_post( $wc_id, true );
+				Skwirrel_WC_Sync_Delete_Protection::do_internal_delete( $wc_id, true );
 				$is_new = true;
 			}
 		}
@@ -1582,7 +1582,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				if ( $existing_simple && $existing_simple->is_type( 'simple' ) ) {
 					$existing_simple->set_sku( '' );
 					$existing_simple->save();
-					wp_trash_post( $existing_simple_id );
+					Skwirrel_WC_Sync_Delete_Protection::do_internal_delete( $existing_simple_id );
 					$this->logger->info(
 						'Converted simple to variation (trashed old simple)',
 						[

@@ -49,3 +49,16 @@ test('deletion protection respects an explicit enable', function () {
     setProtection(true);
     expect(Skwirrel_WC_Sync_Delete_Protection::is_deletion_protection_enabled())->toBeTrue();
 });
+
+test('do_internal_delete runs the sync-owned delete with the lock bypass active, then clears it', function () {
+    $flagDuring = null;
+    $GLOBALS['_test_wp_trash_hook'] = function () use (&$flagDuring) {
+        $flagDuring = (new ReflectionProperty(Skwirrel_WC_Sync_Delete_Protection::class, 'internal_op'))->getValue();
+    };
+
+    Skwirrel_WC_Sync_Delete_Protection::do_internal_delete(123);
+    unset($GLOBALS['_test_wp_trash_hook']);
+
+    expect($flagDuring)->toBeTrue();        // the sync's own delete bypasses the lock
+    expect((new ReflectionProperty(Skwirrel_WC_Sync_Delete_Protection::class, 'internal_op'))->getValue())->toBeFalse();  // finally{} resets it
+});
