@@ -667,7 +667,6 @@ class Skwirrel_WC_Sync_Purge_Handler {
 	 * @return int Number of posts moved to trash (parents + their variations).
 	 */
 	public function escalate_deprecated( int $threshold, Skwirrel_WC_Sync_Product_Mapper $mapper, int $sync_started_at ): int {
-		global $wpdb;
 		$external_id_meta = $mapper->get_external_id_meta_key();
 		$grouped_meta     = Skwirrel_WC_Sync_Product_Lookup::GROUPED_PRODUCT_ID_META;
 		$count_meta       = Skwirrel_WC_Sync_Deprecated_Status::COUNT_META;
@@ -677,19 +676,30 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		// Skwirrel-managed products/variations currently in the deprecated status. Variations are
 		// included so an orphaned stale variation (marked deprecated while its parent stays present)
 		// still escalates; a trashed variable parent additionally cascades to its own variations.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$ids = $wpdb->get_col(
-			$wpdb->prepare(
-				"SELECT DISTINCT p.ID
-                 FROM {$wpdb->posts} p
-                 INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
-                     AND pm.meta_key IN (%s, %s) AND pm.meta_value != ''
-                 WHERE p.post_type IN ('product', 'product_variation')
-                     AND p.post_status = %s",
-				$external_id_meta,
-				$grouped_meta,
-				$status
-			)
+		// Scoped to the deprecated status (a small set), so the meta_query stays cheap.
+		$ids = get_posts(
+			[
+				'post_type'        => [ 'product', 'product_variation' ],
+				'post_status'      => $status,
+				'fields'           => 'ids',
+				'posts_per_page'   => -1,
+				'no_found_rows'    => true,
+				'suppress_filters' => true,
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- bounded to deprecated-status posts; only Skwirrel-managed items carry these keys.
+				'meta_query'       => [
+					'relation' => 'OR',
+					[
+						'key'     => $external_id_meta,
+						'value'   => '',
+						'compare' => '!=',
+					],
+					[
+						'key'     => $grouped_meta,
+						'value'   => '',
+						'compare' => '!=',
+					],
+				],
+			]
 		);
 
 		$ids = array_map( 'intval', (array) $ids );
