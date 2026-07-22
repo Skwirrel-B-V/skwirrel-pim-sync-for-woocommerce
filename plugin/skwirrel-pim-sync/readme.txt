@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 3.11.3
+Stable tag: 3.12.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,15 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.12.0 =
+
+* New: **Product status handling** — decide, per Skwirrel product status, what happens in WooCommerce: keep it published, set it to draft, move it to the trash, or mark it as **Deprecated**. Statuses are detected automatically as they appear during a sync, and you set a default for newly-seen statuses.
+* New: **Deprecated lifecycle** — retire products gradually. A product marked Deprecated is hidden in its own bucket and, after a number of full syncs you choose, is moved to the trash automatically (never permanently deleted). Set the threshold to 0 to remove immediately.
+* New: control what happens to products that are **removed/discontinued in Skwirrel** or **no longer in the feed** — keep them, set them to draft, trash them, or deprecate them.
+* Improvement: a product that was trashed and later returns is now revived in place instead of being duplicated.
+* Improvement: while a sync is running, manually deleting Skwirrel products is temporarily blocked to prevent conflicts.
+* Translations updated for Dutch, German and French.
 
 = 3.11.3 =
 

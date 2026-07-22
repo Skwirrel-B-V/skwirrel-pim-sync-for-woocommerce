@@ -2,6 +2,32 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.12.0]
+
+### Added — configurable product status handling
+
+* New **"Product status handling"** settings table: map each Skwirrel product status to a WooCommerce state — **Publish**, **Draft**, **Trash**, or the new **Deprecated** status. Statuses are discovered automatically as they appear during a sync, with a configurable default for newly-seen statuses.
+* Two built-in pseudo-statuses are configurable the same way: **"Removed / discontinued in Skwirrel"** (`product_trashed_on`) and **"No longer in the Skwirrel feed"** (a product that dropped out of the source).
+* `get_status()` resolves via this mapping (injected, kept pure/testable). Behaviour is unchanged until an admin configures a mapping — the legacy `"draft"`-substring + publish defaults are preserved.
+
+### Added — Deprecated product lifecycle
+
+* New custom **`deprecated`** WooCommerce post status: a hidden bucket (like draft, non-purchasable) with its own admin status filter, available as a fourth mapping target.
+* Configurable **"Remove deprecated products after (full syncs)"** threshold: a full-sync finalize pass advances a per-product counter (`_skwirrel_deprecated_sync_count`) and moves products to **trash** once it exceeds the threshold (`0` = immediate). Products are never permanently deleted. The counter is idempotent per run and starts fresh whenever a product re-enters the deprecated status.
+
+### Changed
+
+* **Trash-aware upsert lookup:** a Skwirrel product that was trashed (e.g. by the deprecated escalation) is now found and revived/updated in place instead of being duplicated under the same `_skwirrel_external_id`. An active row is preferred over a trashed one, and a trashed product is only revived when the incoming status is visible (publish/draft), so it never cycles trash↔deprecated. Related-products resolution and stale-purge still exclude trash by design.
+* **`protect_from_deletion`** narrowed to the manual delete-lock while a sync is running; what the sync itself does with removed/discontinued products is now governed by the status-handling mapping. The sync's own conversion deletes bypass that lock.
+
+### Fixed
+
+* Hiding or trashing a stale product now invalidates its `_skwirrel_updated_on` change-gate stamp, so a product that reappears unchanged upstream is reprocessed and revived instead of staying stuck hidden.
+
+### i18n
+
+* New status-handling and Deprecated-lifecycle UI strings translated for nl_NL, nl_BE, de_DE, fr_FR and fr_BE; catalogs regenerated and recompiled.
+
 ## [3.11.3]
 
 ### Change — dashboard UI tweaks
