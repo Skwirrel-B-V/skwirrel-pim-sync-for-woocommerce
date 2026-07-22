@@ -958,11 +958,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<p class="skw-field-hint"><?php esc_html_e( 'Choose the WooCommerce state for each Skwirrel product status. Statuses are discovered automatically as they appear during a sync. "Keep published" leaves the product visible, "Draft" hides it, and "Trash" moves it to the trash.', 'skwirrel-pim-sync' ); ?></p>
 					<?php
 					$status_map     = is_array( $opts['status_mapping'] ?? null ) ? $opts['status_mapping'] : [];
-					$status_default = in_array( $opts['status_mapping_default'] ?? '', [ 'publish', 'draft', 'trash' ], true ) ? $opts['status_mapping_default'] : 'publish';
+					$status_default = in_array( $opts['status_mapping_default'] ?? '', [ 'publish', 'draft', 'trash', 'deprecated' ], true ) ? $opts['status_mapping_default'] : 'publish';
 					$state_labels   = [
-						'publish' => __( 'Keep published', 'skwirrel-pim-sync' ),
-						'draft'   => __( 'Draft (hidden)', 'skwirrel-pim-sync' ),
-						'trash'   => __( 'Trash', 'skwirrel-pim-sync' ),
+						'publish'    => __( 'Keep published', 'skwirrel-pim-sync' ),
+						'draft'      => __( 'Draft (hidden)', 'skwirrel-pim-sync' ),
+						'trash'      => __( 'Trash', 'skwirrel-pim-sync' ),
+						'deprecated' => __( 'Deprecated (retire gradually)', 'skwirrel-pim-sync' ),
 					];
 					$seen_statuses  = get_option( Skwirrel_WC_Sync_Product_Mapper::SEEN_STATUSES_OPTION, [] );
 					if ( ! is_array( $seen_statuses ) ) {
@@ -1015,6 +1016,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							<?php endforeach; ?>
 						</tbody>
 					</table>
+					<div class="skw-field" style="margin-top: 12px;">
+						<label for="deprecated_remove_after_syncs" class="skw-label"><?php esc_html_e( 'Remove deprecated products after (full syncs)', 'skwirrel-pim-sync' ); ?></label>
+						<input type="number" id="deprecated_remove_after_syncs" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[deprecated_remove_after_syncs]" value="<?php echo esc_attr( (string) ( $opts['deprecated_remove_after_syncs'] ?? 3 ) ); ?>" min="0" max="999" class="skw-input skw-input-sm" />
+						<p class="skw-field-hint"><?php esc_html_e( 'How many full syncs a product stays in the Deprecated status before it is moved to the trash. 0 = remove immediately (trashed on the same full sync it becomes deprecated — no review window). Only applies to statuses mapped to Deprecated.', 'skwirrel-pim-sync' ); ?></p>
+					</div>
 				</div>
 
 				<?php // -- Advanced -- ?>

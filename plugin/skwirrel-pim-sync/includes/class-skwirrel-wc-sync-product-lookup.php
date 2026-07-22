@@ -31,7 +31,12 @@ class Skwirrel_WC_Sync_Product_Lookup {
 	 * Find a WooCommerce product or variation by its Skwirrel external ID meta value.
 	 *
 	 * Searches postmeta for the _skwirrel_external_id key, filtering on
-	 * post_type IN ('product', 'product_variation') and post_status NOT IN ('trash', 'auto-draft').
+	 * post_type IN ('product', 'product_variation') and post_status != 'auto-draft'.
+	 *
+	 * Trashed posts ARE matched (only 'auto-draft' placeholders are excluded): a Skwirrel product
+	 * that was trashed — e.g. by the deprecated-lifecycle escalation — must be found and revived/
+	 * updated in place on the next sync instead of being duplicated under the same external ID. An
+	 * active row is preferred over a trashed one when both happen to share the key.
 	 *
 	 * @param string $key The external ID value to search for.
 	 * @return int The WC post ID, or 0 if not found.
@@ -45,8 +50,9 @@ class Skwirrel_WC_Sync_Product_Lookup {
 				"SELECT pm.post_id FROM {$wpdb->postmeta} pm
              INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
                  AND p.post_type IN ('product', 'product_variation')
-                 AND p.post_status NOT IN ('trash', 'auto-draft')
+                 AND p.post_status != 'auto-draft'
              WHERE pm.meta_key = %s AND pm.meta_value = %s
+             ORDER BY ( p.post_status = 'trash' ) ASC
              LIMIT 1",
 				$meta_key,
 				$key
@@ -59,7 +65,11 @@ class Skwirrel_WC_Sync_Product_Lookup {
 	 * Find a WooCommerce product or variation by its Skwirrel product ID meta value.
 	 *
 	 * Searches postmeta for the _skwirrel_product_id key, filtering on
-	 * post_type IN ('product', 'product_variation') and post_status NOT IN ('trash', 'auto-draft').
+	 * post_type IN ('product', 'product_variation') and post_status != 'auto-draft'.
+	 *
+	 * Trashed posts ARE matched (only 'auto-draft' placeholders are excluded) so a Skwirrel product
+	 * trashed by the deprecated-lifecycle escalation is revived/updated in place instead of duplicated.
+	 * An active row is preferred over a trashed one when both happen to share the key.
 	 *
 	 * @param int $product_id The Skwirrel product ID to search for.
 	 * @return int The WC post ID, or 0 if not found.
@@ -73,8 +83,9 @@ class Skwirrel_WC_Sync_Product_Lookup {
 				"SELECT pm.post_id FROM {$wpdb->postmeta} pm
              INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
                  AND p.post_type IN ('product', 'product_variation')
-                 AND p.post_status NOT IN ('trash', 'auto-draft')
+                 AND p.post_status != 'auto-draft'
              WHERE pm.meta_key = %s AND pm.meta_value = %s
+             ORDER BY ( p.post_status = 'trash' ) ASC
              LIMIT 1",
 				$meta_key,
 				(string) $product_id

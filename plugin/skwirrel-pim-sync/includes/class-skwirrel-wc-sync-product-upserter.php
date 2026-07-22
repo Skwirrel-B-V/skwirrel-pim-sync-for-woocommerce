@@ -303,10 +303,14 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$wc_product->set_description( $this->mapper->get_long_description( $product ) );
 		// Incomplete = currently draft AND missing the gate stamp (a partial-run retry). A legacy
 		// <3.11 product also lacks the stamp but is already published — never re-hold it as draft.
-		$is_incomplete = ! $is_new && '' === (string) get_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key(), true ) && 'draft' === $wc_product->get_status();
-		$raw_status    = $this->mapper->get_status( $product );
-		$status_plan   = $this->resolve_initial_status( $is_new, $is_incomplete, $raw_status );
-		$wc_product->set_status( $status_plan['status'] );
+		$original_status = $is_new ? '' : $wc_product->get_status();
+		$is_incomplete   = ! $is_new && '' === (string) get_post_meta( $wc_id, $this->mapper->get_updated_on_meta_key(), true ) && 'draft' === $original_status;
+		$was_deprecated  = Skwirrel_WC_Sync_Deprecated_Status::STATUS === $original_status;
+		$raw_status      = $this->mapper->get_status( $product );
+		$status_plan     = $this->resolve_initial_status( $is_new, $is_incomplete, $raw_status );
+		$applied_status  = $this->guard_revive_from_trash( $original_status, $status_plan['status'] );
+		$wc_product->set_status( $applied_status );
+		$this->maybe_reset_deprecated_counter( (int) $wc_id, $was_deprecated, $applied_status );
 
 		$price = $this->mapper->get_regular_price( $product );
 		if ( $this->mapper->is_price_on_request( $product ) ) {
@@ -1168,7 +1172,12 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 
 		// Trashed upstream follows the configurable __trashed__ mapping (default: trash); otherwise publish.
-		$wc_product->set_status( ! empty( $group['product_trashed_on'] ) ? $this->mapper->get_trashed_state() : 'publish' );
+		$original_status = $is_new ? '' : $wc_product->get_status();
+		$was_deprecated  = Skwirrel_WC_Sync_Deprecated_Status::STATUS === $original_status;
+		$group_planned   = ! empty( $group['product_trashed_on'] ) ? $this->mapper->get_trashed_state() : 'publish';
+		$group_status    = $this->guard_revive_from_trash( $original_status, $group_planned );
+		$wc_product->set_status( $group_status );
+		$this->maybe_reset_deprecated_counter( (int) $wc_id, $was_deprecated, $group_status );
 		$wc_product->set_catalog_visibility( 'visible' );
 		$wc_product->set_stock_status( 'instock' ); // Parent must be in stock
 		$wc_product->set_manage_stock( false ); // Don't manage stock at parent level
@@ -1489,9 +1498,13 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$wc_product->set_short_description( $this->mapper->get_short_description( $product ) );
 		$wc_product->set_description( $this->mapper->get_long_description( $product ) );
-		$raw_status  = $this->mapper->get_status( $product );
-		$status_plan = $this->resolve_initial_status( $is_new, $is_incomplete, $raw_status );
-		$wc_product->set_status( $status_plan['status'] );
+		$original_status = $is_new ? '' : $wc_product->get_status();
+		$was_deprecated  = Skwirrel_WC_Sync_Deprecated_Status::STATUS === $original_status;
+		$raw_status      = $this->mapper->get_status( $product );
+		$status_plan     = $this->resolve_initial_status( $is_new, $is_incomplete, $raw_status );
+		$applied_status  = $this->guard_revive_from_trash( $original_status, $status_plan['status'] );
+		$wc_product->set_status( $applied_status );
+		$this->maybe_reset_deprecated_counter( (int) $wc_id, $was_deprecated, $applied_status );
 
 		$price = $this->mapper->get_regular_price( $product );
 		if ( $this->mapper->is_price_on_request( $product ) ) {
@@ -2429,6 +2442,44 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'sku'    => $sku,
 			'skip'   => false,
 		];
+	}
+
+	/**
+	 * Start the deprecated counter fresh whenever a product newly ENTERS the deprecated status.
+	 *
+	 * Reset-on-entry (rather than on recovery) means the grace window is fresh regardless of HOW the
+	 * product last left `deprecated` — a sync-driven recovery OR a manual republish in wp-admin (which
+	 * never runs through the sync and so could otherwise leave a stale high count behind). No-op while
+	 * a product stays deprecated, so the counter keeps advancing across syncs.
+	 *
+	 * @param int    $wc_id          The WC product ID (0 for a not-yet-saved new product — no counter yet).
+	 * @param bool   $was_deprecated Whether the product was in the deprecated status before this upsert.
+	 * @param string $new_status     The status now being applied.
+	 */
+	private function maybe_reset_deprecated_counter( int $wc_id, bool $was_deprecated, string $new_status ): void {
+		if ( $wc_id && ! $was_deprecated && Skwirrel_WC_Sync_Deprecated_Status::STATUS === $new_status ) {
+			delete_post_meta( $wc_id, Skwirrel_WC_Sync_Deprecated_Status::COUNT_META );
+			delete_post_meta( $wc_id, Skwirrel_WC_Sync_Deprecated_Status::TICKED_META );
+		}
+	}
+
+	/**
+	 * Keep an already-trashed product trashed unless the incoming status makes it visible again.
+	 *
+	 * The upsert lookups are now trash-aware, so a product trashed by the deprecated escalation is
+	 * found again on the next sync. If the source still maps it to a non-visible state (deprecated or
+	 * trash), reviving it would make it cycle trash↔deprecated forever; only a `publish`/`draft`
+	 * status brings it back. New products (current status '') are unaffected.
+	 *
+	 * @param string $current_status The product's current WC status ('' for a new product).
+	 * @param string $planned_status The status the mapping wants to apply.
+	 * @return string The status to actually apply.
+	 */
+	private function guard_revive_from_trash( string $current_status, string $planned_status ): string {
+		if ( 'trash' === $current_status && ! in_array( $planned_status, [ 'publish', 'draft' ], true ) ) {
+			return 'trash';
+		}
+		return $planned_status;
 	}
 
 	/**

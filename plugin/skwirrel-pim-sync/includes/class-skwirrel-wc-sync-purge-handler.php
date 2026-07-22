@@ -92,13 +92,14 @@ class Skwirrel_WC_Sync_Purge_Handler {
 					"SELECT DISTINCT p.ID FROM {$wpdb->posts} p
 					INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
 					WHERE p.post_type IN ('product', 'product_variation')
-					AND p.post_status IN (%s, %s, %s, %s, %s)
+					AND p.post_status IN (%s, %s, %s, %s, %s, %s)
 					AND pm.meta_key IN ('_skwirrel_external_id', '_skwirrel_grouped_product_id')",
 					'publish',
 					'draft',
 					'pending',
 					'private',
-					'trash'
+					'trash',
+					Skwirrel_WC_Sync_Deprecated_Status::STATUS
 				)
 			);
 		} else {
@@ -107,12 +108,13 @@ class Skwirrel_WC_Sync_Purge_Handler {
 					"SELECT DISTINCT p.ID FROM {$wpdb->posts} p
 					INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
 					WHERE p.post_type IN ('product', 'product_variation')
-					AND p.post_status IN (%s, %s, %s, %s)
+					AND p.post_status IN (%s, %s, %s, %s, %s)
 					AND pm.meta_key IN ('_skwirrel_external_id', '_skwirrel_grouped_product_id')",
 					'publish',
 					'draft',
 					'pending',
-					'private'
+					'private',
+					Skwirrel_WC_Sync_Deprecated_Status::STATUS
 				)
 			);
 		}
@@ -607,6 +609,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 
 			$product->set_status( $missing_state );
 			$product->save();
+			$this->reset_deprecated_counter_on_entry( (int) $post_id, $missing_state );
 			++$trashed;
 
 			// Variable product: also apply the state to its variations.
@@ -617,6 +620,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 					if ( $variation && $missing_state !== $variation->get_status() ) {
 						$variation->set_status( $missing_state );
 						$variation->save();
+						$this->reset_deprecated_counter_on_entry( (int) $vid, $missing_state );
 						++$trashed;
 					}
 				}
@@ -627,6 +631,134 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			$this->logger->info( 'Stale products cleaned up', [ 'count' => $trashed ] );
 		}
 
+		return $trashed;
+	}
+
+	/**
+	 * Start the deprecated counter fresh when a stale product newly enters the deprecated status via
+	 * the __missing__ path. Mirrors the upsert reset-on-entry so a stale count left over from a prior
+	 * deprecation period is never reused (which would trash the product early). No-op otherwise.
+	 *
+	 * The callers only invoke this on a genuine state change (guarded against "already in this state"),
+	 * so reaching here with `deprecated` always means a fresh entry.
+	 *
+	 * @param int    $post_id       The product/variation ID just set to $applied_state.
+	 * @param string $applied_state The missing-state just applied.
+	 */
+	private function reset_deprecated_counter_on_entry( int $post_id, string $applied_state ): void {
+		if ( Skwirrel_WC_Sync_Deprecated_Status::STATUS === $applied_state ) {
+			delete_post_meta( $post_id, Skwirrel_WC_Sync_Deprecated_Status::COUNT_META );
+			delete_post_meta( $post_id, Skwirrel_WC_Sync_Deprecated_Status::TICKED_META );
+		}
+	}
+
+	/**
+	 * Advance the deprecated counter for every product in the `deprecated` status and trash
+	 * those past the threshold.
+	 *
+	 * This is the ONLY place the counter increments — running it once per full-sync finalize keeps
+	 * it reliable against the change-gate (which skips unchanged products before get_status()). The
+	 * counter starts at 0, so threshold 0 removes on the first pass; removal moves to trash only.
+	 *
+	 * @param int                             $threshold        Configured deprecated_remove_after_syncs (0 = immediate).
+	 * @param Skwirrel_WC_Sync_Product_Mapper $mapper           For the external-id meta key.
+	 * @param int                             $sync_started_at  Unix start time of this run; guards against a
+	 *                                                          re-run of step_finalize double-ticking counters.
+	 * @return int Number of posts moved to trash (parents + their variations).
+	 */
+	public function escalate_deprecated( int $threshold, Skwirrel_WC_Sync_Product_Mapper $mapper, int $sync_started_at ): int {
+		$external_id_meta = $mapper->get_external_id_meta_key();
+		$grouped_meta     = Skwirrel_WC_Sync_Product_Lookup::GROUPED_PRODUCT_ID_META;
+		$count_meta       = Skwirrel_WC_Sync_Deprecated_Status::COUNT_META;
+		$ticked_meta      = Skwirrel_WC_Sync_Deprecated_Status::TICKED_META;
+		$status           = Skwirrel_WC_Sync_Deprecated_Status::STATUS;
+
+		// Skwirrel-managed products/variations currently in the deprecated status. Variations are
+		// included so an orphaned stale variation (marked deprecated while its parent stays present)
+		// still escalates; a trashed variable parent additionally cascades to its own variations.
+		// Scoped to the deprecated status (a small set), so the meta_query stays cheap.
+		$ids = get_posts(
+			[
+				'post_type'      => [ 'product', 'product_variation' ],
+				'post_status'    => $status,
+				'fields'         => 'ids',
+				'posts_per_page' => -1,
+				'no_found_rows'  => true,
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- bounded to deprecated-status posts; only Skwirrel-managed items carry these keys.
+				'meta_query'     => [
+					'relation' => 'OR',
+					[
+						'key'     => $external_id_meta,
+						'value'   => '',
+						'compare' => '!=',
+					],
+					[
+						'key'     => $grouped_meta,
+						'value'   => '',
+						'compare' => '!=',
+					],
+				],
+			]
+		);
+
+		$ids = array_map( 'intval', (array) $ids );
+		if ( empty( $ids ) ) {
+			return 0;
+		}
+
+		$trashed = 0;
+		foreach ( $ids as $post_id ) {
+			$product = wc_get_product( $post_id );
+			// Skip anything no longer deprecated — e.g. a variation already cascade-trashed earlier in
+			// this same loop by its parent — so we neither re-tick nor re-add meta to it.
+			if ( ! $product || $status !== $product->get_status() ) {
+				continue;
+			}
+			// Resume idempotency: skip products already advanced during THIS run, so a re-run of
+			// step_finalize after a crash does not double-count and trash a product early.
+			if ( (int) get_post_meta( $post_id, $ticked_meta, true ) >= $sync_started_at ) {
+				continue;
+			}
+
+			$count  = (int) get_post_meta( $post_id, $count_meta, true );
+			$result = Skwirrel_WC_Sync_Deprecated_Status::escalate( $count, $threshold );
+
+			if ( ! $result['remove'] ) {
+				update_post_meta( $post_id, $count_meta, $result['count'] );
+				update_post_meta( $post_id, $ticked_meta, $sync_started_at );
+				continue;
+			}
+
+			$product->set_status( 'trash' );
+			$product->save();
+			delete_post_meta( $post_id, $count_meta );
+			delete_post_meta( $post_id, $ticked_meta );
+			++$trashed;
+
+			// Variable product: cascade the trash to variations and clear their counters too.
+			if ( $product->is_type( 'variable' ) ) {
+				foreach ( $product->get_children() as $vid ) {
+					$variation = wc_get_product( $vid );
+					if ( $variation && 'trash' !== $variation->get_status() ) {
+						$variation->set_status( 'trash' );
+						$variation->save();
+						++$trashed;
+					}
+					delete_post_meta( (int) $vid, $count_meta );
+					delete_post_meta( (int) $vid, $ticked_meta );
+				}
+			}
+		}
+
+		if ( $trashed > 0 ) {
+			$this->logger->info(
+				'Deprecated products past threshold moved to trash',
+				[
+					'count'     => $trashed,
+					'threshold' => $threshold,
+				]
+			);
+		}
 		return $trashed;
 	}
 
