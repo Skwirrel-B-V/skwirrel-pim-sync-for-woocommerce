@@ -631,6 +631,103 @@ class Skwirrel_WC_Sync_Purge_Handler {
 	}
 
 	/**
+	 * Advance the deprecated counter for every product in the `deprecated` status and trash
+	 * those past the threshold.
+	 *
+	 * This is the ONLY place the counter increments — running it once per full-sync finalize keeps
+	 * it reliable against the change-gate (which skips unchanged products before get_status()). The
+	 * counter starts at 0, so threshold 0 removes on the first pass; removal moves to trash only.
+	 *
+	 * @param int                             $threshold        Configured deprecated_remove_after_syncs (0 = immediate).
+	 * @param Skwirrel_WC_Sync_Product_Mapper $mapper           For the external-id meta key.
+	 * @param int                             $sync_started_at  Unix start time of this run; guards against a
+	 *                                                          re-run of step_finalize double-ticking counters.
+	 * @return int Number of posts moved to trash (parents + their variations).
+	 */
+	public function escalate_deprecated( int $threshold, Skwirrel_WC_Sync_Product_Mapper $mapper, int $sync_started_at ): int {
+		global $wpdb;
+		$external_id_meta = $mapper->get_external_id_meta_key();
+		$grouped_meta     = Skwirrel_WC_Sync_Product_Lookup::GROUPED_PRODUCT_ID_META;
+		$count_meta       = Skwirrel_WC_Sync_Deprecated_Status::COUNT_META;
+		$ticked_meta      = Skwirrel_WC_Sync_Deprecated_Status::TICKED_META;
+		$status           = Skwirrel_WC_Sync_Deprecated_Status::STATUS;
+
+		// Skwirrel-managed top-level products in the deprecated status. Only post_type 'product'
+		// (simple + variable parents) — variations are never escalated on their own; a variable
+		// parent cascades the trash to its variations, keeping the product consistent.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT p.ID
+                 FROM {$wpdb->posts} p
+                 INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
+                     AND pm.meta_key IN (%s, %s) AND pm.meta_value != ''
+                 WHERE p.post_type = 'product'
+                     AND p.post_status = %s",
+				$external_id_meta,
+				$grouped_meta,
+				$status
+			)
+		);
+
+		$ids = array_map( 'intval', (array) $ids );
+		if ( empty( $ids ) ) {
+			return 0;
+		}
+
+		$trashed = 0;
+		foreach ( $ids as $post_id ) {
+			// Resume idempotency: skip products already advanced during THIS run, so a re-run of
+			// step_finalize after a crash does not double-count and trash a product early.
+			if ( (int) get_post_meta( $post_id, $ticked_meta, true ) >= $sync_started_at ) {
+				continue;
+			}
+
+			$count  = (int) get_post_meta( $post_id, $count_meta, true );
+			$result = Skwirrel_WC_Sync_Deprecated_Status::escalate( $count, $threshold );
+
+			if ( ! $result['remove'] ) {
+				update_post_meta( $post_id, $count_meta, $result['count'] );
+				update_post_meta( $post_id, $ticked_meta, $sync_started_at );
+				continue;
+			}
+
+			$product = wc_get_product( $post_id );
+			if ( ! $product ) {
+				continue;
+			}
+			$product->set_status( 'trash' );
+			$product->save();
+			delete_post_meta( $post_id, $count_meta );
+			delete_post_meta( $post_id, $ticked_meta );
+			++$trashed;
+
+			// Variable product: cascade the trash to variations.
+			if ( $product->is_type( 'variable' ) ) {
+				foreach ( $product->get_children() as $vid ) {
+					$variation = wc_get_product( $vid );
+					if ( $variation && 'trash' !== $variation->get_status() ) {
+						$variation->set_status( 'trash' );
+						$variation->save();
+						++$trashed;
+					}
+				}
+			}
+		}
+
+		if ( $trashed > 0 ) {
+			$this->logger->info(
+				'Deprecated products past threshold moved to trash',
+				[
+					'count'     => $trashed,
+					'threshold' => $threshold,
+				]
+			);
+		}
+		return $trashed;
+	}
+
+	/**
 	 * Purge stale categories that are no longer present in Skwirrel.
 	 *
 	 * Compares all WooCommerce product_cat terms that have _skwirrel_category_id term meta

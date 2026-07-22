@@ -28,8 +28,8 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	public const PSEUDO_MISSING = '__missing__'; // no longer present in the feed (stale)
 	public const PSEUDO_NONE    = '__none__';    // product has no status description
 
-	/** WooCommerce states an admin may map a status to (Story 1). */
-	private const VALID_STATES = [ 'publish', 'draft', 'trash' ];
+	/** WooCommerce states an admin may map a status to (Story 2 adds `deprecated`). */
+	private const VALID_STATES = [ 'publish', 'draft', 'trash', 'deprecated' ];
 
 	/** Default WooCommerce state for each pseudo-status when the admin has not mapped it. */
 	private const PSEUDO_DEFAULTS = [

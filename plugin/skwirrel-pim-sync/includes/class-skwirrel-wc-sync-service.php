@@ -984,6 +984,14 @@ class Skwirrel_WC_Sync_Service {
 			}
 		}
 
+		// Deprecated-lifecycle escalation: advance each deprecated product's counter and trash the
+		// ones past the threshold. Full sync only (never delta) so the counter ticks at most once per
+		// full sync; runs independently of purge_stale_products (deprecation is an explicit mapping).
+		if ( ! $ctx['delta'] ) {
+			$threshold = max( 0, (int) ( $options['deprecated_remove_after_syncs'] ?? 3 ) );
+			$trashed  += $this->purge_handler->escalate_deprecated( $threshold, $this->mapper, (int) $ctx['started_at'] );
+		}
+
 		// Advance the delta checkpoint only now that the run has provably completed. If any product
 		// committed only partially, hold the checkpoint AND invalidate the signature so the next run
 		// does a full reprocess and retries the partial row(s).
@@ -1863,21 +1871,22 @@ class Skwirrel_WC_Sync_Service {
 
 	private function get_options(): array {
 		$defaults = [
-			'endpoint_url'           => '',
-			'auth_type'              => 'bearer',
-			'auth_token'             => '',
-			'timeout'                => 30,
-			'retries'                => 2,
-			'batch_size'             => 10,
-			'sync_categories'        => true,
-			'sync_grouped_products'  => false,
-			'sync_images'            => true,
-			'image_language'         => 'nl',
-			'include_languages'      => [ 'nl-NL', 'nl' ],
-			'verbose_logging'        => false,
-			'protect_from_deletion'  => true,
-			'status_mapping'         => [],
-			'status_mapping_default' => 'publish',
+			'endpoint_url'                  => '',
+			'auth_type'                     => 'bearer',
+			'auth_token'                    => '',
+			'timeout'                       => 30,
+			'retries'                       => 2,
+			'batch_size'                    => 10,
+			'sync_categories'               => true,
+			'sync_grouped_products'         => false,
+			'sync_images'                   => true,
+			'image_language'                => 'nl',
+			'include_languages'             => [ 'nl-NL', 'nl' ],
+			'verbose_logging'               => false,
+			'protect_from_deletion'         => true,
+			'status_mapping'                => [],
+			'status_mapping_default'        => 'publish',
+			'deprecated_remove_after_syncs' => 3,
 		];
 		$saved    = get_option( 'skwirrel_wc_sync_settings', [] );
 		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );

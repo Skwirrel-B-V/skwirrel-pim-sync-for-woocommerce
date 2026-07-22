@@ -267,7 +267,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 		// Product status handling: map each source status (and the __trashed__/__missing__/__none__
 		// pseudo-statuses) to a WooCommerce state. Only whitelisted states are stored.
-		$valid_states   = [ 'publish', 'draft', 'trash' ];
+		$valid_states   = [ 'publish', 'draft', 'trash', 'deprecated' ];
 		$raw_mapping    = $input['status_mapping'] ?? [];
 		$status_mapping = [];
 		if ( is_array( $raw_mapping ) ) {
@@ -282,17 +282,20 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				}
 			}
 		}
-		$out['status_mapping']         = $status_mapping;
-		$out['status_mapping_default'] = in_array( $input['status_mapping_default'] ?? '', $valid_states, true )
+		$out['status_mapping']                = $status_mapping;
+		$out['status_mapping_default']        = in_array( $input['status_mapping_default'] ?? '', $valid_states, true )
 			? $input['status_mapping_default']
 			: 'publish';
-		$out['log_mode_manual']        = in_array( $input['log_mode_manual'] ?? '', [ 'per_sync', 'per_day' ], true )
+		$out['deprecated_remove_after_syncs'] = isset( $input['deprecated_remove_after_syncs'] )
+			? max( 0, (int) $input['deprecated_remove_after_syncs'] )
+			: 3;
+		$out['log_mode_manual']               = in_array( $input['log_mode_manual'] ?? '', [ 'per_sync', 'per_day' ], true )
 			? $input['log_mode_manual']
 			: 'per_sync';
-		$out['log_mode_scheduled']     = in_array( $input['log_mode_scheduled'] ?? '', [ 'per_sync', 'per_day' ], true )
+		$out['log_mode_scheduled']            = in_array( $input['log_mode_scheduled'] ?? '', [ 'per_sync', 'per_day' ], true )
 			? $input['log_mode_scheduled']
 			: 'per_day';
-		$out['log_retention']          = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
+		$out['log_retention']                 = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
 			? $input['log_retention']
 			: '7days';
 		return $out;

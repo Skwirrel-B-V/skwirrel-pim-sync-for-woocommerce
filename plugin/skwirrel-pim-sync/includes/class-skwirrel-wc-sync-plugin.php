@@ -67,6 +67,7 @@ final class Skwirrel_WC_Sync_Plugin {
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-variation-permalinks.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-theme-api.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/theme-api-functions.php';
+		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-deprecated-status.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-delete-protection.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-product-sync-meta-box.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-pim-link.php';
@@ -105,6 +106,7 @@ final class Skwirrel_WC_Sync_Plugin {
 		Skwirrel_WC_Sync_Product_Documents::instance();
 		Skwirrel_WC_Sync_Variation_Attributes_Fix::init();
 		Skwirrel_WC_Sync_Variation_Permalinks::instance();
+		Skwirrel_WC_Sync_Deprecated_Status::instance();
 		Skwirrel_WC_Sync_Delete_Protection::instance();
 		Skwirrel_WC_Sync_Product_Sync_Meta_Box::instance();
 		Skwirrel_WC_Sync_Pim_Link::instance();
