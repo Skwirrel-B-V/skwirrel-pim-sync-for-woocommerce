@@ -975,7 +975,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						Skwirrel_WC_Sync_Product_Mapper::PSEUDO_MISSING => [ __( 'No longer in the Skwirrel feed', 'skwirrel-pim-sync' ), 'trash' ],
 					];
 					foreach ( $seen_statuses as $seen_key => $seen_display ) {
-						$status_rows[ (string) $seen_key ] = [ (string) $seen_display, $status_default ];
+						$seen_key = (string) $seen_key;
+						// Pre-select the state get_status() would actually apply for an as-yet-unmapped
+						// label — mirror its legacy "draft" fallback — so saving the form (which posts
+						// every row) never silently flips a draft status to the plain default (publish).
+						$row_default              = ( false !== strpos( $seen_key, 'draft' ) ) ? 'draft' : $status_default;
+						$status_rows[ $seen_key ] = [ (string) $seen_display, $row_default ];
 					}
 					?>
 					<div class="skw-field">
