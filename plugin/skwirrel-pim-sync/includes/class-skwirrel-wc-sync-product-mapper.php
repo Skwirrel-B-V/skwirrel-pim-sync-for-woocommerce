@@ -179,7 +179,12 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 * like "Out  of  stock" would be saved under a different key than it is looked up.
 	 */
 	public static function normalize_status_label( string $description ): string {
-		$normalized = preg_replace( '/\s+/', ' ', trim( $description ) );
+		// Drop square brackets: they are used verbatim as HTML form array keys
+		// (name="...[status_mapping][<key>]") and PHP mis-parses nested brackets, so a
+		// bracketed label would never round-trip. Stripping them keeps discovery, storage
+		// and runtime lookup on the same key.
+		$normalized = str_replace( [ '[', ']' ], '', $description );
+		$normalized = preg_replace( '/\s+/', ' ', trim( $normalized ) );
 		return strtolower( (string) $normalized );
 	}
 

@@ -100,6 +100,13 @@ test('normalize_status_label lowercases and collapses internal whitespace', func
     expect(Skwirrel_WC_Sync_Product_Mapper::normalize_status_label("Out  of\tStock  "))->toBe('out of stock');
 });
 
+test('normalize_status_label strips square brackets so form-array keys parse cleanly', function () {
+    expect(Skwirrel_WC_Sync_Product_Mapper::normalize_status_label('Foo [bar]'))->toBe('foo bar');
+    // A bracketed label still round-trips: stored key (bracket-free) matches at runtime.
+    $this->mapper->set_status_handling(['foo bar' => 'trash'], 'publish');
+    expect($this->mapper->get_status(productWithStatus('Foo [bar]')))->toBe('trash');
+});
+
 test('a label with internal double spaces matches its collapsed mapping key', function () {
     // The settings form stores the key collapsed; runtime lookup must produce the same key.
     $this->mapper->set_status_handling(['out of stock' => 'draft'], 'publish');

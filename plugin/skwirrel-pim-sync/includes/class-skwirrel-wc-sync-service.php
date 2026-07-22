@@ -1913,6 +1913,9 @@ class Skwirrel_WC_Sync_Service {
 				'log_mode_manual',
 				'log_mode_scheduled',
 				'show_delete_warning',
+				// Only controls the manual delete-lock while a sync runs; does not change
+				// synced product output, so it must not bust the change gate when toggled.
+				'protect_from_deletion',
 			]
 		);
 		$relevant = array_diff_key( $options, $ignore );
