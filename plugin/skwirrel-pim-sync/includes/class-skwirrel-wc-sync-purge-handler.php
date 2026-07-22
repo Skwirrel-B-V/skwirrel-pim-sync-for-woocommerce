@@ -607,6 +607,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 
 			$product->set_status( $missing_state );
 			$product->save();
+			$this->reset_deprecated_counter_on_entry( (int) $post_id, $missing_state );
 			++$trashed;
 
 			// Variable product: also apply the state to its variations.
@@ -617,6 +618,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 					if ( $variation && $missing_state !== $variation->get_status() ) {
 						$variation->set_status( $missing_state );
 						$variation->save();
+						$this->reset_deprecated_counter_on_entry( (int) $vid, $missing_state );
 						++$trashed;
 					}
 				}
@@ -628,6 +630,24 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		}
 
 		return $trashed;
+	}
+
+	/**
+	 * Start the deprecated counter fresh when a stale product newly enters the deprecated status via
+	 * the __missing__ path. Mirrors the upsert reset-on-entry so a stale count left over from a prior
+	 * deprecation period is never reused (which would trash the product early). No-op otherwise.
+	 *
+	 * The callers only invoke this on a genuine state change (guarded against "already in this state"),
+	 * so reaching here with `deprecated` always means a fresh entry.
+	 *
+	 * @param int    $post_id       The product/variation ID just set to $applied_state.
+	 * @param string $applied_state The missing-state just applied.
+	 */
+	private function reset_deprecated_counter_on_entry( int $post_id, string $applied_state ): void {
+		if ( Skwirrel_WC_Sync_Deprecated_Status::STATUS === $applied_state ) {
+			delete_post_meta( $post_id, Skwirrel_WC_Sync_Deprecated_Status::COUNT_META );
+			delete_post_meta( $post_id, Skwirrel_WC_Sync_Deprecated_Status::TICKED_META );
+		}
 	}
 
 	/**
