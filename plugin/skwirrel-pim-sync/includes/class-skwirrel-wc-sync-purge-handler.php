@@ -652,9 +652,9 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		$ticked_meta      = Skwirrel_WC_Sync_Deprecated_Status::TICKED_META;
 		$status           = Skwirrel_WC_Sync_Deprecated_Status::STATUS;
 
-		// Skwirrel-managed top-level products in the deprecated status. Only post_type 'product'
-		// (simple + variable parents) — variations are never escalated on their own; a variable
-		// parent cascades the trash to its variations, keeping the product consistent.
+		// Skwirrel-managed products/variations currently in the deprecated status. Variations are
+		// included so an orphaned stale variation (marked deprecated while its parent stays present)
+		// still escalates; a trashed variable parent additionally cascades to its own variations.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$ids = $wpdb->get_col(
 			$wpdb->prepare(
@@ -662,7 +662,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
                  FROM {$wpdb->posts} p
                  INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
                      AND pm.meta_key IN (%s, %s) AND pm.meta_value != ''
-                 WHERE p.post_type = 'product'
+                 WHERE p.post_type IN ('product', 'product_variation')
                      AND p.post_status = %s",
 				$external_id_meta,
 				$grouped_meta,
@@ -677,6 +677,12 @@ class Skwirrel_WC_Sync_Purge_Handler {
 
 		$trashed = 0;
 		foreach ( $ids as $post_id ) {
+			$product = wc_get_product( $post_id );
+			// Skip anything no longer deprecated — e.g. a variation already cascade-trashed earlier in
+			// this same loop by its parent — so we neither re-tick nor re-add meta to it.
+			if ( ! $product || $status !== $product->get_status() ) {
+				continue;
+			}
 			// Resume idempotency: skip products already advanced during THIS run, so a re-run of
 			// step_finalize after a crash does not double-count and trash a product early.
 			if ( (int) get_post_meta( $post_id, $ticked_meta, true ) >= $sync_started_at ) {
@@ -692,17 +698,13 @@ class Skwirrel_WC_Sync_Purge_Handler {
 				continue;
 			}
 
-			$product = wc_get_product( $post_id );
-			if ( ! $product ) {
-				continue;
-			}
 			$product->set_status( 'trash' );
 			$product->save();
 			delete_post_meta( $post_id, $count_meta );
 			delete_post_meta( $post_id, $ticked_meta );
 			++$trashed;
 
-			// Variable product: cascade the trash to variations.
+			// Variable product: cascade the trash to variations and clear their counters too.
 			if ( $product->is_type( 'variable' ) ) {
 				foreach ( $product->get_children() as $vid ) {
 					$variation = wc_get_product( $vid );
@@ -711,6 +713,8 @@ class Skwirrel_WC_Sync_Purge_Handler {
 						$variation->save();
 						++$trashed;
 					}
+					delete_post_meta( (int) $vid, $count_meta );
+					delete_post_meta( (int) $vid, $ticked_meta );
 				}
 			}
 		}
