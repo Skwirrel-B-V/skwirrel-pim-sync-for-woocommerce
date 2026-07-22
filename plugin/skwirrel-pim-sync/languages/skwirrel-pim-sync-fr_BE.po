@@ -6,7 +6,7 @@ msgstr ""
 "Project-Id-Version: Skwirrel PIM sync for WooCommerce 1.7.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/skwirrel-pim-"
 "sync\n"
-"POT-Creation-Date: 2026-06-23T13:25:22+00:00\n"
+"POT-Creation-Date: 2026-07-22T15:22:41+00:00\n"
 "PO-Revision-Date: 2026-02-26 12:00+0000\n"
 "Last-Translator: Skwirrel Sync <info@skwirrel.eu>\n"
 "Language-Team: Français (Belgique)\n"
@@ -42,28 +42,53 @@ msgstr ""
 msgid "https://skwirrel.eu"
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-action-scheduler.php:166
-#: includes/class-skwirrel-wc-sync-action-scheduler.php:196
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:235
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:304
 msgid "Twice daily"
 msgstr "Deux fois par jour"
 
-#: includes/class-skwirrel-wc-sync-action-scheduler.php:175
-msgid "Once weekly"
-msgstr ""
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:241
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:299
+msgid "Every 2 hours"
+msgstr "Toutes les 2 heures"
 
-#: includes/class-skwirrel-wc-sync-action-scheduler.php:194
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:245
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:300
+msgid "Every 3 hours"
+msgstr "Toutes les 3 heures"
+
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:249
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:301
+msgid "Every 4 hours"
+msgstr "Toutes les 4 heures"
+
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:253
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:302
+msgid "Every 6 hours"
+msgstr "Toutes les 6 heures"
+
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:257
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:303
+msgid "Every 8 hours"
+msgstr "Toutes les 8 heures"
+
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:266
+msgid "Once weekly"
+msgstr "Une fois par semaine"
+
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:297
 msgid "Disabled"
 msgstr "Désactivé"
 
-#: includes/class-skwirrel-wc-sync-action-scheduler.php:195
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:298
 msgid "Hourly"
 msgstr "Toutes les heures"
 
-#: includes/class-skwirrel-wc-sync-action-scheduler.php:197
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:305
 msgid "Daily"
 msgstr "Quotidien"
 
-#: includes/class-skwirrel-wc-sync-action-scheduler.php:198
+#: includes/class-skwirrel-wc-sync-action-scheduler.php:306
 msgid "Weekly"
 msgstr "Hebdomadaire"
 
@@ -75,578 +100,611 @@ msgstr "Skwirrel PIM sync"
 msgid "Dashboard"
 msgstr "Tableau de bord"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:107
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:110
 msgid "Sync Log"
 msgstr "Journal de sync"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:110
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:113
 msgid "Download log file"
 msgstr "Télécharger le fichier journal"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:110
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:960
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:113
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1123
 msgid "Download"
 msgstr "Télécharger"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:116
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:119
 msgid "Load more"
 msgstr "Charger plus"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:158
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:161
 msgid "Last sync successful"
 msgstr "Dernière synchronisation réussie"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:158
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:161
 msgid "Last sync failed"
 msgstr "Dernière synchronisation échouée"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:164
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:167
 msgid "created"
 msgstr "créés"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:165
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:168
 msgid "updated"
 msgstr "mis à jour"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:166
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:169
 msgid "unchanged"
 msgstr "inchangé"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:167
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:170
 msgid "failed"
 msgstr "échoués"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:174
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:177
 msgid "Last successful sync:"
 msgstr "Dernière synchronisation réussie :"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:192
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:329
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:195
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:384
 msgid "Sync in progress…"
 msgstr "Synchronisation en cours…"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:193
-msgid "Products are being synchronized. This page refreshes automatically."
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:196
+msgid "Products are being synchronized. Progress updates live below."
 msgstr ""
-"Les produits sont en cours de synchronisation. Cette page se rafraîchit "
-"automatiquement."
+"Les produits sont en cours de synchronisation. La progression est mise à "
+"jour en direct ci-dessous."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:202
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:205
 msgid "Sync Now"
 msgstr "Synchroniser maintenant"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:203
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:206
 msgid "Start a full product synchronization from Skwirrel PIM."
 msgstr "Lancer une synchronisation complète des produits depuis Skwirrel PIM."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:215
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:391
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:218
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:446
 msgid "Sync History"
 msgstr "Historique de synchronisation"
 
 #. translators: %d = number of history entries
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:219
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:222
 #, php-format
 msgid "%d sync runs recorded."
 msgstr "%d exécutions de synchronisation enregistrées."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:232
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:527
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:939
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:235
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:582
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1102
 msgid "Settings"
 msgstr "Paramètres"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:233
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:236
 msgid "Configure API connection, sync options, and scheduling."
 msgstr ""
 "Configurez la connexion API, les options de synchronisation et la "
 "planification."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:248
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:829
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:251
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:919
 msgid "Sync Logs"
 msgstr "Journaux de synchronisation"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:249
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:252
 msgid "View detailed sync log files in WooCommerce."
 msgstr ""
 "Consultez les fichiers journaux de synchronisation détaillés dans "
 "WooCommerce."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:260
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:263
 msgid "Debug"
 msgstr "Débogage"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:261
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:264
 msgid "Live sync log and variation attribute debugging."
 msgstr "Résoudre les problèmes d'attributs de variation."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:272
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:275
 msgid "Danger Zone"
 msgstr "Zone de danger"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:273
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:276
 msgid "Delete all synced products and start fresh."
 msgstr "Supprimer tous les produits synchronisés et recommencer."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:285
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:288
 msgid "Recent syncs"
 msgstr "Synchronisations récentes"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:286
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:289
 msgid "View all"
 msgstr "Voir tout"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:307
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:323
 msgid "Fetch products from API"
 msgstr "Récupérer les produits via l'API"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:308
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:324
 msgid "Create & sync products"
 msgstr "Créer & synchroniser les produits"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:311
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:327
 msgid "Finalize variable products"
 msgstr "Finaliser les produits variables"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:314
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:330
 msgid "Link related products"
 msgstr "Lier les produits associés"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:316
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:332
 msgid "Cleanup & finalize"
 msgstr "Nettoyage & finalisation"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:330
-msgid "View live log"
-msgstr "Voir le journal en direct"
-
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:331
-msgid "Stop sync"
-msgstr "Arrêter la sync"
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:347
+msgid "Starting…"
+msgstr "Démarrage…"
 
 #. translators: %d = number of products fetched
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:357
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:412
 #, php-format
 msgid "%d fetched"
 msgstr "%d récupérés"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:377
-msgid "This page refreshes automatically every 5 seconds."
-msgstr "Cette page se rafraîchit automatiquement toutes les 5 secondes."
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:385
+#: includes/class-skwirrel-wc-sync-admin-settings.php:957
+msgid "View live log"
+msgstr "Voir le journal en direct"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:392
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:386
+msgid "Stop sync"
+msgstr "Arrêter la sync"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:432
+msgid "Progress updates automatically — no need to refresh."
+msgstr ""
+"La progression est mise à jour automatiquement — pas besoin d'actualiser."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:447
 msgid "Overview of all synchronization runs, grouped by date."
 msgstr ""
 "Aperçu de toutes les exécutions de synchronisation, regroupées par date."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:398
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:453
 msgid "All"
 msgstr "Tout"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:399
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:454
 msgid "Older than 7 days"
 msgstr "Plus ancien que 7 jours"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:400
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:455
 msgid "Older than 30 days"
 msgstr "Plus ancien que 30 jours"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:401
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:456
 msgid "Older than 90 days"
 msgstr "Plus ancien que 90 jours"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:403
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:458
 msgid "Delete history"
 msgstr "Supprimer l'historique"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:407
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:462
 msgid "No sync history available."
 msgstr "Aucun historique de synchronisation disponible."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:423
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:478
 msgctxt "sync trigger"
 msgid "Manual"
 msgstr "Manuel"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:424
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:479
 msgid "Scheduled"
 msgstr "Planifié"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:425
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:480
 msgid "Purge"
 msgstr "Purge"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:438
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:493
 msgid "Time"
 msgstr "Heure"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:439
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:494
 msgid "Trigger"
 msgstr "Déclencheur"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:440
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:495
 msgid "Status"
 msgstr "État"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:441
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:496
 msgid "Created"
 msgstr "Créés"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:442
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:497
 msgid "Updated"
 msgstr "Mis à jour"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:443
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:498
 msgid "Unchanged"
 msgstr "Inchangé"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:444
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:496
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:499
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:551
 msgid "Failed"
 msgstr "Échoués"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:445
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:500
 msgid "Deleted"
 msgstr "Supprimés"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:446
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:501
 msgid "Total"
 msgstr "Total"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:447
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:502
 msgid "Log"
 msgstr "Journal"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:474
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:529
 msgid "Today"
 msgstr "Aujourd'hui"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:476
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:531
 msgid "Yesterday"
 msgstr "Hier"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:492
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:547
 msgid "Purged"
 msgstr "Purgé"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:494
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:549
 msgid "Success"
 msgstr "Succès"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:507
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:562
 msgid "View"
 msgstr "Voir"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:528
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:583
 msgid "Configure your Skwirrel PIM API connection and synchronization options."
 msgstr ""
 "Configurez votre connexion API Skwirrel PIM et les options de "
 "synchronisation."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:536
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:591
 msgid "API Connection"
 msgstr "Connexion API"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:545
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:600
 msgid "Skwirrel subdomain"
 msgstr "Sous-domaine Skwirrel"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:556
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:575
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:611
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:630
 msgid "API Token"
 msgstr "Jeton API"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:562
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:617
 msgid "Token configured."
 msgstr "Jeton configuré."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:563
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:618
 msgid "No token configured."
 msgstr "Aucun jeton configuré."
 
 #. translators: 1: status label, 2: link to the WordPress Connections Screen
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:566
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:621
 #, php-format
 msgid "%1$s Manage your Skwirrel API token in %2$s."
 msgstr "%1$s Gérez votre jeton d’API Skwirrel dans %2$s."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:568
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:623
 msgid "Settings → Connectors"
 msgstr "Réglages → Connecteurs"
 
 #. translators: %s = URL to Skwirrel webservice page
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:581
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:636
 #, php-format
 msgid "Create a static API token at %s."
 msgstr "Créez un jeton API statique sur %s."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:590
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:645
 msgid "Timeout (seconds)"
 msgstr "Délai d'attente (secondes)"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:594
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:649
 msgid "Retries"
 msgstr "Tentatives"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:599
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:654
 msgid "Test connection"
 msgstr "Tester la connexion"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:605
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:661
 msgid "Scheduling"
 msgstr "Planification"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:608
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:664
 msgid "Sync interval"
 msgstr "Intervalle de synchronisation"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:616
-msgid "Batch size"
-msgstr "Taille du lot"
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:680
+msgid " — too short"
+msgstr " — trop court"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:618
-msgid "Products per API request (1–50)."
-msgstr "Produits par requête API (1–50)."
+#. translators: 1: last full sync duration in minutes, 2: minimum interval in hours
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:689
+#, php-format
+msgid ""
+"Your last full sync took ~%1$d min, so auto-syncs must be at least %2$d "
+"hours apart (one full hour of rest between runs)."
+msgstr ""
+"Votre dernière synchronisation complète a duré ~%1$d min, les "
+"synchronisations automatiques doivent donc être espacées d'au moins %2$d "
+"heures (une heure complète de repos entre les exécutions)."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:625
+#. translators: %d: minimum interval in hours
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:696
+#, php-format
+msgid ""
+"Auto-syncs must be at least %d hours apart until the first full sync has run "
+"to measure its duration."
+msgstr ""
+"Les synchronisations automatiques doivent être espacées d'au moins %d heures "
+"jusqu'à ce que la première synchronisation complète ait été exécutée pour "
+"mesurer sa durée."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:708
 msgid "Sync Options"
 msgstr "Options de synchronisation"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:627
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:710
 msgid "Sync categories"
 msgstr "Synchroniser les catégories"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:628
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:711
 msgid "Sync grouped products (variable)"
 msgstr "Synchroniser les produits groupés (variable)"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:629
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:712
 msgid "Use virtual product content for variable products"
 msgstr "Utiliser le contenu du produit virtuel pour les produits variables"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:630
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:713
 msgid "Sync related products"
 msgstr "Synchroniser les produits associés"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:631
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:714
 msgid "Sync manufacturers"
 msgstr "Synchroniser les fabricants"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:632
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:715
 msgid "Sync custom classes"
 msgstr "Synchroniser les classes personnalisées"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:633
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:716
 msgid "Include trade item custom classes"
 msgstr "Inclure les classes personnalisées des articles commerciaux"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:634
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:717
 msgid "Show GTIN as product attribute"
 msgstr "Afficher le GTIN comme attribut de produit"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:635
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:718
 msgid "Show Variant as product attribute"
 msgstr "Afficher la variante comme attribut de produit"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:640
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:722
+msgid "Batch size"
+msgstr "Taille du lot"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:724
+msgid "Products per API request (1–100)."
+msgstr "Produits par requête API (1–100)."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:730
 msgid "Related products mapping"
 msgstr "Mappage des produits associés"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:642
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:732
 msgid "Auto (use relation type)"
 msgstr "Automatique (selon le type de relation)"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:643
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:733
 msgid "All as cross-sells"
 msgstr "Tout en ventes croisées"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:644
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:734
 msgid "All as upsells"
 msgstr "Tout en ventes incitatives"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:645
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:735
 msgid "All as both"
 msgstr "Tout en les deux"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:647
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:737
 msgid "Auto maps UPSELL/SUCCESSOR types to upsells, all others to cross-sells."
 msgstr ""
 "Automatique : les types UPSELL/SUCCESSOR deviennent des ventes incitatives, "
 "tous les autres des ventes croisées."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:651
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:741
 msgid "Variant label"
 msgstr "Libellé de variante"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:653
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:743
 msgid "SKU (internal_product_code)"
 msgstr "SKU (internal_product_code)"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:654
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:744
 msgid "ERP description"
 msgstr "Description ERP"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:655
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:745
 msgid "Product name (translated)"
 msgstr "Nom du produit (traduit)"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:657
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:747
 msgid ""
 "Label shown in the variant dropdown when no variation axes are available."
 msgstr ""
 "Libellé affiché dans la liste déroulante des variantes lorsqu'aucun axe de "
 "variation n'est disponible."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:662
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:752
 msgid "Super category ID"
 msgstr "ID de super catégorie"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:663
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:753
 msgid "e.g. 42"
 msgstr "ex. 42"
 
 #. translators: %s = link to Skwirrel categories page
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:668
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:758
 #, php-format
 msgid "Find your category IDs at %s."
 msgstr "Trouvez vos identifiants de sélection sur %s."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:675
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:765
 msgid "Selection IDs"
 msgstr "ID de sélection"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:676
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:766
 msgid "One or more IDs greater than 0, separated by commas"
-msgstr ""
+msgstr "Un ou plusieurs ID supérieurs à 0, séparés par des virgules"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:676
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:766
 msgid "e.g. 123, 456"
 msgstr "ex. 123, 456"
 
 #. translators: %s = link to Skwirrel selections page
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:681
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:771
 #, php-format
 msgid "Find your selection IDs at %s."
 msgstr "Trouvez vos identifiants de sélection sur %s."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:688
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:778
 msgid "Custom class collection ID"
 msgstr "ID de collection de classes personnalisées"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:689
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:779
 msgid "e.g. 5"
 msgstr "ex. 5"
 
 #. translators: %s = link to Skwirrel groups page
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:694
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:784
 #, php-format
 msgid "Find your collection IDs at %s."
 msgstr "Trouvez vos ID de collection sur %s."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:704
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:794
 msgid "Custom class filter"
 msgstr "Filtre de classes personnalisées"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:706
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:796
 msgid "No filter"
 msgstr "Pas de filtre"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:707
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:797
 msgid "Whitelist"
 msgstr "Liste blanche"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:708
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:798
 msgid "Blacklist"
 msgstr "Liste noire"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:712
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:802
 msgid "Class IDs / codes"
 msgstr "ID / codes de classes"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:713
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:803
 msgid "e.g. 12, 45, BUIS"
 msgstr "ex. 12, 45, BUIS"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:720
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:810
 msgid "Media & Language"
 msgstr "Médias & Langue"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:723
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:813
 msgid "Import images"
 msgstr "Importer les images"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:725
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:813
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:815
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:903
 msgid "Yes"
 msgstr "Oui"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:726
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:812
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:816
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:902
 msgid "No"
 msgstr "Non"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:730
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:820
 msgid "SKU field"
 msgstr "Champ SKU"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:743
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:833
 msgid "Content language"
 msgstr "Langue du contenu"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:748
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:838
 msgid "Other…"
 msgstr "Autre…"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:756
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:846
 msgid "API languages (include_languages)"
 msgstr "Langues API (include_languages)"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:767
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:857
 msgid "Additional: e.g. es, pt-BR"
 msgstr "Supplémentaires : ex. es, pt-BR"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:775
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:865
 msgid "Product name"
 msgstr "Nom du produit"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:776
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:866
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:136
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:154
 msgid "Internal product code (SKU)"
 msgstr "Code article interne (SKU)"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:777
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:867
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:137
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:155
 msgid "Manufacturer product code"
 msgstr "Code article fabricant"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:778
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:868
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:138
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:156
 msgid "External product ID"
 msgstr "ID produit externe"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:779
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:869
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:139
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:157
 msgid "Skwirrel product ID"
 msgstr "ID produit Skwirrel"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:784
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:874
 msgid "None (auto-number)"
 msgstr "Aucun (numérotation automatique)"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:790
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:880
 msgid "Permalinks"
 msgstr "Permaliens"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:794
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:884
 msgid "Slug settings have changed."
 msgstr "Les paramètres de slug ont changé."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:795
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:885
 msgid ""
 "Run a full sync to update product URLs. Changing slugs may break existing "
 "links and SEO rankings."
@@ -655,20 +713,20 @@ msgstr ""
 "La modification des slugs peut casser les liens existants et le "
 "référencement."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:801
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:891
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:81
 msgid "Slug source"
 msgstr "Source du slug"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:805
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:895
 msgid "Suffix on duplicate"
 msgstr "Suffixe en cas de doublon"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:809
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:899
 msgid "Update on re-sync"
 msgstr "Mettre à jour lors de la re-synchronisation"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:820
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:910
 msgid ""
 "Existing product URLs will be overwritten on the next sync. This may break "
 "existing links and SEO rankings."
@@ -676,57 +734,57 @@ msgstr ""
 "Les URL des produits existants seront écrasées lors de la prochaine "
 "synchronisation. Cela peut casser les liens existants et le référencement."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:823
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:913
 msgid "Edit permalink settings"
 msgstr "Modifier les paramètres de permalien"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:837
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:927
 msgid "Manual sync logs"
 msgstr "Journaux des syncs manuelles"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:839
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:846
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:929
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:936
 msgid "One file per sync"
 msgstr "Un fichier par sync"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:840
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:847
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:930
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:937
 msgid "One file per day"
 msgstr "Un fichier par jour"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:844
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:934
 msgid "Scheduled sync logs"
 msgstr "Journaux des syncs planifiées"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:852
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:942
 msgid "Log file retention"
 msgstr "Conservation des journaux"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:854
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:944
 msgid "12 hours"
 msgstr "12 heures"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:855
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:945
 msgid "1 day"
 msgstr "1 jour"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:856
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:946
 msgid "2 days"
 msgstr "2 jours"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:857
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:947
 msgid "7 days"
 msgstr "7 jours"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:858
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:948
 msgid "30 days"
 msgstr "30 jours"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:859
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:949
 msgid "Manual (no auto-delete)"
 msgstr "Manuel (pas de suppression automatique)"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:861
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:951
 msgid ""
 "How long to keep per-sync log files. Old files are cleaned up at the start "
 "of each sync."
@@ -734,27 +792,108 @@ msgstr ""
 "Combien de temps conserver les fichiers journaux par synchronisation. Les "
 "anciens fichiers sont nettoyés au début de chaque synchronisation."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:867
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:957
+msgid "Product status handling"
+msgstr "Gestion du statut des produits"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:958
+msgid ""
+"Choose the WooCommerce state for each Skwirrel product status. Statuses are "
+"discovered automatically as they appear during a sync. \"Keep published\" "
+"leaves the product visible, \"Draft\" hides it, and \"Trash\" moves it to "
+"the trash."
+msgstr "Choisissez l’état WooCommerce pour chaque statut de produit Skwirrel. Les statuts sont détectés automatiquement dès qu’ils apparaissent lors d’une synchronisation. « Garder publié » laisse le produit visible, « Brouillon » le masque et « Corbeille » le déplace vers la corbeille."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:963
+msgid "Keep published"
+msgstr "Garder publié"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:964
+msgid "Draft (hidden)"
+msgstr "Brouillon (masqué)"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:965
+msgid "Trash"
+msgstr "Corbeille"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:966
+msgid "Deprecated (retire gradually)"
+msgstr "Obsolète (retrait progressif)"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:974
+msgid "No status set"
+msgstr "Aucun statut défini"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:975
+msgid "Removed / discontinued in Skwirrel"
+msgstr "Supprimé / abandonné dans Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:976
+msgid "No longer in the Skwirrel feed"
+msgstr "Absent du flux Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:988
+msgid "Default for new statuses"
+msgstr "Par défaut pour les nouveaux statuts"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:994
+msgid ""
+"Applied to any status not mapped below, including newly discovered ones."
+msgstr "S’applique à tout statut non mappé ci-dessous, y compris ceux nouvellement détectés."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:999
+msgid "Skwirrel status"
+msgstr "Statut Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1000
+msgid "WooCommerce state"
+msgstr "État WooCommerce"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1020
+msgid "Remove deprecated products after (full syncs)"
+msgstr "Supprimer les produits obsolètes après (syncs complètes)"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1022
+msgid ""
+"How many full syncs a product stays in the Deprecated status before it is "
+"moved to the trash. 0 = remove immediately (trashed on the same full sync it "
+"becomes deprecated — no review window). Only applies to statuses mapped to "
+"Deprecated."
+msgstr "Nombre de synchronisations complètes pendant lesquelles un produit reste au statut Obsolète avant d’être déplacé vers la corbeille. 0 = suppression immédiate (mis à la corbeille lors de la même synchronisation complète où il devient obsolète — aucune fenêtre de révision). S’applique uniquement aux statuts mappés sur Obsolète."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1028
 msgid "Advanced"
 msgstr "Avancé"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:869
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1030
 msgid "Verbose logging"
 msgstr "Journalisation détaillée"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:870
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1031
 msgid "Clean up deleted products after full sync"
 msgstr "Nettoyer les produits supprimés après la synchronisation complète"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:871
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1032
 msgid "Show delete warning on Skwirrel products"
 msgstr "Afficher l'avertissement de suppression sur les produits Skwirrel"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:872
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1033
+msgid "Protect Skwirrel products from deletion"
+msgstr "Protéger les produits Skwirrel contre la suppression"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1034
+msgid ""
+"When enabled, manual deletion of Skwirrel-managed products from the product "
+"list or editor is blocked while a sync is running, to prevent conflicts. "
+"What the sync itself does with removed or discontinued products is "
+"controlled by \"Product status handling\" above."
+msgstr "Lorsque cette option est activée, la suppression manuelle des produits gérés par Skwirrel depuis la liste des produits ou l’éditeur est bloquée pendant qu’une synchronisation est en cours, afin d’éviter les conflits. Ce que la synchronisation elle-même fait des produits supprimés ou obsolètes est contrôlé par « Gestion du statut des produits » ci-dessus."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1035
 msgid "Prices managed outside Skwirrel"
 msgstr "Prix gérés en dehors de Skwirrel"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:873
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1036
 msgid ""
 "Enable this when product prices are synced from a separate system (e.g. "
 "ERP). When enabled, the PIM sync will not overwrite existing variation "
@@ -765,15 +904,15 @@ msgstr ""
 "synchronisation PIM n'écrasera pas les prix existants des variations si "
 "aucun prix n'est présent dans les données PIM."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:878
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1041
 msgid "Save settings"
 msgstr "Enregistrer les paramètres"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:885
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1048
 msgid "Danger zone"
 msgstr "Zone de danger"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:886
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1049
 msgid ""
 "Delete all products created or synced by Skwirrel. This cannot be undone if "
 "you empty the trash."
@@ -781,19 +920,19 @@ msgstr ""
 "Supprimer tous les produits créés ou synchronisés par Skwirrel. Cette action "
 "est irréversible si vous videz la corbeille."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:890
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1053
 msgid "Also empty the trash (permanently delete)"
 msgstr "Vider également la corbeille (suppression permanente)"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:892
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1055
 msgid "Delete all Skwirrel products"
 msgstr "Supprimer tous les produits Skwirrel"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:898
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1061
 msgid "Reset settings"
-msgstr ""
+msgstr "Réinitialiser les réglages"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:899
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1062
 msgid ""
 "Delete all Skwirrel sync configuration (endpoint URL, API token, sync "
 "schedule, slug rules). Cancels all scheduled sync jobs and flushes the "
@@ -802,25 +941,25 @@ msgid ""
 "persistent cache."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:904
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1067
 msgid "Reset Skwirrel sync settings"
-msgstr ""
+msgstr "Réinitialiser les réglages de sync Skwirrel"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:922
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1085
 msgid "Live sync log"
 msgstr "Journal de sync en direct"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:926
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1046
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1089
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1365
 msgid "Sync running"
 msgstr "Sync en cours"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:926
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1047
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1089
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1366
 msgid "Idle"
 msgstr "Inactif"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:931
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1094
 msgid ""
 "Tails the current sync log file. When no sync is running, the most recent "
 "log is shown."
@@ -829,31 +968,31 @@ msgstr ""
 "cours, le journal le plus récent est affiché."
 
 #. translators: %s: link to verbose logging setting
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:938
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1101
 #, php-format
 msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
 msgstr ""
 "La journalisation détaillée est désactivée. Activez-la dans %s pour voir le "
 "détail par produit."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:946
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1045
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1109
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1364
 msgid "Pause"
 msgstr "Pause"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:949
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1112
 msgid "Clear"
 msgstr "Effacer"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:953
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1116
 msgid "Auto-scroll"
 msgstr "Défilement auto"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:967
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1130
 msgid "Debug Variation Attributes"
 msgstr "Déboguer les attributs de variation"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:968
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1131
 msgid ""
 "If variations show \"Any Colour\" or \"Any Number of cups\" instead of real "
 "values:"
@@ -861,70 +1000,119 @@ msgstr ""
 "Si les variations affichent \"Any Colour\" ou \"Any Number of cups\" au lieu "
 "des valeurs réelles :"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:970
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1133
 msgid "Add to wp-config.php:"
 msgstr "Ajouter dans wp-config.php :"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:971
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1134
 msgid "Run \"Sync Now\" from the dashboard."
 msgstr "Exécutez \"Sync Now\" depuis le tableau de bord."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:972
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1135
 msgid "Check:"
 msgstr "Vérifiez :"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:973
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1136
 msgid ""
 "If etim_values_found is empty: API languages must match (e.g. en, en-GB)."
 msgstr ""
 "Si etim_values_found est vide : les langues API doivent correspondre (ex. "
 "en, en-GB)."
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:974
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1137
 msgid "If ATTR VERIFY FAIL: check wp_postmeta for attribute_pa_ entries."
 msgstr ""
 "Si ATTR VERIFY FAIL : vérifiez wp_postmeta pour les entrées attribute_pa_."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:59
-#: includes/class-skwirrel-wc-sync-admin-settings.php:60
+#: includes/class-skwirrel-wc-sync-admin-settings.php:97
+#: includes/class-skwirrel-wc-sync-admin-settings.php:98
 msgid "Skwirrel Sync"
 msgstr "Skwirrel Sync"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:127
+#: includes/class-skwirrel-wc-sync-admin-settings.php:174
 msgid ""
 "Category sync is enabled but no valid super category ID is set. Please enter "
 "a super category ID greater than 0."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:183
+#: includes/class-skwirrel-wc-sync-admin-settings.php:230
 msgid "At least one selection ID greater than 0 is required."
-msgstr ""
+msgstr "Au moins un ID de sélection supérieur à 0 est requis."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:192
+#: includes/class-skwirrel-wc-sync-admin-settings.php:239
 msgid "A custom class collection ID greater than 0 is required."
-msgstr ""
+msgstr "Un ID de collection de classes personnalisées supérieur à 0 est requis."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:298
-#: includes/class-skwirrel-wc-sync-admin-settings.php:340
-#: includes/class-skwirrel-wc-sync-admin-settings.php:405
-#: includes/class-skwirrel-wc-sync-admin-settings.php:472
-#: includes/class-skwirrel-wc-sync-admin-settings.php:542
-#: includes/class-skwirrel-wc-sync-admin-settings.php:739
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1135
+#: includes/class-skwirrel-wc-sync-admin-settings.php:371
+#: includes/class-skwirrel-wc-sync-admin-settings.php:421
+#: includes/class-skwirrel-wc-sync-admin-settings.php:460
+#: includes/class-skwirrel-wc-sync-admin-settings.php:538
+#: includes/class-skwirrel-wc-sync-admin-settings.php:605
+#: includes/class-skwirrel-wc-sync-admin-settings.php:675
+#: includes/class-skwirrel-wc-sync-admin-settings.php:872
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1454
 #: includes/class-skwirrel-wc-sync-product-sync-meta-box.php:523
 #: includes/class-skwirrel-wc-sync-product-sync-meta-box.php:572
 msgid "Access denied."
 msgstr "Accès refusé."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:745
+#: includes/class-skwirrel-wc-sync-admin-settings.php:428
+msgid "Enter a Skwirrel subdomain first."
+msgstr "Saisissez d'abord un sous-domaine Skwirrel."
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:453
+msgid "Connection successful — settings saved."
+msgstr "Connexion réussie — paramètres enregistrés."
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:455
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1107
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1491
+msgid "Connection failed."
+msgstr "Connexion échouée."
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:878
 msgid "Invalid filename."
 msgstr "Nom de fichier invalide."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:750
+#: includes/class-skwirrel-wc-sync-admin-settings.php:883
 msgid "Log file not found."
 msgstr "Fichier journal introuvable."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:795
+#: includes/class-skwirrel-wc-sync-admin-settings.php:945
+msgid "Skwirrel sync"
+msgstr "Synchronisation Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:947
+msgid "Move to the other corner"
+msgstr "Déplacer vers l'autre coin"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:950
+msgid "Hide for this session"
+msgstr "Masquer pour cette session"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:983
+#: includes/class-skwirrel-wc-sync-admin-settings.php:996
+msgid "Sync completed."
+msgstr "Synchronisation terminée."
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:984
+msgid "View results"
+msgstr "Voir les résultats"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:997
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1103
+msgid "Stop the running sync?"
+msgstr "Arrêter la synchronisation en cours ?"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:998
+msgid "Stopping…"
+msgstr "Arrêt en cours…"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:999
+msgid "Error"
+msgstr "Erreur"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1094
 msgid ""
 "WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be "
 "undone!\\n\\nAre you sure?"
@@ -932,74 +1120,70 @@ msgstr ""
 "AVERTISSEMENT : Tous les produits Skwirrel seront DÉFINITIVEMENT supprimés. "
 "Cette action est irréversible !\\n\\nÊtes-vous sûr ?"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:796
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1095
 msgid "All Skwirrel products will be moved to the trash.\\n\\nAre you sure?"
 msgstr ""
 "Tous les produits Skwirrel seront déplacés vers la corbeille.\\n\\nÊtes-vous "
 "sûr ?"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:797
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1096
 msgid "Delete all sync history?"
 msgstr "Supprimer tout l'historique de synchronisation ?"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:798
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1097
 msgid ""
 "Reset all Skwirrel sync settings? Endpoint URL, API token, sync schedule and "
 "slug rules will be deleted, and all scheduled syncs will be cancelled. "
 "Products, media, categories and sync history are kept.\\n\\nAre you sure?"
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:804
-msgid "Stop the running sync?"
-msgstr "Arrêter la synchronisation en cours ?"
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1105
+msgid "Testing…"
+msgstr "Test en cours…"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:883
-msgid "Stopping…"
-msgstr "Arrêt en cours…"
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1106
+msgid "Enter a subdomain first."
+msgstr "Saisissez d'abord un sous-domaine."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:886
-msgid "Error"
-msgstr "Erreur"
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1108
+msgid "Network error."
+msgstr "Erreur réseau."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:953
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1042
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1274
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1361
 msgid "lines"
 msgstr "lignes"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:968
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1289
 msgid "Could not load log"
 msgstr "Impossible de charger le journal"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:974
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1043
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1295
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1362
 msgid "Network error"
 msgstr "Erreur réseau"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1044
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1363
 msgid "Resume"
 msgstr "Reprendre"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1048
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1367
 msgid "Waiting for sync log…"
 msgstr "En attente du journal de sync…"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1105
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1424
 msgid "no log yet"
 msgstr "pas encore de journal"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1159
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1478
 msgid "Settings saved."
 msgstr "Paramètres enregistrés."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1168
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1487
 msgid "Connection test successful."
 msgstr "Test de connexion réussi."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1172
-msgid "Connection failed."
-msgstr "Connexion échouée."
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1178
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1497
 msgid ""
 "Sync started in the background. Results will appear here once the sync is "
 "completed. Refresh the page to check the status."
@@ -1008,11 +1192,11 @@ msgstr ""
 "une fois la synchronisation terminée. Actualisez la page pour vérifier "
 "l'état."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1182
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1501
 msgid "Sync history deleted."
 msgstr "Historique de synchronisation supprimé."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1186
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1505
 msgid ""
 "Skwirrel sync settings reset. All configuration options were deleted, "
 "scheduled jobs cancelled, and caches flushed. Products, media, categories "
@@ -1020,7 +1204,7 @@ msgid ""
 "to continue."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1190
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1509
 msgid ""
 "Purge started in the background. All Skwirrel products, imported media, "
 "categories and attributes will be deleted. Refresh the page to check the "
@@ -1031,39 +1215,39 @@ msgstr ""
 "vérifier l'état."
 
 #. translators: %1$d = created count, %2$d = updated count, %3$d = failed count
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1200
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1519
 #, php-format
 msgid "Sync completed. Created: %1$d, Updated: %2$d, Failed: %3$d"
 msgstr ""
 "Synchronisation terminée. Créés : %1$d, mis à jour : %2$d, échoués : %3$d"
 
 #. translators: %1$d = count with attributes, %2$d = count without attributes
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1208
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1527
 #, php-format
 msgid "(with attributes: %1$d, without: %2$d)"
 msgstr "(avec attributs : %1$d, sans : %2$d)"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1215
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1534
 msgid "Sync completed. Check the logs for details."
 msgstr "Synchronisation terminée. Consultez les journaux pour plus de détails."
 
-#: includes/class-skwirrel-wc-sync-attachment-handler.php:251
+#: includes/class-skwirrel-wc-sync-attachment-handler.php:291
 msgid "Manual"
 msgstr "Manuel"
 
-#: includes/class-skwirrel-wc-sync-attachment-handler.php:252
+#: includes/class-skwirrel-wc-sync-attachment-handler.php:292
 msgid "Datasheet"
 msgstr "Fiche technique"
 
-#: includes/class-skwirrel-wc-sync-attachment-handler.php:253
+#: includes/class-skwirrel-wc-sync-attachment-handler.php:293
 msgid "Certificate"
 msgstr "Certificat"
 
-#: includes/class-skwirrel-wc-sync-attachment-handler.php:254
+#: includes/class-skwirrel-wc-sync-attachment-handler.php:294
 msgid "Warranty"
 msgstr "Garantie"
 
-#: includes/class-skwirrel-wc-sync-attachment-handler.php:255
+#: includes/class-skwirrel-wc-sync-attachment-handler.php:295
 msgid "Other document"
 msgstr "Autre document"
 
@@ -1133,18 +1317,18 @@ msgstr "Ajouter un fabricant"
 msgid "New manufacturer name"
 msgstr "Nouveau nom de fabricant"
 
-#: includes/class-skwirrel-wc-sync-connectors.php:98
+#: includes/class-skwirrel-wc-sync-connectors.php:103
 msgid "Skwirrel PIM"
 msgstr "Skwirrel PIM"
 
-#: includes/class-skwirrel-wc-sync-connectors.php:99
+#: includes/class-skwirrel-wc-sync-connectors.php:104
 msgid ""
 "API token for syncing products from the Skwirrel PIM system to WooCommerce."
 msgstr ""
 "Jeton d’API pour synchroniser les produits du système PIM Skwirrel vers "
 "WooCommerce."
 
-#: includes/class-skwirrel-wc-sync-delete-protection.php:116
+#: includes/class-skwirrel-wc-sync-delete-protection.php:161
 msgid ""
 "This product is managed by Skwirrel. Changes to product data should be made "
 "in Skwirrel."
@@ -1152,7 +1336,7 @@ msgstr ""
 "Ce produit est géré par Skwirrel. Les modifications des données produit "
 "doivent être effectuées dans Skwirrel."
 
-#: includes/class-skwirrel-wc-sync-delete-protection.php:119
+#: includes/class-skwirrel-wc-sync-delete-protection.php:164
 msgid ""
 "If you delete or trash this product, it will be automatically recreated "
 "during the next sync."
@@ -1161,12 +1345,16 @@ msgstr ""
 "prochaine synchronisation."
 
 #. translators: %s = last sync datetime
-#: includes/class-skwirrel-wc-sync-delete-protection.php:122
+#: includes/class-skwirrel-wc-sync-delete-protection.php:167
 #, php-format
 msgid "Last synced: %s"
 msgstr "Dernière synchronisation : %s"
 
-#: includes/class-skwirrel-wc-sync-delete-protection.php:193
+#: includes/class-skwirrel-wc-sync-delete-protection.php:187
+msgid "Delete locked — sync running"
+msgstr "Suppression verrouillée — sync en cours"
+
+#: includes/class-skwirrel-wc-sync-delete-protection.php:252
 msgid ""
 "This product is managed by Skwirrel and will be recreated during the next "
 "sync.\\n\\nAre you sure you want to trash this product?"
@@ -1175,7 +1363,7 @@ msgstr ""
 "synchronisation.\\n\\nÊtes-vous sûr de vouloir mettre ce produit à la "
 "corbeille ?"
 
-#: includes/class-skwirrel-wc-sync-delete-protection.php:210
+#: includes/class-skwirrel-wc-sync-delete-protection.php:269
 msgid ""
 "This category was created by Skwirrel Sync and will be recreated during the "
 "next sync.\\n\\nAre you sure you want to delete this category?"
@@ -1183,6 +1371,26 @@ msgstr ""
 "Cette catégorie a été créée par Skwirrel Sync et sera recréée lors de la "
 "prochaine synchronisation.\\n\\nÊtes-vous sûr de vouloir supprimer cette "
 "catégorie ?"
+
+#: includes/class-skwirrel-wc-sync-delete-protection.php:397
+msgid ""
+"A Skwirrel sync is running. Deleting Skwirrel-managed products is "
+"temporarily disabled to prevent conflicts. You can delete them again once "
+"the sync has finished."
+msgstr "Une synchronisation Skwirrel est en cours. La suppression des produits gérés par Skwirrel est temporairement désactivée pour éviter les conflits. Vous pourrez les supprimer à nouveau une fois la synchronisation terminée."
+
+#: includes/class-skwirrel-wc-sync-deprecated-status.php:51
+msgctxt "product status"
+msgid "Deprecated"
+msgstr "Obsolète"
+
+#. translators: %s: number of deprecated products.
+#: includes/class-skwirrel-wc-sync-deprecated-status.php:59
+#, php-format
+msgid "Deprecated <span class=\"count\">(%s)</span>"
+msgid_plural "Deprecated <span class=\"count\">(%s)</span>"
+msgstr[0] "Obsolète <span class=\"count\">(%s)</span>"
+msgstr[1] "Obsolète <span class=\"count\">(%s)</span>"
 
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:74
 msgid "Skwirrel product slugs"
@@ -1268,16 +1476,16 @@ msgstr ""
 msgid "Open in Skwirrel"
 msgstr "Ouvrir dans Skwirrel"
 
-#: includes/class-skwirrel-wc-sync-plugin.php:169
+#: includes/class-skwirrel-wc-sync-plugin.php:171
 msgid "Filter by manufacturer"
 msgstr "Filtrer par fabricant"
 
-#: includes/class-skwirrel-wc-sync-plugin.php:220
+#: includes/class-skwirrel-wc-sync-plugin.php:222
 msgid "GTIN / Manufacturer code"
 msgstr "GTIN / Code article fabricant"
 
 #. translators: %1$s = install URL, %2$s = activate URL
-#: includes/class-skwirrel-wc-sync-plugin.php:294
+#: includes/class-skwirrel-wc-sync-plugin.php:296
 #, php-format
 msgid ""
 "WooCommerce is required. <a href=\"%1$s\">Install WooCommerce</a> or <a "
@@ -1418,51 +1626,60 @@ msgid "Product synced successfully (%s)."
 msgstr "Produit synchronisé avec succès (%s)."
 
 #. translators: %s = grouped product ID
-#: includes/class-skwirrel-wc-sync-product-upserter.php:1015
+#: includes/class-skwirrel-wc-sync-product-upserter.php:1156
 #, php-format
 msgid "Product %s"
 msgstr "Produit %s"
 
-#: includes/class-skwirrel-wc-sync-service.php:76
+#: includes/class-skwirrel-wc-sync-service.php:133
 msgid ""
 "Another sync is already running; refusing to start a second concurrent run."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-service.php:367
+#: includes/class-skwirrel-wc-sync-service.php:452
 msgid "Fetching products from API…"
 msgstr "Récupération des produits via l'API…"
 
+#. translators: 1: API error message, 2: page number, 3: selection id
+#: includes/class-skwirrel-wc-sync-service.php:493
+#, php-format
+msgid "Fetch failed at page %2$d (selection %3$d): %1$s"
+msgstr "Échec de la récupération à la page %2$d (sélection %3$d) : %1$s"
+
 #. translators: %d = number of products fetched so far
-#: includes/class-skwirrel-wc-sync-service.php:476
+#: includes/class-skwirrel-wc-sync-service.php:560
 #, php-format
 msgid "Fetching products from API… (%d found)"
 msgstr "Récupération des produits via l'API… (%d trouvés)"
 
-#. translators: 1: API error message, 2: page number, 3: selection id
-#: includes/class-skwirrel-wc-sync-service.php:512
-#: includes/class-skwirrel-wc-sync-service.php:528
-#, php-format
-msgid "Pagination failed at page %2$d (selection %3$d): %1$s"
-msgstr ""
-
-#: includes/class-skwirrel-wc-sync-service.php:573
-#: includes/class-skwirrel-wc-sync-service.php:714
+#: includes/class-skwirrel-wc-sync-service.php:596
+#: includes/class-skwirrel-wc-sync-service.php:632
+#: includes/class-skwirrel-wc-sync-service.php:647
 msgid "Creating & syncing products…"
 msgstr "Création & synchronisation des produits…"
 
-#: includes/class-skwirrel-wc-sync-service.php:737
-#: includes/class-skwirrel-wc-sync-service.php:769
+#: includes/class-skwirrel-wc-sync-service.php:655
+#: includes/class-skwirrel-wc-sync-service.php:871
 msgid "Finalizing variable products…"
 msgstr "Finalisation des produits variables…"
 
-#: includes/class-skwirrel-wc-sync-service.php:784
-#: includes/class-skwirrel-wc-sync-service.php:814
+#: includes/class-skwirrel-wc-sync-service.php:884
+#: includes/class-skwirrel-wc-sync-service.php:940
 msgid "Linking related products…"
 msgstr "Liaison des produits associés…"
 
-#: includes/class-skwirrel-wc-sync-service.php:832
+#: includes/class-skwirrel-wc-sync-service.php:969
 msgid "Cleaning up…"
 msgstr "Nettoyage…"
+
+#: includes/class-skwirrel-wc-sync-service.php:1201
+msgid ""
+"Sync stalled: a step made no progress across several attempts and was "
+"aborted (check the log for a fatal error or a problem product)."
+msgstr ""
+"Synchronisation bloquée : une étape n'a fait aucun progrès après plusieurs "
+"tentatives et a été interrompue (consultez le journal pour une erreur fatale "
+"ou un produit problématique)."
 
 #: includes/class-skwirrel-wc-sync-taxonomy-manager.php:141
 #: includes/class-skwirrel-wc-sync-taxonomy-manager.php:153
@@ -1513,6 +1730,17 @@ msgstr ""
 #: skwirrel-pim-sync.php:52
 msgid "Install WooCommerce"
 msgstr "Installer WooCommerce"
+
+#~ msgid "Products are being synchronized. This page refreshes automatically."
+#~ msgstr ""
+#~ "Les produits sont en cours de synchronisation. Cette page se rafraîchit "
+#~ "automatiquement."
+
+#~ msgid "This page refreshes automatically every 5 seconds."
+#~ msgstr "Cette page se rafraîchit automatiquement toutes les 5 secondes."
+
+#~ msgid "Products per API request (1–50)."
+#~ msgstr "Produits par requête API (1–50)."
 
 #~ msgid "Assign categories, brands & manufacturers"
 #~ msgstr "Attribuer catégories, marques & fabricants"
@@ -1909,75 +2137,3 @@ msgstr "Installer WooCommerce"
 #~ "prochaine synchronisation.\n"
 #~ "\n"
 #~ "Êtes-vous sûr de vouloir supprimer cette catégorie ?"
-
-msgid " — too short"
-msgstr " — trop court"
-
-msgid "Auto-syncs must be at least %d hours apart until the first full sync has run to measure its duration."
-msgstr "Les synchronisations automatiques doivent être espacées d'au moins %d heures jusqu'à ce que la première synchronisation complète ait été exécutée pour mesurer sa durée."
-
-msgid "Connection successful — settings saved."
-msgstr "Connexion réussie — paramètres enregistrés."
-
-msgid "Enter a Skwirrel subdomain first."
-msgstr "Saisissez d'abord un sous-domaine Skwirrel."
-
-msgid "Enter a subdomain first."
-msgstr "Saisissez d'abord un sous-domaine."
-
-msgid "Every 2 hours"
-msgstr "Toutes les 2 heures"
-
-msgid "Every 3 hours"
-msgstr "Toutes les 3 heures"
-
-msgid "Every 4 hours"
-msgstr "Toutes les 4 heures"
-
-msgid "Every 6 hours"
-msgstr "Toutes les 6 heures"
-
-msgid "Every 8 hours"
-msgstr "Toutes les 8 heures"
-
-msgid "Fetch failed at page %2$d (selection %3$d): %1$s"
-msgstr "Échec de la récupération à la page %2$d (sélection %3$d) : %1$s"
-
-msgid "Hide for this session"
-msgstr "Masquer pour cette session"
-
-msgid "Move to the other corner"
-msgstr "Déplacer vers l'autre coin"
-
-msgid "Network error."
-msgstr "Erreur réseau."
-
-msgid "Products are being synchronized. Progress updates live below."
-msgstr "Les produits sont en cours de synchronisation. La progression est mise à jour en direct ci-dessous."
-
-msgid "Products per API request (1–100)."
-msgstr "Produits par requête API (1–100)."
-
-msgid "Progress updates automatically — no need to refresh."
-msgstr "La progression est mise à jour automatiquement — pas besoin d'actualiser."
-
-msgid "Skwirrel sync"
-msgstr "Synchronisation Skwirrel"
-
-msgid "Starting…"
-msgstr "Démarrage…"
-
-msgid "Sync completed."
-msgstr "Synchronisation terminée."
-
-msgid "Sync stalled: a step made no progress across several attempts and was aborted (check the log for a fatal error or a problem product)."
-msgstr "Synchronisation bloquée : une étape n'a fait aucun progrès après plusieurs tentatives et a été interrompue (consultez le journal pour une erreur fatale ou un produit problématique)."
-
-msgid "Testing…"
-msgstr "Test en cours…"
-
-msgid "View results"
-msgstr "Voir les résultats"
-
-msgid "Your last full sync took ~%1$d min, so auto-syncs must be at least %2$d hours apart (one full hour of rest between runs)."
-msgstr "Votre dernière synchronisation complète a duré ~%1$d min, les synchronisations automatiques doivent donc être espacées d'au moins %2$d heures (une heure complète de repos entre les exécutions)."

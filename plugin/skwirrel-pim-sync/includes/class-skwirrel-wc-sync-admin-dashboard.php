@@ -952,6 +952,77 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					</div>
 				</div>
 
+				<?php // -- Product status handling -- ?>
+				<div class="skw-fieldgroup">
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Product status handling', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-field-hint"><?php esc_html_e( 'Choose the WooCommerce state for each Skwirrel product status. Statuses are discovered automatically as they appear during a sync. "Keep published" leaves the product visible, "Draft" hides it, and "Trash" moves it to the trash.', 'skwirrel-pim-sync' ); ?></p>
+					<?php
+					$status_map     = is_array( $opts['status_mapping'] ?? null ) ? $opts['status_mapping'] : [];
+					$status_default = in_array( $opts['status_mapping_default'] ?? '', [ 'publish', 'draft', 'trash', 'deprecated' ], true ) ? $opts['status_mapping_default'] : 'publish';
+					$state_labels   = [
+						'publish'    => __( 'Keep published', 'skwirrel-pim-sync' ),
+						'draft'      => __( 'Draft (hidden)', 'skwirrel-pim-sync' ),
+						'trash'      => __( 'Trash', 'skwirrel-pim-sync' ),
+						'deprecated' => __( 'Deprecated (retire gradually)', 'skwirrel-pim-sync' ),
+					];
+					$seen_statuses  = get_option( Skwirrel_WC_Sync_Product_Mapper::SEEN_STATUSES_OPTION, [] );
+					if ( ! is_array( $seen_statuses ) ) {
+						$seen_statuses = [];
+					}
+					// Built-in pseudo-status rows: [ display label, default state ].
+					$status_rows = [
+						Skwirrel_WC_Sync_Product_Mapper::PSEUDO_NONE    => [ __( 'No status set', 'skwirrel-pim-sync' ), 'publish' ],
+						Skwirrel_WC_Sync_Product_Mapper::PSEUDO_TRASHED => [ __( 'Removed / discontinued in Skwirrel', 'skwirrel-pim-sync' ), 'trash' ],
+						Skwirrel_WC_Sync_Product_Mapper::PSEUDO_MISSING => [ __( 'No longer in the Skwirrel feed', 'skwirrel-pim-sync' ), 'trash' ],
+					];
+					foreach ( $seen_statuses as $seen_key => $seen_display ) {
+						$seen_key = (string) $seen_key;
+						// Pre-select the state get_status() would actually apply for an as-yet-unmapped
+						// label — mirror its legacy "draft" fallback — so saving the form (which posts
+						// every row) never silently flips a draft status to the plain default (publish).
+						$row_default              = ( false !== strpos( $seen_key, 'draft' ) ) ? 'draft' : $status_default;
+						$status_rows[ $seen_key ] = [ (string) $seen_display, $row_default ];
+					}
+					?>
+					<div class="skw-field">
+						<label for="status_mapping_default" class="skw-label"><?php esc_html_e( 'Default for new statuses', 'skwirrel-pim-sync' ); ?></label>
+						<select id="status_mapping_default" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[status_mapping_default]" class="skw-select" style="max-width: 220px;">
+							<?php foreach ( $state_labels as $state_value => $state_label ) : ?>
+								<option value="<?php echo esc_attr( $state_value ); ?>" <?php selected( $status_default, $state_value ); ?>><?php echo esc_html( $state_label ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<p class="skw-field-hint"><?php esc_html_e( 'Applied to any status not mapped below, including newly discovered ones.', 'skwirrel-pim-sync' ); ?></p>
+					</div>
+					<table class="widefat skw-status-table" style="max-width: 640px;">
+						<thead>
+							<tr>
+								<th><?php esc_html_e( 'Skwirrel status', 'skwirrel-pim-sync' ); ?></th>
+								<th><?php esc_html_e( 'WooCommerce state', 'skwirrel-pim-sync' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $status_rows as $row_key => $row_data ) : ?>
+								<?php $row_current = $status_map[ $row_key ] ?? $row_data[1]; ?>
+								<tr>
+									<td><?php echo esc_html( $row_data[0] ); ?></td>
+									<td>
+										<select name="<?php echo esc_attr( self::OPTION_KEY ); ?>[status_mapping][<?php echo esc_attr( (string) $row_key ); ?>]" class="skw-select">
+											<?php foreach ( $state_labels as $state_value => $state_label ) : ?>
+												<option value="<?php echo esc_attr( $state_value ); ?>" <?php selected( $row_current, $state_value ); ?>><?php echo esc_html( $state_label ); ?></option>
+											<?php endforeach; ?>
+										</select>
+									</td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+					<div class="skw-field" style="margin-top: 12px;">
+						<label for="deprecated_remove_after_syncs" class="skw-label"><?php esc_html_e( 'Remove deprecated products after (full syncs)', 'skwirrel-pim-sync' ); ?></label>
+						<input type="number" id="deprecated_remove_after_syncs" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[deprecated_remove_after_syncs]" value="<?php echo esc_attr( (string) ( $opts['deprecated_remove_after_syncs'] ?? 3 ) ); ?>" min="0" max="999" class="skw-input skw-input-sm" />
+						<p class="skw-field-hint"><?php esc_html_e( 'How many full syncs a product stays in the Deprecated status before it is moved to the trash. 0 = remove immediately (trashed on the same full sync it becomes deprecated — no review window). Only applies to statuses mapped to Deprecated.', 'skwirrel-pim-sync' ); ?></p>
+					</div>
+				</div>
+
 				<?php // -- Advanced -- ?>
 				<div class="skw-fieldgroup">
 					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Advanced', 'skwirrel-pim-sync' ); ?></h3>
@@ -959,6 +1030,8 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<label class="skw-checkbox"><input type="checkbox" id="verbose_logging" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[verbose_logging]" value="1" <?php checked( ! empty( $opts['verbose_logging'] ) ); ?> /> <?php esc_html_e( 'Verbose logging', 'skwirrel-pim-sync' ); ?></label>
 						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[purge_stale_products]" value="1" <?php checked( ! empty( $opts['purge_stale_products'] ) ); ?> /> <?php esc_html_e( 'Clean up deleted products after full sync', 'skwirrel-pim-sync' ); ?></label>
 						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_delete_warning]" value="1" <?php checked( $opts['show_delete_warning'] ?? true ); ?> /> <?php esc_html_e( 'Show delete warning on Skwirrel products', 'skwirrel-pim-sync' ); ?></label>
+						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[protect_from_deletion]" value="1" <?php checked( $opts['protect_from_deletion'] ?? true ); ?> /> <?php esc_html_e( 'Protect Skwirrel products from deletion', 'skwirrel-pim-sync' ); ?></label>
+						<p class="skw-field-hint"><?php esc_html_e( 'When enabled, manual deletion of Skwirrel-managed products from the product list or editor is blocked while a sync is running, to prevent conflicts. What the sync itself does with removed or discontinued products is controlled by "Product status handling" above.', 'skwirrel-pim-sync' ); ?></p>
 						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[prices_managed_outside_skwirrel]" value="1" <?php checked( ! empty( $opts['prices_managed_outside_skwirrel'] ) ); ?> /> <?php esc_html_e( 'Prices managed outside Skwirrel', 'skwirrel-pim-sync' ); ?></label>
 						<p class="skw-field-hint"><?php esc_html_e( 'Enable this when product prices are synced from a separate system (e.g. ERP). When enabled, the PIM sync will not overwrite existing variation prices when no price is present in the PIM payload.', 'skwirrel-pim-sync' ); ?></p>
 					</div>

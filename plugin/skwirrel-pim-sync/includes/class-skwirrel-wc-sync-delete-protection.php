@@ -19,6 +19,13 @@ class Skwirrel_WC_Sync_Delete_Protection {
 
 	private static ?self $instance = null;
 
+	/**
+	 * True while the sync itself is performing an owned trash/delete (simple→variation
+	 * conversion, grouped-parent replacement). Process-local so it bypasses the delete-lock
+	 * ONLY for the sync's own operations, never for a concurrent manual admin delete.
+	 */
+	private static bool $internal_op = false;
+
 	public static function instance(): self {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
@@ -45,6 +52,44 @@ class Skwirrel_WC_Sync_Delete_Protection {
 
 		// Na verwijdering categorie: forceer volledige sync
 		add_action( 'pre_delete_term', [ $this, 'on_category_deleted' ], 10, 2 );
+
+		// Harde blokkade: weiger trash/delete van Skwirrel-producten zolang een sync draait.
+		add_filter( 'pre_trash_post', [ $this, 'maybe_block_trash' ], 10, 2 );
+		add_filter( 'pre_delete_post', [ $this, 'maybe_block_delete' ], 10, 2 );
+
+		// Banner zolang een sync draait en de verwijderlock actief is.
+		add_action( 'admin_notices', [ $this, 'sync_lock_notice' ] );
+	}
+
+	/**
+	 * Whether "Protect Skwirrel products from deletion" is enabled.
+	 *
+	 * Protective by default: returns true until the setting is explicitly disabled.
+	 * When enabled, manual deletion of Skwirrel-managed products is blocked while a
+	 * sync is running (the delete-lock below). What the sync itself does with removed
+	 * or discontinued products is governed by the product status-handling mapping, not
+	 * by this flag.
+	 */
+	public static function is_deletion_protection_enabled(): bool {
+		$opts = get_option( 'skwirrel_wc_sync_settings', [] );
+		if ( ! is_array( $opts ) || ! array_key_exists( 'protect_from_deletion', $opts ) ) {
+			return true; // Standaard aan.
+		}
+		return ! empty( $opts['protect_from_deletion'] );
+	}
+
+	/**
+	 * Whether a sync is actively running (heartbeat still fresh).
+	 */
+	private function is_sync_running(): bool {
+		return Skwirrel_WC_Sync_History::is_heartbeat_fresh();
+	}
+
+	/**
+	 * Whether the hard delete-lock applies right now (protection on + sync running).
+	 */
+	private function delete_lock_active(): bool {
+		return self::is_deletion_protection_enabled() && $this->is_sync_running();
 	}
 
 	/**
@@ -130,19 +175,22 @@ class Skwirrel_WC_Sync_Delete_Protection {
 	 * Voeg CSS class toe aan trash-link voor Skwirrel-producten in productlijst.
 	 */
 	public function modify_product_row_actions( array $actions, \WP_Post $post ): array {
-		if ( ! $this->is_enabled() ) {
+		if ( 'product' !== $post->post_type || ! $this->is_skwirrel_product( $post->ID ) ) {
 			return $actions;
 		}
 
-		if ( 'product' !== $post->post_type ) {
+		// Hard lock while a sync runs: remove the trash action entirely (independent
+		// of the warning setting) and show the reason in its place.
+		if ( $this->delete_lock_active() ) {
+			unset( $actions['trash'] );
+			$actions['skwirrel_locked'] = '<span class="skwirrel-delete-locked" style="color:#a00;">'
+				. esc_html__( 'Delete locked — sync running', 'skwirrel-pim-sync' )
+				. '</span>';
 			return $actions;
 		}
 
-		if ( ! $this->is_skwirrel_product( $post->ID ) ) {
-			return $actions;
-		}
-
-		if ( isset( $actions['trash'] ) ) {
+		// Otherwise keep the confirmation-dialog behaviour (gated by the warning setting).
+		if ( $this->is_enabled() && isset( $actions['trash'] ) ) {
 			$actions['trash'] = str_replace(
 				'class="submitdelete"',
 				'class="submitdelete skwirrel-protected-trash"',
@@ -180,12 +228,23 @@ class Skwirrel_WC_Sync_Delete_Protection {
 	 * Enqueue JavaScript bevestigingsdialogen op productlijst en categoriepagina.
 	 */
 	public function enqueue_scripts(): void {
-		if ( ! $this->is_enabled() ) {
+		$screen = get_current_screen();
+		if ( ! $screen ) {
 			return;
 		}
 
-		$screen = get_current_screen();
-		if ( ! $screen ) {
+		// Hard delete-lock while a sync runs: hide the "Move to Trash" button on the
+		// product editor for Skwirrel products. Independent of the warning setting.
+		if ( 'post' === $screen->base && 'product' === $screen->post_type && $this->delete_lock_active() ) {
+			global $post;
+			if ( $post && $this->is_skwirrel_product( $post->ID ) ) {
+				wp_register_style( 'skwirrel-pim-sync-delete-lock', false, [], SKWIRREL_WC_SYNC_VERSION );
+				wp_enqueue_style( 'skwirrel-pim-sync-delete-lock' );
+				wp_add_inline_style( 'skwirrel-pim-sync-delete-lock', '#delete-action{display:none !important;}' );
+			}
+		}
+
+		if ( ! $this->is_enabled() ) {
 			return;
 		}
 
@@ -222,6 +281,123 @@ class Skwirrel_WC_Sync_Delete_Protection {
 				. '})();'
 			);
 		}
+	}
+
+	/**
+	 * Short-circuit a trash attempt on a Skwirrel product while a sync runs.
+	 *
+	 * @param mixed   $check Short-circuit value (null = proceed).
+	 * @param \WP_Post $post  Post about to be trashed.
+	 * @return mixed False to block the trash, otherwise the unchanged $check.
+	 */
+	public function maybe_block_trash( $check, $post ) {
+		return $this->block_when_locked( $check, $post );
+	}
+
+	/**
+	 * Short-circuit a (permanent) delete attempt on a Skwirrel product while a sync runs.
+	 *
+	 * @param mixed    $check Short-circuit value (null = proceed).
+	 * @param \WP_Post $post  Post about to be deleted.
+	 * @return mixed False to block the delete, otherwise the unchanged $check.
+	 */
+	public function maybe_block_delete( $check, $post ) {
+		return $this->block_when_locked( $check, $post );
+	}
+
+	/**
+	 * Block trash/delete of a Skwirrel-managed product while the delete-lock is active.
+	 *
+	 * Returning a non-null value short-circuits wp_trash_post()/wp_delete_post(), so a
+	 * concurrent manual deletion cannot race the running sync. Catches bulk actions and
+	 * direct URLs too, not just the row/edit buttons.
+	 *
+	 * @param mixed $short_circuit Current short-circuit value.
+	 * @param mixed $post          Post object (or other) passed by the filter.
+	 * @return mixed False to block, otherwise the unchanged $short_circuit.
+	 */
+	private function block_when_locked( $short_circuit, $post ) {
+		// The sync's own owned deletes (simple→variation conversion, grouped-parent
+		// replacement) run in the sync process and must never be blocked — only concurrent
+		// manual admin deletes (a different request, flag unset) should hit the lock.
+		if ( self::$internal_op ) {
+			return $short_circuit;
+		}
+		if ( ! ( $post instanceof \WP_Post ) ) {
+			return $short_circuit;
+		}
+		if ( 'product' !== $post->post_type && 'product_variation' !== $post->post_type ) {
+			return $short_circuit;
+		}
+		if ( ! $this->delete_lock_active() || ! $this->is_skwirrel_product( $post->ID ) ) {
+			return $short_circuit;
+		}
+
+		( new Skwirrel_WC_Sync_Logger() )->info(
+			'Deletion of a Skwirrel-managed product blocked: a sync is running (delete-lock active).',
+			[ 'post_id' => $post->ID ]
+		);
+		return false;
+	}
+
+	/**
+	 * Perform a sync-owned trash/delete that must bypass the delete-lock.
+	 *
+	 * The sync legitimately trashes/deletes Skwirrel products while converting simples to
+	 * variations and replacing grouped parents. Those calls run inside the sync process, so a
+	 * process-local flag lets them through while a concurrent manual admin delete (a different
+	 * request, flag unset) stays blocked.
+	 *
+	 * @param int  $post_id Post to remove.
+	 * @param bool $force   When true, permanently delete; otherwise move to trash.
+	 */
+	public static function do_internal_delete( int $post_id, bool $force = false ): void {
+		self::$internal_op = true;
+		try {
+			if ( $force ) {
+				wp_delete_post( $post_id, true );
+			} else {
+				wp_trash_post( $post_id );
+			}
+		} finally {
+			self::$internal_op = false;
+		}
+	}
+
+	/**
+	 * Show an info banner while the delete-lock is active (a sync is running).
+	 */
+	public function sync_lock_notice(): void {
+		if ( ! $this->delete_lock_active() ) {
+			return;
+		}
+
+		$screen = get_current_screen();
+		if ( ! $screen ) {
+			return;
+		}
+
+		$on_list = ( 'edit-product' === $screen->id );
+		$on_edit = ( 'product' === $screen->post_type && 'post' === $screen->base );
+		if ( ! $on_list && ! $on_edit ) {
+			return;
+		}
+
+		if ( $on_edit ) {
+			global $post;
+			if ( ! $post || ! $this->is_skwirrel_product( $post->ID ) ) {
+				return;
+			}
+		}
+
+		?>
+		<div class="notice notice-info">
+			<p>
+				<strong>Skwirrel Sync:</strong>
+				<?php esc_html_e( 'A Skwirrel sync is running. Deleting Skwirrel-managed products is temporarily disabled to prevent conflicts. You can delete them again once the sync has finished.', 'skwirrel-pim-sync' ); ?>
+			</p>
+		</div>
+		<?php
 	}
 
 	/**
