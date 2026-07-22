@@ -92,13 +92,14 @@ class Skwirrel_WC_Sync_Purge_Handler {
 					"SELECT DISTINCT p.ID FROM {$wpdb->posts} p
 					INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
 					WHERE p.post_type IN ('product', 'product_variation')
-					AND p.post_status IN (%s, %s, %s, %s, %s)
+					AND p.post_status IN (%s, %s, %s, %s, %s, %s)
 					AND pm.meta_key IN ('_skwirrel_external_id', '_skwirrel_grouped_product_id')",
 					'publish',
 					'draft',
 					'pending',
 					'private',
-					'trash'
+					'trash',
+					Skwirrel_WC_Sync_Deprecated_Status::STATUS
 				)
 			);
 		} else {
@@ -107,12 +108,13 @@ class Skwirrel_WC_Sync_Purge_Handler {
 					"SELECT DISTINCT p.ID FROM {$wpdb->posts} p
 					INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
 					WHERE p.post_type IN ('product', 'product_variation')
-					AND p.post_status IN (%s, %s, %s, %s)
+					AND p.post_status IN (%s, %s, %s, %s, %s)
 					AND pm.meta_key IN ('_skwirrel_external_id', '_skwirrel_grouped_product_id')",
 					'publish',
 					'draft',
 					'pending',
-					'private'
+					'private',
+					Skwirrel_WC_Sync_Deprecated_Status::STATUS
 				)
 			);
 		}
