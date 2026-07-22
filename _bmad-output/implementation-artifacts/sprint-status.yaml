@@ -1,5 +1,5 @@
 # generated: 2026-06-12
-# last_updated: 2026-06-12
+# last_updated: 2026-07-22  # Epic 1 re-baselined to as-built (correct-course)
 # project: Skwirrel PIM sync for WooCommerce (3.11.0 — Simple, Self-Diagnosing, Update-Proof)
 # project_key: NOKEY
 # tracking_system: file-system
@@ -39,7 +39,7 @@
 #   Epic 1 is foundational; Epic 2 builds on it; Epics 3 & 4 parallelize after Epic 1 seeds the pause flag.
 
 generated: 2026-06-12
-last_updated: 2026-06-12
+last_updated: 2026-07-22
 project: Skwirrel PIM sync for WooCommerce
 project_key: NOKEY
 tracking_system: file-system
@@ -47,25 +47,31 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # ── Epic 1: Reliable, resumable, duplicate-free sync core (foundation) ──
-  epic-1: backlog
-  1-1-test-harness-seams-and-canary: backlog
-  1-2-identity-resolver: backlog
-  1-3-resolver-and-change-set: backlog
-  1-4-read-only-enforcement: backlog
-  1-5a-run-ledger-table-and-dao: backlog
-  1-5b-committer-through-ledger: backlog
-  1-5c-atomic-claim-reaper-crash-resume: backlog
-  1-6-variable-grouped-assembly: backlog
-  1-7-per-run-marker: backlog
-  1-8-resumable-progress-ui: backlog
-  1-9a-idle-phased-to-ledger-migration: backlog
-  1-9b-migrate-during-resume: backlog
-  1-10-wp70-documents-path-test: backlog
-  1-11-progress-and-abort-ajax-endpoints: backlog
-  1-12-clean-uninstall-and-deactivate: backlog
-  1-13-no-orphaned-variation-suite: backlog
-  1-14-regression-canary-suite: backlog
-  1-15-upgrade-from-3-10-2-smoke: backlog
+  # RE-BASELINED 2026-07-22 (correct-course / sprint-change-proposal-2026-07-22.md):
+  #   Epic 1 shipped as an incremental hardening of the existing queue-based core
+  #   (per-product-atomic + draft-until-complete + content-hash change gate + sync
+  #   mutex + SKU-reuse), NOT the planned Resolver/Change_Set/Run_Ledger rewrite.
+  #   Ledger-only stories are DROPPED; outcome-complete stories are DONE; 6 real
+  #   as-built gaps remain open, so epic-1 stays in-progress.
+  epic-1: in-progress
+  1-1-test-harness-seams-and-canary: done          # pest unit+integration shipped; crash/clock seams deferred (ledger-only)
+  1-2-identity-resolver: done                       # resolve_sku_identity() + IdentityReuseTest (F7)
+  1-3-resolver-and-change-set: backlog              # OPEN — Change_Set forecast on queue core (Epic 2 preflight dep)
+  # 1-4-read-only-enforcement: DROPPED               # ledger/resolver-split only; no consumer under as-built
+  # 1-5a-run-ledger-table-and-dao: DROPPED           # no ledger; superseded by queue phase-cursor
+  1-5b-committer-through-ledger: done               # draft-until-complete + _skwirrel_synced_at + unchanged gate
+  # 1-5c-atomic-claim-reaper-crash-resume: DROPPED   # concurrency via SyncMutex/heartbeat; crash-resume golden test not built
+  1-6-variable-grouped-assembly: done               # sync_grouped_products_first(), in-place variation update
+  1-7-per-run-marker: backlog                       # OPEN — run header done, _skwirrel_last_run_id stamp missing (FR-15 dep)
+  1-8-resumable-progress-ui: done                   # reactive banner/toast shipped; explicit Resume affordance deferred
+  # 1-9a-idle-phased-to-ledger-migration: DROPPED    # nothing to migrate to (no ledger)
+  # 1-9b-migrate-during-resume: DROPPED              # nothing to migrate to (no ledger)
+  1-10-wp70-documents-path-test: done               # ensure_uploads_approved_download_directory() via is_valid_path() (regression test tracked under 1-14)
+  1-11-progress-and-abort-ajax-endpoints: done      # wp_ajax_..._status + ..._abort, boundary-honored via check_abort()
+  1-12-clean-uninstall-and-deactivate: backlog      # OPEN — no uninstall.php / no deactivate hook (real gap, not ledger-related)
+  1-13-no-orphaned-variation-suite: backlog         # OPEN — only queue-row orphans tested; WC-level invariant unpinned
+  1-14-regression-canary-suite: backlog             # OPEN — 4/6 pinned; missing object-cache-bust + real price-zero-out behavior test
+  1-15-upgrade-from-3-10-2-smoke: backlog           # OPEN — activation/upgrade path untested against 3.10.2 fixtures
   epic-1-retrospective: optional
 
   # ── Epic 2: See and control what a sync changes ──

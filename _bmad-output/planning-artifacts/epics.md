@@ -136,6 +136,27 @@ Deliver the per-entity-atomic sync rewrite so interrupted runs resume cleanly an
 images, duplicate products, or corrupt the catalog. Stories are dependency-ordered; the test harness
 comes first because the core's invariants are proven by tests, not by faith.
 
+> **Revisions v3 — as-built re-baseline (folded in 2026-07-22, authoritative; supersedes the story
+> text below where it conflicts).** Source: correct-course / `sprint-change-proposal-2026-07-22.md`.
+>
+> Epic 1 was **not** implemented as the planned `Resolver` / immutable `Change_Set` / `Run_Ledger` /
+> `Committer` rewrite. Instead the existing **queue-based phase-cursor core** was hardened
+> incrementally (per-product-atomic commits + draft-until-complete + content-hash change gate +
+> `SyncMutex` + SKU-reuse), landing across releases 3.11.0→3.11.3. The user-facing outcomes
+> (duplicate-free, no bare/partial products, delta-correct, resumable-enough) are met; the ledger
+> architecture and its invariant-proving harness are not built and are **dropped**.
+>
+> **DONE (outcome achieved by the queue core):** 1.1 (harness — seams deferred), 1.2, 1.5b, 1.6,
+> 1.8, 1.10, 1.11.
+> **DROPPED (ledger-architecture-only, no consumer under as-built):** 1.4, 1.5a, 1.5c, 1.9a, 1.9b.
+> **OPEN — slim Epic 1 remainder:**
+> - **1.3** — reduced to a read-only **Change_Set forecast on the queue core** (feeds Epic 2 preflight / FR-16).
+> - **1.7** — run header is done; remaining work is **stamping `_skwirrel_last_run_id` on each committed product + term** (feeds Epic 2 FR-15 deep-links).
+> - **1.12** — clean uninstall/deactivate hygiene (no `uninstall.php` / deactivate hook exists yet).
+> - **1.13** — WC-level no-orphaned-variation invariant suite (only queue-row orphans are tested today).
+> - **1.14** — regression-canary suite: 4/6 pinned; still missing the object-cache-bust test and the real "don't zero-out missing prices" *behavior* test.
+> - **1.15** — upgrade-from-3.10.2 activation smoke (activation/upgrade path is untested against real prior fixtures).
+
 ### Story 1.1: Test harness, seams & duplicate-key canary
 
 As a developer,
@@ -182,6 +203,10 @@ So that re-syncs and edge cases stop creating duplicate products like `425036687
 **And** `IdentityResolverTest` proves "SKU collision reuses matched id, never suffixes" (fails before, passes after).
 
 ### Story 1.3: Resolver + immutable Change_Set (read-only)
+
+> **v3 re-baseline:** rescoped. The full `Resolver` split is dropped; deliver only a **read-only
+> Change_Set forecast built on the queue-based core** (products + category ops, zero writes) so
+> Epic 2 preflight (FR-16) has a forecast to render. No `Run_Ledger` dependency.
 
 As a developer,
 I want a `Resolver` that builds an immutable `Change_Set` (products + category structure) without writing,
@@ -266,6 +291,10 @@ So that grouped products never flicker between simple and orphaned-variation acr
 **Then** the orphaned shell reconciles (no duplicate, no stranded variation) (**variable-assembly crash test** — AR-K #3).
 
 ### Story 1.7: Per-run marker & run header
+
+> **v3 re-baseline:** the run header (single `sync_run_id` allocated once, persisted in the queue
+> table, read back by every continuation) is **done**. Remaining scope = **stamp
+> `_skwirrel_last_run_id` on every committed product AND term** (the value FR-15 deep-links read).
 
 As a store owner,
 I want every product and category a run touched tagged with that run's id,

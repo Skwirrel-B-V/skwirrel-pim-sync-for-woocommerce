@@ -1,5 +1,29 @@
 [
   {
+    "id": "session-1784732002276-2",
+    "tabId": 2,
+    "command": "/bmad-correct-course",
+    "label": "Correct Course",
+    "emoji": "↺",
+    "icon": "arrows-clockwise",
+    "claudeSessionId": "e53146e2-3cd4-483b-bdf5-c9d6158ae15c",
+    "createdAt": "2026-07-22T15:12:29.149Z",
+    "projectPath": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress",
+    "projectName": "wordpress"
+  },
+  {
+    "id": "session-1784704199527-1",
+    "tabId": 1,
+    "command": null,
+    "label": "Terminal",
+    "emoji": "▷",
+    "icon": "terminal-window",
+    "claudeSessionId": "9377b2b2-d814-4db4-8b2e-1859bf4e4af2",
+    "createdAt": "2026-07-22T15:12:28.402Z",
+    "projectPath": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress",
+    "projectName": "wordpress"
+  },
+  {
     "id": "session-1782122129695-1",
     "tabId": 1,
     "command": null,

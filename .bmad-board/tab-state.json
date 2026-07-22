@@ -3,10 +3,10 @@
     {
       "slashCommand": null,
       "claudeSessionId": null,
-      "label": "Claude Code",
+      "label": "Investigate GitHub issue 40",
       "emoji": "▷",
       "icon": "terminal-window",
-      "oscTitle": "Claude Code",
+      "oscTitle": "Investigate GitHub issue 40",
       "storySlug": null,
       "storyPhase": null,
       "storyScope": null,
@@ -17,5 +17,5 @@
     }
   ],
   "activeIndex": 0,
-  "savedAt": "2026-06-22T09:55:31.178Z"
+  "savedAt": "2026-07-22T15:23:07.149Z"
 }
