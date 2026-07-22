@@ -679,14 +679,13 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		// Scoped to the deprecated status (a small set), so the meta_query stays cheap.
 		$ids = get_posts(
 			[
-				'post_type'        => [ 'product', 'product_variation' ],
-				'post_status'      => $status,
-				'fields'           => 'ids',
-				'posts_per_page'   => -1,
-				'no_found_rows'    => true,
-				'suppress_filters' => true,
+				'post_type'      => [ 'product', 'product_variation' ],
+				'post_status'    => $status,
+				'fields'         => 'ids',
+				'posts_per_page' => -1,
+				'no_found_rows'  => true,
 				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- bounded to deprecated-status posts; only Skwirrel-managed items carry these keys.
-				'meta_query'       => [
+				'meta_query'     => [
 					'relation' => 'OR',
 					[
 						'key'     => $external_id_meta,
