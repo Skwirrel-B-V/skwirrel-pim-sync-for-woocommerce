@@ -1682,7 +1682,11 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 
 		$variation->set_sku( $sku );
-		$variation->set_status( 'publish' );
+		// A variation that was trashed (manually, or cascaded from its parent) and is now coming
+		// back needs WordPress's untrash path, not just a new status: otherwise the trash metadata
+		// and the `…__trashed` post_name survive, and with variation permalinks enabled
+		// get_variation_url() then serves the revived variation on that wrong URL.
+		$variation->set_status( $this->guard_revive_from_trash( $variation, $variation_id ? (string) $variation->get_status() : '', 'publish' ) );
 		$variation->set_catalog_visibility( 'visible' );
 
 		$price = $this->mapper->get_regular_price( $product );

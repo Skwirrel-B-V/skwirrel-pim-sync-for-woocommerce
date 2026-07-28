@@ -1508,6 +1508,11 @@ class Skwirrel_WC_Sync_Service {
 			]
 		);
 
+		// Discover this product's source status, exactly as the catalogue queue does. Without it a
+		// product re-synced from its edit screen is classified by a status that never reaches the
+		// mapping table, so the admin cannot configure the very rule that decided its state.
+		$this->mapper->note_seen_status( $product );
+
 		try {
 			$outcome = $this->upserter->upsert_product( $product );
 

@@ -92,6 +92,10 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * Fix: the sync history's Created / Updated links now also list products the run put straight into the Deprecated state.
 * Fix: "Refresh statuses from Skwirrel" now scans large catalogues in steps instead of one long request that a server or browser timeout could kill.
 * Fix: for variable products, the sync history's Created / Updated links now open the parent products of that run — previously they could open an almost empty list.
+* Fix: when one run both creates and updates variations of the same product, that product now appears under *both* the Created and Updated links instead of only one of them.
+* Fix: a variation that was trashed and later returns keeps its original URL instead of coming back on a `…__trashed` permalink.
+* Fix: re-syncing a single product from its edit screen now also records its Skwirrel status, so the status shows up in the Product status handling table.
+* Fix: clicking "Refresh statuses from Skwirrel" with unsaved changes on the settings page no longer reloads the page and discards them.
 * Fix: a product created and then trashed within the same run still appears under that run's Created link.
 * Fix: translations — plural forms are now declared in every language file (`msgfmt --check` passed), the status-discovery message has a real plural, and several Dutch, German and French strings that were empty or paired with the wrong text have been corrected.
 

@@ -1875,6 +1875,15 @@ msgstr ""
 msgid "Scanning… %d products checked"
 msgstr "Analyse en cours… %d produits vérifiés"
 
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid ""
+"Statuses updated. Save your changes to see the new rows — the page was not "
+"reloaded because this form has unsaved edits."
+msgstr ""
+"Statuts mis à jour. Enregistrez vos modifications pour voir les nouvelles "
+"lignes — la page n’a pas été rechargée car ce formulaire contient des "
+"modifications non enregistrées."
+
 #~ msgid "Products are being synchronized. This page refreshes automatically."
 #~ msgstr ""
 #~ "Les produits sont en cours de synchronisation. Cette page se rafraîchit "

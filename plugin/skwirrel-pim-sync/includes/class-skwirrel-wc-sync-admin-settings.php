@@ -1303,24 +1303,25 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			'skwirrel-pim-sync-admin',
 			'skwirrelPimSync',
 			[
-				'purgeConfirmPermanent' => __( 'WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be undone!\n\nAre you sure?', 'skwirrel-pim-sync' ),
-				'purgeConfirmTrash'     => __( 'All Skwirrel products will be moved to the trash.\n\nAre you sure?', 'skwirrel-pim-sync' ),
-				'clearHistoryConfirm'   => __( 'Delete all sync history?', 'skwirrel-pim-sync' ),
-				'resetSettingsConfirm'  => __( 'Reset all Skwirrel sync settings? Endpoint URL, API token, sync schedule and slug rules will be deleted, and all scheduled syncs will be cancelled. Products, media, categories and sync history are kept.\n\nAre you sure?', 'skwirrel-pim-sync' ),
-				'ajaxUrl'               => admin_url( 'admin-ajax.php' ),
-				'slugResyncNonce'       => wp_create_nonce( 'skwirrel_slug_resync_nonce' ),
-				'viewLogNonce'          => wp_create_nonce( 'skwirrel_view_log_nonce' ),
-				'downloadLogNonce'      => wp_create_nonce( 'skwirrel_download_log_nonce' ),
-				'abortSyncNonce'        => wp_create_nonce( 'skwirrel_abort_sync_nonce' ),
-				'abortSyncConfirm'      => __( 'Stop the running sync?', 'skwirrel-pim-sync' ),
-				'testConnectionNonce'   => wp_create_nonce( 'skwirrel_test_connection_nonce' ),
-				'testingLabel'          => __( 'Testing…', 'skwirrel-pim-sync' ),
-				'testSubdomainLabel'    => __( 'Enter a subdomain first.', 'skwirrel-pim-sync' ),
-				'testFailedLabel'       => __( 'Connection failed.', 'skwirrel-pim-sync' ),
-				'testNetworkLabel'      => __( 'Network error.', 'skwirrel-pim-sync' ),
-				'refreshStatusesNonce'  => wp_create_nonce( 'skwirrel_refresh_statuses_nonce' ),
-				'refreshStatusesLabel'  => __( 'Fetching…', 'skwirrel-pim-sync' ),
-				'refreshStatusesError'  => __( 'Could not refresh statuses.', 'skwirrel-pim-sync' ),
+				'purgeConfirmPermanent'  => __( 'WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be undone!\n\nAre you sure?', 'skwirrel-pim-sync' ),
+				'purgeConfirmTrash'      => __( 'All Skwirrel products will be moved to the trash.\n\nAre you sure?', 'skwirrel-pim-sync' ),
+				'clearHistoryConfirm'    => __( 'Delete all sync history?', 'skwirrel-pim-sync' ),
+				'resetSettingsConfirm'   => __( 'Reset all Skwirrel sync settings? Endpoint URL, API token, sync schedule and slug rules will be deleted, and all scheduled syncs will be cancelled. Products, media, categories and sync history are kept.\n\nAre you sure?', 'skwirrel-pim-sync' ),
+				'ajaxUrl'                => admin_url( 'admin-ajax.php' ),
+				'slugResyncNonce'        => wp_create_nonce( 'skwirrel_slug_resync_nonce' ),
+				'viewLogNonce'           => wp_create_nonce( 'skwirrel_view_log_nonce' ),
+				'downloadLogNonce'       => wp_create_nonce( 'skwirrel_download_log_nonce' ),
+				'abortSyncNonce'         => wp_create_nonce( 'skwirrel_abort_sync_nonce' ),
+				'abortSyncConfirm'       => __( 'Stop the running sync?', 'skwirrel-pim-sync' ),
+				'testConnectionNonce'    => wp_create_nonce( 'skwirrel_test_connection_nonce' ),
+				'testingLabel'           => __( 'Testing…', 'skwirrel-pim-sync' ),
+				'testSubdomainLabel'     => __( 'Enter a subdomain first.', 'skwirrel-pim-sync' ),
+				'testFailedLabel'        => __( 'Connection failed.', 'skwirrel-pim-sync' ),
+				'testNetworkLabel'       => __( 'Network error.', 'skwirrel-pim-sync' ),
+				'refreshStatusesNonce'   => wp_create_nonce( 'skwirrel_refresh_statuses_nonce' ),
+				'refreshStatusesLabel'   => __( 'Fetching…', 'skwirrel-pim-sync' ),
+				'refreshStatusesError'   => __( 'Could not refresh statuses.', 'skwirrel-pim-sync' ),
+				'refreshStatusesUnsaved' => __( 'Statuses updated. Save your changes to see the new rows — the page was not reloaded because this form has unsaved edits.', 'skwirrel-pim-sync' ),
 			]
 		);
 
@@ -1424,6 +1425,15 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			// statuses, then reload so the table re-renders them as configurable rows. The server
 			// scans a bounded chunk per request and returns the next page to ask for, so a large
 			// catalogue is covered across several requests instead of one that can time out.
+			// A reload would throw away unsaved edits to this form (the AJAX action persists only
+			// the discovered status metadata), so a dirty form is never reloaded — the admin is
+			// told to save instead, and the new rows appear on that save.
+			. ' var settingsForm = document.getElementById("skwirrel-sync-settings-form");'
+			. ' var formDirty = false;'
+			. ' if (settingsForm) {'
+			. '  settingsForm.addEventListener("input", function(){ formDirty = true; });'
+			. '  settingsForm.addEventListener("change", function(){ formDirty = true; });'
+			. ' }'
 			. ' var refreshBtn = document.getElementById("skwirrel-refresh-statuses");'
 			. ' if (refreshBtn) refreshBtn.addEventListener("click", function(){'
 			. '  var msgEl = document.getElementById("skwirrel-refresh-statuses-msg");'
@@ -1437,9 +1447,12 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '    .then(function(r){ return r.json(); })'
 			. '    .then(function(r){'
 			. '     var msg = (r && r.data && r.data.message) ? r.data.message : skwirrelPimSync.refreshStatusesError;'
+			. '     if (r && r.success && r.data && r.data.done === false && r.data.next_page) { setMsg(msg); return scan(r.data.next_page); }'
+			. '     if (r && r.success && r.data && r.data.reload) {'
+			. '      if (formDirty) { setMsg(skwirrelPimSync.refreshStatusesUnsaved); refreshBtn.disabled = false; return; }'
+			. '      setMsg(msg); window.location.reload(); return;'
+			. '     }'
 			. '     setMsg(msg);'
-			. '     if (r && r.success && r.data && r.data.done === false && r.data.next_page) { return scan(r.data.next_page); }'
-			. '     if (r && r.success && r.data && r.data.reload) { window.location.reload(); return; }'
 			. '     refreshBtn.disabled = false;'
 			. '    });'
 			. '  }'

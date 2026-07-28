@@ -1629,3 +1629,7 @@ msgstr ""
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Scanning… %d products checked"
 msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Statuses updated. Save your changes to see the new rows — the page was not reloaded because this form has unsaved edits."
+msgstr ""
