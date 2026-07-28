@@ -479,17 +479,23 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			wp_send_json_error( [ 'message' => $products->get_error_message() ] );
 		}
 
-		$added = Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products( $products );
+		$result    = Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products( $products );
+		$added     = $result['added'];
+		$refreshed = $result['refreshed'];
 		if ( $added > 0 ) {
 			/* translators: %d: number of newly discovered product statuses. */
 			$message = sprintf( _n( '%d new status found — reloading…', '%d new statuses found — reloading…', $added, 'skwirrel-pim-sync' ), $added );
+		} elseif ( $refreshed > 0 ) {
+			// No new statuses, but a known one was renamed/re-numbered upstream — reload so the
+			// table shows the current label instead of the one captured when it was first seen.
+			$message = __( 'Status details updated — reloading…', 'skwirrel-pim-sync' );
 		} else {
 			$message = __( 'No new statuses found. All statuses in the sample are already listed.', 'skwirrel-pim-sync' );
 		}
 		wp_send_json_success(
 			[
 				'added'   => $added,
-				'reload'  => $added > 0,
+				'reload'  => $added > 0 || $refreshed > 0,
 				'message' => $message,
 			]
 		);

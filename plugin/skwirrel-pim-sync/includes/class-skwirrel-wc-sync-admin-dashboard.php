@@ -341,6 +341,29 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	}
 
 	/**
+	 * Translated display label for a built-in preset status.
+	 *
+	 * KNOWN_STATUSES is a class constant, so its labels cannot carry a `__()` call —
+	 * they are translated here, at render time, keyed on the stable preset key. Statuses
+	 * a tenant defines themselves keep the label the API returns: that is their own text,
+	 * not a string this plugin ships.
+	 *
+	 * @param string $key      Normalized preset key (draft|available|discontinued).
+	 * @param string $fallback The preset's English label, used for unknown keys.
+	 */
+	private static function preset_label( string $key, string $fallback ): string {
+		switch ( $key ) {
+			case 'draft':
+				return _x( 'Draft', 'Skwirrel product status', 'skwirrel-pim-sync' );
+			case 'available':
+				return _x( 'Available', 'Skwirrel product status', 'skwirrel-pim-sync' );
+			case 'discontinued':
+				return _x( 'Discontinued', 'Skwirrel product status', 'skwirrel-pim-sync' );
+		}
+		return $fallback;
+	}
+
+	/**
 	 * Build the ordered rows for the product-status-handling table: built-in presets
 	 * first, then tenant-defined statuses discovered during sync, then the structural
 	 * pseudo-statuses. Shared by the settings page and the "Refresh statuses" flow.
@@ -361,7 +384,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		foreach ( Skwirrel_WC_Sync_Product_Mapper::KNOWN_STATUSES as $key => $preset ) {
 			$rows[] = array(
 				'key'       => (string) $key,
-				'name_html' => self::status_badge_html( $preset['id'], $preset['code'], $preset['label'] ),
+				'name_html' => self::status_badge_html( $preset['id'], $preset['code'], self::preset_label( (string) $key, $preset['label'] ) ),
 				'selected'  => $status_map[ $key ] ?? $preset['default'],
 				'group'     => 'preset',
 			);
@@ -369,7 +392,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 
 		// 2) Discovered (tenant-defined) statuses beyond the presets.
 		foreach ( Skwirrel_WC_Sync_Product_Mapper::get_seen_statuses() as $key => $rec ) {
-			$fallback = ( false !== strpos( (string) $key, 'draft' ) ) ? 'draft' : $status_default;
+			// Same rule the sync applies to an unmapped status, so the state this row pre-selects
+			// is the state the product already has — saving the page unchanged is a no-op.
+			$fallback = Skwirrel_WC_Sync_Product_Mapper::unmapped_state( (string) $key, (string) $rec['label'], $status_default );
 			$rows[]   = array(
 				'key'       => (string) $key,
 				'name_html' => self::status_badge_html( $rec['id'], $rec['code'], $rec['label'] ),
@@ -688,6 +713,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<?php endforeach; ?>
 				</tbody>
 			</table>
+			<?php if ( '' !== $latest_run_id ) : ?>
+				<p class="skw-table-note">
+					<?php esc_html_e( 'Counts include product variations. Clicking a number opens the products list, which lists parent products only — so a variable product counts each of its variations here but appears as a single row.', 'skwirrel-pim-sync' ); ?>
+				</p>
+			<?php endif; ?>
 		</div>
 		<?php
 	}

@@ -733,9 +733,12 @@ class Skwirrel_WC_Sync_Service {
 		$queue->update_after_phase1( $row->id, $wc_id, $outcome );
 
 		// Run-scoped deep-link marker: record which run changed this product and how, so the
-		// dashboard's Created/Updated count cells can link to exactly this run's set.
+		// dashboard's Created/Updated count cells can link to exactly this run's set. A variation
+		// marks its variable parent instead of itself — the product list the cells link to renders
+		// parent products only, so a marker on a product_variation post could never be reached.
 		if ( $wc_id && ( 'created' === $outcome || 'updated' === $outcome ) ) {
-			Skwirrel_WC_Sync_Run_Links::mark( (int) $wc_id, (string) $ctx['run_id'], $outcome );
+			$link_target = (int) ( $row->group_info['wc_variable_id'] ?? $wc_id );
+			Skwirrel_WC_Sync_Run_Links::mark( $link_target, (string) $ctx['run_id'], $outcome );
 		}
 
 		if ( $wc_id && 'skipped' !== $outcome && 'unchanged' !== $outcome ) {

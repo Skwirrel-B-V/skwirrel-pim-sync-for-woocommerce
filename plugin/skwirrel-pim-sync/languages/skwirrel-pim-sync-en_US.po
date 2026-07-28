@@ -14,6 +14,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Generator: Skwirrel PIM sync for WooCommerce 1.7.0\n"
 "X-Domain: skwirrel-pim-sync\n"
 
@@ -1696,9 +1697,8 @@ msgid "Install WooCommerce"
 msgstr "Install WooCommerce"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
-#, fuzzy
 msgid "Custom class collection ID (optional)"
-msgstr "Custom class collection ID"
+msgstr "Custom class collection ID (optional)"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Only needed when syncing custom classes or grouped products."
@@ -1710,6 +1710,8 @@ msgid ""
 "A custom class collection ID greater than 0 is required when syncing custom "
 "classes or grouped products."
 msgstr ""
+"A custom class collection ID greater than 0 is required when syncing "
+"custom classes or grouped products."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid ""
@@ -1720,14 +1722,48 @@ msgid ""
 "\"Keep published\" leaves the product visible, \"Draft\" hides it, \"Trash\" "
 "moves it to the trash, and \"Deprecated\" retires it gradually."
 msgstr ""
+"Choose the WooCommerce state for each Skwirrel product status. The "
+"built-in statuses (Draft, Available, Discontinued) are always shown; "
+"any extra statuses your Skwirrel instance defines are discovered "
+"automatically during a sync — or click \"Refresh statuses from "
+"Skwirrel\" to fetch them now. \"Keep published\" leaves the product "
+"visible, \"Draft\" hides it, \"Trash\" moves it to the trash, and "
+"\"Deprecated\" retires it gradually."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgctxt "Skwirrel product status"
+msgid "Draft"
+msgstr "Draft"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgctxt "Skwirrel product status"
+msgid "Available"
+msgstr "Available"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgctxt "Skwirrel product status"
+msgid "Discontinued"
+msgstr "Discontinued"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid ""
+"Counts include product variations. Clicking a number opens the "
+"products list, which lists parent products only — so a variable "
+"product counts each of its variations here but appears as a single "
+"row."
+msgstr ""
+"Counts include product variations. Clicking a number opens the "
+"products list, which lists parent products only — so a variable "
+"product counts each of its variations here but appears as a single "
+"row."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Refresh statuses from Skwirrel"
-msgstr ""
+msgstr "Refresh statuses from Skwirrel"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "No new statuses found. All statuses in the sample are already listed."
-msgstr ""
+msgstr "No new statuses found. All statuses in the sample are already listed."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid ""
@@ -1737,22 +1773,27 @@ msgstr ""
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "The request to Skwirrel failed."
-msgstr ""
+msgstr "The request to Skwirrel failed."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
-#, fuzzy
 msgid "Fetching…"
-msgstr "Testing…"
+msgstr "Fetching…"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Could not refresh statuses."
-msgstr ""
+msgstr "Could not refresh statuses."
 
-#. translators: %d = number of statuses found
+#. translators: %d: number of newly discovered product statuses.
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 #, php-format
 msgid "%d new status found — reloading…"
-msgstr ""
+msgid_plural "%d new statuses found — reloading…"
+msgstr[0] "%d new status found — reloading…"
+msgstr[1] "%d new statuses found — reloading…"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Status details updated — reloading…"
+msgstr "Status details updated — reloading…"
 
 #~ msgid "Products are being synchronized. This page refreshes automatically."
 #~ msgstr "Products are being synchronized. This page refreshes automatically."

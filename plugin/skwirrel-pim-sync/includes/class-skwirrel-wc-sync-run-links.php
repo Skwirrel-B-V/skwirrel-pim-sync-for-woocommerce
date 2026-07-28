@@ -49,8 +49,43 @@ class Skwirrel_WC_Sync_Run_Links {
 		if ( $post_id <= 0 || '' === $run_id ) {
 			return;
 		}
+		// One run can mark the same product more than once — every variation marks its variable
+		// parent. Keep the strongest outcome: a product this run created stays `created` even when
+		// a later write for the same run reports `updated`.
+		if ( 'updated' === $outcome
+			&& (string) get_post_meta( $post_id, self::RUN_ID_META, true ) === $run_id
+			&& 'created' === (string) get_post_meta( $post_id, self::RUN_OUTCOME_META, true ) ) {
+			return;
+		}
 		update_post_meta( $post_id, self::RUN_ID_META, $run_id );
 		update_post_meta( $post_id, self::RUN_OUTCOME_META, $outcome );
+	}
+
+	/**
+	 * Record that this run trashed a product, without discarding a create/update it did earlier.
+	 *
+	 * A product can be created or updated early in a run and then trashed during that same run's
+	 * finalize (deprecated escalation, stale purge). The run's Created/Updated counters still
+	 * include it, so overwriting the outcome would make those deep-links return fewer products
+	 * than the count they were clicked from. Keeping it costs nothing: the Trashed and Deprecated
+	 * cells link on post_status, not on the outcome, so they stay exact either way.
+	 *
+	 * @param int    $post_id Product/variation ID.
+	 * @param string $run_id  The current run's uuid.
+	 */
+	public static function mark_trashed( int $post_id, string $run_id ): void {
+		if ( $post_id <= 0 || '' === $run_id ) {
+			return;
+		}
+		$outcome_this_run = (string) get_post_meta( $post_id, self::RUN_ID_META, true ) === $run_id
+			? (string) get_post_meta( $post_id, self::RUN_OUTCOME_META, true )
+			: '';
+		// Already marked by this run as created/updated: the marker points here, so leave both
+		// meta values alone. Only `mark()` ever writes those two outcomes.
+		if ( in_array( $outcome_this_run, [ 'created', 'updated' ], true ) ) {
+			return;
+		}
+		self::mark( $post_id, $run_id, 'trashed' );
 	}
 
 	/**
@@ -91,6 +126,16 @@ class Skwirrel_WC_Sync_Run_Links {
 				'key'   => self::RUN_OUTCOME_META,
 				'value' => $outcome,
 			];
+		}
+
+		// A run-scoped view must include trash. A product this run created or updated can have been
+		// trashed by the same run's finalize (deprecated escalation, stale purge), and WP's "All"
+		// list hides trash — so the count cell and the list it links to would disagree. An explicit
+		// post_status in the URL (the Published/Draft/Trash tabs) still wins.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin list filter, no state change.
+		if ( ! isset( $_GET['post_status'] ) ) {
+			$statuses = array_values( get_post_stati( [ 'show_in_admin_all_list' => true ] ) );
+			$query->set( 'post_status', array_merge( $statuses, [ 'trash' ] ) );
 		}
 
 		// Nest so the run scoping is always ANDed, even if an existing meta_query uses relation OR.

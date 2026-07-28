@@ -711,6 +711,13 @@
 	font-size: 13px;
 }
 
+.skw-table-note {
+	margin: 10px 24px 20px;
+	font-size: 11px;
+	line-height: 1.5;
+	color: #6b7280;
+}
+
 .skw-table thead tr {
 	background: #f9fafb;
 	position: sticky;

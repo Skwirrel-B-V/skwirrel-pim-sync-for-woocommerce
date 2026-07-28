@@ -611,7 +611,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			// Invalidate the change gate: if this hidden product later reappears with an unchanged
 			// product_updated_on, is_unchanged() would otherwise skip it and it would never be revived.
 			delete_post_meta( (int) $post_id, $updated_on_meta );
-			Skwirrel_WC_Sync_Run_Links::mark( (int) $post_id, $run_id, 'trashed' );
+			Skwirrel_WC_Sync_Run_Links::mark_trashed( (int) $post_id, $run_id );
 			++$trashed;
 
 			// Variable product: also apply the state to its variations.
@@ -624,7 +624,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 						$variation->save();
 						$this->reset_deprecated_counter_on_entry( (int) $vid, $missing_state );
 						delete_post_meta( (int) $vid, $updated_on_meta );
-						Skwirrel_WC_Sync_Run_Links::mark( (int) $vid, $run_id, 'trashed' );
+						Skwirrel_WC_Sync_Run_Links::mark_trashed( (int) $vid, $run_id );
 						++$trashed;
 					}
 				}
@@ -740,7 +740,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			delete_post_meta( $post_id, $ticked_meta );
 			// Invalidate the change gate so a later unchanged reappearance is reprocessed (and revived).
 			delete_post_meta( $post_id, $updated_on_meta );
-			Skwirrel_WC_Sync_Run_Links::mark( (int) $post_id, $run_id, 'trashed' );
+			Skwirrel_WC_Sync_Run_Links::mark_trashed( (int) $post_id, $run_id );
 			++$trashed;
 
 			// Variable product: cascade the trash to variations and clear their counters too.
@@ -750,7 +750,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 					if ( $variation && 'trash' !== $variation->get_status() ) {
 						$variation->set_status( 'trash' );
 						$variation->save();
-						Skwirrel_WC_Sync_Run_Links::mark( (int) $vid, $run_id, 'trashed' );
+						Skwirrel_WC_Sync_Run_Links::mark_trashed( (int) $vid, $run_id );
 						++$trashed;
 					}
 					delete_post_meta( (int) $vid, $count_meta );

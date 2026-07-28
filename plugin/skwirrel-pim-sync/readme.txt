@@ -78,6 +78,14 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 == Changelog ==
 
+= 3.12.2 =
+
+* Fix: a Skwirrel status that is not mapped yet but whose description mentions "draft" is held as a draft again, as it was before 3.12 — upgrading no longer publishes products that were kept back.
+* Fix: renaming a status in Skwirrel now updates its label in the **Product status handling** table (the internal code stays the key), both during a sync and via **Refresh statuses from Skwirrel**.
+* Fix: the **Created** and **Updated** links in the sync history no longer come up short when a product was created or updated and then trashed during the same run.
+* Fix: the "%d new statuses found" message now has a proper plural form, and all translation files carry the plural rules they were missing.
+* Fix: corrected Dutch, German and French translations for "Fetching…", "Could not refresh statuses." and the optional custom class collection ID label; remaining new 3.12.1 strings are now translated in all locales.
+
 = 3.12.1 =
 
 * New: the **Product status handling** table now always shows the three built-in Skwirrel statuses (Draft, Available, Discontinued) with recommended defaults — no need to wait for a sync first.
