@@ -525,18 +525,6 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$last_page = false;
 		$scanned   = 0;
 
-<<<<<<< HEAD
-		$result    = Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products( $products );
-		$added     = $result['added'];
-		$refreshed = $result['refreshed'];
-		if ( $added > 0 ) {
-			/* translators: %d: number of newly discovered product statuses. */
-			$message = sprintf( _n( '%d new status found — reloading…', '%d new statuses found — reloading…', $added, 'skwirrel-pim-sync' ), $added );
-		} elseif ( $refreshed > 0 ) {
-			// No new statuses, but a known one was renamed/re-numbered upstream — reload so the
-			// table shows the current label instead of the one captured when it was first seen.
-			$message = __( 'Status details updated — reloading…', 'skwirrel-pim-sync' );
-=======
 		do {
 			$products = $this->fetch_statuses( $page, $limit );
 			if ( is_wp_error( $products ) ) {
@@ -588,24 +576,17 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			$message = __( 'Status details updated — reloading…', 'skwirrel-pim-sync' );
 		} elseif ( $complete ) {
 			$message = __( 'No new statuses found. Every status in the catalogue is already listed.', 'skwirrel-pim-sync' );
->>>>>>> origin/release/3.12.1
 		} else {
 			$message = __( 'No new statuses found so far — the scan stopped before the end of the catalogue.', 'skwirrel-pim-sync' );
 		}
 		wp_send_json_success(
 			[
-<<<<<<< HEAD
-				'added'   => $added,
-				'reload'  => $added > 0 || $refreshed > 0,
-				'message' => $message,
-=======
 				'added'     => $totals['added'],
 				'refreshed' => $totals['refreshed'],
 				'done'      => true,
 				'complete'  => $complete,
 				'reload'    => $totals['added'] > 0 || $totals['refreshed'] > 0,
 				'message'   => $message,
->>>>>>> origin/release/3.12.1
 			]
 		);
 	}

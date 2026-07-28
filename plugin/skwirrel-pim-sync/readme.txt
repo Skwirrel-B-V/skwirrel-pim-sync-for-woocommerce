@@ -80,13 +80,6 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 = 3.12.2 =
 
-<<<<<<< HEAD
-* Fix: a Skwirrel status that is not mapped yet but whose description mentions "draft" is held as a draft again, as it was before 3.12 — upgrading no longer publishes products that were kept back.
-* Fix: renaming a status in Skwirrel now updates its label in the **Product status handling** table (the internal code stays the key), both during a sync and via **Refresh statuses from Skwirrel**.
-* Fix: the **Created** and **Updated** links in the sync history no longer come up short when a product was created or updated and then trashed during the same run.
-* Fix: the "%d new statuses found" message now has a proper plural form, and all translation files carry the plural rules they were missing.
-* Fix: corrected Dutch, German and French translations for "Fetching…", "Could not refresh statuses." and the optional custom class collection ID label; remaining new 3.12.1 strings are now translated in all locales.
-=======
 * Fix: a product status whose *description* says "Draft" but whose internal code does not (e.g. code `PENDING_REVIEW`, description "Draft - not published") is held as a draft again, as it was before 3.12 — upgrading no longer publishes products that used to stay hidden.
 * Fix: renaming a status in Skwirrel now updates its label in the Product status handling table; previously the table kept showing the old name forever.
 * Fix: a status used only by products marked as removed in Skwirrel is now discovered too, so it can be configured instead of silently following the global default.
@@ -115,7 +108,6 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * Fix: clicking "Refresh statuses from Skwirrel" with unsaved changes on the settings page no longer reloads the page and discards them.
 * Fix: a product created and then trashed within the same run still appears under that run's Created link.
 * Fix: translations — plural forms are now declared in every language file (`msgfmt --check` passed), the status-discovery message has a real plural, and several Dutch, German and French strings that were empty or paired with the wrong text have been corrected.
->>>>>>> origin/release/3.12.1
 
 = 3.12.1 =
 

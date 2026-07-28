@@ -1750,11 +1750,7 @@ msgstr "WooCommerce installeren"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Custom class collection ID (optional)"
-<<<<<<< HEAD
-msgstr "Aangepaste klasse collectie ID (optioneel)"
-=======
 msgstr "Collectie-ID voor eigen klassen (optioneel)"
->>>>>>> origin/release/3.12.1
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Only needed when syncing custom classes or grouped products."
@@ -1780,47 +1776,6 @@ msgid ""
 "\"Keep published\" leaves the product visible, \"Draft\" hides it, \"Trash\" "
 "moves it to the trash, and \"Deprecated\" retires it gradually."
 msgstr ""
-<<<<<<< HEAD
-"Kies de WooCommerce-status voor elke Skwirrel-productstatus. De "
-"ingebouwde statussen (Concept, Beschikbaar, Vervallen) worden altijd "
-"getoond; extra statussen die jouw Skwirrel-omgeving definieert worden "
-"automatisch ontdekt tijdens een sync — of klik op \"Statussen "
-"vernieuwen vanuit Skwirrel\" om ze nu op te halen. \"Gepubliceerd "
-"houden\" laat het product zichtbaar, \"Concept\" verbergt het, "
-"\"Prullenbak\" verplaatst het naar de prullenbak en \"Uitgefaseerd\" "
-"faseert het geleidelijk uit."
-
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgctxt "Skwirrel product status"
-msgid "Draft"
-msgstr "Concept"
-
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgctxt "Skwirrel product status"
-msgid "Available"
-msgstr "Beschikbaar"
-
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgctxt "Skwirrel product status"
-msgid "Discontinued"
-msgstr "Vervallen"
-
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid ""
-"Counts include product variations. Clicking a number opens the "
-"products list, which lists parent products only — so a variable "
-"product counts each of its variations here but appears as a single "
-"row."
-msgstr ""
-"Aantallen zijn inclusief productvariaties. Klikken op een getal opent "
-"de productenlijst, die alleen hoofdproducten toont — een variabel "
-"product telt hier dus elke variatie mee, maar verschijnt als één "
-"regel."
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid "Refresh statuses from Skwirrel"
-msgstr "Statussen vernieuwen vanuit Skwirrel"
-=======
 "Kies de WooCommerce-status voor elke Skwirrel-productstatus. De ingebouwde "
 "statussen (Concept, Beschikbaar, Uitgefaseerd) worden altijd getoond; extra "
 "statussen die jouw Skwirrel-omgeving definieert worden automatisch ontdekt "
@@ -1832,40 +1787,18 @@ msgstr "Statussen vernieuwen vanuit Skwirrel"
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Refresh statuses from Skwirrel"
 msgstr "Statussen ophalen uit Skwirrel"
->>>>>>> origin/release/3.12.1
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "No new statuses found. Every status in the catalogue is already listed."
 msgstr ""
-<<<<<<< HEAD
-"Geen nieuwe statussen gevonden. Alle statussen in de steekproef staan "
-"al in de lijst."
-=======
 "Geen nieuwe statussen gevonden. Alle statussen in de catalogus staan al in "
 "de lijst."
->>>>>>> origin/release/3.12.1
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid ""
 "Set the Skwirrel endpoint and API token (and save) before refreshing "
 "statuses."
 msgstr ""
-<<<<<<< HEAD
-"Stel eerst het Skwirrel-endpoint en de API-token in (en sla op) "
-"voordat je statussen vernieuwt."
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid "The request to Skwirrel failed."
-msgstr "De aanvraag bij Skwirrel is mislukt."
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid "Fetching…"
-msgstr "Ophalen…"
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid "Could not refresh statuses."
-msgstr "Statussen konden niet worden vernieuwd."
-=======
 "Stel het Skwirrel-endpoint en de API-token in (en sla op) voordat je "
 "statussen ophaalt."
 
@@ -1880,21 +1813,12 @@ msgstr "Bezig met ophalen…"
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Could not refresh statuses."
 msgstr "Kon de statussen niet ophalen."
->>>>>>> origin/release/3.12.1
 
-#. translators: %d: number of newly discovered product statuses.
+#. translators: %d = number of statuses found
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 #, php-format
 msgid "%d new status found — reloading…"
 msgid_plural "%d new statuses found — reloading…"
-<<<<<<< HEAD
-msgstr[0] "%d nieuwe status gevonden — pagina wordt herladen…"
-msgstr[1] "%d nieuwe statussen gevonden — pagina wordt herladen…"
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid "Status details updated — reloading…"
-msgstr "Statusgegevens bijgewerkt — pagina wordt herladen…"
-=======
 msgstr[0] "%d nieuwe status gevonden — bezig met herladen…"
 msgstr[1] "%d nieuwe statussen gevonden — bezig met herladen…"
 
@@ -1933,7 +1857,21 @@ msgstr ""
 "Statussen bijgewerkt. Sla je wijzigingen op om de nieuwe rijen te zien — de "
 "pagina is niet herladen omdat dit formulier niet-opgeslagen wijzigingen "
 "bevat."
->>>>>>> origin/release/3.12.1
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgctxt "Skwirrel product status"
+msgid "Draft"
+msgstr "Concept"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgctxt "Skwirrel product status"
+msgid "Available"
+msgstr "Beschikbaar"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgctxt "Skwirrel product status"
+msgid "Discontinued"
+msgstr "Vervallen"
 
 #~ msgid "Products are being synchronized. This page refreshes automatically."
 #~ msgstr ""

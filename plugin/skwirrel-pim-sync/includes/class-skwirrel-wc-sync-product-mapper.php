@@ -95,11 +95,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	private ?array $seen_statuses_cache = null;
 
 	/**
-<<<<<<< HEAD
-	 * Status keys whose stored metadata was already refreshed in this process (write-once guard).
-=======
 	 * Keys whose stored metadata was already refreshed in this process — one write per key, max.
->>>>>>> origin/release/3.12.1
 	 *
 	 * @var array<string, true>
 	 */
@@ -309,34 +305,16 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		if ( isset( $this->status_map[ $status['key'] ] ) ) {
 			return $this->status_map[ $status['key'] ];
 		}
-<<<<<<< HEAD
-=======
 		// Upgrade path: honour a mapping saved under the pre-3.12 description-derived key when the
 		// code-derived key has no entry yet. The code-keyed entry always wins once it exists, so an
 		// admin who configures the new row is never overridden by the old one.
 		if ( '' !== $status['legacy_key'] && isset( $this->status_map[ $status['legacy_key'] ] ) ) {
 			return $this->status_map[ $status['legacy_key'] ];
 		}
->>>>>>> origin/release/3.12.1
 		return self::unmapped_state( $status['key'], $status['label'], $this->status_default );
 	}
 
 	/**
-<<<<<<< HEAD
-	 * The state a status resolves to while it has no explicit mapping.
-	 *
-	 * Single source of truth for the legacy fallback, shared by get_status() (what the sync
-	 * actually does) and the settings table (the state it pre-selects for that row) — if the
-	 * two drifted apart, saving the page unchanged would silently rewrite a product's state.
-	 *
-	 * Before the mapping existed the *description* decided this, so both the code-derived key
-	 * and the description are checked: a status coded e.g. PENDING_REVIEW but described
-	 * "Draft - not published" must keep resolving to draft, otherwise upgrading would publish
-	 * products the old behaviour held back.
-	 *
-	 * @param string $key            Normalized status key.
-	 * @param string $label          Editable status description (falls back to the code).
-=======
 	 * The state an unmapped status resolves to — the one rule shared by the sync and the UI.
 	 *
 	 * Pre-3.12 only `product_status_description` decided this, so a status coded
@@ -349,7 +327,6 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 *
 	 * @param string $key            Normalized status key (code-derived, description fallback).
 	 * @param string $label          Human status description (falls back to the code).
->>>>>>> origin/release/3.12.1
 	 * @param string $status_default Configured default for unmapped statuses.
 	 */
 	public static function unmapped_state( string $key, string $label, string $status_default ): string {
@@ -364,11 +341,6 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 *
 	 * Only real (tenant-defined) statuses beyond the built-in presets are recorded;
 	 * the presets and pseudo statuses are always shown in the UI. The option is
-<<<<<<< HEAD
-	 * written when a genuinely new status appears AND when a known status's metadata
-	 * changed upstream (a renamed label keeps its stable code), using an in-process
-	 * cache to avoid a write per product.
-=======
 	 * written when a genuinely new status appears, and when a known status's display
 	 * metadata has drifted (a tenant renaming a status keeps its stable internal code),
 	 * using an in-process cache to avoid a write per product.
@@ -376,29 +348,14 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 * Products carrying `product_trashed_on` are recorded like any other: since 3.12.1
 	 * that timestamp no longer forces a trash, so their active status still decides the
 	 * outcome and must be configurable.
->>>>>>> origin/release/3.12.1
 	 *
 	 * @param array<string, mixed> $product Raw API product data.
 	 */
 	public function note_seen_status( array $product ): void {
-<<<<<<< HEAD
-		// `product_trashed_on` is deliberately NOT a filter here: since it stopped forcing a trash,
-		// such a product is classified by its active `_product_status` like any other, so that
-		// status has to be discoverable — otherwise a status occurring only on upstream-removed
-		// products would silently run on the global default with no row to configure it.
-=======
->>>>>>> origin/release/3.12.1
 		$status = self::extract_status( $product );
 		if ( null === $status ) {
 			return; // No usable status on this product.
 		}
-<<<<<<< HEAD
-		$key = $status['key'];
-		// Fast path: already refreshed in this process (so inconsistent labels for one code can
-		// never cause a write per product), or the cached record already says the same thing.
-		$cached = $this->seen_statuses_cache[ $key ] ?? null;
-		if ( isset( $this->refreshed_statuses[ $key ] ) || ( null !== $cached && self::status_record( $status, $cached ) === $cached ) ) {
-=======
 		// Built-in presets are recorded too, even though they are always shown: a tenant may have
 		// renamed DRAFT/AVAILABLE/DISCONTINUED or use different numeric ids, and the settings table
 		// would otherwise keep displaying the hardcoded English label and id forever. The preset's
@@ -412,26 +369,12 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		];
 		// Fast path: this exact record is already the one we hold for the key.
 		if ( isset( $this->seen_statuses_cache[ $key ] ) && $this->seen_statuses_cache[ $key ] === $record ) {
->>>>>>> origin/release/3.12.1
 			return;
 		}
 		// Read-merge-write: re-read the option before writing so a concurrent resumable
 		// process does not clobber statuses another process appended after we last read.
 		$stored = get_option( self::SEEN_STATUSES_OPTION, [] );
 		$stored = is_array( $stored ) ? $stored : [];
-<<<<<<< HEAD
-		if ( array_key_exists( $key, $stored ) ) {
-			$record = self::status_record( $status, $stored[ $key ] );
-			if ( $stored[ $key ] !== $record ) {
-				$stored[ $key ] = $record;
-				update_option( self::SEEN_STATUSES_OPTION, $stored, false );
-				// Refreshed once — later products carrying this code are left alone.
-				$this->refreshed_statuses[ $key ] = true;
-			}
-		} elseif ( count( $stored ) < 200 ) {
-			$stored[ $key ] = self::status_record( $status );
-			update_option( self::SEEN_STATUSES_OPTION, $stored, false );
-=======
 		if ( ! isset( $stored[ $key ] ) ) {
 			if ( count( $stored ) < 200 ) {
 				$stored[ $key ] = $record;
@@ -446,40 +389,11 @@ class Skwirrel_WC_Sync_Product_Mapper {
 				update_option( self::SEEN_STATUSES_OPTION, $stored, false );
 			}
 			$this->refreshed_statuses[ $key ] = true;
->>>>>>> origin/release/3.12.1
 		}
 		$this->seen_statuses_cache = $stored;
 	}
 
 	/**
-<<<<<<< HEAD
-	 * The stored shape of a discovered status (settings table row).
-	 *
-	 * A field the payload omits carries no information, so it never overwrites what is already
-	 * stored: a feed that returns `product_status_id` on some pages but not others would otherwise
-	 * flip the record on every run and report a "refresh" forever.
-	 *
-	 * @param array{key:string, id:int|null, code:string, label:string} $status   Extracted status.
-	 * @param mixed                                                    $existing Stored record, if any.
-	 * @return array{id:int|null, code:string, label:string}
-	 */
-	private static function status_record( array $status, $existing = null ): array {
-		$record = [
-			'id'    => $status['id'],
-			'code'  => $status['code'],
-			'label' => $status['label'],
-		];
-		if ( ! is_array( $existing ) ) {
-			return $record;
-		}
-		if ( null === $record['id'] && isset( $existing['id'] ) && is_numeric( $existing['id'] ) ) {
-			$record['id'] = (int) $existing['id'];
-		}
-		if ( '' === $record['code'] && '' !== (string) ( $existing['code'] ?? '' ) ) {
-			$record['code'] = (string) $existing['code'];
-		}
-		return $record;
-=======
 	 * Merge an incoming status record over the stored one.
 	 *
 	 * Empty incoming fields never clobber a stored value — a feed that returns
@@ -510,7 +424,6 @@ class Skwirrel_WC_Sync_Product_Mapper {
 			'code'  => '' !== $incoming['code'] ? $incoming['code'] : $base['code'],
 			'label' => '' !== $incoming['label'] ? $incoming['label'] : $base['label'],
 		];
->>>>>>> origin/release/3.12.1
 	}
 
 	/**
@@ -576,16 +489,6 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 *
 	 * Used by the "Refresh statuses" admin action to populate the configurable list
 	 * without running a full sync. Presets are skipped (always shown). A status that is
-<<<<<<< HEAD
-	 * already known is refreshed when its metadata changed upstream (a renamed label keeps
-	 * its stable internal code), so the settings table never shows an obsolete label.
-	 *
-	 * @param array<int, mixed> $products Raw API products.
-	 * @return array{added:int, refreshed:int} Newly recorded, and known-but-updated, statuses.
-	 */
-	public static function record_statuses_from_products( array $products ): array {
-		$incoming = [];
-=======
 	 * already known but whose display metadata has drifted (an upstream rename keeping the
 	 * same internal code) is refreshed rather than left stale.
 	 *
@@ -600,44 +503,14 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		$stored    = is_array( $stored ) ? $stored : [];
 		$added     = 0;
 		$refreshed = 0;
->>>>>>> origin/release/3.12.1
 		foreach ( $products as $product ) {
 			if ( ! is_array( $product ) ) {
 				continue;
 			}
-			// Upstream-removed products are sampled too — see note_seen_status().
 			$status = self::extract_status( $product );
 			if ( null === $status ) {
 				continue;
 			}
-<<<<<<< HEAD
-			$incoming[ $status['key'] ] = $status;
-		}
-		if ( empty( $incoming ) ) {
-			return [
-				'added'     => 0,
-				'refreshed' => 0,
-			];
-		}
-		// Read-merge-write, as late as possible: a sync may be running concurrently with this
-		// admin action and have appended statuses since it started — they must not be clobbered.
-		$stored    = get_option( self::SEEN_STATUSES_OPTION, [] );
-		$stored    = is_array( $stored ) ? $stored : [];
-		$added     = 0;
-		$refreshed = 0;
-		foreach ( $incoming as $key => $status ) {
-			if ( array_key_exists( $key, $stored ) ) {
-				$record = self::status_record( $status, $stored[ $key ] );
-				if ( $stored[ $key ] !== $record ) {
-					$stored[ $key ] = $record;
-					++$refreshed;
-				}
-			} elseif ( count( $stored ) < 200 ) {
-				$stored[ $key ] = self::status_record( $status );
-				++$added;
-			}
-		}
-=======
 			$key    = $status['key'];
 			$record = [
 				'id'    => $status['id'],
@@ -658,7 +531,6 @@ class Skwirrel_WC_Sync_Product_Mapper {
 				++$refreshed;
 			}
 		}
->>>>>>> origin/release/3.12.1
 		if ( $added > 0 || $refreshed > 0 ) {
 			update_option( self::SEEN_STATUSES_OPTION, $stored, false );
 		}

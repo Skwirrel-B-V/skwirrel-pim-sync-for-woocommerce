@@ -1697,8 +1697,9 @@ msgid "Install WooCommerce"
 msgstr "Install WooCommerce"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
+#, fuzzy
 msgid "Custom class collection ID (optional)"
-msgstr "Custom class collection ID (optional)"
+msgstr "Custom class collection ID"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Only needed when syncing custom classes or grouped products."
@@ -1710,8 +1711,6 @@ msgid ""
 "A custom class collection ID greater than 0 is required when syncing custom "
 "classes or grouped products."
 msgstr ""
-"A custom class collection ID greater than 0 is required when syncing "
-"custom classes or grouped products."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid ""
@@ -1722,13 +1721,41 @@ msgid ""
 "\"Keep published\" leaves the product visible, \"Draft\" hides it, \"Trash\" "
 "moves it to the trash, and \"Deprecated\" retires it gradually."
 msgstr ""
-"Choose the WooCommerce state for each Skwirrel product status. The "
-"built-in statuses (Draft, Available, Discontinued) are always shown; "
-"any extra statuses your Skwirrel instance defines are discovered "
-"automatically during a sync — or click \"Refresh statuses from "
-"Skwirrel\" to fetch them now. \"Keep published\" leaves the product "
-"visible, \"Draft\" hides it, \"Trash\" moves it to the trash, and "
-"\"Deprecated\" retires it gradually."
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Refresh statuses from Skwirrel"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "No new statuses found. All statuses in the sample are already listed."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid ""
+"Set the Skwirrel endpoint and API token (and save) before refreshing "
+"statuses."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "The request to Skwirrel failed."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+#, fuzzy
+msgid "Fetching…"
+msgstr "Testing…"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Could not refresh statuses."
+msgstr ""
+
+#. translators: %d = number of statuses found
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+#, php-format
+msgid "%d new status found — reloading…"
+msgid_plural "%d new statuses found — reloading…"
+msgstr[0] "%d new status found — reloading…"
+msgstr[1] "%d new statuses found — reloading…"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgctxt "Skwirrel product status"
@@ -1744,59 +1771,6 @@ msgstr "Available"
 msgctxt "Skwirrel product status"
 msgid "Discontinued"
 msgstr "Discontinued"
-
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid ""
-"Counts include product variations. Clicking a number opens the "
-"products list, which lists parent products only — so a variable "
-"product counts each of its variations here but appears as a single "
-"row."
-msgstr ""
-"Counts include product variations. Clicking a number opens the "
-"products list, which lists parent products only — so a variable "
-"product counts each of its variations here but appears as a single "
-"row."
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid "Refresh statuses from Skwirrel"
-msgstr "Refresh statuses from Skwirrel"
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid "No new statuses found. All statuses in the sample are already listed."
-msgstr "No new statuses found. All statuses in the sample are already listed."
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid ""
-"Set the Skwirrel endpoint and API token (and save) before refreshing "
-"statuses."
-msgstr ""
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid "The request to Skwirrel failed."
-msgstr "The request to Skwirrel failed."
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid "Fetching…"
-msgstr "Fetching…"
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid "Could not refresh statuses."
-msgstr "Could not refresh statuses."
-
-#. translators: %d: number of newly discovered product statuses.
-#: includes/class-skwirrel-wc-sync-admin-settings.php
-#, php-format
-msgid "%d new status found — reloading…"
-msgid_plural "%d new statuses found — reloading…"
-msgstr[0] "%d new status found — reloading…"
-msgstr[1] "%d new statuses found — reloading…"
-<<<<<<< HEAD
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid "Status details updated — reloading…"
-msgstr "Status details updated — reloading…"
-=======
->>>>>>> origin/release/3.12.1
 
 #~ msgid "Products are being synchronized. This page refreshes automatically."
 #~ msgstr "Products are being synchronized. This page refreshes automatically."

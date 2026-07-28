@@ -1780,13 +1780,8 @@ msgstr "ID de collection de classes personnalisées (facultatif)"
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Only needed when syncing custom classes or grouped products."
 msgstr ""
-<<<<<<< HEAD
-"Nécessaire uniquement lors de la synchronisation des classes "
-"personnalisées ou des produits groupés."
-=======
 "Nécessaire uniquement pour synchroniser des classes personnalisées ou des "
 "produits groupés."
->>>>>>> origin/release/3.12.1
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 #, php-format
@@ -1794,14 +1789,8 @@ msgid ""
 "A custom class collection ID greater than 0 is required when syncing custom "
 "classes or grouped products."
 msgstr ""
-<<<<<<< HEAD
-"Un ID de collection de classes personnalisées supérieur à 0 est "
-"requis lors de la synchronisation des classes personnalisées ou des "
-"produits groupés."
-=======
 "Un ID de collection de classes personnalisées supérieur à 0 est requis pour "
 "synchroniser des classes personnalisées ou des produits groupés."
->>>>>>> origin/release/3.12.1
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid ""
@@ -1812,43 +1801,6 @@ msgid ""
 "\"Keep published\" leaves the product visible, \"Draft\" hides it, \"Trash\" "
 "moves it to the trash, and \"Deprecated\" retires it gradually."
 msgstr ""
-<<<<<<< HEAD
-"Choisissez l’état WooCommerce pour chaque statut de produit Skwirrel. "
-"Les statuts intégrés (Brouillon, Disponible, Arrêté) sont toujours "
-"affichés ; les statuts supplémentaires définis par votre instance "
-"Skwirrel sont détectés automatiquement lors d’une synchronisation — "
-"ou cliquez sur « Actualiser les statuts depuis Skwirrel » pour les "
-"récupérer maintenant. « Garder publié » laisse le produit visible, « "
-"Brouillon » le masque, « Corbeille » le déplace vers la corbeille et "
-"« Obsolète » le retire progressivement."
-
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgctxt "Skwirrel product status"
-msgid "Draft"
-msgstr "Brouillon"
-
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgctxt "Skwirrel product status"
-msgid "Available"
-msgstr "Disponible"
-
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgctxt "Skwirrel product status"
-msgid "Discontinued"
-msgstr "Arrêté"
-
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid ""
-"Counts include product variations. Clicking a number opens the "
-"products list, which lists parent products only — so a variable "
-"product counts each of its variations here but appears as a single "
-"row."
-msgstr ""
-"Les nombres incluent les variations de produit. Cliquer sur un nombre "
-"ouvre la liste des produits, qui n’affiche que les produits parents — "
-"un produit variable compte donc chacune de ses variations ici, mais "
-"apparaît sur une seule ligne."
-=======
 "Choisissez l’état WooCommerce pour chaque statut de produit Skwirrel. Les "
 "statuts intégrés (Brouillon, Disponible, Abandonné) sont toujours affichés ; "
 "les statuts supplémentaires définis par votre instance Skwirrel sont "
@@ -1857,7 +1809,6 @@ msgstr ""
 "Garder publié » laisse le produit visible, « Brouillon » le masque, « "
 "Corbeille » le déplace vers la corbeille et « Obsolète » le retire "
 "progressivement."
->>>>>>> origin/release/3.12.1
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Refresh statuses from Skwirrel"
@@ -1866,13 +1817,8 @@ msgstr "Actualiser les statuts depuis Skwirrel"
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "No new statuses found. Every status in the catalogue is already listed."
 msgstr ""
-<<<<<<< HEAD
-"Aucun nouveau statut trouvé. Tous les statuts de l’échantillon sont "
-"déjà listés."
-=======
 "Aucun nouveau statut trouvé. Tous les statuts du catalogue figurent déjà "
 "dans la liste."
->>>>>>> origin/release/3.12.1
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid ""
@@ -1894,7 +1840,7 @@ msgstr "Récupération…"
 msgid "Could not refresh statuses."
 msgstr "Impossible d’actualiser les statuts."
 
-#. translators: %d: number of newly discovered product statuses.
+#. translators: %d = number of statuses found
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 #, php-format
 msgid "%d new status found — reloading…"
@@ -1903,10 +1849,6 @@ msgstr[0] "%d nouveau statut trouvé — rechargement…"
 msgstr[1] "%d nouveaux statuts trouvés — rechargement…"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
-<<<<<<< HEAD
-msgid "Status details updated — reloading…"
-msgstr "Détails des statuts mis à jour — rechargement…"
-=======
 msgid ""
 "No new statuses found so far — the scan stopped before the end of the "
 "catalogue."
@@ -1941,7 +1883,21 @@ msgstr ""
 "Statuts mis à jour. Enregistrez vos modifications pour voir les nouvelles "
 "lignes — la page n’a pas été rechargée car ce formulaire contient des "
 "modifications non enregistrées."
->>>>>>> origin/release/3.12.1
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgctxt "Skwirrel product status"
+msgid "Draft"
+msgstr "Brouillon"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgctxt "Skwirrel product status"
+msgid "Available"
+msgstr "Disponible"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgctxt "Skwirrel product status"
+msgid "Discontinued"
+msgstr "Arrêté"
 
 #~ msgid "Products are being synchronized. This page refreshes automatically."
 #~ msgstr ""

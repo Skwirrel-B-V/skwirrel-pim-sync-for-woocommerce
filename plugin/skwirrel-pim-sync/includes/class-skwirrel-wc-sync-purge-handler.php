@@ -615,16 +615,10 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			$product->set_status( $missing_state );
 			$product->save();
 			$this->reset_deprecated_counter_on_entry( (int) $post_id, $missing_state );
-<<<<<<< HEAD
-			// Invalidate the change gate: if this hidden product later reappears with an unchanged
-			// product_updated_on, is_unchanged() would otherwise skip it and it would never be revived.
-			delete_post_meta( (int) $post_id, $updated_on_meta );
-=======
 			// Invalidate every change gate: if this hidden product later reappears unchanged, the
 			// timestamp, content-hash, group and virtual gates can each return `unchanged` on their
 			// own — before the revive logic — and it would never come back.
 			Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates( (int) $post_id );
->>>>>>> origin/release/3.12.1
 			Skwirrel_WC_Sync_Run_Links::mark_trashed( (int) $post_id, $run_id );
 			++$trashed;
 
@@ -637,11 +631,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 						$variation->set_status( $missing_state );
 						$variation->save();
 						$this->reset_deprecated_counter_on_entry( (int) $vid, $missing_state );
-<<<<<<< HEAD
-						delete_post_meta( (int) $vid, $updated_on_meta );
-=======
 						Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates( (int) $vid );
->>>>>>> origin/release/3.12.1
 						Skwirrel_WC_Sync_Run_Links::mark_trashed( (int) $vid, $run_id );
 						++$trashed;
 					}
@@ -832,13 +822,8 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			$product->save();
 			delete_post_meta( $post_id, $count_meta );
 			delete_post_meta( $post_id, $ticked_meta );
-<<<<<<< HEAD
-			// Invalidate the change gate so a later unchanged reappearance is reprocessed (and revived).
-			delete_post_meta( $post_id, $updated_on_meta );
-=======
 			// Invalidate every change gate so a later unchanged reappearance is reprocessed (and revived).
 			Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates( (int) $post_id );
->>>>>>> origin/release/3.12.1
 			Skwirrel_WC_Sync_Run_Links::mark_trashed( (int) $post_id, $run_id );
 			++$trashed;
 
