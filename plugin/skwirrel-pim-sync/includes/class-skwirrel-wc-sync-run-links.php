@@ -160,8 +160,10 @@ class Skwirrel_WC_Sync_Run_Links {
 	 * @return array<int, string>
 	 */
 	private static function run_scope_statuses(): array {
-		$statuses   = get_post_stati( [ 'exclude_from_search' => false ], 'names' );
-		$statuses   = is_array( $statuses ) ? array_values( array_map( 'strval', $statuses ) ) : [ 'publish', 'draft' ];
+		$statuses = array_values( array_map( 'strval', get_post_stati( [ 'exclude_from_search' => false ], 'names' ) ) );
+		if ( [] === $statuses ) {
+			$statuses = [ 'publish', 'draft' ];
+		}
 		$statuses[] = 'trash';
 		return array_values( array_unique( $statuses ) );
 	}
