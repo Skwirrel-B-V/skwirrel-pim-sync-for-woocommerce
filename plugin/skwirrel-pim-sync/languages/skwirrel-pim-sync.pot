@@ -9,6 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "POT-Creation-Date: 2026-07-22T19:09:34+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
@@ -1586,7 +1587,7 @@ msgid "Refresh statuses from Skwirrel"
 msgstr ""
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid "No new statuses found. All statuses in the sample are already listed."
+msgid "No new statuses found. Every status in the catalogue is already listed."
 msgstr ""
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
@@ -1609,4 +1610,18 @@ msgstr ""
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 #, php-format
 msgid "%d new status found — reloading…"
+msgid_plural "%d new statuses found — reloading…"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "No new statuses found so far — the scan stopped before the end of the catalogue."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Status details updated — reloading…"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "The Created and Updated counts include each variation of a variable product, while the product list they link to shows parent products only — for variable products the list is therefore shorter than the count."
 msgstr ""

@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 3.12.1
+Stable tag: 3.12.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,18 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.12.2 =
+
+* Fix: a product status whose *description* says "Draft" but whose internal code does not (e.g. code `PENDING_REVIEW`, description "Draft - not published") is held as a draft again, as it was before 3.12 — upgrading no longer publishes products that used to stay hidden.
+* Fix: renaming a status in Skwirrel now updates its label in the Product status handling table; previously the table kept showing the old name forever.
+* Fix: a status used only by products marked as removed in Skwirrel is now discovered too, so it can be configured instead of silently following the global default.
+* Fix: "Refresh statuses from Skwirrel" now walks the whole catalogue instead of only the first page, so statuses used further down the feed are found. It also reports when it stopped before the end.
+* Fix: a product you trash yourself in WooCommerce is now brought back by the next full sync instead of staying in the trash until its Skwirrel timestamp happens to change.
+* Fix: a revived product keeps its original permalink instead of being restored on a permanent `…__trashed` URL.
+* Fix: for variable products, the sync history's Created / Updated links now open the parent products of that run — previously they could open an almost empty list.
+* Fix: a product created and then trashed within the same run still appears under that run's Created link.
+* Fix: translations — plural forms are now declared in every language file (`msgfmt --check` passed), the status-discovery message has a real plural, and several Dutch, German and French strings that were empty or paired with the wrong text have been corrected.
 
 = 3.12.1 =
 

@@ -73,9 +73,23 @@ test('deletion protection respects an explicit enable', function () {
     expect(Skwirrel_WC_Sync_Delete_Protection::is_deletion_protection_enabled())->toBeTrue();
 });
 
-function invokeReviveGuard(object $upserter, string $current, string $planned): string {
+/** Minimal stand-in for the WC_Product the revive guard touches (id + slug only). */
+final class ReviveGuardProductStub {
+    public function __construct(private int $id = 0, private string $slug = '') {}
+    public function get_id(): int {
+        return $this->id;
+    }
+    public function get_slug(): string {
+        return $this->slug;
+    }
+    public function set_slug(string $slug): void {
+        $this->slug = $slug;
+    }
+}
+
+function invokeReviveGuard(object $upserter, string $current, string $planned, ?object $product = null): string {
     $ref = new ReflectionMethod($upserter, 'guard_revive_from_trash');
-    return $ref->invoke($upserter, $current, $planned);
+    return $ref->invoke($upserter, $product ?? new ReviveGuardProductStub(), $current, $planned);
 }
 
 test('a trashed product is only revived when the incoming status is visible', function () {
@@ -88,6 +102,55 @@ test('a trashed product is only revived when the incoming status is visible', fu
     // A non-trashed product is unaffected.
     expect(invokeReviveGuard($this->upserter, 'publish', 'deprecated'))->toBe('deprecated');
     expect(invokeReviveGuard($this->upserter, 'deprecated', 'trash'))->toBe('trash');
+});
+
+test('reviving takes the post out of the trash through WordPress and restores its slug', function () {
+    // Saving a new status over a trashed post leaves WP's trash metadata behind and keeps the
+    // "__trashed" suffix on post_name — the revived product would live on the wrong permalink.
+    $GLOBALS['_test_untrashed']            = [];
+    $GLOBALS['_test_untrash_slug'][77]     = 'blue-widget';
+    $product                               = new ReviveGuardProductStub(77, 'blue-widget__trashed');
+
+    expect(invokeReviveGuard($this->upserter, 'trash', 'publish', $product))->toBe('publish');
+    expect($GLOBALS['_test_untrashed'])->toBe([77]);
+    // The in-memory product still held the trashed slug; the WC data store would write it back.
+    expect($product->get_slug())->toBe('blue-widget');
+});
+
+test('a product that stays trashed is not untrashed', function () {
+    $GLOBALS['_test_untrashed'] = [];
+    $product                    = new ReviveGuardProductStub(78, 'gone__trashed');
+
+    expect(invokeReviveGuard($this->upserter, 'trash', 'deprecated', $product))->toBe('trash');
+    expect($GLOBALS['_test_untrashed'])->toBe([]);
+});
+
+test('trashing a Skwirrel product in WC invalidates its change gates', function () {
+    // The forced full sync finds the trashed product again, but is_unchanged() would return
+    // "unchanged" on a matching stored timestamp and return before the revive logic — the
+    // product would sit in the trash until its upstream timestamp happened to move.
+    $GLOBALS['_test_post_types'][55]                                                          = 'product';
+    $GLOBALS['_test_post_meta'][55]['_skwirrel_external_id']                                  = 'EXT-1';
+    $GLOBALS['_test_post_meta'][55][Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META]         = '2026-07-01 10:00:00';
+    $GLOBALS['_test_post_meta'][55][Skwirrel_WC_Sync_Product_Upserter::CONTENT_HASH_META]     = 'abc123';
+    unset($GLOBALS['_test_options'][ 'skwirrel_wc_sync_force_full_sync' ]);
+
+    Skwirrel_WC_Sync_Delete_Protection::instance()->on_product_trashed(55);
+
+    expect($GLOBALS['_test_post_meta'][55])->not->toHaveKey(Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META);
+    expect($GLOBALS['_test_post_meta'][55])->not->toHaveKey(Skwirrel_WC_Sync_Product_Upserter::CONTENT_HASH_META);
+    expect(get_option('skwirrel_wc_sync_force_full_sync'))->toBeTrue();
+});
+
+test('trashing a product WooCommerce does not manage leaves its meta alone', function () {
+    $GLOBALS['_test_post_types'][56]                                                  = 'product';
+    $GLOBALS['_test_post_meta'][56]                                                   = [
+        Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META => '2026-07-01 10:00:00',
+    ];
+
+    Skwirrel_WC_Sync_Delete_Protection::instance()->on_product_trashed(56);
+
+    expect($GLOBALS['_test_post_meta'][56])->toHaveKey(Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META);
 });
 
 test('do_internal_delete runs the sync-owned delete with the lock bypass active, then clears it', function () {

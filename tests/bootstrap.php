@@ -253,6 +253,25 @@ if (!function_exists('get_post_field')) {
     }
 }
 
+// Stub get_post_type() — tests can set $GLOBALS['_test_post_types'][$post_id].
+if (!function_exists('get_post_type')) {
+    function get_post_type($post_id = 0) {
+        return $GLOBALS['_test_post_types'][(int) $post_id] ?? false;
+    }
+}
+
+// Stub wp_untrash_post() — records the ids it was called with and, when the test provided a
+// pre-trash slug in $GLOBALS['_test_untrash_slug'][$post_id], restores it as the post_name.
+if (!function_exists('wp_untrash_post')) {
+    function wp_untrash_post(int $post_id = 0) {
+        $GLOBALS['_test_untrashed'][] = $post_id;
+        if (isset($GLOBALS['_test_untrash_slug'][$post_id])) {
+            $GLOBALS['_test_post_fields'][$post_id]['post_name'] = $GLOBALS['_test_untrash_slug'][$post_id];
+        }
+        return true;
+    }
+}
+
 // Stub get_permalink() — tests can set $GLOBALS['_test_permalinks'][$post_id].
 if (!function_exists('get_permalink')) {
     function get_permalink(int $post_id = 0) {

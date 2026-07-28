@@ -308,7 +308,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$was_deprecated  = Skwirrel_WC_Sync_Deprecated_Status::STATUS === $original_status;
 		$raw_status      = $this->mapper->get_status( $product );
 		$status_plan     = $this->resolve_initial_status( $is_new, $is_incomplete, $raw_status );
-		$applied_status  = $this->guard_revive_from_trash( $original_status, $status_plan['status'] );
+		$applied_status  = $this->guard_revive_from_trash( $wc_product, $original_status, $status_plan['status'] );
 		$wc_product->set_status( $applied_status );
 		$this->maybe_reset_deprecated_counter( (int) $wc_id, $was_deprecated, $applied_status );
 
@@ -1177,7 +1177,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$original_status = $is_new ? '' : $wc_product->get_status();
 		$was_deprecated  = Skwirrel_WC_Sync_Deprecated_Status::STATUS === $original_status;
 		$group_planned   = 'publish';
-		$group_status    = $this->guard_revive_from_trash( $original_status, $group_planned );
+		$group_status    = $this->guard_revive_from_trash( $wc_product, $original_status, $group_planned );
 		$wc_product->set_status( $group_status );
 		$this->maybe_reset_deprecated_counter( (int) $wc_id, $was_deprecated, $group_status );
 		$wc_product->set_catalog_visibility( 'visible' );
@@ -1504,7 +1504,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$was_deprecated  = Skwirrel_WC_Sync_Deprecated_Status::STATUS === $original_status;
 		$raw_status      = $this->mapper->get_status( $product );
 		$status_plan     = $this->resolve_initial_status( $is_new, $is_incomplete, $raw_status );
-		$applied_status  = $this->guard_revive_from_trash( $original_status, $status_plan['status'] );
+		$applied_status  = $this->guard_revive_from_trash( $wc_product, $original_status, $status_plan['status'] );
 		$wc_product->set_status( $applied_status );
 		$this->maybe_reset_deprecated_counter( (int) $wc_id, $was_deprecated, $applied_status );
 
@@ -2473,15 +2473,47 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * trash), reviving it would make it cycle trash↔deprecated forever; only a `publish`/`draft`
 	 * status brings it back. New products (current status '') are unaffected.
 	 *
-	 * @param string $current_status The product's current WC status ('' for a new product).
-	 * @param string $planned_status The status the mapping wants to apply.
+	 * When it does revive, the post is taken out of the trash through WordPress rather than by
+	 * saving a new status over it: only `wp_untrash_post()` clears the trash metadata and consumes
+	 * `_wp_desired_post_slug`, so the product does not come back on a permanent `…__trashed`
+	 * permalink (nothing else would fix it — `update_slug_on_resync` is off by default).
+	 *
+	 * @param WC_Product $wc_product     The product being written (slug is refreshed after untrash).
+	 * @param string     $current_status The product's current WC status ('' for a new product).
+	 * @param string     $planned_status The status the mapping wants to apply.
 	 * @return string The status to actually apply.
 	 */
-	private function guard_revive_from_trash( string $current_status, string $planned_status ): string {
-		if ( 'trash' === $current_status && ! in_array( $planned_status, [ 'publish', 'draft' ], true ) ) {
+	private function guard_revive_from_trash( $wc_product, string $current_status, string $planned_status ): string {
+		if ( 'trash' !== $current_status ) {
+			return $planned_status;
+		}
+		if ( ! in_array( $planned_status, [ 'publish', 'draft' ], true ) ) {
 			return 'trash';
 		}
+		$this->untrash_post( $wc_product );
 		return $planned_status;
+	}
+
+	/**
+	 * Run WordPress's untrash path for a product about to be revived.
+	 *
+	 * The status WP restores is irrelevant — WooCommerce writes the mapped one immediately after —
+	 * but the slug it restores is not: the in-memory product still holds the `…__trashed` slug it
+	 * was loaded with, and the WC data store would write that straight back. Refresh it from the
+	 * post so the revived product keeps its original permalink.
+	 *
+	 * @param WC_Product $wc_product Product being revived.
+	 */
+	private function untrash_post( $wc_product ): void {
+		$post_id = (int) $wc_product->get_id();
+		if ( $post_id <= 0 || ! function_exists( 'wp_untrash_post' ) ) {
+			return;
+		}
+		wp_untrash_post( $post_id );
+		$restored_slug = (string) get_post_field( 'post_name', $post_id );
+		if ( '' !== $restored_slug && $restored_slug !== $wc_product->get_slug() ) {
+			$wc_product->set_slug( $restored_slug );
+		}
 	}
 
 	/**

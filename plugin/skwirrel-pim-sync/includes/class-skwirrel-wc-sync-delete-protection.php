@@ -414,11 +414,41 @@ class Skwirrel_WC_Sync_Delete_Protection {
 			return;
 		}
 
+		// Invalidate the change gates. The forced full sync finds the trashed product again (the
+		// upsert lookups are trash-aware), but its stored `_skwirrel_updated_on` / content hash
+		// still match the feed, so is_unchanged() would report "unchanged" and return before the
+		// revive logic — leaving the product in the trash until its upstream timestamp happens to
+		// move. Dropping the stamps here is what the purge handler already does when it trashes.
+		$this->invalidate_change_gate( $post_id );
+
 		update_option( self::FORCE_FULL_SYNC_OPTION, true, false );
 		( new Skwirrel_WC_Sync_Logger() )->info(
 			'force_full_sync flag set: Skwirrel-managed product trashed in WC — next scheduled sync will run as full to bring it back.',
 			[ 'post_id' => $post_id ]
 		);
+	}
+
+	/**
+	 * Drop the sync's change-gate stamps for a product (and any variations) so the next sync
+	 * reprocesses it instead of skipping it as unchanged.
+	 *
+	 * @param int $post_id Product or variation ID.
+	 */
+	private function invalidate_change_gate( int $post_id ): void {
+		$ids = [ $post_id ];
+		if ( function_exists( 'wc_get_product' ) ) {
+			$product = wc_get_product( $post_id );
+			if ( $product && $product->is_type( 'variable' ) ) {
+				foreach ( $product->get_children() as $child_id ) {
+					$ids[] = (int) $child_id;
+				}
+			}
+		}
+		foreach ( $ids as $id ) {
+			delete_post_meta( $id, Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META );
+			delete_post_meta( $id, Skwirrel_WC_Sync_Product_Upserter::CONTENT_HASH_META );
+			delete_post_meta( $id, Skwirrel_WC_Sync_Product_Upserter::VIRTUAL_CONTENT_HASH_META );
+		}
 	}
 
 	/**

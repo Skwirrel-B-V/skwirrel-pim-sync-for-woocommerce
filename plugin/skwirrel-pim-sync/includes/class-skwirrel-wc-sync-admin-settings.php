@@ -31,6 +31,15 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	private const BG_PURGE_TRANSIENT    = 'skwirrel_wc_sync_purge_token';
 	private const TEST_RESULT_TRANSIENT = 'skwirrel_wc_sync_test_result';
 
+	/**
+	 * Page bound for the "Refresh statuses" scan.
+	 *
+	 * Discovery must walk the whole feed to see a status only later products carry, but it
+	 * runs inside one AJAX request — this caps the work at batch_size × 200 products and the
+	 * response says when the scan stopped early rather than reporting a complete pass.
+	 */
+	private const STATUS_SCAN_MAX_PAGES = 200;
+
 	private function __construct() {
 		add_action( 'admin_menu', [ $this, 'add_menu' ], 99 );
 		add_action( 'admin_init', [ $this, 'register_settings' ] );
@@ -462,11 +471,16 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	/**
 	 * AJAX: discover Skwirrel product statuses on demand.
 	 *
-	 * Skwirrel exposes no "list statuses" endpoint, so this samples a page of products
+	 * Skwirrel exposes no "list statuses" endpoint, so this walks the product feed
 	 * (with include_product_status) and records the distinct statuses it finds. The
 	 * built-in presets (Draft/Available/Discontinued) are always shown regardless; this
 	 * surfaces any additional statuses a tenant has defined without waiting for a full
 	 * sync. Returns whether the caller should reload to render the new rows.
+	 *
+	 * Pagination runs to the end of the feed like the sync's own fetch loop — scanning only
+	 * page 1 would miss a status used exclusively by products further in, and still report
+	 * success. STATUS_SCAN_MAX_PAGES bounds the work so one AJAX request cannot run away;
+	 * when that bound is hit the response says how far it got instead of claiming completeness.
 	 */
 	public function handle_refresh_statuses(): void {
 		check_ajax_referer( 'skwirrel_refresh_statuses_nonce', '_nonce' );
@@ -474,36 +488,69 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			wp_send_json_error( [ 'message' => __( 'Access denied.', 'skwirrel-pim-sync' ) ], 403 );
 		}
 
-		$products = $this->fetch_statuses();
-		if ( is_wp_error( $products ) ) {
-			wp_send_json_error( [ 'message' => $products->get_error_message() ] );
-		}
+		$opts      = get_option( self::OPTION_KEY, [] );
+		$opts      = is_array( $opts ) ? $opts : [];
+		$limit     = max( 10, min( 500, (int) ( $opts['batch_size'] ?? 100 ) ) );
+		$added     = 0;
+		$refreshed = 0;
+		$page      = 1;
+		$complete  = true;
+		$last_page = false;
 
-		$added = Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products( $products );
+		do {
+			$products = $this->fetch_statuses( $page, $limit );
+			if ( is_wp_error( $products ) ) {
+				if ( 1 === $page ) {
+					wp_send_json_error( [ 'message' => $products->get_error_message() ] );
+				}
+				// Later page failed: keep what earlier pages already recorded, but do not
+				// claim the whole catalogue was scanned.
+				$complete = false;
+				break;
+			}
+			$counts     = Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products( $products );
+			$added     += $counts['added'];
+			$refreshed += $counts['refreshed'];
+			$last_page  = count( $products ) < $limit;
+			++$page;
+			if ( ! $last_page && $page > self::STATUS_SCAN_MAX_PAGES ) {
+				$complete = false;
+				break;
+			}
+		} while ( ! $last_page );
+
 		if ( $added > 0 ) {
 			/* translators: %d: number of newly discovered product statuses. */
 			$message = sprintf( _n( '%d new status found — reloading…', '%d new statuses found — reloading…', $added, 'skwirrel-pim-sync' ), $added );
+		} elseif ( $refreshed > 0 ) {
+			$message = __( 'Status details updated — reloading…', 'skwirrel-pim-sync' );
+		} elseif ( $complete ) {
+			$message = __( 'No new statuses found. Every status in the catalogue is already listed.', 'skwirrel-pim-sync' );
 		} else {
-			$message = __( 'No new statuses found. All statuses in the sample are already listed.', 'skwirrel-pim-sync' );
+			$message = __( 'No new statuses found so far — the scan stopped before the end of the catalogue.', 'skwirrel-pim-sync' );
 		}
 		wp_send_json_success(
 			[
-				'added'   => $added,
-				'reload'  => $added > 0,
-				'message' => $message,
+				'added'     => $added,
+				'refreshed' => $refreshed,
+				'complete'  => $complete,
+				'reload'    => $added > 0 || $refreshed > 0,
+				'message'   => $message,
 			]
 		);
 	}
 
 	/**
-	 * Sample products from the API so their distinct statuses can be recorded.
+	 * Fetch one page of products from the API so their distinct statuses can be recorded.
 	 *
 	 * Isolated behind one method so the discovery source can later be swapped for a
 	 * dedicated endpoint (should Skwirrel add one) without touching the caller/UI.
 	 *
+	 * @param int $page  1-based page number.
+	 * @param int $limit Products per page.
 	 * @return array<int, mixed>|WP_Error Raw API products, or an error to surface.
 	 */
-	private function fetch_statuses() {
+	private function fetch_statuses( int $page = 1, int $limit = 100 ) {
 		$opts     = get_option( self::OPTION_KEY, [] );
 		$opts     = is_array( $opts ) ? $opts : [];
 		$endpoint = self::normalize_endpoint_url( (string) ( $opts['endpoint_url'] ?? '' ) );
@@ -519,11 +566,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			(int) ( $opts['timeout'] ?? 30 ),
 			(int) ( $opts['retries'] ?? 2 )
 		);
-		$limit  = max( 10, min( 500, (int) ( $opts['batch_size'] ?? 100 ) ) );
 		$result = $client->call(
 			'getProducts',
 			[
-				'page'                         => 1,
+				'page'                         => max( 1, $page ),
 				'limit'                        => $limit,
 				'include_product_status'       => true,
 				'include_product_translations' => false,

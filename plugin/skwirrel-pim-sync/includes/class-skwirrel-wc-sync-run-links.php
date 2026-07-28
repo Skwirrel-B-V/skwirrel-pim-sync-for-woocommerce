@@ -41,6 +41,12 @@ class Skwirrel_WC_Sync_Run_Links {
 	/**
 	 * Record which run last changed a product, and how. Called from the sync write paths.
 	 *
+	 * Within one run the strongest outcome wins: a variable parent is marked once per
+	 * variation, so a parent this run *created* must not be downgraded to `updated` by the
+	 * second variation that lands on it — the history's Created count would then link to a
+	 * list that no longer contains it. An outcome from a *later* run always replaces the
+	 * previous one.
+	 *
 	 * @param int    $post_id Product/variation ID.
 	 * @param string $run_id  The current run's uuid.
 	 * @param string $outcome One of created|updated|trashed.
@@ -49,8 +55,40 @@ class Skwirrel_WC_Sync_Run_Links {
 		if ( $post_id <= 0 || '' === $run_id ) {
 			return;
 		}
+		if ( 'created' !== $outcome
+			&& (string) get_post_meta( $post_id, self::RUN_ID_META, true ) === $run_id
+			&& 'created' === (string) get_post_meta( $post_id, self::RUN_OUTCOME_META, true )
+		) {
+			return; // Same run already recorded the stronger `created` outcome.
+		}
 		update_post_meta( $post_id, self::RUN_ID_META, $run_id );
 		update_post_meta( $post_id, self::RUN_OUTCOME_META, $outcome );
+	}
+
+	/**
+	 * Claim a product for this run because the run trashed it.
+	 *
+	 * Kept separate from mark() because trashing must not erase a `created`/`updated`
+	 * outcome **this same run** recorded: a product created into `deprecated` that reaches
+	 * the removal threshold during the same finalize (always, at threshold 0) is still
+	 * counted under Created in the history, so the Created deep-link has to keep resolving
+	 * it. An outcome from an earlier run is historical — its links are no longer rendered —
+	 * so it is replaced with `trashed`.
+	 *
+	 * @param int    $post_id Product/variation ID.
+	 * @param string $run_id  The current run's uuid.
+	 */
+	public static function mark_trashed( int $post_id, string $run_id ): void {
+		if ( $post_id <= 0 || '' === $run_id ) {
+			return;
+		}
+		if ( (string) get_post_meta( $post_id, self::RUN_ID_META, true ) === $run_id
+			&& in_array( (string) get_post_meta( $post_id, self::RUN_OUTCOME_META, true ), [ 'created', 'updated' ], true )
+		) {
+			return; // Already this run's product, with an outcome its counters report.
+		}
+		update_post_meta( $post_id, self::RUN_ID_META, $run_id );
+		update_post_meta( $post_id, self::RUN_OUTCOME_META, 'trashed' );
 	}
 
 	/**
@@ -103,6 +141,29 @@ class Skwirrel_WC_Sync_Run_Links {
 				$run_clause,
 			];
 		$query->set( 'meta_query', $meta_query );
+
+		// WP's "All" view excludes the trash, so a product this run created and then trashed
+		// during finalize would be missing from the Created link it is counted under. When a run
+		// scope is active and the URL asks for no particular status, include the trash too.
+		// The Published/Draft/Trash tabs still win — they set post_status explicitly.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin list filter, no state change.
+		if ( ! isset( $_GET['post_status'] ) ) {
+			$query->set( 'post_status', self::run_scope_statuses() );
+		}
+	}
+
+	/**
+	 * Post statuses a run-scoped list shows when the URL requests none.
+	 *
+	 * The admin "All" set (every status not flagged `exclude_from_search`) plus `trash`.
+	 *
+	 * @return array<int, string>
+	 */
+	private static function run_scope_statuses(): array {
+		$statuses   = get_post_stati( [ 'exclude_from_search' => false ], 'names' );
+		$statuses   = is_array( $statuses ) ? array_values( array_map( 'strval', $statuses ) ) : [ 'publish', 'draft' ];
+		$statuses[] = 'trash';
+		return array_values( array_unique( $statuses ) );
 	}
 
 	/**

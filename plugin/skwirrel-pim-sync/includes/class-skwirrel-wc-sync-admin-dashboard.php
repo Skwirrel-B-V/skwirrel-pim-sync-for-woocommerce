@@ -369,7 +369,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 
 		// 2) Discovered (tenant-defined) statuses beyond the presets.
 		foreach ( Skwirrel_WC_Sync_Product_Mapper::get_seen_statuses() as $key => $rec ) {
-			$fallback = ( false !== strpos( (string) $key, 'draft' ) ) ? 'draft' : $status_default;
+			// Same rule the sync applies, so saving the page unchanged cannot rewrite a
+			// draft-by-description status to the global default.
+			$fallback = Skwirrel_WC_Sync_Product_Mapper::unmapped_state( (string) $key, (string) $rec['label'], $status_default );
 			$rows[]   = array(
 				'key'       => (string) $key,
 				'name_html' => self::status_badge_html( $rec['id'], $rec['code'], $rec['label'] ),
@@ -688,6 +690,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<?php endforeach; ?>
 				</tbody>
 			</table>
+			<p class="description">
+				<?php esc_html_e( 'The Created and Updated counts include each variation of a variable product, while the product list they link to shows parent products only — for variable products the list is therefore shorter than the count.', 'skwirrel-pim-sync' ); ?>
+			</p>
 		</div>
 		<?php
 	}
