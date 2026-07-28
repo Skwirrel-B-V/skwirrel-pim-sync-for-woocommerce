@@ -47,6 +47,22 @@ test('legacy: a "draft" description resolves to draft with no mapping', function
     expect($this->mapper->get_status(productWithStatus('Draft - not published')))->toBe('draft');
 });
 
+test('legacy: the description is still consulted when the internal code has no "draft" hint', function () {
+    // Pre-3.12 only product_status_description decided this. A tenant status coded
+    // PENDING_REVIEW but described "Draft - not published" must keep resolving to draft,
+    // otherwise upgrading publishes products the old behaviour held back.
+    expect($this->mapper->get_status(productWithInternalStatus('PENDING_REVIEW', 9, 'Draft - not published')))->toBe('draft');
+});
+
+test('the draft fallback also fires on the internal code alone', function () {
+    expect($this->mapper->get_status(productWithInternalStatus('DRAFT_PENDING', 9, 'Nog niet vrijgegeven')))->toBe('draft');
+});
+
+test('a configured mapping wins over the legacy draft fallback', function () {
+    $this->mapper->set_status_handling(['pending_review' => 'publish'], 'draft');
+    expect($this->mapper->get_status(productWithInternalStatus('PENDING_REVIEW', 9, 'Draft - not published')))->toBe('publish');
+});
+
 test('unmapped non-draft label defaults to publish', function () {
     expect($this->mapper->get_status(productWithStatus('Foobar')))->toBe('publish');
 });
@@ -153,9 +169,102 @@ test('record_statuses_from_products records new non-preset statuses and returns 
         productWithInternalStatus('BACKORDER', 7, 'Backorder'),    // duplicate → counted once
         ['product_id' => 9, 'product_trashed_on' => '2026-01-01'], // pseudo → skipped
     ];
-    expect(Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products($products))->toBe(1);
+    expect(Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products($products))
+        ->toBe(['added' => 1, 'refreshed' => 0]);
     expect(Skwirrel_WC_Sync_Product_Mapper::get_seen_statuses())->toBe([
         'backorder' => ['id' => 7, 'code' => 'BACKORDER', 'label' => 'Backorder'],
+    ]);
+});
+
+// --- Metadata refresh: a tenant may rename a status while keeping its internal code ---
+
+test('record_statuses_from_products refreshes a renamed status instead of keeping the stale label', function () {
+    Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products([
+        productWithInternalStatus('BACKORDER', 7, 'Backorder'),
+    ]);
+
+    $result = Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products([
+        productWithInternalStatus('BACKORDER', 7, 'Nabestelling'), // renamed upstream
+    ]);
+
+    expect($result)->toBe(['added' => 0, 'refreshed' => 1]);
+    expect(Skwirrel_WC_Sync_Product_Mapper::get_seen_statuses())->toBe([
+        'backorder' => ['id' => 7, 'code' => 'BACKORDER', 'label' => 'Nabestelling'],
+    ]);
+});
+
+test('record_statuses_from_products reports nothing when the stored record is already current', function () {
+    $products = [productWithInternalStatus('BACKORDER', 7, 'Backorder')];
+    Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products($products);
+    expect(Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products($products))
+        ->toBe(['added' => 0, 'refreshed' => 0]);
+});
+
+test('note_seen_status refreshes a renamed status during a sync', function () {
+    $this->mapper->note_seen_status(productWithInternalStatus('BACKORDER', 7, 'Backorder'));
+    $this->mapper->note_seen_status(productWithInternalStatus('BACKORDER', 7, 'Nabestelling'));
+
+    expect(get_option(Skwirrel_WC_Sync_Product_Mapper::SEEN_STATUSES_OPTION, []))->toBe([
+        'backorder' => ['id' => 7, 'code' => 'BACKORDER', 'label' => 'Nabestelling'],
+    ]);
+});
+
+test('note_seen_status upgrades a legacy string record to the structured shape', function () {
+    update_option(Skwirrel_WC_Sync_Product_Mapper::SEEN_STATUSES_OPTION, ['backorder' => 'Backorder']);
+
+    $this->mapper->note_seen_status(productWithInternalStatus('BACKORDER', 7, 'Backorder'));
+
+    expect(get_option(Skwirrel_WC_Sync_Product_Mapper::SEEN_STATUSES_OPTION, []))->toBe([
+        'backorder' => ['id' => 7, 'code' => 'BACKORDER', 'label' => 'Backorder'],
+    ]);
+});
+
+test('a status carried only by upstream-removed products is still discovered', function () {
+    // product_trashed_on stopped forcing a trash, so such a product is classified by its active
+    // status like any other — that status must be configurable, not silently on the default.
+    $product = productWithInternalStatus('BACKORDER', 7, 'Backorder');
+    $product['product_trashed_on'] = '2026-07-22 10:00:00';
+
+    $this->mapper->note_seen_status($product);
+    expect(get_option(Skwirrel_WC_Sync_Product_Mapper::SEEN_STATUSES_OPTION, []))->toBe([
+        'backorder' => ['id' => 7, 'code' => 'BACKORDER', 'label' => 'Backorder'],
+    ]);
+
+    unset($GLOBALS['_test_options'][Skwirrel_WC_Sync_Product_Mapper::SEEN_STATUSES_OPTION]);
+    expect(Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products([$product]))
+        ->toBe(['added' => 1, 'refreshed' => 0]);
+});
+
+test('an omitted product_status_id does not overwrite the stored one', function () {
+    // A feed that returns the id on some pages but not others would otherwise flip the record
+    // on every run and report a refresh forever.
+    $this->mapper->note_seen_status(productWithInternalStatus('BACKORDER', 7, 'Backorder'));
+    $without_id = productWithInternalStatus('BACKORDER', null, 'Backorder');
+
+    expect(Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products([$without_id]))
+        ->toBe(['added' => 0, 'refreshed' => 0]);
+    expect(Skwirrel_WC_Sync_Product_Mapper::get_seen_statuses())->toBe([
+        'backorder' => ['id' => 7, 'code' => 'BACKORDER', 'label' => 'Backorder'],
+    ]);
+});
+
+test('unmapped_state is the single rule shared by the sync and the settings table', function () {
+    // The row the settings table pre-selects must be the state the sync already applies.
+    expect(Skwirrel_WC_Sync_Product_Mapper::unmapped_state('pending_review', 'Draft - not published', 'publish'))->toBe('draft');
+    expect(Skwirrel_WC_Sync_Product_Mapper::unmapped_state('draft_pending', 'Nog niet vrijgegeven', 'publish'))->toBe('draft');
+    expect(Skwirrel_WC_Sync_Product_Mapper::unmapped_state('backorder', 'Nabestelling', 'publish'))->toBe('publish');
+    expect(Skwirrel_WC_Sync_Product_Mapper::unmapped_state('backorder', 'Nabestelling', 'draft'))->toBe('draft');
+});
+
+test('note_seen_status refreshes a status at most once per process', function () {
+    $this->mapper->note_seen_status(productWithInternalStatus('BACKORDER', 7, 'Backorder'));
+    $this->mapper->note_seen_status(productWithInternalStatus('BACKORDER', 7, 'Nabestelling'));
+    // A third product carrying yet another label must not trigger another write — otherwise an
+    // inconsistent feed would cost one update_option() per product.
+    $this->mapper->note_seen_status(productWithInternalStatus('BACKORDER', 7, 'Backorder'));
+
+    expect(get_option(Skwirrel_WC_Sync_Product_Mapper::SEEN_STATUSES_OPTION, []))->toBe([
+        'backorder' => ['id' => 7, 'code' => 'BACKORDER', 'label' => 'Nabestelling'],
     ]);
 });
 

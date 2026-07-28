@@ -1,0 +1,77 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Tests for the run-scoped product deep-link markers.
+ *
+ * Covers Skwirrel_WC_Sync_Run_Links::mark() and mark_trashed() — in particular that a
+ * product created or updated earlier in a run keeps that outcome when the same run's
+ * finalize trashes it, so the history's Created/Updated deep-links stay consistent with
+ * the counts they are clicked from.
+ */
+
+beforeEach(function () {
+    $GLOBALS['_test_post_meta'] = [];
+});
+
+function runOutcome(int $post_id): array {
+    return [
+        get_post_meta($post_id, Skwirrel_WC_Sync_Run_Links::RUN_ID_META, true),
+        get_post_meta($post_id, Skwirrel_WC_Sync_Run_Links::RUN_OUTCOME_META, true),
+    ];
+}
+
+test('mark records the run and its outcome', function () {
+    Skwirrel_WC_Sync_Run_Links::mark(11, 'run-a', 'created');
+    expect(runOutcome(11))->toBe(['run-a', 'created']);
+});
+
+test('a later update in the same run does not downgrade a create', function () {
+    // Every variation marks its variable parent, so one run can mark the same post twice.
+    Skwirrel_WC_Sync_Run_Links::mark(11, 'run-a', 'created');
+    Skwirrel_WC_Sync_Run_Links::mark(11, 'run-a', 'updated');
+    expect(runOutcome(11))->toBe(['run-a', 'created']);
+});
+
+test('an update from a later run does replace an earlier create', function () {
+    Skwirrel_WC_Sync_Run_Links::mark(11, 'run-a', 'created');
+    Skwirrel_WC_Sync_Run_Links::mark(11, 'run-b', 'updated');
+    expect(runOutcome(11))->toBe(['run-b', 'updated']);
+});
+
+test('mark ignores an invalid post id or an empty run', function () {
+    Skwirrel_WC_Sync_Run_Links::mark(0, 'run-a', 'created');
+    Skwirrel_WC_Sync_Run_Links::mark(12, '', 'created');
+    expect($GLOBALS['_test_post_meta'])->toBe([]);
+});
+
+test('mark_trashed keeps a create from the same run so the Created link matches its count', function () {
+    Skwirrel_WC_Sync_Run_Links::mark(11, 'run-a', 'created');
+    // Same run trashes it during finalize (deprecated threshold 0 / stale purge).
+    Skwirrel_WC_Sync_Run_Links::mark_trashed(11, 'run-a');
+    expect(runOutcome(11))->toBe(['run-a', 'created']);
+});
+
+test('mark_trashed keeps an update from the same run', function () {
+    Skwirrel_WC_Sync_Run_Links::mark(11, 'run-a', 'updated');
+    Skwirrel_WC_Sync_Run_Links::mark_trashed(11, 'run-a');
+    expect(runOutcome(11))->toBe(['run-a', 'updated']);
+});
+
+test('mark_trashed claims a product whose create came from an earlier run', function () {
+    Skwirrel_WC_Sync_Run_Links::mark(11, 'run-a', 'created');
+    Skwirrel_WC_Sync_Run_Links::mark_trashed(11, 'run-b');
+    expect(runOutcome(11))->toBe(['run-b', 'trashed']);
+});
+
+test('mark_trashed marks a product this run had not otherwise touched', function () {
+    Skwirrel_WC_Sync_Run_Links::mark_trashed(11, 'run-a');
+    expect(runOutcome(11))->toBe(['run-a', 'trashed']);
+});
+
+test('mark_trashed ignores an invalid post id or an empty run', function () {
+    Skwirrel_WC_Sync_Run_Links::mark_trashed(0, 'run-a');
+    Skwirrel_WC_Sync_Run_Links::mark_trashed(12, '');
+    expect($GLOBALS['_test_post_meta'])->toBe([]);
+});

@@ -2,6 +2,21 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.12.2]
+
+### Fixed — code review follow-ups on 3.12.1
+
+* **Unmapped statuses no longer lose the legacy draft fallback** (P1): `get_status()` matched `"draft"` against the normalized *internal code* only. A tenant status coded e.g. `PENDING_REVIEW` but described `"Draft - not published"` therefore fell through to the configured default (publish), where pre-3.12 it resolved to draft — upgrading could publish products the old behaviour held back. The description is now checked as well, after the configured mapping.
+* **Renamed statuses refresh their stored metadata**: `note_seen_status()` and `record_statuses_from_products()` returned early on any already-known key, so a status renamed upstream (stable internal code, new description) kept showing its obsolete label in the settings table forever. Both paths now rewrite the stored `id`/`code`/`label` when it drifts — once per key per process, so an inconsistent feed cannot cause a write per product. The "Refresh statuses" action reports a refresh and reloads.
+* **A run's Created/Updated outcome survives a same-run trash**: a product created or updated early in a run and then trashed by that run's finalize (deprecated escalation at threshold 0, stale purge) had its run outcome overwritten with `trashed` while the history counters still counted it as created/updated — so clicking that run's Created count returned fewer products than the number shown. `Run_Links::mark_trashed()` now refreshes the run marker but keeps a create/update outcome recorded by the same run.
+
+### Fixed — translations
+
+* **`_n()` plural entries are now real plural entries**: the status-discovery message was extracted as a singular-only `msgid`, so localized sites could never resolve the plural form. All catalogs now carry the `msgid_plural` pair.
+* **`Plural-Forms` headers added** to every locale — without them `msgfmt --check` failed on every catalog and plural lookups were undefined.
+* **Corrected mistranslations** carried over from 3.12.1: `"Fetching…"` and `"Could not refresh statuses."` were paired with unrelated translations in nl/de/fr, and `"Custom class collection ID (optional)"` dropped its "(optional)" marker in every locale.
+* **Filled the untranslated 3.12.1 status-discovery strings** for nl_NL, nl_BE, de_DE, fr_FR and fr_BE; all `.mo` files recompiled.
+
 ## [3.12.1]
 
 ### Added — status UI improvements and run-scoped product deep-links

@@ -1,5 +1,29 @@
 [
   {
+    "id": "session-1785232764595-3",
+    "tabId": 3,
+    "command": null,
+    "label": "Terminal",
+    "emoji": "▷",
+    "icon": "terminal-window",
+    "claudeSessionId": "ed80936e-4de5-45e4-a23b-2bc6889da664",
+    "createdAt": "2026-07-28T09:59:24.595Z",
+    "projectPath": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress",
+    "projectName": "wordpress"
+  },
+  {
+    "id": "session-1785232646588-2",
+    "tabId": 2,
+    "command": null,
+    "label": "Terminal",
+    "emoji": "▷",
+    "icon": "terminal-window",
+    "claudeSessionId": "2ab6ca58-48e3-4fc7-b99a-b9200f3f1d87",
+    "createdAt": "2026-07-28T09:57:26.588Z",
+    "projectPath": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress",
+    "projectName": "wordpress"
+  },
+  {
     "id": "session-1785212930081-2",
     "tabId": 2,
     "command": null,
@@ -212,30 +236,6 @@
     "icon": "terminal-window",
     "claudeSessionId": "2b2af0e8-7cb0-464f-8741-f2f6f5210b05",
     "createdAt": "2026-06-10T09:05:27.633Z",
-    "projectPath": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress",
-    "projectName": "wordpress"
-  },
-  {
-    "id": "session-1781082244049-2",
-    "tabId": 2,
-    "command": null,
-    "label": "Terminal",
-    "emoji": "▷",
-    "icon": "terminal-window",
-    "claudeSessionId": "4cd2cc25-70e7-4009-804b-27eb25996f01",
-    "createdAt": "2026-06-10T09:04:04.049Z",
-    "projectPath": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress",
-    "projectName": "wordpress"
-  },
-  {
-    "id": "session-1781082233134-1",
-    "tabId": 1,
-    "command": null,
-    "label": "Terminal",
-    "emoji": "▷",
-    "icon": "terminal-window",
-    "claudeSessionId": "44115954-a051-4ed3-8260-cec2de12a5e2",
-    "createdAt": "2026-06-10T09:03:53.134Z",
     "projectPath": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress",
     "projectName": "wordpress"
   }

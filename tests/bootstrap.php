@@ -231,6 +231,21 @@ if (!function_exists('get_post_meta')) {
     }
 }
 
+// Stub update_post_meta()/delete_post_meta() — writes into the same $GLOBALS['_test_post_meta'] store.
+if (!function_exists('update_post_meta')) {
+    function update_post_meta(int $post_id, string $key, $value, $prev = '') {
+        $GLOBALS['_test_post_meta'][$post_id][$key] = $value;
+        return true;
+    }
+}
+
+if (!function_exists('delete_post_meta')) {
+    function delete_post_meta(int $post_id, string $key, $value = ''): bool {
+        unset($GLOBALS['_test_post_meta'][$post_id][$key]);
+        return true;
+    }
+}
+
 // Stub get_post_field() — tests can set $GLOBALS['_test_post_fields'][$post_id][$field].
 if (!function_exists('get_post_field')) {
     function get_post_field(string $field, int $post_id = 0) {
@@ -479,6 +494,7 @@ require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-theme-api.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-variation-permalinks.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-pim-link.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-run-links.php';
 
 if (!function_exists('wp_parse_url')) {
     function wp_parse_url(string $url, int $component = -1) {
