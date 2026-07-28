@@ -906,7 +906,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * @param array<int>                      $collection_ids Selection IDs to filter by.
 	 * @return array{created: int, updated: int, unchanged: int, map: array}
 	 */
-	public function sync_grouped_products_first( Skwirrel_WC_Sync_JsonRpc_Client $client, array $options, array $collection_ids = [] ): array {
+	public function sync_grouped_products_first( Skwirrel_WC_Sync_JsonRpc_Client $client, array $options, array $collection_ids = [], string $run_id = '' ): array {
 		$created              = 0;
 		$updated              = 0;
 		$unchanged            = 0;
@@ -993,7 +993,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				}
 
 				try {
-					$outcome = $this->create_variable_product_from_group( $group, $product_to_group_map );
+					$outcome = $this->create_variable_product_from_group( $group, $product_to_group_map, $run_id );
 					if ( 'created' === $outcome ) {
 						++$created;
 					} elseif ( 'updated' === $outcome ) {
@@ -1093,11 +1093,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	/**
 	 * Maak variable product aan (zonder variations). Vul product_to_group_map voor later.
 	 *
-	 * @param array $group              Grouped product data from API.
-	 * @param array &$product_to_group_map Reference to the product-to-group mapping array.
+	 * @param array  $group                 Grouped product data from API.
+	 * @param array  &$product_to_group_map  Reference to the product-to-group mapping array.
+	 * @param string $run_id                 Current run uuid, so the shell carries this run's deep-link
+	 *                                       marker. The shell's outcome is counted in the run totals,
+	 *                                       so without it a run whose variations were all unchanged
+	 *                                       reported a Created/Updated count linking to nothing.
 	 * @return string 'created'|'updated'|'skipped'
 	 */
-	public function create_variable_product_from_group( array $group, array &$product_to_group_map ): string {
+	public function create_variable_product_from_group( array $group, array &$product_to_group_map, string $run_id = '' ): string {
 		$grouped_id = $group['grouped_product_id'] ?? $group['id'] ?? null;
 		if ( null === $grouped_id || '' === $grouped_id ) {
 			return 'skipped';
@@ -1302,7 +1306,10 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			update_post_meta( $id, self::GROUP_HASH_META, $group_hash );
 		}
 
-		return $is_new ? 'created' : 'updated';
+		$outcome = $is_new ? 'created' : 'updated';
+		Skwirrel_WC_Sync_Run_Links::mark( (int) $id, $run_id, $outcome );
+
+		return $outcome;
 	}
 
 	/**
@@ -1489,9 +1496,17 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$hash_status = '' === $stored_hash ? 'new' : ( $stored_hash === $incoming_hash ? 'match' : 'mismatch' );
 		}
 
+		// Both gates answer "is the Skwirrel payload unchanged?", which says nothing about what
+		// happened to the product in WooCommerce. If its WC status has drifted from the state the
+		// mapping wants — an admin republished a deprecated product, or took a mapped draft live —
+		// skipping would leave that drift in place forever, because the payload never changes.
+		// A republished deprecated product also drops out of the escalation lifecycle. So the gates
+		// only skip a product that is already in its mapped state.
+		$gate_allowed = ! $is_new && ! $this->status_drifted( $wc_product, $product );
+
 		if ( 'enforce' === $this->content_hash_mode ) {
 			// Hash is authoritative: skip only on a real match, otherwise reprocess (supersedes the timestamp gate).
-			if ( ! $is_new && 'match' === $hash_status ) {
+			if ( $gate_allowed && 'match' === $hash_status ) {
 				update_post_meta( $wc_id, $this->mapper->get_synced_at_meta_key(), time() );
 				return [
 					'wc_id'        => (int) $wc_id,
@@ -1500,7 +1515,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					'hash_status'  => $hash_status,
 				];
 			}
-		} elseif ( $this->is_unchanged( $is_new, $stored_updated_on, $incoming_updated_on ) ) {
+		} elseif ( $gate_allowed && $this->is_unchanged( $is_new, $stored_updated_on, $incoming_updated_on ) ) {
 			update_post_meta( $wc_id, $this->mapper->get_synced_at_meta_key(), time() );
 			return [
 				'wc_id'        => (int) $wc_id,
@@ -2515,15 +2530,41 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * @param string     $planned_status The status the mapping wants to apply.
 	 * @return string The status to actually apply.
 	 */
-	private function guard_revive_from_trash( $wc_product, string $current_status, string $planned_status ): string {
+	/**
+	 * Whether an existing product's WC status differs from the state its mapping wants.
+	 *
+	 * Compared *after* the trash guard, so a trashed product whose mapping resolves to a
+	 * non-visible state still reads as "not drifted" — otherwise it would be reprocessed on every
+	 * run only to be left in the trash again. The draft-first hold for new/incomplete products is
+	 * deliberately not considered: this only ever looks at products that are already complete.
+	 *
+	 * @param WC_Product           $wc_product The existing product.
+	 * @param array<string, mixed> $product    Raw API product data.
+	 */
+	private function status_drifted( $wc_product, array $product ): bool {
+		$current = (string) $wc_product->get_status();
+		$target  = $this->guard_revive_from_trash_target( $current, $this->mapper->get_status( $product ) );
+		return $current !== $target;
+	}
+
+	/**
+	 * The status guard_revive_from_trash() would settle on, without performing the untrash.
+	 *
+	 * Split out so the drift check can ask the question without the side effect.
+	 */
+	private function guard_revive_from_trash_target( string $current_status, string $planned_status ): string {
 		if ( 'trash' !== $current_status ) {
 			return $planned_status;
 		}
-		if ( ! in_array( $planned_status, [ 'publish', 'draft' ], true ) ) {
-			return 'trash';
+		return in_array( $planned_status, [ 'publish', 'draft' ], true ) ? $planned_status : 'trash';
+	}
+
+	private function guard_revive_from_trash( $wc_product, string $current_status, string $planned_status ): string {
+		$target = $this->guard_revive_from_trash_target( $current_status, $planned_status );
+		if ( 'trash' === $current_status && 'trash' !== $target ) {
+			$this->untrash_post( $wc_product );
 		}
-		$this->untrash_post( $wc_product );
-		return $planned_status;
+		return $target;
 	}
 
 	/**

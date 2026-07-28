@@ -1862,12 +1862,12 @@ msgstr "Détails des statuts mis à jour — rechargement…"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid ""
-"The Created and Updated counts include each variation of a variable product, "
-"while the product list they link to shows parent products only — for "
-"variable products the list is therefore shorter than the count."
+"The Created, Updated and Deleted counts include each variation of a variable "
+"product, while the product list they link to shows parent products only — "
+"for variable products the list is therefore shorter than the count."
 msgstr ""
-"Les compteurs Créés et Mis à jour incluent chaque variation d’un produit "
-"variable, alors que la liste de produits vers laquelle ils pointent "
+"Les compteurs Créés, Mis à jour et Supprimés incluent chaque variation d’un "
+"produit variable, alors que la liste de produits vers laquelle ils pointent "
 "n’affiche que les produits parents — pour les produits variables, la liste "
 "est donc plus courte que le compteur."
 

@@ -19,6 +19,14 @@ class Skwirrel_WC_Sync_Purge_Handler {
 	 */
 	private const BULK_CHUNK_SIZE = 1000;
 
+	/**
+	 * Deprecated products advanced per batch during finalize.
+	 *
+	 * Each one is a WooCommerce save plus meta writes, so the batch is small enough that a step
+	 * deadline is honoured promptly on a large discontinued catalogue.
+	 */
+	private const DEPRECATED_BATCH_SIZE = 100;
+
 	private Skwirrel_WC_Sync_Logger $logger;
 
 	/**
@@ -670,7 +678,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 	 *                                                          re-run of step_finalize double-ticking counters.
 	 * @return int Number of posts moved to trash (parents + their variations).
 	 */
-	public function escalate_deprecated( int $threshold, Skwirrel_WC_Sync_Product_Mapper $mapper, int $sync_started_at, string $run_id = '' ): int {
+	public function escalate_deprecated( int $threshold, Skwirrel_WC_Sync_Product_Mapper $mapper, int $sync_started_at, string $run_id = '', ?float $deadline = null ): array {
 		$external_id_meta = $mapper->get_external_id_meta_key();
 		$grouped_meta     = Skwirrel_WC_Sync_Product_Lookup::GROUPED_PRODUCT_ID_META;
 		$count_meta       = Skwirrel_WC_Sync_Deprecated_Status::COUNT_META;
@@ -680,37 +688,107 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		// Skwirrel-managed products/variations currently in the deprecated status. Variations are
 		// included so an orphaned stale variation (marked deprecated while its parent stays present)
 		// still escalates; a trashed variable parent additionally cascades to its own variations.
-		// Scoped to the deprecated status (a small set), so the meta_query stays cheap.
-		$ids = get_posts(
-			[
-				'post_type'      => [ 'product', 'product_variation' ],
-				'post_status'    => $status,
-				'fields'         => 'ids',
-				'posts_per_page' => -1,
-				'no_found_rows'  => true,
-				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- bounded to deprecated-status posts; only Skwirrel-managed items carry these keys.
-				'meta_query'     => [
-					'relation' => 'OR',
-					[
-						'key'     => $external_id_meta,
-						'value'   => '',
-						'compare' => '!=',
-					],
-					[
-						'key'     => $grouped_meta,
-						'value'   => '',
-						'compare' => '!=',
-					],
-				],
-			]
-		);
+		//
+		// Fetched in bounded batches rather than posts_per_page => -1: on a store with a large
+		// discontinued catalogue, loading every id and then writing to each in one pass made a
+		// supposedly bounded async step run until it hit a worker or memory limit, and a retry
+		// restarted the whole pass. No cursor is needed because the batch is self-consuming —
+		// each product processed here is either stamped with this run's tick (excluded by the
+		// meta_query below) or leaves the deprecated status entirely.
+		$batch_size = (int) apply_filters( 'skwirrel_wc_sync_deprecated_batch_size', self::DEPRECATED_BATCH_SIZE );
+		$batch_size = max( 1, $batch_size );
+		$trashed    = 0;
 
-		$ids = array_map( 'intval', (array) $ids );
-		if ( empty( $ids ) ) {
-			return 0;
-		}
+		do {
+			$ids = get_posts(
+				[
+					'post_type'      => [ 'product', 'product_variation' ],
+					'post_status'    => $status,
+					'fields'         => 'ids',
+					'posts_per_page' => $batch_size,
+					'no_found_rows'  => true,
+					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- bounded to deprecated-status posts; only Skwirrel-managed items carry these keys.
+					'meta_query'     => [
+						'relation' => 'AND',
+						[
+							'relation' => 'OR',
+							[
+								'key'     => $external_id_meta,
+								'value'   => '',
+								'compare' => '!=',
+							],
+							[
+								'key'     => $grouped_meta,
+								'value'   => '',
+								'compare' => '!=',
+							],
+						],
+						// Not yet advanced during THIS run — the self-consuming part of the cursor.
+						[
+							'relation' => 'OR',
+							[
+								'key'     => $ticked_meta,
+								'compare' => 'NOT EXISTS',
+							],
+							[
+								'key'     => $ticked_meta,
+								'value'   => $sync_started_at,
+								'type'    => 'NUMERIC',
+								'compare' => '<',
+							],
+						],
+					],
+				]
+			);
 
-		$trashed = 0;
+			$ids = array_map( 'intval', (array) $ids );
+			if ( empty( $ids ) ) {
+				return [
+					'trashed'  => $trashed,
+					'complete' => true,
+				];
+			}
+
+			$batch    = $this->escalate_deprecated_batch( $ids, $threshold, $sync_started_at, $run_id, $count_meta, $ticked_meta, $status );
+			$trashed += $batch['trashed'];
+
+			// A batch that acted on nothing would be returned again forever (e.g. a post stuck in the
+			// deprecated status whose WC product cannot be loaded). Stop rather than spin.
+			if ( 0 === $batch['processed'] ) {
+				$this->logger->warning(
+					'Deprecated escalation made no progress on a batch — stopping this pass',
+					[ 'batch_size' => count( $ids ) ]
+				);
+				return [
+					'trashed'  => $trashed,
+					'complete' => true,
+				];
+			}
+
+			if ( null !== $deadline && microtime( true ) >= $deadline ) {
+				return [
+					'trashed'  => $trashed,
+					'complete' => false,
+				];
+			}
+		} while ( true );
+	}
+
+	/**
+	 * Advance (or remove) one batch of deprecated products.
+	 *
+	 * @param array<int, int> $ids             Post IDs currently in the deprecated status.
+	 * @param int             $threshold       Configured deprecated_remove_after_syncs (0 = immediate).
+	 * @param int             $sync_started_at Unix start time of this run.
+	 * @param string          $run_id          Current run uuid.
+	 * @param string          $count_meta      Deprecated counter meta key.
+	 * @param string          $ticked_meta     Deprecated "ticked during run" meta key.
+	 * @param string          $status          The deprecated post status.
+	 * @return array{trashed:int, processed:int} Posts trashed, and posts this batch actually acted on.
+	 */
+	private function escalate_deprecated_batch( array $ids, int $threshold, int $sync_started_at, string $run_id, string $count_meta, string $ticked_meta, string $status ): array {
+		$trashed   = 0;
+		$processed = 0;
 		foreach ( $ids as $post_id ) {
 			$product = wc_get_product( $post_id );
 			// Skip anything no longer deprecated — e.g. a variation already cascade-trashed earlier in
@@ -730,8 +808,10 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			if ( ! $result['remove'] ) {
 				update_post_meta( $post_id, $count_meta, $result['count'] );
 				update_post_meta( $post_id, $ticked_meta, $sync_started_at );
+				++$processed;
 				continue;
 			}
+			++$processed;
 
 			$product->set_status( 'trash' );
 			$product->save();
@@ -768,7 +848,10 @@ class Skwirrel_WC_Sync_Purge_Handler {
 				]
 			);
 		}
-		return $trashed;
+		return [
+			'trashed'   => $trashed,
+			'processed' => $processed,
+		];
 	}
 
 	/**

@@ -1836,12 +1836,12 @@ msgstr "Statusgegevens bijgewerkt — bezig met herladen…"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid ""
-"The Created and Updated counts include each variation of a variable product, "
-"while the product list they link to shows parent products only — for "
-"variable products the list is therefore shorter than the count."
+"The Created, Updated and Deleted counts include each variation of a variable "
+"product, while the product list they link to shows parent products only — "
+"for variable products the list is therefore shorter than the count."
 msgstr ""
-"De aantallen Aangemaakt en Bijgewerkt tellen elke variatie van een variabel "
-"product mee, terwijl de productlijst waarnaar ze linken alleen "
+"De aantallen Aangemaakt, Bijgewerkt en Verwijderd tellen elke variatie van "
+"een variabel product mee, terwijl de productlijst waarnaar ze linken alleen "
 "hoofdproducten toont — bij variabele producten is de lijst dus korter dan "
 "het aantal."
 

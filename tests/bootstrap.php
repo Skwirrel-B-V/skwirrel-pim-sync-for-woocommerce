@@ -283,6 +283,13 @@ if (!function_exists('get_post_field')) {
     }
 }
 
+// Stub wp_get_post_parent_id() — tests can set $GLOBALS['_test_post_parents'][$post_id].
+if (!function_exists('wp_get_post_parent_id')) {
+    function wp_get_post_parent_id($post_id = 0) {
+        return $GLOBALS['_test_post_parents'][(int) $post_id] ?? 0;
+    }
+}
+
 // Stub get_post_type() — tests can set $GLOBALS['_test_post_types'][$post_id].
 if (!function_exists('get_post_type')) {
     function get_post_type($post_id = 0) {

@@ -679,7 +679,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							<td class="skw-td-right skw-c-muted"><?php echo esc_html( (string) $unchanged ); ?></td>
 							<td class="skw-td-right skw-c-red"><?php echo esc_html( (string) $failed ); ?></td>
 							<td class="skw-td-right skw-c-muted"><?php $count_link( $deprecated, $link_run, [ 'post_status' => 'deprecated' ] ); ?></td>
-							<td class="skw-td-right skw-c-yellow"><?php $count_link( $trashed, $link_run, [ 'post_status' => 'trash' ] ); ?></td>
+							<?php
+							// Filter on the run outcome, not post_status=trash: a variation trashed while its
+								// variable parent stays in the feed is stamped on that (still published) parent, and
+								// a post_status filter would hide it.
+							?>
+							<td class="skw-td-right skw-c-yellow"><?php $count_link( $trashed, $link_run, [ 'skwirrel_outcome' => 'trashed' ] ); ?></td>
 							<td class="skw-td-right skw-td-bold"><?php echo esc_html( (string) $total ); ?></td>
 							<td class="skw-td-left">
 								<?php if ( $log_exists ) : ?>
@@ -691,7 +696,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</tbody>
 			</table>
 			<p class="description">
-				<?php esc_html_e( 'The Created and Updated counts include each variation of a variable product, while the product list they link to shows parent products only — for variable products the list is therefore shorter than the count.', 'skwirrel-pim-sync' ); ?>
+				<?php esc_html_e( 'The Created, Updated and Deleted counts include each variation of a variable product, while the product list they link to shows parent products only — for variable products the list is therefore shorter than the count.', 'skwirrel-pim-sync' ); ?>
 			</p>
 		</div>
 		<?php

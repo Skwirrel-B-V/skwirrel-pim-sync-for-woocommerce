@@ -1860,12 +1860,12 @@ msgstr "Statusdetails aktualisiert — wird neu geladen…"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid ""
-"The Created and Updated counts include each variation of a variable product, "
-"while the product list they link to shows parent products only — for "
-"variable products the list is therefore shorter than the count."
+"The Created, Updated and Deleted counts include each variation of a variable "
+"product, while the product list they link to shows parent products only — "
+"for variable products the list is therefore shorter than the count."
 msgstr ""
-"Die Zähler „Erstellt“ und „Aktualisiert“ enthalten jede Variante eines "
-"variablen Produkts, während die verlinkte Produktliste nur die "
+"Die Zähler „Erstellt“, „Aktualisiert“ und „Gelöscht“ enthalten jede Variante "
+"eines variablen Produkts, während die verlinkte Produktliste nur die "
 "übergeordneten Produkte zeigt — bei variablen Produkten ist die Liste daher "
 "kürzer als der Zähler."
 

@@ -74,24 +74,38 @@ class Skwirrel_WC_Sync_Run_Links {
 	/**
 	 * Record that a run trashed a product.
 	 *
-	 * Kept separate from mark() because trashing must not erase a `created`/`updated` outcome
-	 * **this same run** recorded: a product created into `deprecated` that reaches the removal
-	 * threshold during the same finalize (always, at threshold 0) is still counted under Created,
-	 * so the Created deep-link has to keep resolving it. `trashed` is therefore only added when
-	 * this run has nothing else to report for the product.
+	 * Now that outcomes are a set, `trashed` simply joins whatever else this run recorded: a
+	 * product created into `deprecated` that reaches the removal threshold in the same finalize
+	 * (always, at threshold 0) is counted under both Created and Deleted, and answers to both
+	 * links. The marker goes on the variable parent for a variation — the product list the links
+	 * open cannot render a `product_variation` row, so an orphaned variation trashed while its
+	 * parent stays in the feed would otherwise have no row to show at all.
 	 *
 	 * @param int    $post_id Product/variation ID.
 	 * @param string $run_id  The current run's uuid.
 	 */
 	public static function mark_trashed( int $post_id, string $run_id ): void {
+		$post_id = self::linkable_post_id( $post_id );
 		if ( $post_id <= 0 || '' === $run_id ) {
 			return;
 		}
-		if ( self::run_of( $post_id ) === $run_id && [] !== array_intersect( self::outcomes_of( $post_id ), [ 'created', 'updated' ] ) ) {
-			return; // Already this run's product, with an outcome its counters report.
-		}
 		self::claim_for_run( $post_id, $run_id );
 		self::add_outcome( $post_id, 'trashed' );
+	}
+
+	/**
+	 * The post a run link can actually render for a given id: a variation's variable parent.
+	 *
+	 * The linked list is scoped to `post_type=product`, so a `product_variation` row can never
+	 * appear in it. Callers that already know the parent (the commit path has it in `group_info`)
+	 * resolve it themselves; this covers the paths that only hold the variation id.
+	 */
+	public static function linkable_post_id( int $post_id ): int {
+		if ( $post_id <= 0 || 'product_variation' !== get_post_type( $post_id ) ) {
+			return $post_id;
+		}
+		$parent = (int) wp_get_post_parent_id( $post_id );
+		return $parent > 0 ? $parent : $post_id;
 	}
 
 	/** The run currently stamped on a product ('' when none). */
@@ -194,24 +208,24 @@ class Skwirrel_WC_Sync_Run_Links {
 	/**
 	 * Post statuses a run-scoped list shows when the URL requests none.
 	 *
-	 * The admin "All" set (every status not flagged `exclude_from_search`), plus the two statuses
-	 * that set excludes but a run's outcome links still have to reach:
+	 * Selected by `show_in_admin_all_list` — the flag WordPress itself uses to build the products
+	 * screen's "All" view, so this set is exactly what that view shows (publish, draft, pending,
+	 * private, future, and `deprecated`, which opts in). Deriving it from `exclude_from_search`
+	 * was indirect: that flag answers a different question, and every status a run's outcome
+	 * links must reach then had to be reasoned about separately.
 	 *
-	 * - `trash`      — a product this run created and then trashed during finalize is still counted
-	 *                  under Created, so the Created link has to list it;
-	 * - `deprecated` — registered with `exclude_from_search => true`, so `get_post_stati()` omits it;
-	 *                  a product mapped straight into `deprecated` on upsert is counted under
-	 *                  Created/Updated and would otherwise be missing from those links.
+	 * `trash` is added on top because WP's "All" deliberately excludes it, while a product this
+	 * run created and then trashed during finalize is still counted under Created — the Created
+	 * link has to list it. The explicit fallback covers a pathological empty registry.
 	 *
 	 * @return array<int, string>
 	 */
 	private static function run_scope_statuses(): array {
-		$statuses = array_values( array_map( 'strval', get_post_stati( [ 'exclude_from_search' => false ], 'names' ) ) );
+		$statuses = array_values( array_map( 'strval', get_post_stati( [ 'show_in_admin_all_list' => true ], 'names' ) ) );
 		if ( [] === $statuses ) {
-			$statuses = [ 'publish', 'draft' ];
+			$statuses = [ 'publish', 'draft', 'pending', 'private', Skwirrel_WC_Sync_Deprecated_Status::STATUS ];
 		}
 		$statuses[] = 'trash';
-		$statuses[] = Skwirrel_WC_Sync_Deprecated_Status::STATUS;
 		return array_values( array_unique( $statuses ) );
 	}
 

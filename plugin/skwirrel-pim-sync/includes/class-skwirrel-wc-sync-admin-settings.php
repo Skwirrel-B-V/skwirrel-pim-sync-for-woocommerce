@@ -50,6 +50,12 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	/** Transient prefix for the running totals of a scan continuing across requests. */
 	private const STATUS_SCAN_TOTALS_TRANSIENT = 'skwirrel_wc_sync_status_scan';
 
+	/** HTTP timeout (seconds) for a discovery call — capped well below the request budget. */
+	private const STATUS_SCAN_TIMEOUT = 10;
+
+	/** Retries for a discovery call. One extra attempt; the scan resumes on the next chunk anyway. */
+	private const STATUS_SCAN_RETRIES = 1;
+
 	private function __construct() {
 		add_action( 'admin_menu', [ $this, 'add_menu' ], 99 );
 		add_action( 'admin_init', [ $this, 'register_settings' ] );
@@ -639,12 +645,16 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			return new WP_Error( 'skwirrel_no_config', __( 'Set the Skwirrel endpoint and API token (and save) before refreshing statuses.', 'skwirrel-pim-sync' ) );
 		}
 
+		// Deliberately NOT the saved timeout/retries: at their maxima one call could occupy this
+		// request for minutes (120s × up to six attempts), which would defeat the chunking above —
+		// the browser or an FPM/proxy timeout would kill the refresh with no continuation returned.
+		// A discovery scan is a best-effort read, so it fails fast and resumes on the next chunk.
 		$client = new Skwirrel_WC_Sync_JsonRpc_Client(
 			$endpoint,
 			(string) ( $opts['auth_type'] ?? 'token' ),
 			$token,
-			(int) ( $opts['timeout'] ?? 30 ),
-			(int) ( $opts['retries'] ?? 2 )
+			min( self::STATUS_SCAN_TIMEOUT, max( 5, (int) ( $opts['timeout'] ?? 30 ) ) ),
+			min( self::STATUS_SCAN_RETRIES, max( 0, (int) ( $opts['retries'] ?? 2 ) ) )
 		);
 		$result = $client->call(
 			'getProducts',

@@ -93,6 +93,11 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * Fix: "Refresh statuses from Skwirrel" now scans large catalogues in steps instead of one long request that a server or browser timeout could kill.
 * Fix: for variable products, the sync history's Created / Updated links now open the parent products of that run — previously they could open an almost empty list.
 * Fix: when one run both creates and updates variations of the same product, that product now appears under *both* the Created and Updated links instead of only one of them.
+* Fix: if you manually republish a product that the sync had set to Deprecated (or change the status of a mapped draft), the next full sync restores the state your mapping asks for — previously it was skipped as "unchanged" forever.
+* Fix: variable products created or updated as part of a grouped sync now show up in that run's Created / Updated links.
+* Fix: the sync history's Deleted link now also finds removals of individual variations, whose parent product stays published.
+* Fix: syncs no longer risk running out of time or memory while retiring deprecated products on large catalogues — they are now processed in batches that resume.
+* Fix: "Refresh statuses from Skwirrel" no longer hangs for minutes when the Skwirrel endpoint is slow or unreachable.
 * Fix: a variation that was trashed and later returns keeps its original URL instead of coming back on a `…__trashed` permalink.
 * Fix: re-syncing a single product from its edit screen now also records its Skwirrel status, so the status shows up in the Product status handling table.
 * Fix: clicking "Refresh statuses from Skwirrel" with unsaved changes on the settings page no longer reloads the page and discards them.

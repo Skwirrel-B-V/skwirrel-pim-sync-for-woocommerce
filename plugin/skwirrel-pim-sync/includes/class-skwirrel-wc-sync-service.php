@@ -428,7 +428,7 @@ class Skwirrel_WC_Sync_Service {
 			case 'relations':
 				return $this->step_relations( $ctx, $deadline );
 			case 'finalize':
-				return $this->step_finalize( $ctx );
+				return $this->step_finalize( $ctx, $deadline );
 			default:
 				return 'done';
 		}
@@ -464,7 +464,7 @@ class Skwirrel_WC_Sync_Service {
 
 		$product_to_group_map = [];
 		if ( ! empty( $options['sync_grouped_products'] ) ) {
-			$grouped_result       = $this->upserter->sync_grouped_products_first( $client, $options, $ctx['collection_ids'] );
+			$grouped_result       = $this->upserter->sync_grouped_products_first( $client, $options, $ctx['collection_ids'], (string) $ctx['run_id'] );
 			$product_to_group_map = $grouped_result['map'];
 			$ctx['created']      += $grouped_result['created'];
 			$ctx['updated']      += $grouped_result['updated'];
@@ -996,7 +996,7 @@ class Skwirrel_WC_Sync_Service {
 	 *
 	 * @param array<string, mixed> $ctx Run context (mutated in place).
 	 */
-	private function step_finalize( array &$ctx ): string {
+	private function step_finalize( array &$ctx, float $deadline ): string {
 		$options = $ctx['options'];
 		$queue   = new Skwirrel_WC_Sync_Queue( $ctx['run_id'] );
 
@@ -1011,28 +1011,42 @@ class Skwirrel_WC_Sync_Service {
 			__( 'Cleaning up…', 'skwirrel-pim-sync' )
 		);
 
-		$trashed            = 0;
-		$categories_removed = 0;
-		if ( ! empty( $options['purge_stale_products'] ) ) {
-			if ( $ctx['delta'] ) {
-				$this->logger->verbose( 'Purge skipped: delta sync (only during full sync)' );
-			} else {
-				// Products no longer in the feed are handled per the configurable __missing__
-				// mapping (keep / draft / trash) inside purge_stale_products().
-				$trashed = $this->purge_handler->purge_stale_products( $ctx['started_at'], $this->mapper, (string) $ctx['run_id'] );
-				if ( ! empty( $options['sync_categories'] ) ) {
-					$categories_removed = $this->purge_handler->purge_stale_categories( $ctx['seen_categories'] );
+		// Finalize can yield mid-way (see the escalation below) and be re-entered by the next
+		// action, so its own progress is staged: the purge runs once, and the counts accumulate in
+		// $ctx across re-entries instead of in locals.
+		$categories_removed = (int) ( $ctx['categories_removed'] ?? 0 );
+		if ( 'purged' !== ( $ctx['finalize_stage'] ?? '' ) ) {
+			if ( ! empty( $options['purge_stale_products'] ) ) {
+				if ( $ctx['delta'] ) {
+					$this->logger->verbose( 'Purge skipped: delta sync (only during full sync)' );
+				} else {
+					// Products no longer in the feed are handled per the configurable __missing__
+					// mapping (keep / draft / trash) inside purge_stale_products().
+					$ctx['trashed'] = (int) ( $ctx['trashed'] ?? 0 ) + $this->purge_handler->purge_stale_products( $ctx['started_at'], $this->mapper, (string) $ctx['run_id'] );
+					if ( ! empty( $options['sync_categories'] ) ) {
+						$categories_removed = $this->purge_handler->purge_stale_categories( $ctx['seen_categories'] );
+					}
 				}
 			}
+			$ctx['finalize_stage'] = 'purged';
 		}
 
 		// Deprecated-lifecycle escalation: advance each deprecated product's counter and trash the
 		// ones past the threshold. Full sync only (never delta) so the counter ticks at most once per
 		// full sync; runs independently of purge_stale_products (deprecation is an explicit mapping).
+		// Batched against the step deadline: a large discontinued catalogue would otherwise make
+		// this "bounded" step run until a worker or memory limit killed it, and the retry restart
+		// the whole pass. Yielding here re-enters finalize, which is why the purge is staged above.
 		if ( ! $ctx['delta'] ) {
-			$threshold = max( 0, (int) ( $options['deprecated_remove_after_syncs'] ?? 3 ) );
-			$trashed  += $this->purge_handler->escalate_deprecated( $threshold, $this->mapper, (int) $ctx['started_at'], (string) $ctx['run_id'] );
+			$threshold      = max( 0, (int) ( $options['deprecated_remove_after_syncs'] ?? 3 ) );
+			$escalation     = $this->purge_handler->escalate_deprecated( $threshold, $this->mapper, (int) $ctx['started_at'], (string) $ctx['run_id'], $deadline );
+			$ctx['trashed'] = (int) ( $ctx['trashed'] ?? 0 ) + $escalation['trashed'];
+			if ( ! $escalation['complete'] ) {
+				$ctx['categories_removed'] = $categories_removed;
+				return 'continue'; // Still on the 'finalize' step — the next action resumes here.
+			}
 		}
+		$trashed = (int) ( $ctx['trashed'] ?? 0 );
 
 		// Per-run "Deprecated" tally for the overview: products this run changed that are now in the
 		// deprecated status (a per-run delta that matches its deep-link). Products deprecated in an

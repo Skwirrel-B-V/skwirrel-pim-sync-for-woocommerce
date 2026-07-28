@@ -66,15 +66,16 @@ test('mark ignores an invalid post id or an empty run', function () {
 
 test('mark_trashed keeps a create from the same run so the Created link matches its count', function () {
     Skwirrel_WC_Sync_Run_Links::mark(11, 'run-a', 'created');
-    // Same run trashes it during finalize (deprecated threshold 0 / stale purge).
+    // Same run trashes it during finalize (deprecated threshold 0 / stale purge). Both the Created
+    // and the Deleted cell counted it, so it has to answer to both links.
     Skwirrel_WC_Sync_Run_Links::mark_trashed(11, 'run-a');
-    expect(runOutcome(11))->toBe(['run-a', ['created']]);
+    expect(runOutcome(11))->toBe(['run-a', ['created', 'trashed']]);
 });
 
 test('mark_trashed keeps an update from the same run', function () {
     Skwirrel_WC_Sync_Run_Links::mark(11, 'run-a', 'updated');
     Skwirrel_WC_Sync_Run_Links::mark_trashed(11, 'run-a');
-    expect(runOutcome(11))->toBe(['run-a', ['updated']]);
+    expect(runOutcome(11))->toBe(['run-a', ['trashed', 'updated']]);
 });
 
 test('mark_trashed claims a product whose create came from an earlier run', function () {
@@ -93,7 +94,19 @@ test('mark_trashed keeps both outcomes of a mixed variable-product run', functio
     Skwirrel_WC_Sync_Run_Links::mark(11, 'run-a', 'created');
     Skwirrel_WC_Sync_Run_Links::mark(11, 'run-a', 'updated');
     Skwirrel_WC_Sync_Run_Links::mark_trashed(11, 'run-a');
-    expect(runOutcome(11))->toBe(['run-a', ['created', 'updated']]);
+    expect(runOutcome(11))->toBe(['run-a', ['created', 'trashed', 'updated']]);
+});
+
+test('mark_trashed stamps the variable parent of a variation', function () {
+    // The linked list is scoped to post_type=product, so a product_variation row can never appear
+    // in it — an orphaned variation trashed while its parent stays in the feed needs the parent.
+    $GLOBALS['_test_post_types'][31]   = 'product_variation';
+    $GLOBALS['_test_post_parents'][31] = 30;
+
+    Skwirrel_WC_Sync_Run_Links::mark_trashed(31, 'run-a');
+
+    expect(runOutcome(30))->toBe(['run-a', ['trashed']]);
+    expect($GLOBALS['_test_post_meta'])->not->toHaveKey(31);
 });
 
 test('mark_trashed ignores an invalid post id or an empty run', function () {

@@ -172,6 +172,47 @@ test('trashing a product WooCommerce does not manage leaves its meta alone', fun
     expect($GLOBALS['_test_post_meta'][56])->toHaveKey(Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META);
 });
 
+/** Stand-in exposing just the status the drift check reads. */
+final class DriftProductStub {
+    public function __construct(private string $status) {}
+    public function get_status(): string {
+        return $this->status;
+    }
+}
+
+function invokeStatusDrifted(object $upserter, string $current, array $product): bool {
+    $ref = new ReflectionMethod($upserter, 'status_drifted');
+    return $ref->invoke($upserter, new DriftProductStub($current), $product);
+}
+
+test('a product already in its mapped state is not treated as drifted', function () {
+    // The change gates may skip it: the payload is unchanged and so is the WooCommerce status.
+    $product = productWithStatus('Available');
+    expect(invokeStatusDrifted($this->upserter, 'publish', $product))->toBeFalse();
+});
+
+test('a manually republished product counts as drifted so the gate cannot skip it', function () {
+    // Mapped to deprecated but an admin put it back to publish. The Skwirrel payload never
+    // changes, so without this the mapped state would never be restored and the product would
+    // stay out of the deprecated escalation lifecycle indefinitely.
+    $this->upserter->set_change_gate_enabled(true);
+    $product = productWithStatus('Discontinued');
+    (new ReflectionProperty($this->upserter, 'mapper'))->getValue($this->upserter)
+        ->set_status_handling(['discontinued' => 'deprecated'], 'publish');
+
+    expect(invokeStatusDrifted($this->upserter, 'publish', $product))->toBeTrue();
+    expect(invokeStatusDrifted($this->upserter, 'deprecated', $product))->toBeFalse();
+});
+
+test('a trashed product mapped to a non-visible state is not drifted', function () {
+    // Otherwise every run would reprocess it just to leave it in the trash again.
+    (new ReflectionProperty($this->upserter, 'mapper'))->getValue($this->upserter)
+        ->set_status_handling(['discontinued' => 'deprecated'], 'publish');
+    $product = productWithStatus('Discontinued');
+
+    expect(invokeStatusDrifted($this->upserter, 'trash', $product))->toBeFalse();
+});
+
 test('do_internal_delete runs the sync-owned delete with the lock bypass active, then clears it', function () {
     $flagDuring = null;
     $GLOBALS['_test_wp_trash_hook'] = function () use (&$flagDuring) {
