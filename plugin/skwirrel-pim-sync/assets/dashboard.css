@@ -1489,3 +1489,38 @@
 		padding-right: 14px;
 	}
 }
+
+/* Product status handling: status badges (id + internal code + label). */
+.skw-status-table .skw-status-id {
+	display: inline-block;
+	min-width: 1.5em;
+	text-align: center;
+	background: #f0f0f1;
+	color: #50575e;
+	border-radius: 3px;
+	padding: 0 5px;
+	font-size: 11px;
+	font-weight: 600;
+}
+.skw-status-table .skw-status-code {
+	background: #2c3338;
+	color: #fff;
+	border-radius: 3px;
+	padding: 1px 6px;
+	font-size: 11px;
+	font-family: Menlo, Consolas, monospace;
+}
+.skw-status-table .skw-status-name {
+	margin-left: 4px;
+}
+.skw-status-table .skw-status-row--pseudo td:first-child {
+	color: #646970;
+	font-style: italic;
+}
+.skw-status-refresh {
+	margin-top: 10px;
+}
+.skw-status-refresh .skw-field-hint {
+	margin-left: 8px;
+	display: inline;
+}

@@ -58,6 +58,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		add_action( 'admin_footer', [ $this, 'render_status_toast' ] );
 		// Inline "Test connection": autosaves the environment/connection settings, then tests them.
 		add_action( 'wp_ajax_skwirrel_wc_sync_test_connection', [ $this, 'handle_test_connection_ajax' ] );
+		add_action( 'wp_ajax_skwirrel_wc_sync_refresh_statuses', [ $this, 'handle_refresh_statuses' ] );
 	}
 
 	/**
@@ -232,11 +233,14 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			);
 		}
 		$out['custom_collection_id'] = isset( $input['custom_collection_id'] ) ? sanitize_text_field( trim( $input['custom_collection_id'] ) ) : '';
-		if ( '' === $out['custom_collection_id'] || 0 >= (int) $out['custom_collection_id'] ) {
+		// Only required when a feature that actually uses it is enabled: custom classes,
+		// trade-item custom classes, or grouped products (which may use custom variation axes).
+		$cc_id_required = ! empty( $input['sync_custom_classes'] ) || ! empty( $input['sync_trade_item_custom_classes'] ) || ! empty( $input['sync_grouped_products'] );
+		if ( $cc_id_required && ( '' === $out['custom_collection_id'] || 0 >= (int) $out['custom_collection_id'] ) ) {
 			add_settings_error(
 				self::OPTION_KEY,
 				'custom_collection_id_required',
-				__( 'A custom class collection ID greater than 0 is required.', 'skwirrel-pim-sync' ),
+				__( 'A custom class collection ID greater than 0 is required when syncing custom classes or grouped products.', 'skwirrel-pim-sync' ),
 				'error'
 			);
 		}
@@ -453,6 +457,88 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			wp_send_json_success( [ 'message' => __( 'Connection successful — settings saved.', 'skwirrel-pim-sync' ) ] );
 		}
 		wp_send_json_error( [ 'message' => (string) ( $result['error']['message'] ?? __( 'Connection failed.', 'skwirrel-pim-sync' ) ) ] );
+	}
+
+	/**
+	 * AJAX: discover Skwirrel product statuses on demand.
+	 *
+	 * Skwirrel exposes no "list statuses" endpoint, so this samples a page of products
+	 * (with include_product_status) and records the distinct statuses it finds. The
+	 * built-in presets (Draft/Available/Discontinued) are always shown regardless; this
+	 * surfaces any additional statuses a tenant has defined without waiting for a full
+	 * sync. Returns whether the caller should reload to render the new rows.
+	 */
+	public function handle_refresh_statuses(): void {
+		check_ajax_referer( 'skwirrel_refresh_statuses_nonce', '_nonce' );
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( [ 'message' => __( 'Access denied.', 'skwirrel-pim-sync' ) ], 403 );
+		}
+
+		$products = $this->fetch_statuses();
+		if ( is_wp_error( $products ) ) {
+			wp_send_json_error( [ 'message' => $products->get_error_message() ] );
+		}
+
+		$added = Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products( $products );
+		if ( $added > 0 ) {
+			/* translators: %d: number of newly discovered product statuses. */
+			$message = sprintf( _n( '%d new status found — reloading…', '%d new statuses found — reloading…', $added, 'skwirrel-pim-sync' ), $added );
+		} else {
+			$message = __( 'No new statuses found. All statuses in the sample are already listed.', 'skwirrel-pim-sync' );
+		}
+		wp_send_json_success(
+			[
+				'added'   => $added,
+				'reload'  => $added > 0,
+				'message' => $message,
+			]
+		);
+	}
+
+	/**
+	 * Sample products from the API so their distinct statuses can be recorded.
+	 *
+	 * Isolated behind one method so the discovery source can later be swapped for a
+	 * dedicated endpoint (should Skwirrel add one) without touching the caller/UI.
+	 *
+	 * @return array<int, mixed>|WP_Error Raw API products, or an error to surface.
+	 */
+	private function fetch_statuses() {
+		$opts     = get_option( self::OPTION_KEY, [] );
+		$opts     = is_array( $opts ) ? $opts : [];
+		$endpoint = self::normalize_endpoint_url( (string) ( $opts['endpoint_url'] ?? '' ) );
+		$token    = self::get_auth_token();
+		if ( '' === $endpoint || '' === $token ) {
+			return new WP_Error( 'skwirrel_no_config', __( 'Set the Skwirrel endpoint and API token (and save) before refreshing statuses.', 'skwirrel-pim-sync' ) );
+		}
+
+		$client = new Skwirrel_WC_Sync_JsonRpc_Client(
+			$endpoint,
+			(string) ( $opts['auth_type'] ?? 'token' ),
+			$token,
+			(int) ( $opts['timeout'] ?? 30 ),
+			(int) ( $opts['retries'] ?? 2 )
+		);
+		$limit  = max( 10, min( 500, (int) ( $opts['batch_size'] ?? 100 ) ) );
+		$result = $client->call(
+			'getProducts',
+			[
+				'page'                         => 1,
+				'limit'                        => $limit,
+				'include_product_status'       => true,
+				'include_product_translations' => false,
+				'include_attachments'          => false,
+				'include_trade_items'          => false,
+				'include_categories'           => false,
+			]
+		);
+
+		if ( empty( $result['success'] ) ) {
+			return new WP_Error( 'skwirrel_api_error', (string) ( $result['error']['message'] ?? __( 'The request to Skwirrel failed.', 'skwirrel-pim-sync' ) ) );
+		}
+
+		$products = $result['result']['products'] ?? [];
+		return is_array( $products ) ? $products : [];
 	}
 
 	public function handle_sync_now(): void {
@@ -1106,6 +1192,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'testSubdomainLabel'    => __( 'Enter a subdomain first.', 'skwirrel-pim-sync' ),
 				'testFailedLabel'       => __( 'Connection failed.', 'skwirrel-pim-sync' ),
 				'testNetworkLabel'      => __( 'Network error.', 'skwirrel-pim-sync' ),
+				'refreshStatusesNonce'  => wp_create_nonce( 'skwirrel_refresh_statuses_nonce' ),
+				'refreshStatusesLabel'  => __( 'Fetching…', 'skwirrel-pim-sync' ),
+				'refreshStatusesError'  => __( 'Could not refresh statuses.', 'skwirrel-pim-sync' ),
 			]
 		);
 
@@ -1204,6 +1293,27 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '   })'
 			. '   .catch(function(){ setRes(skwirrelPimSync.testNetworkLabel, "skw-test-error"); })'
 			. '   .finally(function(){ testBtn.disabled = false; });'
+			. ' });'
+			// "Refresh statuses from Skwirrel": sample products server-side, record any new
+			// statuses, then reload so the table re-renders them as configurable rows.
+			. ' var refreshBtn = document.getElementById("skwirrel-refresh-statuses");'
+			. ' if (refreshBtn) refreshBtn.addEventListener("click", function(){'
+			. '  var msgEl = document.getElementById("skwirrel-refresh-statuses-msg");'
+			. '  function setMsg(t){ if (msgEl) msgEl.textContent = t || ""; }'
+			. '  var fd = new FormData();'
+			. '  fd.append("action", "skwirrel_wc_sync_refresh_statuses");'
+			. '  fd.append("_nonce", skwirrelPimSync.refreshStatusesNonce);'
+			. '  refreshBtn.disabled = true;'
+			. '  setMsg(skwirrelPimSync.refreshStatusesLabel);'
+			. '  fetch(skwirrelPimSync.ajaxUrl, { method: "POST", body: fd })'
+			. '   .then(function(r){ return r.json(); })'
+			. '   .then(function(r){'
+			. '    var msg = (r && r.data && r.data.message) ? r.data.message : skwirrelPimSync.refreshStatusesError;'
+			. '    setMsg(msg);'
+			. '    if (r && r.success && r.data && r.data.reload) { window.location.reload(); }'
+			. '   })'
+			. '   .catch(function(){ setMsg(skwirrelPimSync.refreshStatusesError); })'
+			. '   .finally(function(){ refreshBtn.disabled = false; });'
 			. ' });'
 			// The Stop-sync button is wired by the global status poller (event delegation), so it keeps
 			// working after the banner re-renders and on every admin page.

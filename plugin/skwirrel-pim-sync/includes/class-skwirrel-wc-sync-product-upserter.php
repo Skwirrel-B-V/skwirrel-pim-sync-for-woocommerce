@@ -1171,10 +1171,12 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 		}
 
-		// Trashed upstream follows the configurable __trashed__ mapping (default: trash); otherwise publish.
+		// Variable/grouped parents are published; products deleted upstream are excluded from the
+		// feed and cleaned up by the "Clean up deleted products after full sync" option, so there is
+		// no hidden trashed-upstream rule here.
 		$original_status = $is_new ? '' : $wc_product->get_status();
 		$was_deprecated  = Skwirrel_WC_Sync_Deprecated_Status::STATUS === $original_status;
-		$group_planned   = ! empty( $group['product_trashed_on'] ) ? $this->mapper->get_trashed_state() : 'publish';
+		$group_planned   = 'publish';
 		$group_status    = $this->guard_revive_from_trash( $original_status, $group_planned );
 		$wc_product->set_status( $group_status );
 		$this->maybe_reset_deprecated_counter( (int) $wc_id, $was_deprecated, $group_status );

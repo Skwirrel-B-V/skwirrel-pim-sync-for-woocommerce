@@ -20,22 +20,55 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	private const UPDATED_ON_META  = '_skwirrel_updated_on';
 	public const CATEGORY_ID_META  = '_skwirrel_category_id';
 
-	/** Option storing the distinct source status labels seen during syncs (normalized => display). */
+	/** Option storing the distinct source statuses seen during syncs (normalized code => {id, code, label}). */
 	public const SEEN_STATUSES_OPTION = 'skwirrel_wc_sync_seen_statuses';
 
-	/** Built-in pseudo-status keys used as rows in the status-handling map. */
-	public const PSEUDO_TRASHED = '__trashed__'; // product_trashed_on set (removed/discontinued upstream)
-	public const PSEUDO_MISSING = '__missing__'; // no longer present in the feed (stale)
-	public const PSEUDO_NONE    = '__none__';    // product has no status description
+	/**
+	 * Built-in pseudo-status key for products that carry no status at all.
+	 *
+	 * There is deliberately no __trashed__ / __missing__ pseudo-status: products
+	 * deleted upstream are excluded from the feed by default (so they are handled by
+	 * the visible "Clean up deleted products after full sync" option, not a hidden
+	 * rule), and discontinuation is expressed through the product's own status.
+	 */
+	public const PSEUDO_NONE = '__none__'; // product has no status set
 
-	/** WooCommerce states an admin may map a status to (Story 2 adds `deprecated`). */
+	/** WooCommerce states an admin may map a status to. */
 	private const VALID_STATES = [ 'publish', 'draft', 'trash', 'deprecated' ];
 
-	/** Default WooCommerce state for each pseudo-status when the admin has not mapped it. */
-	private const PSEUDO_DEFAULTS = [
-		self::PSEUDO_TRASHED => 'trash',
-		self::PSEUDO_MISSING => 'trash',
-		self::PSEUDO_NONE    => 'publish',
+	/**
+	 * Built-in Skwirrel product statuses — the seed set every tenant starts with.
+	 *
+	 * Keyed by the normalized `product_status_internal` code (the same key
+	 * get_status_label() derives for a live product) so a preset row and the
+	 * product it matches always resolve to the same status_map entry. `id` and
+	 * `label` are display-only; `default` is the UI pre-selection, applied once the
+	 * admin saves the mapping — never silently at runtime (upgrade-safe).
+	 *
+	 * A tenant may rename/add statuses, so this is only the seed: extra statuses
+	 * are discovered during sync (or via the "Refresh statuses" action).
+	 *
+	 * @var array<string, array{id:int, code:string, label:string, default:string}>
+	 */
+	public const KNOWN_STATUSES = [
+		'draft'        => [
+			'id'      => 1,
+			'code'    => 'DRAFT',
+			'label'   => 'Draft',
+			'default' => 'draft',
+		],
+		'available'    => [
+			'id'      => 2,
+			'code'    => 'AVAILABLE',
+			'label'   => 'Available',
+			'default' => 'publish',
+		],
+		'discontinued' => [
+			'id'      => 3,
+			'code'    => 'DISCONTINUED',
+			'label'   => 'Discontinued',
+			'default' => 'deprecated',
+		],
 	];
 
 	private Skwirrel_WC_Sync_Logger $logger;
@@ -55,9 +88,9 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	private string $status_default = 'publish';
 
 	/**
-	 * In-process cache of discovered status labels (normalized => display).
+	 * In-process cache of discovered statuses (normalized code => record|legacy-string).
 	 *
-	 * @var array<string, string>|null
+	 * @var array<string, mixed>|null
 	 */
 	private ?array $seen_statuses_cache = null;
 
@@ -189,19 +222,53 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	}
 
 	/**
+	 * Extract a product's source status as a structured record.
+	 *
+	 * Reads the `_product_status` sub-object (present when the API is called with
+	 * include_product_status = true). The stable key is derived from
+	 * `product_status_internal` (the machine code, e.g. "DISCONTINUED"), falling
+	 * back to the editable `product_status_description` so data captured before
+	 * codes were available still resolves to the same row. Returns null when the
+	 * product carries no usable status.
+	 *
+	 * @param array<string, mixed> $product Raw API product data.
+	 * @return array{key:string, id:int|null, code:string, label:string}|null
+	 */
+	public static function extract_status( array $product ): ?array {
+		$status = $product['_product_status'] ?? null;
+		if ( ! is_array( $status ) ) {
+			return null;
+		}
+		$code  = trim( (string) ( $status['product_status_internal'] ?? '' ) );
+		$label = trim( (string) ( $status['product_status_description'] ?? '' ) );
+		$id    = isset( $status['product_status_id'] ) && is_numeric( $status['product_status_id'] )
+			? (int) $status['product_status_id']
+			: null;
+		// Key on the stable machine code; fall back to the editable label so legacy
+		// (description-only) data maps to the same normalized key.
+		$key = self::normalize_status_label( '' !== $code ? $code : $label );
+		if ( '' === $key ) {
+			return null;
+		}
+		return [
+			'key'   => $key,
+			'id'    => $id,
+			'code'  => $code,
+			'label' => '' !== $label ? $label : $code,
+		];
+	}
+
+	/**
 	 * Normalize a product's source status into a status-map key.
 	 *
-	 * Returns a pseudo key for trashed-upstream / empty statuses, otherwise the
-	 * normalized status description.
+	 * Returns PSEUDO_NONE when the product has no status, otherwise the normalized
+	 * `product_status_internal` code (or description fallback).
 	 *
 	 * @param array<string, mixed> $product Raw API product data.
 	 */
 	public function get_status_label( array $product ): string {
-		if ( ! empty( $product['product_trashed_on'] ) ) {
-			return self::PSEUDO_TRASHED;
-		}
-		$label = self::normalize_status_label( (string) ( $product['_product_status']['product_status_description'] ?? '' ) );
-		return '' === $label ? self::PSEUDO_NONE : $label;
+		$status = self::extract_status( $product );
+		return null === $status ? self::PSEUDO_NONE : $status['key'];
 	}
 
 	/**
@@ -215,8 +282,9 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	public function get_status( array $product ): string {
 		$label = $this->get_status_label( $product );
 
-		if ( self::PSEUDO_TRASHED === $label || self::PSEUDO_NONE === $label ) {
-			return $this->map_pseudo( $label );
+		if ( self::PSEUDO_NONE === $label ) {
+			// "No status set" — configurable row; publish unless the admin maps it otherwise.
+			return $this->status_map[ self::PSEUDO_NONE ] ?? 'publish';
 		}
 		if ( isset( $this->status_map[ $label ] ) ) {
 			return $this->status_map[ $label ];
@@ -228,60 +296,116 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	}
 
 	/**
-	 * Resolve the WC state for a pseudo-status, honouring the map then its default.
-	 */
-	private function map_pseudo( string $key ): string {
-		if ( isset( $this->status_map[ $key ] ) ) {
-			return $this->status_map[ $key ];
-		}
-		return self::PSEUDO_DEFAULTS[ $key ] ?? $this->status_default;
-	}
-
-	/**
-	 * WC state for products marked trashed upstream (product_trashed_on). Default: trash.
-	 */
-	public function get_trashed_state(): string {
-		return $this->map_pseudo( self::PSEUDO_TRASHED );
-	}
-
-	/**
-	 * WC state for products no longer present in the feed (stale). Default: trash.
-	 */
-	public function get_missing_state(): string {
-		return $this->map_pseudo( self::PSEUDO_MISSING );
-	}
-
-	/**
-	 * Record a product's source status label so it can be configured in Settings.
+	 * Record a product's source status so it can be configured in Settings.
 	 *
-	 * Only real (free-text) labels are recorded; the built-in pseudo statuses are
-	 * always shown in the UI. The option is written only when a genuinely new label
-	 * appears, using an in-process cache to avoid a write per product.
+	 * Only real (tenant-defined) statuses beyond the built-in presets are recorded;
+	 * the presets and pseudo statuses are always shown in the UI. The option is
+	 * written only when a genuinely new status appears, using an in-process cache
+	 * to avoid a write per product.
 	 *
 	 * @param array<string, mixed> $product Raw API product data.
 	 */
 	public function note_seen_status( array $product ): void {
-		$label = $this->get_status_label( $product );
-		if ( str_starts_with( $label, '__' ) ) {
-			return;
+		if ( ! empty( $product['product_trashed_on'] ) ) {
+			return; // Pseudo-status (removed upstream) — always shown, never stored.
 		}
-		$display = trim( (string) ( $product['_product_status']['product_status_description'] ?? '' ) );
-		if ( '' === $display ) {
-			return;
+		$status = self::extract_status( $product );
+		if ( null === $status || isset( self::KNOWN_STATUSES[ $status['key'] ] ) ) {
+			return; // No status, or a built-in preset (already always shown).
 		}
+		$key = $status['key'];
 		// Fast path: already recorded in this process.
-		if ( isset( $this->seen_statuses_cache[ $label ] ) ) {
+		if ( isset( $this->seen_statuses_cache[ $key ] ) ) {
 			return;
 		}
 		// Read-merge-write: re-read the option before writing so a concurrent resumable
 		// process does not clobber statuses another process appended after we last read.
 		$stored = get_option( self::SEEN_STATUSES_OPTION, [] );
 		$stored = is_array( $stored ) ? $stored : [];
-		if ( ! isset( $stored[ $label ] ) && count( $stored ) < 200 ) {
-			$stored[ $label ] = $display;
+		if ( ! isset( $stored[ $key ] ) && count( $stored ) < 200 ) {
+			$stored[ $key ] = [
+				'id'    => $status['id'],
+				'code'  => $status['code'],
+				'label' => $status['label'],
+			];
 			update_option( self::SEEN_STATUSES_OPTION, $stored, false );
 		}
 		$this->seen_statuses_cache = $stored;
+	}
+
+	/**
+	 * Return discovered (non-preset) statuses as structured records.
+	 *
+	 * Tolerant of the legacy `key => display-string` format so existing installs
+	 * keep rendering their previously discovered statuses.
+	 *
+	 * @return array<string, array{id:int|null, code:string, label:string}>
+	 */
+	public static function get_seen_statuses(): array {
+		$stored = get_option( self::SEEN_STATUSES_OPTION, [] );
+		if ( ! is_array( $stored ) ) {
+			return [];
+		}
+		$out = [];
+		foreach ( $stored as $key => $value ) {
+			$key = (string) $key;
+			if ( '' === $key || isset( self::KNOWN_STATUSES[ $key ] ) ) {
+				continue; // Presets are rendered from KNOWN_STATUSES, not here.
+			}
+			if ( is_array( $value ) ) {
+				$out[ $key ] = [
+					'id'    => isset( $value['id'] ) && is_numeric( $value['id'] ) ? (int) $value['id'] : null,
+					'code'  => (string) ( $value['code'] ?? '' ),
+					'label' => '' !== (string) ( $value['label'] ?? '' ) ? (string) $value['label'] : $key,
+				];
+			} else {
+				// Legacy format: the value was the display label only.
+				$out[ $key ] = [
+					'id'    => null,
+					'code'  => '',
+					'label' => '' !== (string) $value ? (string) $value : $key,
+				];
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Merge statuses found in a batch of sampled products into the seen-statuses option.
+	 *
+	 * Used by the "Refresh statuses" admin action to populate the configurable list
+	 * without running a full sync. Presets are skipped (always shown). Returns the
+	 * number of newly recorded statuses.
+	 *
+	 * @param array<int, mixed> $products Raw API products.
+	 */
+	public static function record_statuses_from_products( array $products ): int {
+		$stored = get_option( self::SEEN_STATUSES_OPTION, [] );
+		$stored = is_array( $stored ) ? $stored : [];
+		$added  = 0;
+		foreach ( $products as $product ) {
+			if ( ! is_array( $product ) || ! empty( $product['product_trashed_on'] ) ) {
+				continue;
+			}
+			$status = self::extract_status( $product );
+			if ( null === $status || isset( self::KNOWN_STATUSES[ $status['key'] ] ) ) {
+				continue;
+			}
+			$key = $status['key'];
+			if ( isset( $stored[ $key ] ) || count( $stored ) >= 200 ) {
+				continue;
+			}
+			$stored[ $key ] = [
+				'id'    => $status['id'],
+				'code'  => $status['code'],
+				'label' => $status['label'],
+			];
+			++$added;
+		}
+		if ( $added > 0 ) {
+			update_option( self::SEEN_STATUSES_OPTION, $stored, false );
+		}
+		return $added;
 	}
 
 	/**

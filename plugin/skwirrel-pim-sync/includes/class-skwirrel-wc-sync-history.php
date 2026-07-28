@@ -198,6 +198,8 @@ class Skwirrel_WC_Sync_History {
 	 * @param string $trigger            What initiated the sync: 'manual', 'scheduled', or 'purge'.
 	 * @param string $log_file           Per-sync log filename (empty if none).
 	 * @param int    $unchanged          Number of products skipped as unchanged.
+	 * @param int    $deprecated         Number of products this run left in the deprecated status.
+	 * @param string $run_id             Run uuid, for run-scoped product deep-links from the overview.
 	 *
 	 * @return void
 	 */
@@ -213,7 +215,9 @@ class Skwirrel_WC_Sync_History {
 		int $categories_removed = 0,
 		string $trigger = self::TRIGGER_MANUAL,
 		string $log_file = '',
-		int $unchanged = 0
+		int $unchanged = 0,
+		int $deprecated = 0,
+		string $run_id = ''
 	): void {
 		$result = [
 			'success'            => $ok,
@@ -222,6 +226,7 @@ class Skwirrel_WC_Sync_History {
 			'unchanged'          => $unchanged,
 			'failed'             => $failed,
 			'trashed'            => $trashed,
+			'deprecated'         => $deprecated,
 			'categories_removed' => $categories_removed,
 			'error'              => $error,
 			'with_attributes'    => $with_attrs,
@@ -229,6 +234,7 @@ class Skwirrel_WC_Sync_History {
 			'trigger'            => $trigger,
 			'timestamp'          => time(),
 			'log_file'           => $log_file,
+			'run_id'             => $run_id,
 		];
 
 		update_option( self::OPTION_LAST_SYNC_RESULT, $result, false );

@@ -210,8 +210,14 @@ class Skwirrel_WC_Sync_Service {
 		}
 
 		$custom_collection_id = $options['custom_collection_id'] ?? '';
-		if ( empty( $custom_collection_id ) ) {
-			return $this->begin_fail( 'No custom class collection ID configured. This field is required.', $trigger, $log_filename );
+		// The custom class collection ID is only used when syncing custom classes, trade-item custom
+		// classes, or grouped products (custom variation axes). It is optional otherwise — the sync
+		// runs fine without it. Fail only when a feature that actually needs it is enabled.
+		$needs_custom_collection = ! empty( $options['sync_custom_classes'] )
+			|| ! empty( $options['sync_trade_item_custom_classes'] )
+			|| ! empty( $options['sync_grouped_products'] );
+		if ( $needs_custom_collection && empty( $custom_collection_id ) ) {
+			return $this->begin_fail( 'Custom classes or grouped products are enabled but no custom class collection ID is configured. Set a collection ID greater than 0, or disable those options.', $trigger, $log_filename );
 		}
 		if ( ! empty( $options['sync_categories'] ) ) {
 			$super_cat_id = (int) ( $options['super_category_id'] ?? 0 );
@@ -726,6 +732,12 @@ class Skwirrel_WC_Sync_Service {
 
 		$queue->update_after_phase1( $row->id, $wc_id, $outcome );
 
+		// Run-scoped deep-link marker: record which run changed this product and how, so the
+		// dashboard's Created/Updated count cells can link to exactly this run's set.
+		if ( $wc_id && ( 'created' === $outcome || 'updated' === $outcome ) ) {
+			Skwirrel_WC_Sync_Run_Links::mark( (int) $wc_id, (string) $ctx['run_id'], $outcome );
+		}
+
 		if ( $wc_id && 'skipped' !== $outcome && 'unchanged' !== $outcome ) {
 			// --- Taxonomy: categories, brands, manufacturers (parent for variations) ---
 			try {
@@ -977,7 +989,7 @@ class Skwirrel_WC_Sync_Service {
 			} else {
 				// Products no longer in the feed are handled per the configurable __missing__
 				// mapping (keep / draft / trash) inside purge_stale_products().
-				$trashed = $this->purge_handler->purge_stale_products( $ctx['started_at'], $this->mapper );
+				$trashed = $this->purge_handler->purge_stale_products( $ctx['started_at'], $this->mapper, (string) $ctx['run_id'] );
 				if ( ! empty( $options['sync_categories'] ) ) {
 					$categories_removed = $this->purge_handler->purge_stale_categories( $ctx['seen_categories'] );
 				}
@@ -989,8 +1001,13 @@ class Skwirrel_WC_Sync_Service {
 		// full sync; runs independently of purge_stale_products (deprecation is an explicit mapping).
 		if ( ! $ctx['delta'] ) {
 			$threshold = max( 0, (int) ( $options['deprecated_remove_after_syncs'] ?? 3 ) );
-			$trashed  += $this->purge_handler->escalate_deprecated( $threshold, $this->mapper, (int) $ctx['started_at'] );
+			$trashed  += $this->purge_handler->escalate_deprecated( $threshold, $this->mapper, (int) $ctx['started_at'], (string) $ctx['run_id'] );
 		}
+
+		// Per-run "Deprecated" tally for the overview: products this run changed that are now in the
+		// deprecated status (a per-run delta that matches its deep-link). Products deprecated in an
+		// earlier run and left unchanged now are not re-counted.
+		$deprecated = Skwirrel_WC_Sync_Run_Links::count_for_run( (string) $ctx['run_id'], Skwirrel_WC_Sync_Deprecated_Status::STATUS );
 
 		// Advance the delta checkpoint only now that the run has provably completed. If any product
 		// committed only partially, hold the checkpoint AND invalidate the signature so the next run
@@ -1003,8 +1020,9 @@ class Skwirrel_WC_Sync_Service {
 			update_option( 'skwirrel_wc_sync_last_sync_sig', $ctx['sync_sig'] );
 		}
 
-		Skwirrel_WC_Sync_History::update_last_result( true, $ctx['created'], $ctx['updated'], $ctx['failed'], '', $ctx['with_attrs'], $ctx['without_attrs'], $trashed, $categories_removed, $ctx['trigger'], $ctx['log_file'], $ctx['unchanged'] );
+		Skwirrel_WC_Sync_History::update_last_result( true, $ctx['created'], $ctx['updated'], $ctx['failed'], '', $ctx['with_attrs'], $ctx['without_attrs'], $trashed, $categories_removed, $ctx['trigger'], $ctx['log_file'], $ctx['unchanged'], $deprecated, (string) $ctx['run_id'] );
 		$ctx['trashed']            = $trashed;
+		$ctx['deprecated']         = $deprecated;
 		$ctx['categories_removed'] = $categories_removed;
 
 		// Record FULL-sync duration: it is the worst-case run length, and the minimum auto-sync interval
@@ -1067,7 +1085,12 @@ class Skwirrel_WC_Sync_Service {
 	 */
 	private function fail_run( array &$ctx, string $message ): string {
 		( new Skwirrel_WC_Sync_Queue( $ctx['run_id'] ) )->cleanup();
-		Skwirrel_WC_Sync_History::update_last_result( false, $ctx['created'], $ctx['updated'], $ctx['failed'], $message, 0, 0, 0, 0, $ctx['trigger'], $ctx['log_file'], $ctx['unchanged'] );
+		// Even on failure, products created/updated/deprecated/trashed before the failure carry this
+		// run's marker — pass the run id plus deprecated/trashed tallies so the overview cells still
+		// deep-link (and the Trashed cell is not stuck at 0 after a partial finalize).
+		$deprecated = Skwirrel_WC_Sync_Run_Links::count_for_run( (string) $ctx['run_id'], Skwirrel_WC_Sync_Deprecated_Status::STATUS );
+		$trashed    = Skwirrel_WC_Sync_Run_Links::count_for_run( (string) $ctx['run_id'], 'trash' );
+		Skwirrel_WC_Sync_History::update_last_result( false, $ctx['created'], $ctx['updated'], $ctx['failed'], $message, 0, 0, $trashed, 0, $ctx['trigger'], $ctx['log_file'], $ctx['unchanged'], $deprecated, (string) $ctx['run_id'] );
 		$ctx['step'] = 'failed';
 		$this->finish_run();
 		return 'failed';
