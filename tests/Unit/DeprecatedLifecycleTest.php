@@ -48,17 +48,6 @@ test('a label mapped to deprecated resolves to the deprecated status', function 
     expect($this->mapper->get_status(deprecatedProduct('Discontinued')))->toBe('deprecated');
 });
 
-test('the __trashed__ and __missing__ pseudo statuses accept deprecated', function () {
-    $this->mapper->set_status_handling([
-        Skwirrel_WC_Sync_Product_Mapper::PSEUDO_TRASHED => 'deprecated',
-        Skwirrel_WC_Sync_Product_Mapper::PSEUDO_MISSING => 'deprecated',
-    ], 'publish');
-
-    expect($this->mapper->get_trashed_state())->toBe('deprecated');
-    expect($this->mapper->get_missing_state())->toBe('deprecated');
-    expect($this->mapper->get_status(deprecatedProduct(null, true)))->toBe('deprecated');
-});
-
 test('an invalid state is still ignored even with the widened whitelist', function () {
     $this->mapper->set_status_handling(['foo' => 'bogus'], 'publish');
     expect($this->mapper->get_status(deprecatedProduct('Foo')))->toBe('publish');

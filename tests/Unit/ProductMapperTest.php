@@ -71,13 +71,15 @@ test('get_status returns publish by default', function () {
 	expect($this->mapper->get_status($product))->toBe('publish');
 });
 
-test('get_status returns trash when product_trashed_on set', function () {
+test('get_status no longer force-trashes on product_trashed_on (status governs)', function () {
+	// Products deleted upstream are excluded from the feed by default and cleaned up by the
+	// purge option; if one does arrive it is classified by its status. With no status: publish.
 	$product = [
 		'product_id' => 1,
 		'product_trashed_on' => '2024-01-15T10:00:00Z',
 	];
 
-	expect($this->mapper->get_status($product))->toBe('trash');
+	expect($this->mapper->get_status($product))->toBe('publish');
 });
 
 test('get_status returns draft when status description contains draft', function () {
@@ -91,7 +93,7 @@ test('get_status returns draft when status description contains draft', function
 	expect($this->mapper->get_status($product))->toBe('draft');
 });
 
-test('get_status prefers trash over draft', function () {
+test('product_trashed_on does not override the product status', function () {
 	$product = [
 		'product_id' => 1,
 		'product_trashed_on' => '2024-01-15T10:00:00Z',
@@ -100,7 +102,7 @@ test('get_status prefers trash over draft', function () {
 		],
 	];
 
-	expect($this->mapper->get_status($product))->toBe('trash');
+	expect($this->mapper->get_status($product))->toBe('draft');
 });
 
 // ------------------------------------------------------------------
