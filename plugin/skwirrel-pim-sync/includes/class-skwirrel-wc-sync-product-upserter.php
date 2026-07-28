@@ -2553,7 +2553,17 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 */
 	private function status_drifted( $wc_product, array $product ): bool {
 		$current = (string) $wc_product->get_status();
-		$target  = $this->guard_revive_from_trash_target( $current, $this->mapper->get_status( $product ) );
+
+		// Only a state the sync itself writes can have drifted away from the mapping. Anything
+		// else is editorial intent WooCommerce offers and this plugin never produces — `private`,
+		// `pending`, a scheduled `future` post. Treating those as drift would bypass both change
+		// gates and force-republish the product to its mapped state on every single run, because
+		// the payload never changes and so the drift never resolves.
+		if ( ! in_array( $current, Skwirrel_WC_Sync_Product_Mapper::VALID_STATES, true ) ) {
+			return false;
+		}
+
+		$target = $this->guard_revive_from_trash_target( $current, $this->mapper->get_status( $product ) );
 		return $current !== $target;
 	}
 

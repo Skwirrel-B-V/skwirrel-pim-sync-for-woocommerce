@@ -33,8 +33,14 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 */
 	public const PSEUDO_NONE = '__none__'; // product has no status set
 
-	/** WooCommerce states an admin may map a status to. */
-	private const VALID_STATES = [ 'publish', 'draft', 'trash', 'deprecated' ];
+	/**
+	 * WooCommerce states an admin may map a status to.
+	 *
+	 * Also the complete set of states the sync itself ever writes, which is what lets the
+	 * upserter's drift check tell "the mapping wants something else" apart from an editorial
+	 * state the plugin never produces (private, pending, future).
+	 */
+	public const VALID_STATES = [ 'publish', 'draft', 'trash', 'deprecated' ];
 
 	/**
 	 * Built-in Skwirrel product statuses — the seed set every tenant starts with.

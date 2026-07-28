@@ -410,6 +410,15 @@ class Skwirrel_WC_Sync_Delete_Protection {
 	 * forceer de volgende geplande sync als volledige sync.
 	 */
 	public function on_product_trashed( int $post_id ): void {
+		// The sync's own deletes run through do_internal_delete() — a simple product being
+		// converted to a variation, a grouped parent being replaced. Those are not an admin
+		// removing a product, so they must not set the force-full-sync flag or drop the change
+		// gates: doing so promotes every later delta sync to a full one after any grouped run
+		// that converted a single product, permanently.
+		if ( self::$internal_op ) {
+			return;
+		}
+
 		$post_type = get_post_type( $post_id );
 		if ( 'product' !== $post_type && 'product_variation' !== $post_type ) {
 			return;

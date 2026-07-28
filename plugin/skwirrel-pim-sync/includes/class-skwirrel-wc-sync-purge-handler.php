@@ -594,33 +594,35 @@ class Skwirrel_WC_Sync_Purge_Handler {
 				continue;
 			}
 
-			// Already in the target state from an earlier run: leave it untouched so we do not
-			// re-save it (and re-inflate the count) on every subsequent full sync — a stale
-			// product keeps its old _skwirrel_synced_at and would otherwise match forever.
-			if ( $product->get_status() === $missing_state ) {
-				continue;
+			// Already in the target state from an earlier run: do not re-save it (and re-inflate the
+			// count) on every subsequent full sync — a stale product keeps its old
+			// _skwirrel_synced_at and would otherwise match forever. The variation cascade below
+			// still runs: a parent trashed by a previous run that died mid-loop, or trashed by hand,
+			// can sit in the target state while its variations are still published and purchasable.
+			$parent_handled = ( $product->get_status() === $missing_state );
+
+			if ( ! $parent_handled ) {
+				$this->logger->info(
+					'Product no longer in Skwirrel feed — applying configured handling',
+					[
+						'wc_id' => $post_id,
+						'sku'   => $product->get_sku(),
+						'name'  => $product->get_name(),
+						'type'  => $product->get_type(),
+						'state' => $missing_state,
+					]
+				);
+
+				$product->set_status( $missing_state );
+				$product->save();
+				$this->reset_deprecated_counter_on_entry( (int) $post_id, $missing_state );
+				// Invalidate every change gate: if this hidden product later reappears unchanged, the
+				// timestamp, content-hash, group and virtual gates can each return `unchanged` on their
+				// own — before the revive logic — and it would never come back.
+				Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates( (int) $post_id );
+				Skwirrel_WC_Sync_Run_Links::mark_trashed( (int) $post_id, $run_id );
+				++$trashed;
 			}
-
-			$this->logger->info(
-				'Product no longer in Skwirrel feed — applying configured handling',
-				[
-					'wc_id' => $post_id,
-					'sku'   => $product->get_sku(),
-					'name'  => $product->get_name(),
-					'type'  => $product->get_type(),
-					'state' => $missing_state,
-				]
-			);
-
-			$product->set_status( $missing_state );
-			$product->save();
-			$this->reset_deprecated_counter_on_entry( (int) $post_id, $missing_state );
-			// Invalidate every change gate: if this hidden product later reappears unchanged, the
-			// timestamp, content-hash, group and virtual gates can each return `unchanged` on their
-			// own — before the revive logic — and it would never come back.
-			Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates( (int) $post_id );
-			Skwirrel_WC_Sync_Run_Links::mark_trashed( (int) $post_id, $run_id );
-			++$trashed;
 
 			// Variable product: also apply the state to its variations.
 			if ( $product->is_type( 'variable' ) ) {

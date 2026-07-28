@@ -80,6 +80,9 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 = 3.12.2 =
 
+* Fix: a product you set to Private (or scheduled for later) stays that way — previously every sync published it again, over and over.
+* Fix: if a variable product was removed from Skwirrel but its variations were left behind published, the next full sync now hides those variations too instead of leaving them for sale.
+* Fix: a sync that converts a product into a variation no longer forces every following scheduled sync to run as a slow full sync.
 * Fix: a product status whose *description* says "Draft" but whose internal code does not (e.g. code `PENDING_REVIEW`, description "Draft - not published") is held as a draft again, as it was before 3.12 — upgrading no longer publishes products that used to stay hidden.
 * Fix: renaming a status in Skwirrel now updates its label in the Product status handling table; previously the table kept showing the old name forever.
 * Fix: a status used only by products marked as removed in Skwirrel is now discovered too, so it can be configured instead of silently following the global default.
