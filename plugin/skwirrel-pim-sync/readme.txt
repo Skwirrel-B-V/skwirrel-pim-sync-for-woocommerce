@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 3.12.1
+Stable tag: 3.12.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -80,11 +80,42 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 = 3.12.2 =
 
+<<<<<<< HEAD
 * Fix: a Skwirrel status that is not mapped yet but whose description mentions "draft" is held as a draft again, as it was before 3.12 — upgrading no longer publishes products that were kept back.
 * Fix: renaming a status in Skwirrel now updates its label in the **Product status handling** table (the internal code stays the key), both during a sync and via **Refresh statuses from Skwirrel**.
 * Fix: the **Created** and **Updated** links in the sync history no longer come up short when a product was created or updated and then trashed during the same run.
 * Fix: the "%d new statuses found" message now has a proper plural form, and all translation files carry the plural rules they were missing.
 * Fix: corrected Dutch, German and French translations for "Fetching…", "Could not refresh statuses." and the optional custom class collection ID label; remaining new 3.12.1 strings are now translated in all locales.
+=======
+* Fix: a product status whose *description* says "Draft" but whose internal code does not (e.g. code `PENDING_REVIEW`, description "Draft - not published") is held as a draft again, as it was before 3.12 — upgrading no longer publishes products that used to stay hidden.
+* Fix: renaming a status in Skwirrel now updates its label in the Product status handling table; previously the table kept showing the old name forever.
+* Fix: a status used only by products marked as removed in Skwirrel is now discovered too, so it can be configured instead of silently following the global default.
+* Fix: "Refresh statuses from Skwirrel" now walks the whole catalogue instead of only the first page, so statuses used further down the feed are found. It also reports when it stopped before the end.
+* Fix: a product you trash yourself in WooCommerce is now brought back by the next full sync instead of staying in the trash until its Skwirrel timestamp happens to change.
+* Fix: a revived product keeps its original permalink instead of being restored on a permanent `…__trashed` URL.
+* Fix: a variable product that was cleaned up and later returns unchanged now comes back out of the trash — previously its group signature still matched, so the sync skipped it and it stayed hidden.
+* Fix: changing the status mapping while a sync is running no longer applies half-way through that run; the run finishes under the mapping it started with.
+* Fix: the block on manually deleting Skwirrel products now lasts the whole sync, instead of lapsing during long API calls.
+* Fix: the sync history's Created / Updated links now also list products the run put straight into the Deprecated state.
+* Fix: "Refresh statuses from Skwirrel" now scans large catalogues in steps instead of one long request that a server or browser timeout could kill.
+* Fix: for variable products, the sync history's Created / Updated links now open the parent products of that run — previously they could open an almost empty list.
+* Fix: when one run both creates and updates variations of the same product, that product now appears under *both* the Created and Updated links instead of only one of them.
+* Fix: if you manually republish a product that the sync had set to Deprecated (or change the status of a mapped draft), the next full sync restores the state your mapping asks for — previously it was skipped as "unchanged" forever.
+* Fix: status mappings you configured before 3.12 keep working after upgrading, also for statuses whose internal code differs from their description — previously such a product quietly fell back to the default state.
+* Fix: a sync that spends several rounds retiring deprecated products is no longer aborted as "stalled".
+* Fix: if a sync fails part-way, the Deleted count in the history now reports the same thing a successful run does.
+* Fix: if you renamed one of the built-in Skwirrel statuses (Draft, Available, Discontinued), the Product status handling table now shows your name and ID instead of the built-in English one.
+* Fix: after a permanent purge from the Danger Zone, the sync history no longer offers links to products that no longer exist.
+* Fix: variable products created or updated as part of a grouped sync now show up in that run's Created / Updated links.
+* Fix: the sync history's Deleted link now also finds removals of individual variations, whose parent product stays published.
+* Fix: syncs no longer risk running out of time or memory while retiring deprecated products on large catalogues — they are now processed in batches that resume.
+* Fix: "Refresh statuses from Skwirrel" no longer hangs for minutes when the Skwirrel endpoint is slow or unreachable.
+* Fix: a variation that was trashed and later returns keeps its original URL instead of coming back on a `…__trashed` permalink.
+* Fix: re-syncing a single product from its edit screen now also records its Skwirrel status, so the status shows up in the Product status handling table.
+* Fix: clicking "Refresh statuses from Skwirrel" with unsaved changes on the settings page no longer reloads the page and discards them.
+* Fix: a product created and then trashed within the same run still appears under that run's Created link.
+* Fix: translations — plural forms are now declared in every language file (`msgfmt --check` passed), the status-discovery message has a real plural, and several Dutch, German and French strings that were empty or paired with the wrong text have been corrected.
+>>>>>>> origin/release/3.12.1
 
 = 3.12.1 =
 

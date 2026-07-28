@@ -31,6 +31,31 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	private const BG_PURGE_TRANSIENT    = 'skwirrel_wc_sync_purge_token';
 	private const TEST_RESULT_TRANSIENT = 'skwirrel_wc_sync_test_result';
 
+	/**
+	 * Bounds for the "Refresh statuses" scan.
+	 *
+	 * Discovery must walk the whole feed to see a status only later products carry. MAX_PAGES caps
+	 * the scan as a whole (batch_size × 200 products); CHUNK_PAGES and BUDGET cap what a single
+	 * AJAX request does, so no one request can sit on dozens of serial API calls and be killed by
+	 * an FPM/proxy/browser timeout. The browser continues the scan from the returned `next_page`.
+	 */
+	private const STATUS_SCAN_MAX_PAGES = 200;
+
+	/** Pages one "Refresh statuses" request may scan before handing back a continuation. */
+	private const STATUS_SCAN_CHUNK_PAGES = 5;
+
+	/** Wall-clock budget (seconds) for one "Refresh statuses" request. */
+	private const STATUS_SCAN_BUDGET = 12;
+
+	/** Transient prefix for the running totals of a scan continuing across requests. */
+	private const STATUS_SCAN_TOTALS_TRANSIENT = 'skwirrel_wc_sync_status_scan';
+
+	/** HTTP timeout (seconds) for a discovery call — capped well below the request budget. */
+	private const STATUS_SCAN_TIMEOUT = 10;
+
+	/** Retries for a discovery call. One extra attempt; the scan resumes on the next chunk anyway. */
+	private const STATUS_SCAN_RETRIES = 1;
+
 	private function __construct() {
 		add_action( 'admin_menu', [ $this, 'add_menu' ], 99 );
 		add_action( 'admin_init', [ $this, 'register_settings' ] );
@@ -462,11 +487,23 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	/**
 	 * AJAX: discover Skwirrel product statuses on demand.
 	 *
-	 * Skwirrel exposes no "list statuses" endpoint, so this samples a page of products
+	 * Skwirrel exposes no "list statuses" endpoint, so this walks the product feed
 	 * (with include_product_status) and records the distinct statuses it finds. The
 	 * built-in presets (Draft/Available/Discontinued) are always shown regardless; this
 	 * surfaces any additional statuses a tenant has defined without waiting for a full
 	 * sync. Returns whether the caller should reload to render the new rows.
+	 *
+	 * Scanning only page 1 would miss a status used exclusively by products further in and still
+	 * report success, so the scan walks the whole feed — but *across requests*, not inside one.
+	 * Each call processes at most STATUS_SCAN_CHUNK_PAGES pages and stops early once
+	 * STATUS_SCAN_BUDGET seconds have elapsed, then hands the caller the next page to ask for;
+	 * the browser drives the continuation. A large catalogue therefore cannot park dozens of
+	 * serial API calls in one PHP request, where an FPM, proxy or browser timeout would kill the
+	 * refresh with nothing returned. STATUS_SCAN_MAX_PAGES bounds the scan as a whole; when it is
+	 * hit the response says how far it got instead of claiming completeness.
+	 *
+	 * Running totals live in a per-user transient rather than round-tripping through the browser,
+	 * so the final message reports what the whole scan actually recorded.
 	 */
 	public function handle_refresh_statuses(): void {
 		check_ajax_referer( 'skwirrel_refresh_statuses_nonce', '_nonce' );
@@ -474,11 +511,21 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			wp_send_json_error( [ 'message' => __( 'Access denied.', 'skwirrel-pim-sync' ) ], 403 );
 		}
 
-		$products = $this->fetch_statuses();
-		if ( is_wp_error( $products ) ) {
-			wp_send_json_error( [ 'message' => $products->get_error_message() ] );
-		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- verified by check_ajax_referer() above.
+		$page      = isset( $_POST['page'] ) ? max( 1, (int) $_POST['page'] ) : 1;
+		$totals    = 1 === $page ? [
+			'added'     => 0,
+			'refreshed' => 0,
+		] : $this->get_status_scan_totals();
+		$opts      = get_option( self::OPTION_KEY, [] );
+		$opts      = is_array( $opts ) ? $opts : [];
+		$limit     = max( 10, min( 500, (int) ( $opts['batch_size'] ?? 100 ) ) );
+		$started   = microtime( true );
+		$complete  = true;
+		$last_page = false;
+		$scanned   = 0;
 
+<<<<<<< HEAD
 		$result    = Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products( $products );
 		$added     = $result['added'];
 		$refreshed = $result['refreshed'];
@@ -489,27 +536,126 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			// No new statuses, but a known one was renamed/re-numbered upstream — reload so the
 			// table shows the current label instead of the one captured when it was first seen.
 			$message = __( 'Status details updated — reloading…', 'skwirrel-pim-sync' );
+=======
+		do {
+			$products = $this->fetch_statuses( $page, $limit );
+			if ( is_wp_error( $products ) ) {
+				if ( 1 === $page ) {
+					$this->clear_status_scan_totals();
+					wp_send_json_error( [ 'message' => $products->get_error_message() ] );
+				}
+				// A later page failed: keep what earlier pages recorded, but do not claim the
+				// whole catalogue was scanned.
+				$complete = false;
+				break;
+			}
+			$counts               = Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products( $products );
+			$totals['added']     += $counts['added'];
+			$totals['refreshed'] += $counts['refreshed'];
+			$last_page            = count( $products ) < $limit;
+			++$page;
+			++$scanned;
+			if ( $last_page ) {
+				break;
+			}
+			if ( $page > self::STATUS_SCAN_MAX_PAGES ) {
+				$complete = false;
+				break;
+			}
+			// More to do, but not in this request: hand the next page back to the caller.
+			if ( $scanned >= self::STATUS_SCAN_CHUNK_PAGES || ( microtime( true ) - $started ) >= self::STATUS_SCAN_BUDGET ) {
+				$this->save_status_scan_totals( $totals );
+				wp_send_json_success(
+					[
+						'added'     => $totals['added'],
+						'refreshed' => $totals['refreshed'],
+						'done'      => false,
+						'next_page' => $page,
+						'reload'    => false,
+						/* translators: %d: number of products inspected so far. */
+						'message'   => sprintf( __( 'Scanning… %d products checked', 'skwirrel-pim-sync' ), ( $page - 1 ) * $limit ),
+					]
+				);
+			}
+		} while ( true );
+
+		$this->clear_status_scan_totals();
+
+		if ( $totals['added'] > 0 ) {
+			/* translators: %d: number of newly discovered product statuses. */
+			$message = sprintf( _n( '%d new status found — reloading…', '%d new statuses found — reloading…', $totals['added'], 'skwirrel-pim-sync' ), $totals['added'] );
+		} elseif ( $totals['refreshed'] > 0 ) {
+			$message = __( 'Status details updated — reloading…', 'skwirrel-pim-sync' );
+		} elseif ( $complete ) {
+			$message = __( 'No new statuses found. Every status in the catalogue is already listed.', 'skwirrel-pim-sync' );
+>>>>>>> origin/release/3.12.1
 		} else {
-			$message = __( 'No new statuses found. All statuses in the sample are already listed.', 'skwirrel-pim-sync' );
+			$message = __( 'No new statuses found so far — the scan stopped before the end of the catalogue.', 'skwirrel-pim-sync' );
 		}
 		wp_send_json_success(
 			[
+<<<<<<< HEAD
 				'added'   => $added,
 				'reload'  => $added > 0 || $refreshed > 0,
 				'message' => $message,
+=======
+				'added'     => $totals['added'],
+				'refreshed' => $totals['refreshed'],
+				'done'      => true,
+				'complete'  => $complete,
+				'reload'    => $totals['added'] > 0 || $totals['refreshed'] > 0,
+				'message'   => $message,
+>>>>>>> origin/release/3.12.1
 			]
 		);
 	}
 
+	/** Transient key holding one admin's running status-scan totals. */
+	private function status_scan_totals_key(): string {
+		return self::STATUS_SCAN_TOTALS_TRANSIENT . '_' . get_current_user_id();
+	}
+
 	/**
-	 * Sample products from the API so their distinct statuses can be recorded.
+	 * Running totals for a scan that is continuing across requests.
+	 *
+	 * @return array{added:int, refreshed:int}
+	 */
+	private function get_status_scan_totals(): array {
+		$stored = get_transient( $this->status_scan_totals_key() );
+		if ( ! is_array( $stored ) ) {
+			return [
+				'added'     => 0,
+				'refreshed' => 0,
+			];
+		}
+		return [
+			'added'     => (int) ( $stored['added'] ?? 0 ),
+			'refreshed' => (int) ( $stored['refreshed'] ?? 0 ),
+		];
+	}
+
+	/**
+	 * @param array{added:int, refreshed:int} $totals Running totals.
+	 */
+	private function save_status_scan_totals( array $totals ): void {
+		set_transient( $this->status_scan_totals_key(), $totals, 15 * MINUTE_IN_SECONDS );
+	}
+
+	private function clear_status_scan_totals(): void {
+		delete_transient( $this->status_scan_totals_key() );
+	}
+
+	/**
+	 * Fetch one page of products from the API so their distinct statuses can be recorded.
 	 *
 	 * Isolated behind one method so the discovery source can later be swapped for a
 	 * dedicated endpoint (should Skwirrel add one) without touching the caller/UI.
 	 *
+	 * @param int $page  1-based page number.
+	 * @param int $limit Products per page.
 	 * @return array<int, mixed>|WP_Error Raw API products, or an error to surface.
 	 */
-	private function fetch_statuses() {
+	private function fetch_statuses( int $page = 1, int $limit = 100 ) {
 		$opts     = get_option( self::OPTION_KEY, [] );
 		$opts     = is_array( $opts ) ? $opts : [];
 		$endpoint = self::normalize_endpoint_url( (string) ( $opts['endpoint_url'] ?? '' ) );
@@ -518,18 +664,21 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			return new WP_Error( 'skwirrel_no_config', __( 'Set the Skwirrel endpoint and API token (and save) before refreshing statuses.', 'skwirrel-pim-sync' ) );
 		}
 
+		// Deliberately NOT the saved timeout/retries: at their maxima one call could occupy this
+		// request for minutes (120s × up to six attempts), which would defeat the chunking above —
+		// the browser or an FPM/proxy timeout would kill the refresh with no continuation returned.
+		// A discovery scan is a best-effort read, so it fails fast and resumes on the next chunk.
 		$client = new Skwirrel_WC_Sync_JsonRpc_Client(
 			$endpoint,
 			(string) ( $opts['auth_type'] ?? 'token' ),
 			$token,
-			(int) ( $opts['timeout'] ?? 30 ),
-			(int) ( $opts['retries'] ?? 2 )
+			min( self::STATUS_SCAN_TIMEOUT, max( 5, (int) ( $opts['timeout'] ?? 30 ) ) ),
+			min( self::STATUS_SCAN_RETRIES, max( 0, (int) ( $opts['retries'] ?? 2 ) ) )
 		);
-		$limit  = max( 10, min( 500, (int) ( $opts['batch_size'] ?? 100 ) ) );
 		$result = $client->call(
 			'getProducts',
 			[
-				'page'                         => 1,
+				'page'                         => max( 1, $page ),
 				'limit'                        => $limit,
 				'include_product_status'       => true,
 				'include_product_translations' => false,
@@ -1183,24 +1332,25 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			'skwirrel-pim-sync-admin',
 			'skwirrelPimSync',
 			[
-				'purgeConfirmPermanent' => __( 'WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be undone!\n\nAre you sure?', 'skwirrel-pim-sync' ),
-				'purgeConfirmTrash'     => __( 'All Skwirrel products will be moved to the trash.\n\nAre you sure?', 'skwirrel-pim-sync' ),
-				'clearHistoryConfirm'   => __( 'Delete all sync history?', 'skwirrel-pim-sync' ),
-				'resetSettingsConfirm'  => __( 'Reset all Skwirrel sync settings? Endpoint URL, API token, sync schedule and slug rules will be deleted, and all scheduled syncs will be cancelled. Products, media, categories and sync history are kept.\n\nAre you sure?', 'skwirrel-pim-sync' ),
-				'ajaxUrl'               => admin_url( 'admin-ajax.php' ),
-				'slugResyncNonce'       => wp_create_nonce( 'skwirrel_slug_resync_nonce' ),
-				'viewLogNonce'          => wp_create_nonce( 'skwirrel_view_log_nonce' ),
-				'downloadLogNonce'      => wp_create_nonce( 'skwirrel_download_log_nonce' ),
-				'abortSyncNonce'        => wp_create_nonce( 'skwirrel_abort_sync_nonce' ),
-				'abortSyncConfirm'      => __( 'Stop the running sync?', 'skwirrel-pim-sync' ),
-				'testConnectionNonce'   => wp_create_nonce( 'skwirrel_test_connection_nonce' ),
-				'testingLabel'          => __( 'Testing…', 'skwirrel-pim-sync' ),
-				'testSubdomainLabel'    => __( 'Enter a subdomain first.', 'skwirrel-pim-sync' ),
-				'testFailedLabel'       => __( 'Connection failed.', 'skwirrel-pim-sync' ),
-				'testNetworkLabel'      => __( 'Network error.', 'skwirrel-pim-sync' ),
-				'refreshStatusesNonce'  => wp_create_nonce( 'skwirrel_refresh_statuses_nonce' ),
-				'refreshStatusesLabel'  => __( 'Fetching…', 'skwirrel-pim-sync' ),
-				'refreshStatusesError'  => __( 'Could not refresh statuses.', 'skwirrel-pim-sync' ),
+				'purgeConfirmPermanent'  => __( 'WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be undone!\n\nAre you sure?', 'skwirrel-pim-sync' ),
+				'purgeConfirmTrash'      => __( 'All Skwirrel products will be moved to the trash.\n\nAre you sure?', 'skwirrel-pim-sync' ),
+				'clearHistoryConfirm'    => __( 'Delete all sync history?', 'skwirrel-pim-sync' ),
+				'resetSettingsConfirm'   => __( 'Reset all Skwirrel sync settings? Endpoint URL, API token, sync schedule and slug rules will be deleted, and all scheduled syncs will be cancelled. Products, media, categories and sync history are kept.\n\nAre you sure?', 'skwirrel-pim-sync' ),
+				'ajaxUrl'                => admin_url( 'admin-ajax.php' ),
+				'slugResyncNonce'        => wp_create_nonce( 'skwirrel_slug_resync_nonce' ),
+				'viewLogNonce'           => wp_create_nonce( 'skwirrel_view_log_nonce' ),
+				'downloadLogNonce'       => wp_create_nonce( 'skwirrel_download_log_nonce' ),
+				'abortSyncNonce'         => wp_create_nonce( 'skwirrel_abort_sync_nonce' ),
+				'abortSyncConfirm'       => __( 'Stop the running sync?', 'skwirrel-pim-sync' ),
+				'testConnectionNonce'    => wp_create_nonce( 'skwirrel_test_connection_nonce' ),
+				'testingLabel'           => __( 'Testing…', 'skwirrel-pim-sync' ),
+				'testSubdomainLabel'     => __( 'Enter a subdomain first.', 'skwirrel-pim-sync' ),
+				'testFailedLabel'        => __( 'Connection failed.', 'skwirrel-pim-sync' ),
+				'testNetworkLabel'       => __( 'Network error.', 'skwirrel-pim-sync' ),
+				'refreshStatusesNonce'   => wp_create_nonce( 'skwirrel_refresh_statuses_nonce' ),
+				'refreshStatusesLabel'   => __( 'Fetching…', 'skwirrel-pim-sync' ),
+				'refreshStatusesError'   => __( 'Could not refresh statuses.', 'skwirrel-pim-sync' ),
+				'refreshStatusesUnsaved' => __( 'Statuses updated. Save your changes to see the new rows — the page was not reloaded because this form has unsaved edits.', 'skwirrel-pim-sync' ),
 			]
 		);
 
@@ -1300,26 +1450,44 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '   .catch(function(){ setRes(skwirrelPimSync.testNetworkLabel, "skw-test-error"); })'
 			. '   .finally(function(){ testBtn.disabled = false; });'
 			. ' });'
-			// "Refresh statuses from Skwirrel": sample products server-side, record any new
-			// statuses, then reload so the table re-renders them as configurable rows.
+			// "Refresh statuses from Skwirrel": walk the product feed server-side and record any new
+			// statuses, then reload so the table re-renders them as configurable rows. The server
+			// scans a bounded chunk per request and returns the next page to ask for, so a large
+			// catalogue is covered across several requests instead of one that can time out.
+			// A reload would throw away unsaved edits to this form (the AJAX action persists only
+			// the discovered status metadata), so a dirty form is never reloaded — the admin is
+			// told to save instead, and the new rows appear on that save.
+			. ' var settingsForm = document.getElementById("skwirrel-sync-settings-form");'
+			. ' var formDirty = false;'
+			. ' if (settingsForm) {'
+			. '  settingsForm.addEventListener("input", function(){ formDirty = true; });'
+			. '  settingsForm.addEventListener("change", function(){ formDirty = true; });'
+			. ' }'
 			. ' var refreshBtn = document.getElementById("skwirrel-refresh-statuses");'
 			. ' if (refreshBtn) refreshBtn.addEventListener("click", function(){'
 			. '  var msgEl = document.getElementById("skwirrel-refresh-statuses-msg");'
 			. '  function setMsg(t){ if (msgEl) msgEl.textContent = t || ""; }'
-			. '  var fd = new FormData();'
-			. '  fd.append("action", "skwirrel_wc_sync_refresh_statuses");'
-			. '  fd.append("_nonce", skwirrelPimSync.refreshStatusesNonce);'
+			. '  function scan(page){'
+			. '   var fd = new FormData();'
+			. '   fd.append("action", "skwirrel_wc_sync_refresh_statuses");'
+			. '   fd.append("_nonce", skwirrelPimSync.refreshStatusesNonce);'
+			. '   fd.append("page", String(page));'
+			. '   return fetch(skwirrelPimSync.ajaxUrl, { method: "POST", body: fd })'
+			. '    .then(function(r){ return r.json(); })'
+			. '    .then(function(r){'
+			. '     var msg = (r && r.data && r.data.message) ? r.data.message : skwirrelPimSync.refreshStatusesError;'
+			. '     if (r && r.success && r.data && r.data.done === false && r.data.next_page) { setMsg(msg); return scan(r.data.next_page); }'
+			. '     if (r && r.success && r.data && r.data.reload) {'
+			. '      if (formDirty) { setMsg(skwirrelPimSync.refreshStatusesUnsaved); refreshBtn.disabled = false; return; }'
+			. '      setMsg(msg); window.location.reload(); return;'
+			. '     }'
+			. '     setMsg(msg);'
+			. '     refreshBtn.disabled = false;'
+			. '    });'
+			. '  }'
 			. '  refreshBtn.disabled = true;'
 			. '  setMsg(skwirrelPimSync.refreshStatusesLabel);'
-			. '  fetch(skwirrelPimSync.ajaxUrl, { method: "POST", body: fd })'
-			. '   .then(function(r){ return r.json(); })'
-			. '   .then(function(r){'
-			. '    var msg = (r && r.data && r.data.message) ? r.data.message : skwirrelPimSync.refreshStatusesError;'
-			. '    setMsg(msg);'
-			. '    if (r && r.success && r.data && r.data.reload) { window.location.reload(); }'
-			. '   })'
-			. '   .catch(function(){ setMsg(skwirrelPimSync.refreshStatusesError); })'
-			. '   .finally(function(){ refreshBtn.disabled = false; });'
+			. '  scan(1).catch(function(){ setMsg(skwirrelPimSync.refreshStatusesError); refreshBtn.disabled = false; });'
 			. ' });'
 			// The Stop-sync button is wired by the global status poller (event delegation), so it keeps
 			// working after the banner re-renders and on every admin page.

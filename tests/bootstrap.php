@@ -222,19 +222,49 @@ if (!function_exists('flush_rewrite_rules')) {
 }
 
 // Stub get_post_meta() — tests can set $GLOBALS['_test_post_meta'][$post_id][$key].
-if (!function_exists('get_post_meta')) {
-    function get_post_meta(int $post_id, string $key = '', bool $single = false) {
-        if (isset($GLOBALS['_test_post_meta'][$post_id][$key])) {
-            return $single ? $GLOBALS['_test_post_meta'][$post_id][$key] : [$GLOBALS['_test_post_meta'][$post_id][$key]];
+// A key holding several meta ROWS (what add_post_meta() builds) is stored as ['__multi' => [...]].
+// An explicit wrapper rather than a plain list, because a single meta value is often itself an
+// array (e.g. _skwirrel_document_attachments) and must keep round-tripping unchanged.
+if (!function_exists('_test_meta_values')) {
+    function _test_meta_values(int $post_id, string $key): array {
+        if (!isset($GLOBALS['_test_post_meta'][$post_id][$key])) {
+            return [];
         }
-        return $single ? '' : [];
+        $stored = $GLOBALS['_test_post_meta'][$post_id][$key];
+        return (is_array($stored) && array_key_exists('__multi', $stored)) ? $stored['__multi'] : [$stored];
     }
 }
 
-// Stub update_post_meta()/delete_post_meta() — writes into the same $GLOBALS['_test_post_meta'] store.
+if (!function_exists('get_post_meta')) {
+    function get_post_meta(int $post_id, string $key = '', bool $single = false) {
+        $values = _test_meta_values($post_id, $key);
+        if ($single) {
+            return $values === [] ? '' : $values[0];
+        }
+        return $values;
+    }
+}
+
+// Stub update_post_meta()/add_post_meta()/delete_post_meta() — all write into $GLOBALS['_test_post_meta'].
 if (!function_exists('update_post_meta')) {
     function update_post_meta(int $post_id, string $key, $value, $prev = '') {
         $GLOBALS['_test_post_meta'][$post_id][$key] = $value;
+        return true;
+    }
+}
+
+if (!function_exists('add_post_meta')) {
+    function add_post_meta(int $post_id, string $key, $value, bool $unique = false) {
+        $values = _test_meta_values($post_id, $key);
+        if ($values === []) {
+            $GLOBALS['_test_post_meta'][$post_id][$key] = $value;
+            return true;
+        }
+        if ($unique) {
+            return false;
+        }
+        $values[]                                   = $value;
+        $GLOBALS['_test_post_meta'][$post_id][$key] = ['__multi' => $values];
         return true;
     }
 }
@@ -250,6 +280,32 @@ if (!function_exists('delete_post_meta')) {
 if (!function_exists('get_post_field')) {
     function get_post_field(string $field, int $post_id = 0) {
         return $GLOBALS['_test_post_fields'][$post_id][$field] ?? '';
+    }
+}
+
+// Stub wp_get_post_parent_id() — tests can set $GLOBALS['_test_post_parents'][$post_id].
+if (!function_exists('wp_get_post_parent_id')) {
+    function wp_get_post_parent_id($post_id = 0) {
+        return $GLOBALS['_test_post_parents'][(int) $post_id] ?? 0;
+    }
+}
+
+// Stub get_post_type() — tests can set $GLOBALS['_test_post_types'][$post_id].
+if (!function_exists('get_post_type')) {
+    function get_post_type($post_id = 0) {
+        return $GLOBALS['_test_post_types'][(int) $post_id] ?? false;
+    }
+}
+
+// Stub wp_untrash_post() — records the ids it was called with and, when the test provided a
+// pre-trash slug in $GLOBALS['_test_untrash_slug'][$post_id], restores it as the post_name.
+if (!function_exists('wp_untrash_post')) {
+    function wp_untrash_post(int $post_id = 0) {
+        $GLOBALS['_test_untrashed'][] = $post_id;
+        if (isset($GLOBALS['_test_untrash_slug'][$post_id])) {
+            $GLOBALS['_test_post_fields'][$post_id]['post_name'] = $GLOBALS['_test_untrash_slug'][$post_id];
+        }
+        return true;
     }
 }
 

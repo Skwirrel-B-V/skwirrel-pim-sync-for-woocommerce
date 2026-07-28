@@ -380,11 +380,24 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	public static function status_mapping_rows( array $status_map, string $status_default ): array {
 		$rows = array();
 
-		// 1) Built-in presets — always shown.
+		// 1) Built-in presets — always shown. The badge prefers the metadata the API actually
+		// reported for the code (a tenant may have renamed DRAFT/AVAILABLE/DISCONTINUED or use
+		// different numeric ids); the preset still supplies the key and the recommended default.
 		foreach ( Skwirrel_WC_Sync_Product_Mapper::KNOWN_STATUSES as $key => $preset ) {
-			$rows[] = array(
+			$seen       = Skwirrel_WC_Sync_Product_Mapper::get_seen_status( (string) $key );
+			$seen_code  = (string) ( $seen['code'] ?? '' );
+			$seen_label = (string) ( $seen['label'] ?? '' );
+			$rows[]     = array(
 				'key'       => (string) $key,
+<<<<<<< HEAD
 				'name_html' => self::status_badge_html( $preset['id'], $preset['code'], self::preset_label( (string) $key, $preset['label'] ) ),
+=======
+				'name_html' => self::status_badge_html(
+					$seen['id'] ?? $preset['id'],
+					'' !== $seen_code ? $seen_code : $preset['code'],
+					'' !== $seen_label ? $seen_label : $preset['label']
+				),
+>>>>>>> origin/release/3.12.1
 				'selected'  => $status_map[ $key ] ?? $preset['default'],
 				'group'     => 'preset',
 			);
@@ -392,8 +405,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 
 		// 2) Discovered (tenant-defined) statuses beyond the presets.
 		foreach ( Skwirrel_WC_Sync_Product_Mapper::get_seen_statuses() as $key => $rec ) {
+<<<<<<< HEAD
 			// Same rule the sync applies to an unmapped status, so the state this row pre-selects
 			// is the state the product already has — saving the page unchanged is a no-op.
+=======
+			// Same rule the sync applies, so saving the page unchanged cannot rewrite a
+			// draft-by-description status to the global default.
+>>>>>>> origin/release/3.12.1
 			$fallback = Skwirrel_WC_Sync_Product_Mapper::unmapped_state( (string) $key, (string) $rec['label'], $status_default );
 			$rows[]   = array(
 				'key'       => (string) $key,
@@ -617,8 +635,15 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 
 		// Only the most recent sync's cells are clickable: a product carries only its LAST run's
 		// marker, so links on older rows would resolve to a near-empty list after the next full sync.
+		//
+		// A purge entry stops the search rather than being skipped over. The Danger Zone purge
+		// deletes the products and their run-marker postmeta, so every link from a run that
+		// preceded it resolves to an empty list while still showing its old nonzero count.
 		$latest_run_id = '';
 		foreach ( $entries as $entry ) {
+			if ( Skwirrel_WC_Sync_History::TRIGGER_PURGE === (string) ( $entry['trigger'] ?? '' ) ) {
+				break; // Everything older than this purge has lost its markers.
+			}
 			$rid = (string) ( $entry['run_id'] ?? '' );
 			if ( '' !== $rid ) {
 				$latest_run_id = $rid;
@@ -702,7 +727,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							<td class="skw-td-right skw-c-muted"><?php echo esc_html( (string) $unchanged ); ?></td>
 							<td class="skw-td-right skw-c-red"><?php echo esc_html( (string) $failed ); ?></td>
 							<td class="skw-td-right skw-c-muted"><?php $count_link( $deprecated, $link_run, [ 'post_status' => 'deprecated' ] ); ?></td>
-							<td class="skw-td-right skw-c-yellow"><?php $count_link( $trashed, $link_run, [ 'post_status' => 'trash' ] ); ?></td>
+							<?php
+							// Filter on the run outcome, not post_status=trash: a variation trashed while its
+								// variable parent stays in the feed is stamped on that (still published) parent, and
+								// a post_status filter would hide it.
+							?>
+							<td class="skw-td-right skw-c-yellow"><?php $count_link( $trashed, $link_run, [ 'skwirrel_outcome' => 'trashed' ] ); ?></td>
 							<td class="skw-td-right skw-td-bold"><?php echo esc_html( (string) $total ); ?></td>
 							<td class="skw-td-left">
 								<?php if ( $log_exists ) : ?>
@@ -713,11 +743,17 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<?php endforeach; ?>
 				</tbody>
 			</table>
+<<<<<<< HEAD
 			<?php if ( '' !== $latest_run_id ) : ?>
 				<p class="skw-table-note">
 					<?php esc_html_e( 'Counts include product variations. Clicking a number opens the products list, which lists parent products only — so a variable product counts each of its variations here but appears as a single row.', 'skwirrel-pim-sync' ); ?>
 				</p>
 			<?php endif; ?>
+=======
+			<p class="description">
+				<?php esc_html_e( 'The Created, Updated and Deleted counts include each variation of a variable product, while the product list they link to shows parent products only — for variable products the list is therefore shorter than the count.', 'skwirrel-pim-sync' ); ?>
+			</p>
+>>>>>>> origin/release/3.12.1
 		</div>
 		<?php
 	}

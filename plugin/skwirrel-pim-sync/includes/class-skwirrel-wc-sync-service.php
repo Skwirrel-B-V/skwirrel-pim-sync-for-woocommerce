@@ -41,8 +41,18 @@ class Skwirrel_WC_Sync_Service {
 		);
 
 		// Apply the admin-configured status handling to the shared mapper (used by both this
-		// service and the upserter) so every action of a resumable run honours the mapping.
-		$opts = $this->get_options();
+		// service and the upserter). This is the live mapping — the entry point for a resumable
+		// run replaces it with the run's own frozen copy in run_step(), so a mapping saved
+		// mid-run cannot make one run classify its products under two different rules.
+		$this->apply_status_handling( $this->get_options() );
+	}
+
+	/**
+	 * Point the shared mapper at a status mapping.
+	 *
+	 * @param array<string, mixed> $opts Options carrying `status_mapping` / `status_mapping_default`.
+	 */
+	private function apply_status_handling( array $opts ): void {
 		$this->mapper->set_status_handling(
 			is_array( $opts['status_mapping'] ?? null ) ? $opts['status_mapping'] : [],
 			is_string( $opts['status_mapping_default'] ?? null ) ? $opts['status_mapping_default'] : 'publish'
@@ -57,6 +67,15 @@ class Skwirrel_WC_Sync_Service {
 
 	/** Default wall-clock budget (seconds) for a single batched step before it yields to the next action. */
 	private const DEFAULT_STEP_SECONDS = 20;
+
+	/**
+	 * How long persisted run state still counts as a live run (seconds).
+	 *
+	 * Generous enough to cover one long step (a 120s HTTP timeout plus retries) and a delayed
+	 * Action Scheduler pickup, short enough that state orphaned by a fatal error does not hold
+	 * the manual-delete lock open indefinitely.
+	 */
+	private const RUN_STATE_ACTIVE_TTL = 900;
 
 	/** Consecutive no-progress step actions tolerated before a run is declared failed (poison-loop guard). */
 	private const MAX_STALL = 6;
@@ -388,6 +407,13 @@ class Skwirrel_WC_Sync_Service {
 		// matching the pre-refactor behavior where it was set once up front.
 		$this->upserter->set_change_gate_enabled( (bool) $ctx['gate_enabled'] );
 		$this->upserter->set_content_hash_context( (string) ( $ctx['hash_mode'] ?? 'off' ), (string) ( $ctx['sync_sig'] ?? '' ) );
+		// Every step of a resumable run builds a fresh service, whose constructor reads the *live*
+		// settings. Re-apply the run's own frozen options so an admin saving a different status
+		// mapping between two async steps cannot make one run publish some products under the old
+		// rules and trash others under the new — and then stamp the signature of the old mapping.
+		if ( is_array( $ctx['options'] ?? null ) ) {
+			$this->apply_status_handling( $ctx['options'] );
+		}
 		Skwirrel_WC_Sync_History::sync_heartbeat();
 
 		switch ( $ctx['step'] ) {
@@ -402,7 +428,7 @@ class Skwirrel_WC_Sync_Service {
 			case 'relations':
 				return $this->step_relations( $ctx, $deadline );
 			case 'finalize':
-				return $this->step_finalize( $ctx );
+				return $this->step_finalize( $ctx, $deadline );
 			default:
 				return 'done';
 		}
@@ -438,7 +464,7 @@ class Skwirrel_WC_Sync_Service {
 
 		$product_to_group_map = [];
 		if ( ! empty( $options['sync_grouped_products'] ) ) {
-			$grouped_result       = $this->upserter->sync_grouped_products_first( $client, $options, $ctx['collection_ids'] );
+			$grouped_result       = $this->upserter->sync_grouped_products_first( $client, $options, $ctx['collection_ids'], (string) $ctx['run_id'] );
 			$product_to_group_map = $grouped_result['map'];
 			$ctx['created']      += $grouped_result['created'];
 			$ctx['updated']      += $grouped_result['updated'];
@@ -733,9 +759,16 @@ class Skwirrel_WC_Sync_Service {
 		$queue->update_after_phase1( $row->id, $wc_id, $outcome );
 
 		// Run-scoped deep-link marker: record which run changed this product and how, so the
+<<<<<<< HEAD
 		// dashboard's Created/Updated count cells can link to exactly this run's set. A variation
 		// marks its variable parent instead of itself — the product list the cells link to renders
 		// parent products only, so a marker on a product_variation post could never be reached.
+=======
+		// dashboard's Created/Updated count cells can link to exactly this run's set.
+		// For a variation the marker goes on its variable parent: the linked product list is
+		// scoped to post_type=product and can never render a product_variation row, so marking
+		// the variation itself would make a grouped run's Created link open a near-empty list.
+>>>>>>> origin/release/3.12.1
 		if ( $wc_id && ( 'created' === $outcome || 'updated' === $outcome ) ) {
 			$link_target = (int) ( $row->group_info['wc_variable_id'] ?? $wc_id );
 			Skwirrel_WC_Sync_Run_Links::mark( $link_target, (string) $ctx['run_id'], $outcome );
@@ -967,9 +1000,14 @@ class Skwirrel_WC_Sync_Service {
 	/**
 	 * Step: cleanup — purge stale products/categories, advance the delta checkpoint, persist history.
 	 *
-	 * @param array<string, mixed> $ctx Run context (mutated in place).
+	 * Re-entrant: the deprecated escalation is batched against $deadline and yields when it runs
+	 * out of budget, so this step can be entered several times for one run. `finalize_stage` keeps
+	 * the one-shot work (the purge) from repeating.
+	 *
+	 * @param array<string, mixed> $ctx      Run context (mutated in place).
+	 * @param float                $deadline Wall-clock budget for this step.
 	 */
-	private function step_finalize( array &$ctx ): string {
+	private function step_finalize( array &$ctx, float $deadline ): string {
 		$options = $ctx['options'];
 		$queue   = new Skwirrel_WC_Sync_Queue( $ctx['run_id'] );
 
@@ -984,28 +1022,45 @@ class Skwirrel_WC_Sync_Service {
 			__( 'Cleaning up…', 'skwirrel-pim-sync' )
 		);
 
-		$trashed            = 0;
-		$categories_removed = 0;
-		if ( ! empty( $options['purge_stale_products'] ) ) {
-			if ( $ctx['delta'] ) {
-				$this->logger->verbose( 'Purge skipped: delta sync (only during full sync)' );
-			} else {
-				// Products no longer in the feed are handled per the configurable __missing__
-				// mapping (keep / draft / trash) inside purge_stale_products().
-				$trashed = $this->purge_handler->purge_stale_products( $ctx['started_at'], $this->mapper, (string) $ctx['run_id'] );
-				if ( ! empty( $options['sync_categories'] ) ) {
-					$categories_removed = $this->purge_handler->purge_stale_categories( $ctx['seen_categories'] );
+		// Finalize can yield mid-way (see the escalation below) and be re-entered by the next
+		// action, so its own progress is staged: the purge runs once, and the counts accumulate in
+		// $ctx across re-entries instead of in locals.
+		$categories_removed = (int) ( $ctx['categories_removed'] ?? 0 );
+		if ( 'purged' !== ( $ctx['finalize_stage'] ?? '' ) ) {
+			if ( ! empty( $options['purge_stale_products'] ) ) {
+				if ( $ctx['delta'] ) {
+					$this->logger->verbose( 'Purge skipped: delta sync (only during full sync)' );
+				} else {
+					// Products no longer in the feed are handled per the configurable __missing__
+					// mapping (keep / draft / trash) inside purge_stale_products().
+					$ctx['trashed'] = (int) ( $ctx['trashed'] ?? 0 ) + $this->purge_handler->purge_stale_products( $ctx['started_at'], $this->mapper, (string) $ctx['run_id'] );
+					if ( ! empty( $options['sync_categories'] ) ) {
+						$categories_removed = $this->purge_handler->purge_stale_categories( $ctx['seen_categories'] );
+					}
 				}
 			}
+			$ctx['finalize_stage'] = 'purged';
 		}
 
 		// Deprecated-lifecycle escalation: advance each deprecated product's counter and trash the
 		// ones past the threshold. Full sync only (never delta) so the counter ticks at most once per
 		// full sync; runs independently of purge_stale_products (deprecation is an explicit mapping).
+		// Batched against the step deadline: a large discontinued catalogue would otherwise make
+		// this "bounded" step run until a worker or memory limit killed it, and the retry restart
+		// the whole pass. Yielding here re-enters finalize, which is why the purge is staged above.
 		if ( ! $ctx['delta'] ) {
-			$threshold = max( 0, (int) ( $options['deprecated_remove_after_syncs'] ?? 3 ) );
-			$trashed  += $this->purge_handler->escalate_deprecated( $threshold, $this->mapper, (int) $ctx['started_at'], (string) $ctx['run_id'] );
+			$threshold      = max( 0, (int) ( $options['deprecated_remove_after_syncs'] ?? 3 ) );
+			$escalation     = $this->purge_handler->escalate_deprecated( $threshold, $this->mapper, (int) $ctx['started_at'], (string) $ctx['run_id'], $deadline );
+			$ctx['trashed'] = (int) ( $ctx['trashed'] ?? 0 ) + $escalation['trashed'];
+			if ( ! $escalation['complete'] ) {
+				$ctx['categories_removed'] = $categories_removed;
+				// Counted in the stall watermark: without it, a finalize that legitimately yields
+				// for several actions looks like a step making no progress and the run is failed.
+				$ctx['finalize_passes'] = (int) ( $ctx['finalize_passes'] ?? 0 ) + 1;
+				return 'continue'; // Still on the 'finalize' step — the next action resumes here.
+			}
 		}
+		$trashed = (int) ( $ctx['trashed'] ?? 0 );
 
 		// Per-run "Deprecated" tally for the overview: products this run changed that are now in the
 		// deprecated status (a per-run delta that matches its deep-link). Products deprecated in an
@@ -1091,8 +1146,15 @@ class Skwirrel_WC_Sync_Service {
 		// Even on failure, products created/updated/deprecated/trashed before the failure carry this
 		// run's marker — pass the run id plus deprecated/trashed tallies so the overview cells still
 		// deep-link (and the Trashed cell is not stuck at 0 after a partial finalize).
+		//
+		// Deprecated is a *status* tally, so counting posts is right. Deleted is not: it counts the
+		// removals this run performed, which is what a successful run reports. Recounting parents
+		// currently in the trash would answer a different question — cascaded variations would drop
+		// out, an orphan variation whose parent is still published would count as zero, and products
+		// the mapping put straight into trash would be counted here while a successful run reports
+		// them under Created/Updated. So the accumulated tally wins.
 		$deprecated = Skwirrel_WC_Sync_Run_Links::count_for_run( (string) $ctx['run_id'], Skwirrel_WC_Sync_Deprecated_Status::STATUS );
-		$trashed    = Skwirrel_WC_Sync_Run_Links::count_for_run( (string) $ctx['run_id'], 'trash' );
+		$trashed    = (int) ( $ctx['trashed'] ?? 0 );
 		Skwirrel_WC_Sync_History::update_last_result( false, $ctx['created'], $ctx['updated'], $ctx['failed'], $message, 0, 0, $trashed, 0, $ctx['trigger'], $ctx['log_file'], $ctx['unchanged'], $deprecated, (string) $ctx['run_id'] );
 		$ctx['step'] = 'failed';
 		$this->finish_run();
@@ -1214,7 +1276,12 @@ class Skwirrel_WC_Sync_Service {
 		// the exact same place as the previous one" (same step + same progress watermark) and fail the
 		// run after MAX_STALL such no-progress retries rather than looping forever. Covers every step,
 		// including init/finalize.
-		$watermark = (int) $state['fetched'] + (int) $state['processed'] + (int) $state['virtual_done'] + (int) $state['rel_done'];
+		// The watermark must move for EVERY step that can legitimately yield and be re-entered,
+		// or that step's own progress reads as a stall. `finalize` yields while the deprecated
+		// escalation works through its batches, and none of the fetch/process counters change
+		// then — so its progress (products trashed, batches advanced) is part of the signature.
+		$watermark = (int) $state['fetched'] + (int) $state['processed'] + (int) $state['virtual_done']
+			+ (int) $state['rel_done'] + (int) ( $state['trashed'] ?? 0 ) + (int) ( $state['finalize_passes'] ?? 0 );
 		$sig       = $state['step'] . ':' . $watermark;
 		if ( ( $state['last_progress_sig'] ?? '' ) === $sig ) {
 			$state['stall'] = (int) ( $state['stall'] ?? 0 ) + 1;
@@ -1268,7 +1335,32 @@ class Skwirrel_WC_Sync_Service {
 	 * @param array<string, mixed> $ctx Run context.
 	 */
 	public static function save_run_state( array $ctx ): void {
+		// Stamped so is_run_active() can tell a live run from state left behind by a run that died
+		// hard — without it, a crashed run would hold the manual-delete lock open forever.
+		$ctx['saved_at'] = time();
 		update_option( self::OPTION_RUN_STATE, $ctx, false );
+	}
+
+	/**
+	 * Whether a resumable run is still in flight.
+	 *
+	 * Broader than the heartbeat: the heartbeat is refreshed once per step and expires after
+	 * HEARTBEAT_TTL (60s), so a single step doing long API work — the timeout alone can be 120s,
+	 * plus retries — or a delayed Action Scheduler action leaves it stale while the run is very
+	 * much alive. Callers that must not act during a run (the manual-delete lock) need this;
+	 * callers deciding whether a *new* run may start still use the heartbeat mutex, which is what
+	 * makes a dead run recoverable.
+	 */
+	public static function is_run_active(): bool {
+		if ( Skwirrel_WC_Sync_History::is_heartbeat_fresh() ) {
+			return true;
+		}
+		$state = self::load_run_state();
+		if ( null === $state || 'done' === ( $state['step'] ?? 'done' ) ) {
+			return false;
+		}
+		$saved_at = isset( $state['saved_at'] ) && is_numeric( $state['saved_at'] ) ? (int) $state['saved_at'] : 0;
+		return $saved_at > 0 && ( time() - $saved_at ) < self::RUN_STATE_ACTIVE_TTL;
 	}
 
 	/** Remove the persisted run state. */
@@ -1455,6 +1547,11 @@ class Skwirrel_WC_Sync_Service {
 				'_product_groups' => $product['_product_groups'] ?? null,
 			]
 		);
+
+		// Discover this product's source status, exactly as the catalogue queue does. Without it a
+		// product re-synced from its edit screen is classified by a status that never reaches the
+		// mapping table, so the admin cannot configure the very rule that decided its state.
+		$this->mapper->note_seen_status( $product );
 
 		try {
 			$outcome = $this->upserter->upsert_product( $product );

@@ -47,6 +47,34 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	/** Content-hash mode for this run: 'off' | 'observe' (compute+report, no skip) | 'enforce' (skip on match). */
 	private string $content_hash_mode = 'off';
 
+	/**
+	 * Drop every change gate for a post, so the next sync reprocesses it instead of skipping it.
+	 *
+	 * There are four independent gates and each one can return `unchanged` on its own, before any
+	 * revive logic runs — clearing only the timestamp leaves a hidden product hidden:
+	 *
+	 * - `_skwirrel_updated_on`      — the timestamp gate in `is_unchanged()`
+	 * - `_skwirrel_content_hash`    — the payload gate, authoritative in `enforce` mode
+	 * - `_skwirrel_group_hash`      — the group gate; `create_variable_product_from_group()`
+	 *                                 returns `unchanged` on a match, so a trashed variable parent
+	 *                                 whose group payload is unchanged would never be untrashed
+	 * - `_skwirrel_virtual_content_hash` — the virtual-product gate on a variable parent
+	 *
+	 * Called whenever a product is hidden or trashed outside a normal upsert: the purge handler's
+	 * stale/deprecated paths and a manual trash in WooCommerce.
+	 *
+	 * @param int $post_id Product or variation ID.
+	 */
+	public static function invalidate_change_gates( int $post_id ): void {
+		if ( $post_id <= 0 ) {
+			return;
+		}
+		delete_post_meta( $post_id, Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META );
+		delete_post_meta( $post_id, self::CONTENT_HASH_META );
+		delete_post_meta( $post_id, self::GROUP_HASH_META );
+		delete_post_meta( $post_id, self::VIRTUAL_CONTENT_HASH_META );
+	}
+
 	/** Settings signature folded into the content hash so a settings/version change invalidates all hashes. */
 	private string $content_hash_sig = '';
 
@@ -308,7 +336,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$was_deprecated  = Skwirrel_WC_Sync_Deprecated_Status::STATUS === $original_status;
 		$raw_status      = $this->mapper->get_status( $product );
 		$status_plan     = $this->resolve_initial_status( $is_new, $is_incomplete, $raw_status );
-		$applied_status  = $this->guard_revive_from_trash( $original_status, $status_plan['status'] );
+		$applied_status  = $this->guard_revive_from_trash( $wc_product, $original_status, $status_plan['status'] );
 		$wc_product->set_status( $applied_status );
 		$this->maybe_reset_deprecated_counter( (int) $wc_id, $was_deprecated, $applied_status );
 
@@ -876,9 +904,11 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client         JSON-RPC client instance.
 	 * @param array                           $options        Plugin settings array.
 	 * @param array<int>                      $collection_ids Selection IDs to filter by.
+	 * @param string                          $run_id         Current run uuid, so each shell carries this
+	 *                                                        run's deep-link marker.
 	 * @return array{created: int, updated: int, unchanged: int, map: array}
 	 */
-	public function sync_grouped_products_first( Skwirrel_WC_Sync_JsonRpc_Client $client, array $options, array $collection_ids = [] ): array {
+	public function sync_grouped_products_first( Skwirrel_WC_Sync_JsonRpc_Client $client, array $options, array $collection_ids = [], string $run_id = '' ): array {
 		$created              = 0;
 		$updated              = 0;
 		$unchanged            = 0;
@@ -965,7 +995,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				}
 
 				try {
-					$outcome = $this->create_variable_product_from_group( $group, $product_to_group_map );
+					$outcome = $this->create_variable_product_from_group( $group, $product_to_group_map, $run_id );
 					if ( 'created' === $outcome ) {
 						++$created;
 					} elseif ( 'updated' === $outcome ) {
@@ -1065,11 +1095,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	/**
 	 * Maak variable product aan (zonder variations). Vul product_to_group_map voor later.
 	 *
-	 * @param array $group              Grouped product data from API.
-	 * @param array &$product_to_group_map Reference to the product-to-group mapping array.
+	 * @param array  $group                 Grouped product data from API.
+	 * @param array  &$product_to_group_map  Reference to the product-to-group mapping array.
+	 * @param string $run_id                 Current run uuid, so the shell carries this run's deep-link
+	 *                                       marker. The shell's outcome is counted in the run totals,
+	 *                                       so without it a run whose variations were all unchanged
+	 *                                       reported a Created/Updated count linking to nothing.
 	 * @return string 'created'|'updated'|'skipped'
 	 */
-	public function create_variable_product_from_group( array $group, array &$product_to_group_map ): string {
+	public function create_variable_product_from_group( array $group, array &$product_to_group_map, string $run_id = '' ): string {
 		$grouped_id = $group['grouped_product_id'] ?? $group['id'] ?? null;
 		if ( null === $grouped_id || '' === $grouped_id ) {
 			return 'skipped';
@@ -1177,7 +1211,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$original_status = $is_new ? '' : $wc_product->get_status();
 		$was_deprecated  = Skwirrel_WC_Sync_Deprecated_Status::STATUS === $original_status;
 		$group_planned   = 'publish';
-		$group_status    = $this->guard_revive_from_trash( $original_status, $group_planned );
+		$group_status    = $this->guard_revive_from_trash( $wc_product, $original_status, $group_planned );
 		$wc_product->set_status( $group_status );
 		$this->maybe_reset_deprecated_counter( (int) $wc_id, $was_deprecated, $group_status );
 		$wc_product->set_catalog_visibility( 'visible' );
@@ -1274,7 +1308,10 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			update_post_meta( $id, self::GROUP_HASH_META, $group_hash );
 		}
 
-		return $is_new ? 'created' : 'updated';
+		$outcome = $is_new ? 'created' : 'updated';
+		Skwirrel_WC_Sync_Run_Links::mark( (int) $id, $run_id, $outcome );
+
+		return $outcome;
 	}
 
 	/**
@@ -1461,9 +1498,17 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$hash_status = '' === $stored_hash ? 'new' : ( $stored_hash === $incoming_hash ? 'match' : 'mismatch' );
 		}
 
+		// Both gates answer "is the Skwirrel payload unchanged?", which says nothing about what
+		// happened to the product in WooCommerce. If its WC status has drifted from the state the
+		// mapping wants — an admin republished a deprecated product, or took a mapped draft live —
+		// skipping would leave that drift in place forever, because the payload never changes.
+		// A republished deprecated product also drops out of the escalation lifecycle. So the gates
+		// only skip a product that is already in its mapped state.
+		$gate_allowed = ! $is_new && ! $this->status_drifted( $wc_product, $product );
+
 		if ( 'enforce' === $this->content_hash_mode ) {
 			// Hash is authoritative: skip only on a real match, otherwise reprocess (supersedes the timestamp gate).
-			if ( ! $is_new && 'match' === $hash_status ) {
+			if ( $gate_allowed && 'match' === $hash_status ) {
 				update_post_meta( $wc_id, $this->mapper->get_synced_at_meta_key(), time() );
 				return [
 					'wc_id'        => (int) $wc_id,
@@ -1472,7 +1517,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					'hash_status'  => $hash_status,
 				];
 			}
-		} elseif ( $this->is_unchanged( $is_new, $stored_updated_on, $incoming_updated_on ) ) {
+		} elseif ( $gate_allowed && $this->is_unchanged( $is_new, $stored_updated_on, $incoming_updated_on ) ) {
 			update_post_meta( $wc_id, $this->mapper->get_synced_at_meta_key(), time() );
 			return [
 				'wc_id'        => (int) $wc_id,
@@ -1504,7 +1549,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$was_deprecated  = Skwirrel_WC_Sync_Deprecated_Status::STATUS === $original_status;
 		$raw_status      = $this->mapper->get_status( $product );
 		$status_plan     = $this->resolve_initial_status( $is_new, $is_incomplete, $raw_status );
-		$applied_status  = $this->guard_revive_from_trash( $original_status, $status_plan['status'] );
+		$applied_status  = $this->guard_revive_from_trash( $wc_product, $original_status, $status_plan['status'] );
 		$wc_product->set_status( $applied_status );
 		$this->maybe_reset_deprecated_counter( (int) $wc_id, $was_deprecated, $applied_status );
 
@@ -1654,7 +1699,11 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 
 		$variation->set_sku( $sku );
-		$variation->set_status( 'publish' );
+		// A variation that was trashed (manually, or cascaded from its parent) and is now coming
+		// back needs WordPress's untrash path, not just a new status: otherwise the trash metadata
+		// and the `…__trashed` post_name survive, and with variation permalinks enabled
+		// get_variation_url() then serves the revived variation on that wrong URL.
+		$variation->set_status( $this->guard_revive_from_trash( $variation, $variation_id ? (string) $variation->get_status() : '', 'publish' ) );
 		$variation->set_catalog_visibility( 'visible' );
 
 		$price = $this->mapper->get_regular_price( $product );
@@ -2473,15 +2522,73 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * trash), reviving it would make it cycle trash↔deprecated forever; only a `publish`/`draft`
 	 * status brings it back. New products (current status '') are unaffected.
 	 *
-	 * @param string $current_status The product's current WC status ('' for a new product).
-	 * @param string $planned_status The status the mapping wants to apply.
+	 * When it does revive, the post is taken out of the trash through WordPress rather than by
+	 * saving a new status over it: only `wp_untrash_post()` clears the trash metadata and consumes
+	 * `_wp_desired_post_slug`, so the product does not come back on a permanent `…__trashed`
+	 * permalink (nothing else would fix it — `update_slug_on_resync` is off by default).
+	 *
+	 * @param WC_Product $wc_product     The product being written (slug is refreshed after untrash).
+	 * @param string     $current_status The product's current WC status ('' for a new product).
+	 * @param string     $planned_status The status the mapping wants to apply.
 	 * @return string The status to actually apply.
 	 */
-	private function guard_revive_from_trash( string $current_status, string $planned_status ): string {
-		if ( 'trash' === $current_status && ! in_array( $planned_status, [ 'publish', 'draft' ], true ) ) {
-			return 'trash';
+	private function guard_revive_from_trash( $wc_product, string $current_status, string $planned_status ): string {
+		$target = $this->guard_revive_from_trash_target( $current_status, $planned_status );
+		if ( 'trash' === $current_status && 'trash' !== $target ) {
+			$this->untrash_post( $wc_product );
 		}
-		return $planned_status;
+		return $target;
+	}
+
+	/**
+	 * Whether an existing product's WC status differs from the state its mapping wants.
+	 *
+	 * Compared *after* the trash guard, so a trashed product whose mapping resolves to a
+	 * non-visible state still reads as "not drifted" — otherwise it would be reprocessed on every
+	 * run only to be left in the trash again. The draft-first hold for new/incomplete products is
+	 * deliberately not considered: this only ever looks at products that are already complete.
+	 *
+	 * @param WC_Product           $wc_product The existing product.
+	 * @param array<string, mixed> $product    Raw API product data.
+	 */
+	private function status_drifted( $wc_product, array $product ): bool {
+		$current = (string) $wc_product->get_status();
+		$target  = $this->guard_revive_from_trash_target( $current, $this->mapper->get_status( $product ) );
+		return $current !== $target;
+	}
+
+	/**
+	 * The status guard_revive_from_trash() would settle on, without performing the untrash.
+	 *
+	 * Split out so the drift check can ask the question without the side effect.
+	 */
+	private function guard_revive_from_trash_target( string $current_status, string $planned_status ): string {
+		if ( 'trash' !== $current_status ) {
+			return $planned_status;
+		}
+		return in_array( $planned_status, [ 'publish', 'draft' ], true ) ? $planned_status : 'trash';
+	}
+
+	/**
+	 * Run WordPress's untrash path for a product about to be revived.
+	 *
+	 * The status WP restores is irrelevant — WooCommerce writes the mapped one immediately after —
+	 * but the slug it restores is not: the in-memory product still holds the `…__trashed` slug it
+	 * was loaded with, and the WC data store would write that straight back. Refresh it from the
+	 * post so the revived product keeps its original permalink.
+	 *
+	 * @param WC_Product $wc_product Product being revived.
+	 */
+	private function untrash_post( $wc_product ): void {
+		$post_id = (int) $wc_product->get_id();
+		if ( $post_id <= 0 || ! function_exists( 'wp_untrash_post' ) ) {
+			return;
+		}
+		wp_untrash_post( $post_id );
+		$restored_slug = (string) get_post_field( 'post_name', $post_id );
+		if ( '' !== $restored_slug && $restored_slug !== $wc_product->get_slug() ) {
+			$wc_product->set_slug( $restored_slug );
+		}
 	}
 
 	/**

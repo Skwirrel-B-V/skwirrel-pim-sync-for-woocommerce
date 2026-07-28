@@ -22,8 +22,20 @@ class Skwirrel_WC_Sync_Run_Links {
 	/** Meta: the run (uuid) that last created/updated/hid this product. */
 	public const RUN_ID_META = '_skwirrel_run_id';
 
-	/** Meta: the outcome of that last change — 'created' | 'updated' | 'trashed'. */
+	/**
+	 * Meta: the outcomes that run recorded for this product — 'created' | 'updated' | 'trashed'.
+	 *
+	 * Stored as one meta ROW PER OUTCOME, not a single value: a variable parent is marked once
+	 * per variation, and one run can legitimately create one variation and update another on the
+	 * same parent. Both counters are incremented, so the parent has to answer to both links —
+	 * collapsing them into a single value made the other link skip it, and a run whose updates
+	 * all landed on freshly created parents opened an empty Updated list. `meta_query` matching a
+	 * value is EXISTS-style over the rows, so membership is exactly the right model here.
+	 */
 	public const RUN_OUTCOME_META = '_skwirrel_run_outcome';
+
+	/** The outcomes a run's count cells can link to. */
+	private const OUTCOMES = [ 'created', 'updated', 'trashed' ];
 
 	private static ?self $instance = null;
 
@@ -39,16 +51,45 @@ class Skwirrel_WC_Sync_Run_Links {
 	}
 
 	/**
-	 * Record which run last changed a product, and how. Called from the sync write paths.
+	 * Record that a run changed a product, and how. Called from the sync write paths.
+	 *
+	 * Outcomes accumulate within a run rather than overwriting each other: a variable parent is
+	 * marked once per variation, so one run can create one variation and update another on the
+	 * same parent, incrementing both counters. The parent then answers to both links. A mark from
+	 * a *different* run starts fresh — the previous run's counters are historical and its links
+	 * are no longer rendered.
 	 *
 	 * @param int    $post_id Product/variation ID.
 	 * @param string $run_id  The current run's uuid.
 	 * @param string $outcome One of created|updated|trashed.
 	 */
 	public static function mark( int $post_id, string $run_id, string $outcome ): void {
+		if ( $post_id <= 0 || '' === $run_id || ! in_array( $outcome, self::OUTCOMES, true ) ) {
+			return;
+		}
+		self::claim_for_run( $post_id, $run_id );
+		self::add_outcome( $post_id, $outcome );
+	}
+
+	/**
+	 * Record that a run trashed a product.
+	 *
+	 * Now that outcomes are a set, `trashed` simply joins whatever else this run recorded: a
+	 * product created into `deprecated` that reaches the removal threshold in the same finalize
+	 * (always, at threshold 0) is counted under both Created and Deleted, and answers to both
+	 * links. The marker goes on the variable parent for a variation — the product list the links
+	 * open cannot render a `product_variation` row, so an orphaned variation trashed while its
+	 * parent stays in the feed would otherwise have no row to show at all.
+	 *
+	 * @param int    $post_id Product/variation ID.
+	 * @param string $run_id  The current run's uuid.
+	 */
+	public static function mark_trashed( int $post_id, string $run_id ): void {
+		$post_id = self::linkable_post_id( $post_id );
 		if ( $post_id <= 0 || '' === $run_id ) {
 			return;
 		}
+<<<<<<< HEAD
 		// One run can mark the same product more than once — every variation marks its variable
 		// parent. Keep the strongest outcome: a product this run created stays `created` even when
 		// a later write for the same run reports `updated`.
@@ -57,8 +98,59 @@ class Skwirrel_WC_Sync_Run_Links {
 			&& 'created' === (string) get_post_meta( $post_id, self::RUN_OUTCOME_META, true ) ) {
 			return;
 		}
+=======
+		self::claim_for_run( $post_id, $run_id );
+		self::add_outcome( $post_id, 'trashed' );
+	}
+
+	/**
+	 * The post a run link can actually render for a given id: a variation's variable parent.
+	 *
+	 * The linked list is scoped to `post_type=product`, so a `product_variation` row can never
+	 * appear in it. Callers that already know the parent (the commit path has it in `group_info`)
+	 * resolve it themselves; this covers the paths that only hold the variation id.
+	 */
+	public static function linkable_post_id( int $post_id ): int {
+		if ( $post_id <= 0 || 'product_variation' !== get_post_type( $post_id ) ) {
+			return $post_id;
+		}
+		$parent = (int) wp_get_post_parent_id( $post_id );
+		return $parent > 0 ? $parent : $post_id;
+	}
+
+	/** The run currently stamped on a product ('' when none). */
+	private static function run_of( int $post_id ): string {
+		return (string) get_post_meta( $post_id, self::RUN_ID_META, true );
+	}
+
+	/**
+	 * The outcomes currently stamped on a product.
+	 *
+	 * @return array<int, string>
+	 */
+	private static function outcomes_of( int $post_id ): array {
+		$stored = get_post_meta( $post_id, self::RUN_OUTCOME_META, false );
+		return is_array( $stored ) ? array_map( 'strval', $stored ) : [];
+	}
+
+	/**
+	 * Stamp a product with the current run, clearing another run's outcomes first.
+	 */
+	private static function claim_for_run( int $post_id, string $run_id ): void {
+		if ( self::run_of( $post_id ) === $run_id ) {
+			return;
+		}
+		delete_post_meta( $post_id, self::RUN_OUTCOME_META ); // Belongs to the previous run.
+>>>>>>> origin/release/3.12.1
 		update_post_meta( $post_id, self::RUN_ID_META, $run_id );
-		update_post_meta( $post_id, self::RUN_OUTCOME_META, $outcome );
+	}
+
+	/** Add an outcome row, unless this run already recorded it. */
+	private static function add_outcome( int $post_id, string $outcome ): void {
+		if ( in_array( $outcome, self::outcomes_of( $post_id ), true ) ) {
+			return;
+		}
+		add_post_meta( $post_id, self::RUN_OUTCOME_META, $outcome );
 	}
 
 	/**
@@ -121,7 +213,9 @@ class Skwirrel_WC_Sync_Run_Links {
 		];
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin list filter, no state change.
 		$outcome = isset( $_GET['skwirrel_outcome'] ) ? sanitize_key( wp_unslash( $_GET['skwirrel_outcome'] ) ) : '';
-		if ( in_array( $outcome, [ 'created', 'updated', 'trashed' ], true ) ) {
+		// Matching a value is EXISTS-style across the outcome rows, so a parent that this run both
+		// created (one variation) and updated (another) is returned by either link.
+		if ( in_array( $outcome, self::OUTCOMES, true ) ) {
 			$run_clause[] = [
 				'key'   => self::RUN_OUTCOME_META,
 				'value' => $outcome,
@@ -148,6 +242,39 @@ class Skwirrel_WC_Sync_Run_Links {
 				$run_clause,
 			];
 		$query->set( 'meta_query', $meta_query );
+
+		// WP's "All" view excludes the trash, so a product this run created and then trashed
+		// during finalize would be missing from the Created link it is counted under. When a run
+		// scope is active and the URL asks for no particular status, include the trash too.
+		// The Published/Draft/Trash tabs still win — they set post_status explicitly.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only admin list filter, no state change.
+		if ( ! isset( $_GET['post_status'] ) ) {
+			$query->set( 'post_status', self::run_scope_statuses() );
+		}
+	}
+
+	/**
+	 * Post statuses a run-scoped list shows when the URL requests none.
+	 *
+	 * Selected by `show_in_admin_all_list` — the flag WordPress itself uses to build the products
+	 * screen's "All" view, so this set is exactly what that view shows (publish, draft, pending,
+	 * private, future, and `deprecated`, which opts in). Deriving it from `exclude_from_search`
+	 * was indirect: that flag answers a different question, and every status a run's outcome
+	 * links must reach then had to be reasoned about separately.
+	 *
+	 * `trash` is added on top because WP's "All" deliberately excludes it, while a product this
+	 * run created and then trashed during finalize is still counted under Created — the Created
+	 * link has to list it. The explicit fallback covers a pathological empty registry.
+	 *
+	 * @return array<int, string>
+	 */
+	private static function run_scope_statuses(): array {
+		$statuses = array_values( array_map( 'strval', get_post_stati( [ 'show_in_admin_all_list' => true ], 'names' ) ) );
+		if ( [] === $statuses ) {
+			$statuses = [ 'publish', 'draft', 'pending', 'private', Skwirrel_WC_Sync_Deprecated_Status::STATUS ];
+		}
+		$statuses[] = 'trash';
+		return array_values( array_unique( $statuses ) );
 	}
 
 	/**

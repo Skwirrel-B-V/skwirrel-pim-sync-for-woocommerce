@@ -957,6 +957,12 @@ msgid ""
 "use this when your settings refuse to update because of an aggressive "
 "persistent cache."
 msgstr ""
+"Supprimer toute la configuration de synchronisation Skwirrel (URL du point "
+"de terminaison, jeton d’API, planification, règles de slug). Toutes les "
+"tâches de synchronisation planifiées sont annulées et le cache objet est "
+"vidé. Les produits, médias, catégories et l’historique de synchronisation ne "
+"sont pas touchés — utilisez ceci lorsque vos réglages refusent de se mettre "
+"à jour à cause d’un cache persistant agressif."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1067
 msgid "Reset Skwirrel sync settings"
@@ -1051,6 +1057,9 @@ msgid ""
 "Category sync is enabled but no valid super category ID is set. Please enter "
 "a super category ID greater than 0."
 msgstr ""
+"La synchronisation des catégories est activée mais aucun ID de super-"
+"catégorie valide n’est défini. Saisissez un ID de super-catégorie supérieur "
+"à 0."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:230
 msgid "At least one selection ID greater than 0 is required."
@@ -1154,6 +1163,11 @@ msgid ""
 "slug rules will be deleted, and all scheduled syncs will be cancelled. "
 "Products, media, categories and sync history are kept.\\n\\nAre you sure?"
 msgstr ""
+"Réinitialiser tous les réglages de synchronisation Skwirrel ? L’URL du point "
+"de terminaison, le jeton d’API, la planification et les règles de slug "
+"seront supprimés, et toutes les synchronisations planifiées seront annulées. "
+"Les produits, médias, catégories et l’historique de synchronisation sont "
+"conservés.\\n\\nÊtes-vous sûr ?"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1105
 msgid "Testing…"
@@ -1221,6 +1235,11 @@ msgid ""
 "and sync history are untouched. Re-enter your subdomain and API token below "
 "to continue."
 msgstr ""
+"Réglages de synchronisation Skwirrel réinitialisés. Toutes les options de "
+"configuration ont été supprimées, les tâches planifiées annulées et les "
+"caches vidés. Les produits, médias, catégories et l’historique de "
+"synchronisation ne sont pas touchés. Saisissez à nouveau votre sous-domaine "
+"et votre jeton d’API ci-dessous pour continuer."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1509
 msgid ""
@@ -1656,6 +1675,8 @@ msgstr "Produit %s"
 msgid ""
 "Another sync is already running; refusing to start a second concurrent run."
 msgstr ""
+"Une synchronisation est déjà en cours ; le lancement d’une seconde exécution "
+"simultanée est refusé."
 
 #: includes/class-skwirrel-wc-sync-service.php:452
 msgid "Fetching products from API…"
@@ -1759,8 +1780,13 @@ msgstr "ID de collection de classes personnalisées (facultatif)"
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Only needed when syncing custom classes or grouped products."
 msgstr ""
+<<<<<<< HEAD
 "Nécessaire uniquement lors de la synchronisation des classes "
 "personnalisées ou des produits groupés."
+=======
+"Nécessaire uniquement pour synchroniser des classes personnalisées ou des "
+"produits groupés."
+>>>>>>> origin/release/3.12.1
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 #, php-format
@@ -1768,9 +1794,14 @@ msgid ""
 "A custom class collection ID greater than 0 is required when syncing custom "
 "classes or grouped products."
 msgstr ""
+<<<<<<< HEAD
 "Un ID de collection de classes personnalisées supérieur à 0 est "
 "requis lors de la synchronisation des classes personnalisées ou des "
 "produits groupés."
+=======
+"Un ID de collection de classes personnalisées supérieur à 0 est requis pour "
+"synchroniser des classes personnalisées ou des produits groupés."
+>>>>>>> origin/release/3.12.1
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid ""
@@ -1781,6 +1812,7 @@ msgid ""
 "\"Keep published\" leaves the product visible, \"Draft\" hides it, \"Trash\" "
 "moves it to the trash, and \"Deprecated\" retires it gradually."
 msgstr ""
+<<<<<<< HEAD
 "Choisissez l’état WooCommerce pour chaque statut de produit Skwirrel. "
 "Les statuts intégrés (Brouillon, Disponible, Arrêté) sont toujours "
 "affichés ; les statuts supplémentaires définis par votre instance "
@@ -1816,16 +1848,31 @@ msgstr ""
 "ouvre la liste des produits, qui n’affiche que les produits parents — "
 "un produit variable compte donc chacune de ses variations ici, mais "
 "apparaît sur une seule ligne."
+=======
+"Choisissez l’état WooCommerce pour chaque statut de produit Skwirrel. Les "
+"statuts intégrés (Brouillon, Disponible, Abandonné) sont toujours affichés ; "
+"les statuts supplémentaires définis par votre instance Skwirrel sont "
+"détectés automatiquement lors d’une synchronisation — ou cliquez sur « "
+"Actualiser les statuts depuis Skwirrel » pour les récupérer maintenant. « "
+"Garder publié » laisse le produit visible, « Brouillon » le masque, « "
+"Corbeille » le déplace vers la corbeille et « Obsolète » le retire "
+"progressivement."
+>>>>>>> origin/release/3.12.1
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Refresh statuses from Skwirrel"
 msgstr "Actualiser les statuts depuis Skwirrel"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
-msgid "No new statuses found. All statuses in the sample are already listed."
+msgid "No new statuses found. Every status in the catalogue is already listed."
 msgstr ""
+<<<<<<< HEAD
 "Aucun nouveau statut trouvé. Tous les statuts de l’échantillon sont "
 "déjà listés."
+=======
+"Aucun nouveau statut trouvé. Tous les statuts du catalogue figurent déjà "
+"dans la liste."
+>>>>>>> origin/release/3.12.1
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid ""
@@ -1856,8 +1903,45 @@ msgstr[0] "%d nouveau statut trouvé — rechargement…"
 msgstr[1] "%d nouveaux statuts trouvés — rechargement…"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
+<<<<<<< HEAD
 msgid "Status details updated — reloading…"
 msgstr "Détails des statuts mis à jour — rechargement…"
+=======
+msgid ""
+"No new statuses found so far — the scan stopped before the end of the "
+"catalogue."
+msgstr ""
+"Aucun nouveau statut trouvé pour l’instant — l’analyse s’est arrêtée avant "
+"la fin du catalogue."
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Status details updated — reloading…"
+msgstr "Détails des statuts mis à jour — rechargement…"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid ""
+"The Created, Updated and Deleted counts include each variation of a variable "
+"product, while the product list they link to shows parent products only — "
+"for variable products the list is therefore shorter than the count."
+msgstr ""
+"Les compteurs Créés, Mis à jour et Supprimés incluent chaque variation d’un "
+"produit variable, alors que la liste de produits vers laquelle ils pointent "
+"n’affiche que les produits parents — pour les produits variables, la liste "
+"est donc plus courte que le compteur."
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Scanning… %d products checked"
+msgstr "Analyse en cours… %d produits vérifiés"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid ""
+"Statuses updated. Save your changes to see the new rows — the page was not "
+"reloaded because this form has unsaved edits."
+msgstr ""
+"Statuts mis à jour. Enregistrez vos modifications pour voir les nouvelles "
+"lignes — la page n’a pas été rechargée car ce formulaire contient des "
+"modifications non enregistrées."
+>>>>>>> origin/release/3.12.1
 
 #~ msgid "Products are being synchronized. This page refreshes automatically."
 #~ msgstr ""
@@ -2188,8 +2272,8 @@ msgstr "Détails des statuts mis à jour — rechargement…"
 #~ "Voir wp-content/uploads/skwirrel-pim-sync/skwirrel-variation-debug.log"
 
 #~ msgid ""
-#~ "Check: etim_values_found empty? → API languages must match getProducts "
-#~ "(e.g. en, en-GB)."
+#~ "Check: etim_values_found empty? → API languages must match getProducts (e."
+#~ "g. en, en-GB)."
 #~ msgstr ""
 #~ "Vérifiez : etim_values_found vide ? → Les langues API doivent "
 #~ "correspondre à getProducts (ex. en, en-GB)."

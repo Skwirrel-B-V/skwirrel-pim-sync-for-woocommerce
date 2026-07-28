@@ -1790,10 +1790,13 @@ msgid "%d new status found — reloading…"
 msgid_plural "%d new statuses found — reloading…"
 msgstr[0] "%d new status found — reloading…"
 msgstr[1] "%d new statuses found — reloading…"
+<<<<<<< HEAD
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php
 msgid "Status details updated — reloading…"
 msgstr "Status details updated — reloading…"
+=======
+>>>>>>> origin/release/3.12.1
 
 #~ msgid "Products are being synchronized. This page refreshes automatically."
 #~ msgstr "Products are being synchronized. This page refreshes automatically."
@@ -2111,11 +2114,11 @@ msgstr "Status details updated — reloading…"
 #~ "Check wp-content/uploads/skwirrel-pim-sync/skwirrel-variation-debug.log"
 
 #~ msgid ""
-#~ "Check: etim_values_found empty? → API languages must match getProducts "
-#~ "(e.g. en, en-GB)."
+#~ "Check: etim_values_found empty? → API languages must match getProducts (e."
+#~ "g. en, en-GB)."
 #~ msgstr ""
-#~ "Check: etim_values_found empty? → API languages must match getProducts "
-#~ "(e.g. en, en-GB)."
+#~ "Check: etim_values_found empty? → API languages must match getProducts (e."
+#~ "g. en, en-GB)."
 
 #~ msgid ""
 #~ "ATTR VERIFY FAIL in the log? → meta is not being written correctly; check "
