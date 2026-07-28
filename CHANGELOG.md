@@ -2,6 +2,25 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.12.1]
+
+### Added — status UI improvements and run-scoped product deep-links
+
+* **Built-in status presets**: the Product status handling table now always shows the three core Skwirrel statuses (Draft, Available, Discontinued) with sane defaults, even before any sync has run.
+* **"Refresh statuses from Skwirrel"** button: fetch the full list of statuses from the API on demand, without waiting for a sync, so the mapping table can be configured upfront.
+* **Status badges**: each status row now shows the numeric ID, internal code, and human-readable label together, making it easier to match rows to Skwirrel's status list.
+* **"Deprecated" column** in the sync history table: each run now reports the number of products that ended the run in the `deprecated` state.
+* **Run-scoped product deep-links**: the Created / Updated / Deprecated / Deleted counts in the history table link directly to the product list filtered to that run's set, so you can review exactly what changed each sync.
+
+### Changed
+
+* **`custom_collection_id` is now optional**: the setting is no longer a hard requirement. The validation error and `required` attribute are only enforced when syncing custom classes or grouped products — a plain product sync works fine without it.
+* **`product_trashed_on` no longer force-trashes**: products whose `product_trashed_on` field is set are now classified by their active `_product_status`, not automatically moved to trash. Discontinuation is expressed through the product's own status (e.g. DISCONTINUED), which is already configurable in the status-handling table.
+
+### i18n
+
+* New UI strings for the status-discovery button, status badges, and run-link cells added to all locales (nl_NL, nl_BE, de_DE, fr_FR, fr_BE, en_US, en_GB); catalogs regenerated and recompiled.
+
 ## [3.12.0]
 
 ### Added — configurable product status handling

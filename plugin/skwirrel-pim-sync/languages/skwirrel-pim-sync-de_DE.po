@@ -6,7 +6,7 @@ msgstr ""
 "Project-Id-Version: Skwirrel PIM sync for WooCommerce 1.7.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/skwirrel-pim-"
 "sync\n"
-"POT-Creation-Date: 2026-07-22T15:22:41+00:00\n"
+"POT-Creation-Date: 2026-07-22T19:09:34+00:00\n"
 "PO-Revision-Date: 2026-02-26 12:00+0000\n"
 "Last-Translator: Skwirrel Sync <info@skwirrel.eu>\n"
 "Language-Team: Deutsch (Deutschland)\n"
@@ -797,7 +797,11 @@ msgid ""
 "discovered automatically as they appear during a sync. \"Keep published\" "
 "leaves the product visible, \"Draft\" hides it, and \"Trash\" moves it to "
 "the trash."
-msgstr "Wählen Sie den WooCommerce-Status für jeden Skwirrel-Produktstatus. Status werden automatisch erkannt, sobald sie während einer Synchronisierung auftreten. \"Veröffentlicht lassen\" hält das Produkt sichtbar, \"Entwurf\" blendet es aus und \"Papierkorb\" verschiebt es in den Papierkorb."
+msgstr ""
+"Wählen Sie den WooCommerce-Status für jeden Skwirrel-Produktstatus. Status "
+"werden automatisch erkannt, sobald sie während einer Synchronisierung "
+"auftreten. \"Veröffentlicht lassen\" hält das Produkt sichtbar, \"Entwurf\" "
+"blendet es aus und \"Papierkorb\" verschiebt es in den Papierkorb."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:963
 msgid "Keep published"
@@ -834,7 +838,8 @@ msgstr "Standard für neue Status"
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:994
 msgid ""
 "Applied to any status not mapped below, including newly discovered ones."
-msgstr "Gilt für jeden unten nicht zugeordneten Status, einschließlich neu erkannter."
+msgstr ""
+"Gilt für jeden unten nicht zugeordneten Status, einschließlich neu erkannter."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:999
 msgid "Skwirrel status"
@@ -854,7 +859,11 @@ msgid ""
 "moved to the trash. 0 = remove immediately (trashed on the same full sync it "
 "becomes deprecated — no review window). Only applies to statuses mapped to "
 "Deprecated."
-msgstr "Wie viele vollständige Synchronisierungen ein Produkt im Status Auslaufend bleibt, bevor es in den Papierkorb verschoben wird. 0 = sofort entfernen (im selben vollständigen Sync in den Papierkorb, in dem es auslaufend wird — kein Prüffenster). Gilt nur für Status, die Auslaufend zugeordnet sind."
+msgstr ""
+"Wie viele vollständige Synchronisierungen ein Produkt im Status Auslaufend "
+"bleibt, bevor es in den Papierkorb verschoben wird. 0 = sofort entfernen (im "
+"selben vollständigen Sync in den Papierkorb, in dem es auslaufend wird — "
+"kein Prüffenster). Gilt nur für Status, die Auslaufend zugeordnet sind."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1028
 msgid "Advanced"
@@ -882,7 +891,12 @@ msgid ""
 "list or editor is blocked while a sync is running, to prevent conflicts. "
 "What the sync itself does with removed or discontinued products is "
 "controlled by \"Product status handling\" above."
-msgstr "Wenn aktiviert, wird das manuelle Löschen von durch Skwirrel verwalteten Produkten über die Produktliste oder den Editor blockiert, während eine Synchronisierung läuft, um Konflikte zu vermeiden. Was die Synchronisierung selbst mit entfernten oder eingestellten Produkten macht, wird durch \"Produktstatus-Verarbeitung\" oben gesteuert."
+msgstr ""
+"Wenn aktiviert, wird das manuelle Löschen von durch Skwirrel verwalteten "
+"Produkten über die Produktliste oder den Editor blockiert, während eine "
+"Synchronisierung läuft, um Konflikte zu vermeiden. Was die Synchronisierung "
+"selbst mit entfernten oder eingestellten Produkten macht, wird durch "
+"\"Produktstatus-Verarbeitung\" oben gesteuert."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1035
 msgid "Prices managed outside Skwirrel"
@@ -1379,7 +1393,11 @@ msgid ""
 "A Skwirrel sync is running. Deleting Skwirrel-managed products is "
 "temporarily disabled to prevent conflicts. You can delete them again once "
 "the sync has finished."
-msgstr "Eine Skwirrel-Synchronisierung läuft. Das Löschen von durch Skwirrel verwalteten Produkten ist vorübergehend deaktiviert, um Konflikte zu vermeiden. Sie können sie wieder löschen, sobald die Synchronisierung abgeschlossen ist."
+msgstr ""
+"Eine Skwirrel-Synchronisierung läuft. Das Löschen von durch Skwirrel "
+"verwalteten Produkten ist vorübergehend deaktiviert, um Konflikte zu "
+"vermeiden. Sie können sie wieder löschen, sobald die Synchronisierung "
+"abgeschlossen ist."
 
 #: includes/class-skwirrel-wc-sync-deprecated-status.php:51
 msgctxt "product status"
@@ -1733,6 +1751,71 @@ msgstr ""
 #: skwirrel-pim-sync.php:52
 msgid "Install WooCommerce"
 msgstr "WooCommerce installieren"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+#, fuzzy
+msgid "Custom class collection ID (optional)"
+msgstr "Benutzerdefinierte Klassen-Sammlungs-ID"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Only needed when syncing custom classes or grouped products."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+#, fuzzy, php-format
+msgid ""
+"A custom class collection ID greater than 0 is required when syncing custom "
+"classes or grouped products."
+msgstr "Eine Sammlungs-ID für eigene Klassen größer als 0 ist erforderlich."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+#, fuzzy
+msgid ""
+"Choose the WooCommerce state for each Skwirrel product status. The built-in "
+"statuses (Draft, Available, Discontinued) are always shown; any extra "
+"statuses your Skwirrel instance defines are discovered automatically during "
+"a sync — or click \"Refresh statuses from Skwirrel\" to fetch them now. "
+"\"Keep published\" leaves the product visible, \"Draft\" hides it, \"Trash\" "
+"moves it to the trash, and \"Deprecated\" retires it gradually."
+msgstr ""
+"Wählen Sie den WooCommerce-Status für jeden Skwirrel-Produktstatus. Status "
+"werden automatisch erkannt, sobald sie während einer Synchronisierung "
+"auftreten. \"Veröffentlicht lassen\" hält das Produkt sichtbar, \"Entwurf\" "
+"blendet es aus und \"Papierkorb\" verschiebt es in den Papierkorb."
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Refresh statuses from Skwirrel"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "No new statuses found. All statuses in the sample are already listed."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid ""
+"Set the Skwirrel endpoint and API token (and save) before refreshing "
+"statuses."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "The request to Skwirrel failed."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+#, fuzzy
+msgid "Fetching…"
+msgstr "Wird getestet…"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+#, fuzzy
+msgid "Could not refresh statuses."
+msgstr "Standard für neue Status"
+
+#. translators: %d = number of statuses found
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+#, php-format
+msgid "%d new status found — reloading…"
+msgstr ""
 
 #~ msgid "Products are being synchronized. This page refreshes automatically."
 #~ msgstr ""

@@ -2,7 +2,7 @@
 # This file is distributed under the GPL v2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Skwirrel PIM sync for WooCommerce 3.12.0\n"
+"Project-Id-Version: Skwirrel PIM sync for WooCommerce 3.12.1\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/skwirrel-pim-sync\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1562,4 +1562,51 @@ msgstr ""
 
 #: skwirrel-pim-sync.php:52
 msgid "Install WooCommerce"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Custom class collection ID (optional)"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Only needed when syncing custom classes or grouped products."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+#, php-format
+msgid "A custom class collection ID greater than 0 is required when syncing custom classes or grouped products."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Choose the WooCommerce state for each Skwirrel product status. The built-in statuses (Draft, Available, Discontinued) are always shown; any extra statuses your Skwirrel instance defines are discovered automatically during a sync — or click \"Refresh statuses from Skwirrel\" to fetch them now. \"Keep published\" leaves the product visible, \"Draft\" hides it, \"Trash\" moves it to the trash, and \"Deprecated\" retires it gradually."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Refresh statuses from Skwirrel"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "No new statuses found. All statuses in the sample are already listed."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Set the Skwirrel endpoint and API token (and save) before refreshing statuses."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "The request to Skwirrel failed."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Fetching…"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Could not refresh statuses."
+msgstr ""
+
+#. translators: %d = number of statuses found
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+#, php-format
+msgid "%d new status found — reloading…"
 msgstr ""
