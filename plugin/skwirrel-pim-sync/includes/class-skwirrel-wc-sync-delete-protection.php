@@ -79,10 +79,15 @@ class Skwirrel_WC_Sync_Delete_Protection {
 	}
 
 	/**
-	 * Whether a sync is actively running (heartbeat still fresh).
+	 * Whether a sync is actively running.
+	 *
+	 * Deliberately not the heartbeat alone: it is refreshed once per step and expires after 60s,
+	 * so a step doing long API work (the request timeout alone can be 120s, plus retries) or a
+	 * delayed Action Scheduler pickup would drop the delete-lock during exactly the long-running
+	 * work it exists to protect. `is_run_active()` also honours live persisted run state.
 	 */
 	private function is_sync_running(): bool {
-		return Skwirrel_WC_Sync_History::is_heartbeat_fresh();
+		return Skwirrel_WC_Sync_Service::is_run_active();
 	}
 
 	/**
@@ -445,9 +450,9 @@ class Skwirrel_WC_Sync_Delete_Protection {
 			}
 		}
 		foreach ( $ids as $id ) {
-			delete_post_meta( $id, Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META );
-			delete_post_meta( $id, Skwirrel_WC_Sync_Product_Upserter::CONTENT_HASH_META );
-			delete_post_meta( $id, Skwirrel_WC_Sync_Product_Upserter::VIRTUAL_CONTENT_HASH_META );
+			// Clears the timestamp, content-hash, group and virtual gates — each of them can
+			// return `unchanged` on its own, before the revive logic runs.
+			Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates( $id );
 		}
 	}
 

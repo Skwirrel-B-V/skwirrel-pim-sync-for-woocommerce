@@ -129,17 +129,36 @@ test('trashing a Skwirrel product in WC invalidates its change gates', function 
     // The forced full sync finds the trashed product again, but is_unchanged() would return
     // "unchanged" on a matching stored timestamp and return before the revive logic — the
     // product would sit in the trash until its upstream timestamp happened to move.
-    $GLOBALS['_test_post_types'][55]                                                          = 'product';
-    $GLOBALS['_test_post_meta'][55]['_skwirrel_external_id']                                  = 'EXT-1';
-    $GLOBALS['_test_post_meta'][55][Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META]         = '2026-07-01 10:00:00';
-    $GLOBALS['_test_post_meta'][55][Skwirrel_WC_Sync_Product_Upserter::CONTENT_HASH_META]     = 'abc123';
+    $GLOBALS['_test_post_types'][55]                                                              = 'product';
+    $GLOBALS['_test_post_meta'][55]['_skwirrel_external_id']                                      = 'EXT-1';
+    $GLOBALS['_test_post_meta'][55][Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META]             = '2026-07-01 10:00:00';
+    $GLOBALS['_test_post_meta'][55][Skwirrel_WC_Sync_Product_Upserter::CONTENT_HASH_META]         = 'abc123';
+    $GLOBALS['_test_post_meta'][55][Skwirrel_WC_Sync_Product_Upserter::GROUP_HASH_META]           = 'grp123';
+    $GLOBALS['_test_post_meta'][55][Skwirrel_WC_Sync_Product_Upserter::VIRTUAL_CONTENT_HASH_META] = 'vir123';
     unset($GLOBALS['_test_options'][ 'skwirrel_wc_sync_force_full_sync' ]);
 
     Skwirrel_WC_Sync_Delete_Protection::instance()->on_product_trashed(55);
 
-    expect($GLOBALS['_test_post_meta'][55])->not->toHaveKey(Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META);
-    expect($GLOBALS['_test_post_meta'][55])->not->toHaveKey(Skwirrel_WC_Sync_Product_Upserter::CONTENT_HASH_META);
+    // All four gates: each one returns "unchanged" on its own, before the revive logic.
+    expect($GLOBALS['_test_post_meta'][55])->toBe(['_skwirrel_external_id' => 'EXT-1']);
     expect(get_option('skwirrel_wc_sync_force_full_sync'))->toBeTrue();
+});
+
+test('invalidate_change_gates clears every gate and ignores an invalid id', function () {
+    // The group gate matters most for a variable parent: create_variable_product_from_group()
+    // returns "unchanged" on a matching _skwirrel_group_hash before it can untrash the parent.
+    $GLOBALS['_test_post_meta'][90] = [
+        Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META             => '2026-07-01 10:00:00',
+        Skwirrel_WC_Sync_Product_Upserter::CONTENT_HASH_META         => 'abc',
+        Skwirrel_WC_Sync_Product_Upserter::GROUP_HASH_META           => 'grp',
+        Skwirrel_WC_Sync_Product_Upserter::VIRTUAL_CONTENT_HASH_META => 'vir',
+        '_skwirrel_external_id'                                      => 'EXT-9',
+    ];
+
+    Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates(90);
+    Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates(0);
+
+    expect($GLOBALS['_test_post_meta'][90])->toBe(['_skwirrel_external_id' => 'EXT-9']);
 });
 
 test('trashing a product WooCommerce does not manage leaves its meta alone', function () {

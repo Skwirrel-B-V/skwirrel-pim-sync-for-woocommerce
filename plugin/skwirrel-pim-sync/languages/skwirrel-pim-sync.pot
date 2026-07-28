@@ -1625,3 +1625,7 @@ msgstr ""
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "The Created and Updated counts include each variation of a variable product, while the product list they link to shows parent products only — for variable products the list is therefore shorter than the count."
 msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Scanning… %d products checked"
+msgstr ""

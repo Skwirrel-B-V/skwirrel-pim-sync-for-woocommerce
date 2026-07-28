@@ -41,8 +41,18 @@ class Skwirrel_WC_Sync_Service {
 		);
 
 		// Apply the admin-configured status handling to the shared mapper (used by both this
-		// service and the upserter) so every action of a resumable run honours the mapping.
-		$opts = $this->get_options();
+		// service and the upserter). This is the live mapping — the entry point for a resumable
+		// run replaces it with the run's own frozen copy in run_step(), so a mapping saved
+		// mid-run cannot make one run classify its products under two different rules.
+		$this->apply_status_handling( $this->get_options() );
+	}
+
+	/**
+	 * Point the shared mapper at a status mapping.
+	 *
+	 * @param array<string, mixed> $opts Options carrying `status_mapping` / `status_mapping_default`.
+	 */
+	private function apply_status_handling( array $opts ): void {
 		$this->mapper->set_status_handling(
 			is_array( $opts['status_mapping'] ?? null ) ? $opts['status_mapping'] : [],
 			is_string( $opts['status_mapping_default'] ?? null ) ? $opts['status_mapping_default'] : 'publish'
@@ -57,6 +67,15 @@ class Skwirrel_WC_Sync_Service {
 
 	/** Default wall-clock budget (seconds) for a single batched step before it yields to the next action. */
 	private const DEFAULT_STEP_SECONDS = 20;
+
+	/**
+	 * How long persisted run state still counts as a live run (seconds).
+	 *
+	 * Generous enough to cover one long step (a 120s HTTP timeout plus retries) and a delayed
+	 * Action Scheduler pickup, short enough that state orphaned by a fatal error does not hold
+	 * the manual-delete lock open indefinitely.
+	 */
+	private const RUN_STATE_ACTIVE_TTL = 900;
 
 	/** Consecutive no-progress step actions tolerated before a run is declared failed (poison-loop guard). */
 	private const MAX_STALL = 6;
@@ -388,6 +407,13 @@ class Skwirrel_WC_Sync_Service {
 		// matching the pre-refactor behavior where it was set once up front.
 		$this->upserter->set_change_gate_enabled( (bool) $ctx['gate_enabled'] );
 		$this->upserter->set_content_hash_context( (string) ( $ctx['hash_mode'] ?? 'off' ), (string) ( $ctx['sync_sig'] ?? '' ) );
+		// Every step of a resumable run builds a fresh service, whose constructor reads the *live*
+		// settings. Re-apply the run's own frozen options so an admin saving a different status
+		// mapping between two async steps cannot make one run publish some products under the old
+		// rules and trash others under the new — and then stamp the signature of the old mapping.
+		if ( is_array( $ctx['options'] ?? null ) ) {
+			$this->apply_status_handling( $ctx['options'] );
+		}
 		Skwirrel_WC_Sync_History::sync_heartbeat();
 
 		switch ( $ctx['step'] ) {
@@ -1269,7 +1295,32 @@ class Skwirrel_WC_Sync_Service {
 	 * @param array<string, mixed> $ctx Run context.
 	 */
 	public static function save_run_state( array $ctx ): void {
+		// Stamped so is_run_active() can tell a live run from state left behind by a run that died
+		// hard — without it, a crashed run would hold the manual-delete lock open forever.
+		$ctx['saved_at'] = time();
 		update_option( self::OPTION_RUN_STATE, $ctx, false );
+	}
+
+	/**
+	 * Whether a resumable run is still in flight.
+	 *
+	 * Broader than the heartbeat: the heartbeat is refreshed once per step and expires after
+	 * HEARTBEAT_TTL (60s), so a single step doing long API work — the timeout alone can be 120s,
+	 * plus retries — or a delayed Action Scheduler action leaves it stale while the run is very
+	 * much alive. Callers that must not act during a run (the manual-delete lock) need this;
+	 * callers deciding whether a *new* run may start still use the heartbeat mutex, which is what
+	 * makes a dead run recoverable.
+	 */
+	public static function is_run_active(): bool {
+		if ( Skwirrel_WC_Sync_History::is_heartbeat_fresh() ) {
+			return true;
+		}
+		$state = self::load_run_state();
+		if ( null === $state || 'done' === ( $state['step'] ?? 'done' ) ) {
+			return false;
+		}
+		$saved_at = isset( $state['saved_at'] ) && is_numeric( $state['saved_at'] ) ? (int) $state['saved_at'] : 0;
+		return $saved_at > 0 && ( time() - $saved_at ) < self::RUN_STATE_ACTIVE_TTL;
 	}
 
 	/** Remove the persisted run state. */

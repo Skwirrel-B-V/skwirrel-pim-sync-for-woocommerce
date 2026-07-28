@@ -86,6 +86,11 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * Fix: "Refresh statuses from Skwirrel" now walks the whole catalogue instead of only the first page, so statuses used further down the feed are found. It also reports when it stopped before the end.
 * Fix: a product you trash yourself in WooCommerce is now brought back by the next full sync instead of staying in the trash until its Skwirrel timestamp happens to change.
 * Fix: a revived product keeps its original permalink instead of being restored on a permanent `…__trashed` URL.
+* Fix: a variable product that was cleaned up and later returns unchanged now comes back out of the trash — previously its group signature still matched, so the sync skipped it and it stayed hidden.
+* Fix: changing the status mapping while a sync is running no longer applies half-way through that run; the run finishes under the mapping it started with.
+* Fix: the block on manually deleting Skwirrel products now lasts the whole sync, instead of lapsing during long API calls.
+* Fix: the sync history's Created / Updated links now also list products the run put straight into the Deprecated state.
+* Fix: "Refresh statuses from Skwirrel" now scans large catalogues in steps instead of one long request that a server or browser timeout could kill.
 * Fix: for variable products, the sync history's Created / Updated links now open the parent products of that run — previously they could open an almost empty list.
 * Fix: a product created and then trashed within the same run still appears under that run's Created link.
 * Fix: translations — plural forms are now declared in every language file (`msgfmt --check` passed), the status-discovery message has a real plural, and several Dutch, German and French strings that were empty or paired with the wrong text have been corrected.

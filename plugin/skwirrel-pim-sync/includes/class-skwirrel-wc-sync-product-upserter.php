@@ -47,6 +47,34 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	/** Content-hash mode for this run: 'off' | 'observe' (compute+report, no skip) | 'enforce' (skip on match). */
 	private string $content_hash_mode = 'off';
 
+	/**
+	 * Drop every change gate for a post, so the next sync reprocesses it instead of skipping it.
+	 *
+	 * There are four independent gates and each one can return `unchanged` on its own, before any
+	 * revive logic runs — clearing only the timestamp leaves a hidden product hidden:
+	 *
+	 * - `_skwirrel_updated_on`      — the timestamp gate in `is_unchanged()`
+	 * - `_skwirrel_content_hash`    — the payload gate, authoritative in `enforce` mode
+	 * - `_skwirrel_group_hash`      — the group gate; `create_variable_product_from_group()`
+	 *                                 returns `unchanged` on a match, so a trashed variable parent
+	 *                                 whose group payload is unchanged would never be untrashed
+	 * - `_skwirrel_virtual_content_hash` — the virtual-product gate on a variable parent
+	 *
+	 * Called whenever a product is hidden or trashed outside a normal upsert: the purge handler's
+	 * stale/deprecated paths and a manual trash in WooCommerce.
+	 *
+	 * @param int $post_id Product or variation ID.
+	 */
+	public static function invalidate_change_gates( int $post_id ): void {
+		if ( $post_id <= 0 ) {
+			return;
+		}
+		delete_post_meta( $post_id, Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META );
+		delete_post_meta( $post_id, self::CONTENT_HASH_META );
+		delete_post_meta( $post_id, self::GROUP_HASH_META );
+		delete_post_meta( $post_id, self::VIRTUAL_CONTENT_HASH_META );
+	}
+
 	/** Settings signature folded into the content hash so a settings/version change invalidates all hashes. */
 	private string $content_hash_sig = '';
 

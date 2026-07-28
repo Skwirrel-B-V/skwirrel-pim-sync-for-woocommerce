@@ -1871,6 +1871,10 @@ msgstr ""
 "n’affiche que les produits parents — pour les produits variables, la liste "
 "est donc plus courte que le compteur."
 
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Scanning… %d products checked"
+msgstr "Analyse en cours… %d produits vérifiés"
+
 #~ msgid "Products are being synchronized. This page refreshes automatically."
 #~ msgstr ""
 #~ "Les produits sont en cours de synchronisation. Cette page se rafraîchit "

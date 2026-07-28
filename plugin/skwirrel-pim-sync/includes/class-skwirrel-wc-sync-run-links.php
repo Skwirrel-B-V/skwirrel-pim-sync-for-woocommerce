@@ -155,7 +155,14 @@ class Skwirrel_WC_Sync_Run_Links {
 	/**
 	 * Post statuses a run-scoped list shows when the URL requests none.
 	 *
-	 * The admin "All" set (every status not flagged `exclude_from_search`) plus `trash`.
+	 * The admin "All" set (every status not flagged `exclude_from_search`), plus the two statuses
+	 * that set excludes but a run's outcome links still have to reach:
+	 *
+	 * - `trash`      — a product this run created and then trashed during finalize is still counted
+	 *                  under Created, so the Created link has to list it;
+	 * - `deprecated` — registered with `exclude_from_search => true`, so `get_post_stati()` omits it;
+	 *                  a product mapped straight into `deprecated` on upsert is counted under
+	 *                  Created/Updated and would otherwise be missing from those links.
 	 *
 	 * @return array<int, string>
 	 */
@@ -165,6 +172,7 @@ class Skwirrel_WC_Sync_Run_Links {
 			$statuses = [ 'publish', 'draft' ];
 		}
 		$statuses[] = 'trash';
+		$statuses[] = Skwirrel_WC_Sync_Deprecated_Status::STATUS;
 		return array_values( array_unique( $statuses ) );
 	}
 

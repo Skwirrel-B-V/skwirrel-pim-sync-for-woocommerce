@@ -1845,6 +1845,10 @@ msgstr ""
 "hoofdproducten toont — bij variabele producten is de lijst dus korter dan "
 "het aantal."
 
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Scanning… %d products checked"
+msgstr "Bezig met doorzoeken… %d producten gecontroleerd"
+
 #~ msgid "Products are being synchronized. This page refreshes automatically."
 #~ msgstr ""
 #~ "Producten worden gesynchroniseerd. Deze pagina ververst automatisch."

@@ -1869,6 +1869,10 @@ msgstr ""
 "übergeordneten Produkte zeigt — bei variablen Produkten ist die Liste daher "
 "kürzer als der Zähler."
 
+#: includes/class-skwirrel-wc-sync-admin-settings.php
+msgid "Scanning… %d products checked"
+msgstr "Wird durchsucht… %d Produkte geprüft"
+
 #~ msgid "Products are being synchronized. This page refreshes automatically."
 #~ msgstr ""
 #~ "Produkte werden synchronisiert. Diese Seite wird automatisch aktualisiert."

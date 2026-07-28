@@ -507,8 +507,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		// Products no longer present in the feed are moved to trash. Whether this cleanup runs at
 		// all is governed solely by the visible "Clean up deleted products after full sync" option
 		// (checked by the caller) — there is no separate hidden state mapping.
-		$missing_state   = 'trash';
-		$updated_on_meta = $mapper->get_updated_on_meta_key();
+		$missing_state = 'trash';
 
 		// Find products with _skwirrel_external_id that were NOT updated during this sync.
 		// Safety check: meta_value must be numeric (prevent corrupt data from causing incorrect trashing).
@@ -608,9 +607,10 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			$product->set_status( $missing_state );
 			$product->save();
 			$this->reset_deprecated_counter_on_entry( (int) $post_id, $missing_state );
-			// Invalidate the change gate: if this hidden product later reappears with an unchanged
-			// product_updated_on, is_unchanged() would otherwise skip it and it would never be revived.
-			delete_post_meta( (int) $post_id, $updated_on_meta );
+			// Invalidate every change gate: if this hidden product later reappears unchanged, the
+			// timestamp, content-hash, group and virtual gates can each return `unchanged` on their
+			// own — before the revive logic — and it would never come back.
+			Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates( (int) $post_id );
 			Skwirrel_WC_Sync_Run_Links::mark_trashed( (int) $post_id, $run_id );
 			++$trashed;
 
@@ -623,7 +623,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 						$variation->set_status( $missing_state );
 						$variation->save();
 						$this->reset_deprecated_counter_on_entry( (int) $vid, $missing_state );
-						delete_post_meta( (int) $vid, $updated_on_meta );
+						Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates( (int) $vid );
 						Skwirrel_WC_Sync_Run_Links::mark_trashed( (int) $vid, $run_id );
 						++$trashed;
 					}
@@ -675,7 +675,6 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		$grouped_meta     = Skwirrel_WC_Sync_Product_Lookup::GROUPED_PRODUCT_ID_META;
 		$count_meta       = Skwirrel_WC_Sync_Deprecated_Status::COUNT_META;
 		$ticked_meta      = Skwirrel_WC_Sync_Deprecated_Status::TICKED_META;
-		$updated_on_meta  = $mapper->get_updated_on_meta_key();
 		$status           = Skwirrel_WC_Sync_Deprecated_Status::STATUS;
 
 		// Skwirrel-managed products/variations currently in the deprecated status. Variations are
@@ -738,8 +737,8 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			$product->save();
 			delete_post_meta( $post_id, $count_meta );
 			delete_post_meta( $post_id, $ticked_meta );
-			// Invalidate the change gate so a later unchanged reappearance is reprocessed (and revived).
-			delete_post_meta( $post_id, $updated_on_meta );
+			// Invalidate every change gate so a later unchanged reappearance is reprocessed (and revived).
+			Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates( (int) $post_id );
 			Skwirrel_WC_Sync_Run_Links::mark_trashed( (int) $post_id, $run_id );
 			++$trashed;
 
@@ -755,7 +754,7 @@ class Skwirrel_WC_Sync_Purge_Handler {
 					}
 					delete_post_meta( (int) $vid, $count_meta );
 					delete_post_meta( (int) $vid, $ticked_meta );
-					delete_post_meta( (int) $vid, $updated_on_meta );
+					Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates( (int) $vid );
 				}
 			}
 		}
