@@ -94,6 +94,11 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * Fix: for variable products, the sync history's Created / Updated links now open the parent products of that run — previously they could open an almost empty list.
 * Fix: when one run both creates and updates variations of the same product, that product now appears under *both* the Created and Updated links instead of only one of them.
 * Fix: if you manually republish a product that the sync had set to Deprecated (or change the status of a mapped draft), the next full sync restores the state your mapping asks for — previously it was skipped as "unchanged" forever.
+* Fix: status mappings you configured before 3.12 keep working after upgrading, also for statuses whose internal code differs from their description — previously such a product quietly fell back to the default state.
+* Fix: a sync that spends several rounds retiring deprecated products is no longer aborted as "stalled".
+* Fix: if a sync fails part-way, the Deleted count in the history now reports the same thing a successful run does.
+* Fix: if you renamed one of the built-in Skwirrel statuses (Draft, Available, Discontinued), the Product status handling table now shows your name and ID instead of the built-in English one.
+* Fix: after a permanent purge from the Danger Zone, the sync history no longer offers links to products that no longer exist.
 * Fix: variable products created or updated as part of a grouped sync now show up in that run's Created / Updated links.
 * Fix: the sync history's Deleted link now also finds removals of individual variations, whose parent product stays published.
 * Fix: syncs no longer risk running out of time or memory while retiring deprecated products on large catalogues — they are now processed in batches that resume.

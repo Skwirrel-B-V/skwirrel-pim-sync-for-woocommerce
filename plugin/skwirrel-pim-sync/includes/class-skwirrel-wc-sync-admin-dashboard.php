@@ -357,11 +357,20 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	public static function status_mapping_rows( array $status_map, string $status_default ): array {
 		$rows = array();
 
-		// 1) Built-in presets — always shown.
+		// 1) Built-in presets — always shown. The badge prefers the metadata the API actually
+		// reported for the code (a tenant may have renamed DRAFT/AVAILABLE/DISCONTINUED or use
+		// different numeric ids); the preset still supplies the key and the recommended default.
 		foreach ( Skwirrel_WC_Sync_Product_Mapper::KNOWN_STATUSES as $key => $preset ) {
-			$rows[] = array(
+			$seen       = Skwirrel_WC_Sync_Product_Mapper::get_seen_status( (string) $key );
+			$seen_code  = (string) ( $seen['code'] ?? '' );
+			$seen_label = (string) ( $seen['label'] ?? '' );
+			$rows[]     = array(
 				'key'       => (string) $key,
-				'name_html' => self::status_badge_html( $preset['id'], $preset['code'], $preset['label'] ),
+				'name_html' => self::status_badge_html(
+					$seen['id'] ?? $preset['id'],
+					'' !== $seen_code ? $seen_code : $preset['code'],
+					'' !== $seen_label ? $seen_label : $preset['label']
+				),
 				'selected'  => $status_map[ $key ] ?? $preset['default'],
 				'group'     => 'preset',
 			);
@@ -594,8 +603,15 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 
 		// Only the most recent sync's cells are clickable: a product carries only its LAST run's
 		// marker, so links on older rows would resolve to a near-empty list after the next full sync.
+		//
+		// A purge entry stops the search rather than being skipped over. The Danger Zone purge
+		// deletes the products and their run-marker postmeta, so every link from a run that
+		// preceded it resolves to an empty list while still showing its old nonzero count.
 		$latest_run_id = '';
 		foreach ( $entries as $entry ) {
+			if ( Skwirrel_WC_Sync_History::TRIGGER_PURGE === (string) ( $entry['trigger'] ?? '' ) ) {
+				break; // Everything older than this purge has lost its markers.
+			}
 			$rid = (string) ( $entry['run_id'] ?? '' );
 			if ( '' !== $rid ) {
 				$latest_run_id = $rid;

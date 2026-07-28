@@ -63,6 +63,27 @@ test('a configured mapping wins over the legacy draft fallback', function () {
     expect($this->mapper->get_status(productWithInternalStatus('PENDING_REVIEW', 9, 'Draft - not published')))->toBe('publish');
 });
 
+// --- Upgrade path: pre-3.12 mappings were keyed on the description, not the internal code ---
+
+test('a mapping saved under the pre-3.12 description key still applies', function () {
+    // Upgrading with `discontinued => trash` saved must keep applying to a status whose code is
+    // END_OF_LIFE and whose description is "Discontinued" — otherwise the product silently falls
+    // back to the global default (publish) until an admin notices and saves the new row.
+    $this->mapper->set_status_handling(['discontinued' => 'trash'], 'publish');
+    expect($this->mapper->get_status(productWithInternalStatus('END_OF_LIFE', 8, 'Discontinued')))->toBe('trash');
+});
+
+test('the code-keyed mapping wins over the legacy description key', function () {
+    $this->mapper->set_status_handling(['end_of_life' => 'draft', 'discontinued' => 'trash'], 'publish');
+    expect($this->mapper->get_status(productWithInternalStatus('END_OF_LIFE', 8, 'Discontinued')))->toBe('draft');
+});
+
+test('the legacy fallback does not fire when the description matches the code', function () {
+    // No separate legacy key exists here, so nothing extra is consulted.
+    $this->mapper->set_status_handling(['backorder' => 'draft'], 'publish');
+    expect($this->mapper->get_status(productWithInternalStatus('BACKORDER', 7, 'Backorder')))->toBe('draft');
+});
+
 test('unmapped non-draft label defaults to publish', function () {
     expect($this->mapper->get_status(productWithStatus('Foobar')))->toBe('publish');
 });
@@ -127,8 +148,7 @@ test('a label with internal double spaces matches its collapsed mapping key', fu
 
 // --- Discovery ---
 
-test('note_seen_status records new tenant statuses (structured) and skips pseudo/preset statuses', function () {
-    $this->mapper->note_seen_status(productWithInternalStatus('DISCONTINUED', 3, 'Discontinued')); // preset → not recorded
+test('note_seen_status records tenant statuses and skips products with no status', function () {
     $this->mapper->note_seen_status(productWithStatus(null, true));  // pseudo → not recorded
     $this->mapper->note_seen_status(productWithStatus(null));        // empty → not recorded
     $this->mapper->note_seen_status(productWithInternalStatus('BACKORDER', 7, 'Nabestelling')); // tenant status → recorded
@@ -137,6 +157,17 @@ test('note_seen_status records new tenant statuses (structured) and skips pseudo
     expect($seen)->toBe([
         'backorder' => ['id' => 7, 'code' => 'BACKORDER', 'label' => 'Nabestelling'],
     ]);
+});
+
+test('a renamed built-in preset is recorded so the settings table can show its live metadata', function () {
+    // A tenant may rename DRAFT/AVAILABLE/DISCONTINUED or use different numeric ids; the table
+    // would otherwise keep showing the hardcoded English label and id forever.
+    $this->mapper->note_seen_status(productWithInternalStatus('DISCONTINUED', 42, 'Uitgefaseerd'));
+
+    expect(Skwirrel_WC_Sync_Product_Mapper::get_seen_status('discontinued'))
+        ->toBe(['id' => 42, 'code' => 'DISCONTINUED', 'label' => 'Uitgefaseerd']);
+    // ...but it is still not rendered as a *discovered* row — the preset row carries it.
+    expect(Skwirrel_WC_Sync_Product_Mapper::get_seen_statuses())->toBe([]);
 });
 
 // --- Code-based keying + built-in presets ---
@@ -162,18 +193,21 @@ test('the built-in presets cover DRAFT/AVAILABLE/DISCONTINUED keyed by normalize
     expect($known['discontinued']['default'])->toBe('deprecated'); // DISCONTINUED retires gradually
 });
 
-test('record_statuses_from_products records new non-preset statuses and returns the count', function () {
+test('record_statuses_from_products records every status and returns the counts', function () {
     $products = [
-        productWithInternalStatus('AVAILABLE', 2, 'Available'),    // preset → skipped
+        productWithInternalStatus('AVAILABLE', 2, 'Available'),    // preset → recorded (live metadata)
         productWithInternalStatus('BACKORDER', 7, 'Backorder'),
         productWithInternalStatus('BACKORDER', 7, 'Backorder'),    // duplicate → counted once
-        ['product_id' => 9, 'product_trashed_on' => '2026-01-01'], // pseudo → skipped
+        ['product_id' => 9, 'product_trashed_on' => '2026-01-01'], // no status at all → skipped
     ];
     expect(Skwirrel_WC_Sync_Product_Mapper::record_statuses_from_products($products))
-        ->toBe(['added' => 1, 'refreshed' => 0]);
+        ->toBe(['added' => 2, 'refreshed' => 0]);
+    // Presets are never rendered as discovered rows, however they were recorded.
     expect(Skwirrel_WC_Sync_Product_Mapper::get_seen_statuses())->toBe([
         'backorder' => ['id' => 7, 'code' => 'BACKORDER', 'label' => 'Backorder'],
     ]);
+    expect(Skwirrel_WC_Sync_Product_Mapper::get_seen_status('available'))
+        ->toBe(['id' => 2, 'code' => 'AVAILABLE', 'label' => 'Available']);
 });
 
 // --- Metadata refresh: a tenant may rename a status while keeping its internal code ---

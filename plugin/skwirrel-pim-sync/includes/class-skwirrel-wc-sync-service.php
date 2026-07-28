@@ -1048,6 +1048,9 @@ class Skwirrel_WC_Sync_Service {
 			$ctx['trashed'] = (int) ( $ctx['trashed'] ?? 0 ) + $escalation['trashed'];
 			if ( ! $escalation['complete'] ) {
 				$ctx['categories_removed'] = $categories_removed;
+				// Counted in the stall watermark: without it, a finalize that legitimately yields
+				// for several actions looks like a step making no progress and the run is failed.
+				$ctx['finalize_passes'] = (int) ( $ctx['finalize_passes'] ?? 0 ) + 1;
 				return 'continue'; // Still on the 'finalize' step — the next action resumes here.
 			}
 		}
@@ -1137,8 +1140,15 @@ class Skwirrel_WC_Sync_Service {
 		// Even on failure, products created/updated/deprecated/trashed before the failure carry this
 		// run's marker — pass the run id plus deprecated/trashed tallies so the overview cells still
 		// deep-link (and the Trashed cell is not stuck at 0 after a partial finalize).
+		//
+		// Deprecated is a *status* tally, so counting posts is right. Deleted is not: it counts the
+		// removals this run performed, which is what a successful run reports. Recounting parents
+		// currently in the trash would answer a different question — cascaded variations would drop
+		// out, an orphan variation whose parent is still published would count as zero, and products
+		// the mapping put straight into trash would be counted here while a successful run reports
+		// them under Created/Updated. So the accumulated tally wins.
 		$deprecated = Skwirrel_WC_Sync_Run_Links::count_for_run( (string) $ctx['run_id'], Skwirrel_WC_Sync_Deprecated_Status::STATUS );
-		$trashed    = Skwirrel_WC_Sync_Run_Links::count_for_run( (string) $ctx['run_id'], 'trash' );
+		$trashed    = (int) ( $ctx['trashed'] ?? 0 );
 		Skwirrel_WC_Sync_History::update_last_result( false, $ctx['created'], $ctx['updated'], $ctx['failed'], $message, 0, 0, $trashed, 0, $ctx['trigger'], $ctx['log_file'], $ctx['unchanged'], $deprecated, (string) $ctx['run_id'] );
 		$ctx['step'] = 'failed';
 		$this->finish_run();
@@ -1260,7 +1270,12 @@ class Skwirrel_WC_Sync_Service {
 		// the exact same place as the previous one" (same step + same progress watermark) and fail the
 		// run after MAX_STALL such no-progress retries rather than looping forever. Covers every step,
 		// including init/finalize.
-		$watermark = (int) $state['fetched'] + (int) $state['processed'] + (int) $state['virtual_done'] + (int) $state['rel_done'];
+		// The watermark must move for EVERY step that can legitimately yield and be re-entered,
+		// or that step's own progress reads as a stall. `finalize` yields while the deprecated
+		// escalation works through its batches, and none of the fetch/process counters change
+		// then — so its progress (products trashed, batches advanced) is part of the signature.
+		$watermark = (int) $state['fetched'] + (int) $state['processed'] + (int) $state['virtual_done']
+			+ (int) $state['rel_done'] + (int) ( $state['trashed'] ?? 0 ) + (int) ( $state['finalize_passes'] ?? 0 );
 		$sig       = $state['step'] . ':' . $watermark;
 		if ( ( $state['last_progress_sig'] ?? '' ) === $sig ) {
 			$state['stall'] = (int) ( $state['stall'] ?? 0 ) + 1;

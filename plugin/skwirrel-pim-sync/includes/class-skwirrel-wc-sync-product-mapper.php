@@ -239,7 +239,10 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 * product carries no usable status.
 	 *
 	 * @param array<string, mixed> $product Raw API product data.
-	 * @return array{key:string, id:int|null, code:string, label:string}|null
+	 * `legacy_key` is the pre-3.12 description-derived key, set only when it differs from `key`
+	 * (i.e. the status carries a code) so a mapping saved before 3.12 keeps applying.
+	 *
+	 * @return array{key:string, legacy_key:string, id:int|null, code:string, label:string}|null
 	 */
 	public static function extract_status( array $product ): ?array {
 		$status = $product['_product_status'] ?? null;
@@ -257,11 +260,17 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		if ( '' === $key ) {
 			return null;
 		}
+		// Pre-3.12 every key came from the description, so an install upgrading with a saved
+		// mapping keyed on e.g. "discontinued" must still match a status whose code is
+		// END_OF_LIFE and whose description is "Discontinued" — otherwise that mapping is
+		// silently ignored and the product falls back to the global default (usually publish).
+		$legacy_key = self::normalize_status_label( $label );
 		return [
-			'key'   => $key,
-			'id'    => $id,
-			'code'  => $code,
-			'label' => '' !== $label ? $label : $code,
+			'key'        => $key,
+			'legacy_key' => $legacy_key !== $key ? $legacy_key : '',
+			'id'         => $id,
+			'code'       => $code,
+			'label'      => '' !== $label ? $label : $code,
 		];
 	}
 
@@ -295,6 +304,12 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		}
 		if ( isset( $this->status_map[ $status['key'] ] ) ) {
 			return $this->status_map[ $status['key'] ];
+		}
+		// Upgrade path: honour a mapping saved under the pre-3.12 description-derived key when the
+		// code-derived key has no entry yet. The code-keyed entry always wins once it exists, so an
+		// admin who configures the new row is never overridden by the old one.
+		if ( '' !== $status['legacy_key'] && isset( $this->status_map[ $status['legacy_key'] ] ) ) {
+			return $this->status_map[ $status['legacy_key'] ];
 		}
 		return self::unmapped_state( $status['key'], $status['label'], $this->status_default );
 	}
@@ -338,9 +353,14 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 */
 	public function note_seen_status( array $product ): void {
 		$status = self::extract_status( $product );
-		if ( null === $status || isset( self::KNOWN_STATUSES[ $status['key'] ] ) ) {
-			return; // No status, or a built-in preset (already always shown).
+		if ( null === $status ) {
+			return; // No usable status on this product.
 		}
+		// Built-in presets are recorded too, even though they are always shown: a tenant may have
+		// renamed DRAFT/AVAILABLE/DISCONTINUED or use different numeric ids, and the settings table
+		// would otherwise keep displaying the hardcoded English label and id forever. The preset's
+		// mapping and recommended default still come from KNOWN_STATUSES — only the badge follows
+		// what the API actually reports.
 		$key    = $status['key'];
 		$record = [
 			'id'    => $status['id'],
@@ -415,6 +435,27 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 * @return array<string, array{id:int|null, code:string, label:string}>
 	 */
 	public static function get_seen_statuses(): array {
+		return self::read_seen_statuses( true );
+	}
+
+	/**
+	 * The recorded metadata for one status key, preset or not.
+	 *
+	 * Lets the settings table render a preset row with the id/code/label the API actually
+	 * reports — a tenant may have renamed DRAFT/AVAILABLE/DISCONTINUED — while the preset still
+	 * supplies the row's mapping key and recommended default.
+	 *
+	 * @return array{id:int|null, code:string, label:string}|null
+	 */
+	public static function get_seen_status( string $key ): ?array {
+		return self::read_seen_statuses( false )[ $key ] ?? null;
+	}
+
+	/**
+	 * @param bool $hide_presets Whether to omit preset keys (they render from KNOWN_STATUSES).
+	 * @return array<string, array{id:int|null, code:string, label:string}>
+	 */
+	private static function read_seen_statuses( bool $hide_presets ): array {
 		$stored = get_option( self::SEEN_STATUSES_OPTION, [] );
 		if ( ! is_array( $stored ) ) {
 			return [];
@@ -422,8 +463,8 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		$out = [];
 		foreach ( $stored as $key => $value ) {
 			$key = (string) $key;
-			if ( '' === $key || isset( self::KNOWN_STATUSES[ $key ] ) ) {
-				continue; // Presets are rendered from KNOWN_STATUSES, not here.
+			if ( '' === $key || ( $hide_presets && isset( self::KNOWN_STATUSES[ $key ] ) ) ) {
+				continue; // Presets are rendered from KNOWN_STATUSES, not as discovered rows.
 			}
 			if ( is_array( $value ) ) {
 				$out[ $key ] = [
@@ -467,7 +508,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 				continue;
 			}
 			$status = self::extract_status( $product );
-			if ( null === $status || isset( self::KNOWN_STATUSES[ $status['key'] ] ) ) {
+			if ( null === $status ) {
 				continue;
 			}
 			$key    = $status['key'];
