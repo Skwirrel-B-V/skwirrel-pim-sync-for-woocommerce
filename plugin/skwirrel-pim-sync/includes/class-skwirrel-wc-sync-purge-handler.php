@@ -676,7 +676,12 @@ class Skwirrel_WC_Sync_Purge_Handler {
 	 * @param Skwirrel_WC_Sync_Product_Mapper $mapper           For the external-id meta key.
 	 * @param int                             $sync_started_at  Unix start time of this run; guards against a
 	 *                                                          re-run of step_finalize double-ticking counters.
-	 * @return int Number of posts moved to trash (parents + their variations).
+	 * @param string                          $run_id           Current run uuid, for the deep-link marker.
+	 * @param float|null                      $deadline         Wall-clock budget; when it passes with work left
+	 *                                                          the pass yields and reports `complete => false`.
+	 *                                                          Null runs to completion (synchronous path).
+	 * @return array{trashed:int, complete:bool} Posts moved to trash (parents + their variations), and
+	 *                                           whether the whole deprecated set was processed.
 	 */
 	public function escalate_deprecated( int $threshold, Skwirrel_WC_Sync_Product_Mapper $mapper, int $sync_started_at, string $run_id = '', ?float $deadline = null ): array {
 		$external_id_meta = $mapper->get_external_id_meta_key();

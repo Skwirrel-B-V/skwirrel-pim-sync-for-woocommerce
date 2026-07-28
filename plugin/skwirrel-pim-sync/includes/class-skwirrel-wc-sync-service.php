@@ -994,7 +994,12 @@ class Skwirrel_WC_Sync_Service {
 	/**
 	 * Step: cleanup — purge stale products/categories, advance the delta checkpoint, persist history.
 	 *
-	 * @param array<string, mixed> $ctx Run context (mutated in place).
+	 * Re-entrant: the deprecated escalation is batched against $deadline and yields when it runs
+	 * out of budget, so this step can be entered several times for one run. `finalize_stage` keeps
+	 * the one-shot work (the purge) from repeating.
+	 *
+	 * @param array<string, mixed> $ctx      Run context (mutated in place).
+	 * @param float                $deadline Wall-clock budget for this step.
 	 */
 	private function step_finalize( array &$ctx, float $deadline ): string {
 		$options = $ctx['options'];

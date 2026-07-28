@@ -904,6 +904,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client         JSON-RPC client instance.
 	 * @param array                           $options        Plugin settings array.
 	 * @param array<int>                      $collection_ids Selection IDs to filter by.
+	 * @param string                          $run_id         Current run uuid, so each shell carries this
+	 *                                                        run's deep-link marker.
 	 * @return array{created: int, updated: int, unchanged: int, map: array}
 	 */
 	public function sync_grouped_products_first( Skwirrel_WC_Sync_JsonRpc_Client $client, array $options, array $collection_ids = [], string $run_id = '' ): array {
@@ -2530,6 +2532,14 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * @param string     $planned_status The status the mapping wants to apply.
 	 * @return string The status to actually apply.
 	 */
+	private function guard_revive_from_trash( $wc_product, string $current_status, string $planned_status ): string {
+		$target = $this->guard_revive_from_trash_target( $current_status, $planned_status );
+		if ( 'trash' === $current_status && 'trash' !== $target ) {
+			$this->untrash_post( $wc_product );
+		}
+		return $target;
+	}
+
 	/**
 	 * Whether an existing product's WC status differs from the state its mapping wants.
 	 *
@@ -2557,14 +2567,6 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			return $planned_status;
 		}
 		return in_array( $planned_status, [ 'publish', 'draft' ], true ) ? $planned_status : 'trash';
-	}
-
-	private function guard_revive_from_trash( $wc_product, string $current_status, string $planned_status ): string {
-		$target = $this->guard_revive_from_trash_target( $current_status, $planned_status );
-		if ( 'trash' === $current_status && 'trash' !== $target ) {
-			$this->untrash_post( $wc_product );
-		}
-		return $target;
 	}
 
 	/**
