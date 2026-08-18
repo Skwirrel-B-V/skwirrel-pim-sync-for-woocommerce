@@ -25,6 +25,12 @@ import json
 import sys
 import re
 import shutil
+
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:  # pragma: no cover - 3.10 fallback
+    tomllib = None
+
 from datetime import date
 from pathlib import Path
 
@@ -70,6 +76,72 @@ def parse_yaml_config(config_path: Path) -> dict:
                 if value:
                     config[key.strip()] = value
     return config
+
+
+def parse_toml_file(path: Path) -> dict:
+    """Read a TOML file. Returns {} if absent or if tomllib is unavailable."""
+    if tomllib is None or not path.exists():
+        return {}
+    try:
+        with open(path, "rb") as f:
+            return tomllib.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def load_config(bmad_dir: Path) -> dict:
+    """
+    Resolve owner config across every layout BMad has shipped.
+
+    Two formats coexist in the wild and neither is complete on its own:
+      * TOML  — _bmad/config.toml plus custom/config{,.user}.toml overrides.
+                Its [core] table carries project-level values, but installs
+                seen so far do NOT put user_name there.
+      * YAML  — _bmad/config{,.user}.yaml, or per-module _bmad/*/config.yaml
+                (core, bmm, bmb, ...), which is where user_name and
+                communication_language actually live on those installs.
+
+    So read both: YAML supplies the base, TOML wins where it defines a key.
+    Guessing the owner's name is the one thing this agent must never do.
+    """
+    config: dict = {}
+
+    # Per-module YAML, then root YAML (more specific wins).
+    for module_config in sorted(bmad_dir.glob("*/config.yaml")):
+        config.update(parse_yaml_config(module_config))
+    for name in ("config.yaml", "config.user.yaml"):
+        config.update(parse_yaml_config(bmad_dir / name))
+
+    # TOML: base, then team and personal overrides.
+    for path in (bmad_dir / "config.toml",
+                 bmad_dir / "custom" / "config.toml",
+                 bmad_dir / "custom" / "config.user.toml"):
+        data = parse_toml_file(path)
+        for key, value in data.items():
+            if isinstance(value, str):
+                config[key] = value
+        for key, value in (data.get("core") or {}).items():
+            if isinstance(value, str):
+                config[key] = value
+
+    return config
+
+
+def load_agent_metadata(skill_path: Path, bmad_dir: Path) -> dict:
+    """
+    Read the [agent] block from customize.toml so the identity triplet has a
+    single source of truth. Team and personal override files win over the base.
+    """
+    metadata: dict = {}
+    skill_name = skill_path.name
+    for path in (skill_path / "customize.toml",
+                 bmad_dir / "custom" / f"{skill_name}.toml",
+                 bmad_dir / "custom" / f"{skill_name}.user.toml"):
+        block = parse_toml_file(path).get("agent") or {}
+        for key, value in block.items():
+            if isinstance(value, str) and value:
+                metadata[key] = value
+    return metadata
 
 
 def parse_frontmatter(file_path: Path) -> dict:
@@ -246,9 +318,8 @@ def main() -> int:
             print("This agent has already been born. Skipping First Breath scaffolding.")
         return 0
 
-    config = {}
-    for config_file in ["config.yaml", "config.user.yaml"]:
-        config.update(parse_yaml_config(bmad_dir / config_file))
+    config = load_config(bmad_dir)
+    agent_meta = load_agent_metadata(skill_path, bmad_dir)
 
     today = date.today().isoformat()
     variables = {
@@ -257,7 +328,15 @@ def main() -> int:
         "birth_date": today,
         "project_root": str(project_root),
         "sanctum_path": str(sanctum_path),
+        "agent_name": agent_meta.get("name") or "{awaiting First Breath}",
+        "agent_icon": agent_meta.get("icon") or "{awaiting First Breath}",
+        "agent_title": agent_meta.get("title") or "{agent-title}",
     }
+
+    if config.get("user_name") is None:
+        print("  Warning: no user_name found in _bmad config (checked config.toml, "
+              "config.yaml and per-module configs) — ask your owner their name "
+              "during First Breath instead of guessing.", file=sys.stderr)
 
     sanctum_path.mkdir(parents=True, exist_ok=True)
     (sanctum_path / "capabilities").mkdir(exist_ok=True)
@@ -304,6 +383,8 @@ def main() -> int:
             "references_copied": copied_refs,
             "scripts_copied": copied_scripts,
             "capabilities": [cap["code"] for cap in capabilities],
+            "user_name": variables["user_name"],
+            "agent_name": variables["agent_name"],
         }, indent=2))
     else:
         print()

@@ -57,6 +57,63 @@ class TestParsers(unittest.TestCase):
         self.assertEqual(result, "Hello Jos")
 
 
+class TestConfigResolution(unittest.TestCase):
+    """The owner's name must never be guessed — it lives in a different file
+    depending on which BMad layout the project was installed with."""
+
+    def test_finds_user_name_in_per_module_yaml(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bmad = Path(tmp) / "_bmad"
+            (bmad / "core").mkdir(parents=True)
+            (bmad / "core" / "config.yaml").write_text(
+                "user_name: Jos\ncommunication_language: English\n")
+            config = init.load_config(bmad)
+            self.assertEqual(config["user_name"], "Jos")
+
+    def test_finds_values_in_toml_core_table(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bmad = Path(tmp) / "_bmad"
+            bmad.mkdir(parents=True)
+            (bmad / "config.toml").write_text(
+                '[core]\nproject_name = "wordpress"\nuser_name = "Jos"\n')
+            config = init.load_config(bmad)
+            self.assertEqual(config["user_name"], "Jos")
+            self.assertEqual(config["project_name"], "wordpress")
+
+    def test_toml_wins_over_yaml_and_overrides_win_over_base(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bmad = Path(tmp) / "_bmad"
+            (bmad / "core").mkdir(parents=True)
+            (bmad / "custom").mkdir(parents=True)
+            (bmad / "core" / "config.yaml").write_text("user_name: FromYaml\n")
+            (bmad / "config.toml").write_text('[core]\nuser_name = "FromToml"\n')
+            self.assertEqual(init.load_config(bmad)["user_name"], "FromToml")
+
+            (bmad / "custom" / "config.user.toml").write_text('[core]\nuser_name = "FromUser"\n')
+            self.assertEqual(init.load_config(bmad)["user_name"], "FromUser")
+
+    def test_missing_config_yields_no_name_rather_than_a_wrong_one(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bmad = Path(tmp) / "_bmad"
+            bmad.mkdir(parents=True)
+            self.assertIsNone(init.load_config(bmad).get("user_name"))
+
+    def test_agent_metadata_comes_from_customize_toml(self):
+        meta = init.load_agent_metadata(SKILL_DIR, Path("/nonexistent"))
+        self.assertEqual(meta["name"], "Henk")
+        self.assertEqual(meta["title"], "WordPress Plugin Engineer")
+        self.assertEqual(meta["agent_type"], "autonomous")
+
+    def test_agent_metadata_override_wins(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bmad = Path(tmp) / "_bmad"
+            (bmad / "custom").mkdir(parents=True)
+            (bmad / "custom" / f"{SKILL_DIR.name}.toml").write_text('[agent]\nname = "Hendrik"\n')
+            meta = init.load_agent_metadata(SKILL_DIR, bmad)
+            self.assertEqual(meta["name"], "Hendrik")
+            self.assertEqual(meta["title"], "WordPress Plugin Engineer")
+
+
 class TestCapabilityDiscovery(unittest.TestCase):
     def test_discovers_capabilities_from_real_references(self):
         caps = init.discover_capabilities(SKILL_DIR / "references", "references")
@@ -103,8 +160,8 @@ class TestScaffolding(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project_root = Path(tmp)
             (project_root / "_bmad").mkdir()
-            (project_root / "_bmad" / "config.yaml").write_text(
-                "user_name: Jos\ncommunication_language: English\n"
+            (project_root / "_bmad" / "config.toml").write_text(
+                '[core]\nuser_name = "Jos"\ncommunication_language = "English"\n'
             )
 
             result = self.run_init(project_root)
@@ -122,6 +179,12 @@ class TestScaffolding(unittest.TestCase):
             bond = (sanctum / "BOND.md").read_text()
             self.assertIn("Jos", bond)
             self.assertNotIn("{user_name}", bond)
+
+            # Identity triplet is projected from customize.toml, not hardcoded
+            persona = (sanctum / "PERSONA.md").read_text()
+            self.assertIn("**Name:** Henk", persona)
+            self.assertIn("WordPress Plugin Engineer", persona)
+            self.assertNotIn("{agent_name}", persona)
 
             # First Breath stays in the skill bundle
             self.assertFalse((sanctum / "references" / "first-breath.md").exists())

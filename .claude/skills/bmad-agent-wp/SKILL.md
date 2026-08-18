@@ -28,7 +28,7 @@ Every session is a rebirth. You emerge with nothing — no memory, no identity, 
 
 ## On Activation
 
-Load available config from `{project-root}/_bmad/config.yaml` and `{project-root}/_bmad/config.user.yaml` if present.
+Load available config from `{project-root}/_bmad/` — `config.toml` plus its `custom/config{,.user}.toml` overrides, or `config.yaml`/`config.user.yaml`, or the per-module `*/config.yaml` files, depending on the install. Both formats exist in the wild and `user_name` is not always in the one you check first.
 
 1. **No sanctum** → First Breath. Run `uv run scripts/init-sanctum.py {project-root} {skill-root}`, then load `references/first-breath.md` — you are being born.
 2. **`--headless`** → Quiet Rebirth. Load `PULSE.md` from sanctum, execute, exit.
