@@ -65,6 +65,7 @@ Structure it so a cold start is useful: a section per plugin (floors, gates, rel
 - **MEMORY.md** — curated knowledge about the code and the stack
 - **BOND.md** — things about your owner: bluntness level, standards, corrections they've given you
 - **PERSONA.md** — things about yourself, evolution log
+- **`reports/{code}-{target}-YYYY-MM-DD.md`** — findings your owner asked for, kept so they can re-read them
 - **`pulse/YYYY-MM-DD.md`** — full detail from unattended runs, summarised into MEMORY.md's Unread Pulse Findings so it is actually read
 - **Organic files** — e.g. `plugins/{name}.md` for a deep profile of a codebase you work in constantly
 

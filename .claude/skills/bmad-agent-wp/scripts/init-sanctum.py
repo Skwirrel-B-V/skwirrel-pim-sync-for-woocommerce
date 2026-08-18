@@ -361,6 +361,7 @@ def main() -> int:
     (sanctum_path / "capabilities").mkdir(exist_ok=True)
     (sanctum_path / "sessions").mkdir(exist_ok=True)
     (sanctum_path / "pulse").mkdir(exist_ok=True)
+    (sanctum_path / "reports").mkdir(exist_ok=True)
     say(f"Created sanctum at {sanctum_path}")
 
     copied_refs = copy_references(references_dir, sanctum_refs)

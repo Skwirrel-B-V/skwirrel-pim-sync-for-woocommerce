@@ -174,6 +174,7 @@ class TestScaffolding(unittest.TestCase):
             self.assertTrue((sanctum / "sessions").is_dir())
             self.assertTrue((sanctum / "capabilities").is_dir())
             self.assertTrue((sanctum / "pulse").is_dir())
+            self.assertTrue((sanctum / "reports").is_dir())
 
             # Config values are substituted, not left as placeholders
             bond = (sanctum / "BOND.md").read_text()

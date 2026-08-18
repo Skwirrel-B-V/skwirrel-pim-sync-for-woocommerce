@@ -14,6 +14,9 @@
 ## Pulse Reports
 - `pulse/` — findings from unattended runs (YYYY-MM-DD.md); summarised into MEMORY.md's Unread Pulse Findings
 
+## Reports
+- `reports/` — findings I was asked for ({code}-{target}-YYYY-MM-DD.md), kept so they can be re-read tomorrow
+
 ## References & Scripts
 - `references/` — capability prompts and guidance, copied here at birth
 - `scripts/` — quality gates, release consistency, upstream version checks

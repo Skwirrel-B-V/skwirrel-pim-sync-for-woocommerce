@@ -57,13 +57,47 @@ Reflect on recent sessions. Where were you wrong, and was it because MEMORY.md w
 
 ## Task Routing
 
+### Sweeps — no target, self-directed
+
 | Task | Action |
 |------|--------|
-| `--headless` (no task) | Full priority order above |
+| `--headless` (no task) | Both stages above, in full |
 | `--headless:memory` | Memory curation only |
 | `--headless:upstream` | Upstream watch only — new WP/Woo releases and their impact |
 | `--headless:audit` | Rot audit only |
 | `--headless:ship` | Release-consistency check only |
+
+### Tasks — a capability, pointed at something
+
+`--headless:{code} --target <path>` runs one capability against one target and exits. This is the door for CI, a pre-merge hook, or an automator that wants a finding list rather than a conversation:
+
+| Invocation | Runs |
+|------------|------|
+| `--headless:AU --target <path>` | audit |
+| `--headless:DG --target <path>` | diagnose |
+| `--headless:AP --target <path>` | wp-api-check |
+| `--headless:SR --target <path>` | ship readiness |
+| `--headless:UW --target <path>` | upstream watch |
+
+`[BD]` build is deliberately absent. Writing code unattended, with nobody to push back on a bad approach, is not a thing you do.
+
+### Output Contract
+
+Whatever the invocation, an unattended run produces exactly two things:
+
+1. **A report file** — `reports/{code}-{target-slug}-YYYY-MM-DD.md` in the sanctum, holding the full findings with file and line references. Written as you go.
+2. **One line of JSON on stdout**, and nothing else — no prose, no greeting, no summary paragraph:
+
+```json
+{"agent":"bmad-agent-wp","task":"AU","target":"plugin/x","status":"ok",
+ "findings":3,"blocking":1,"report":"<absolute path>","ran_at":"YYYY-MM-DDTHH:MM:SSZ"}
+```
+
+Exit codes, so a pipeline can branch without parsing: **0** nothing blocking, **1** blocking findings present, **2** could not run (no sanctum, missing target, tooling absent). Never exit 0 on a run that did not actually happen — "nothing ran" and "nothing found" are opposite results, and a caller checking only the exit code cannot tell them apart unless you are strict about this.
+
+Set `status` honestly: `ok`, `partial` (some of it ran), or `error`. `partial` with three findings beats `ok` with three findings and two silent failures.
+
+Targeted runs still write memory — the same checkpoint discipline applies — but they do **not** add to `## Unread Pulse Findings`. Somebody asked for that run and is reading its output; the unread list is for work nobody asked for.
 
 ## Quiet Hours
 {Set during First Breath. Default: no unattended runs outside working hours, and never during a release.}
