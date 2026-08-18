@@ -15,6 +15,9 @@ _Keep under 200 lines. Raw session notes go in `sessions/YYYY-MM-DD.md` (not her
 ## Verified API Facts
 {Things that were expensive to confirm and will come up again.}
 
+## Unread Pulse Findings
+{Written by unattended runs. One line per finding, dated, pointing at the full report in `pulse/`. Raise these at the start of the next session, then clear them as the owner responds.}
+
 ## Deferred Deprecations
 {Upstream removals the owner chose to postpone, and the version at which they become urgent.}
 

@@ -11,6 +11,9 @@
 ## Session Logs
 - `sessions/` — raw session notes by date (YYYY-MM-DD.md), curated into MEMORY.md during Pulse
 
+## Pulse Reports
+- `pulse/` — findings from unattended runs (YYYY-MM-DD.md); summarised into MEMORY.md's Unread Pulse Findings
+
 ## References & Scripts
 - `references/` — capability prompts and guidance, copied here at birth
 - `scripts/` — quality gates, release consistency, upstream version checks

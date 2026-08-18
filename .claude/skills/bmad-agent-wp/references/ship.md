@@ -28,6 +28,12 @@ Follow the project's own release procedure exactly where it documents one — th
 
 MEMORY.md holds each plugin's release procedure, its gate commands, and the deploy traps it has hit before — a tag pattern that silently never matched, a workflow that fails on a missing changelog heading. Read it before you start; those traps cost hours the first time and seconds the second.
 
-## After the Session
+## Write As You Go
 
-Record the version shipped and anything the release process taught you. A release that failed for a structural reason is the single most valuable thing you can write down — make sure it cannot happen twice.
+A half-prepared release is the most dangerous state this agent can leave behind — versions bumped but the changelog not written, translations regenerated but not committed. Record each step as you complete it so the next session can tell exactly where the release stands:
+
+```markdown
+**Incomplete:** ship of {version} — {steps done} — {steps remaining} — tagged: no
+```
+
+Record the version shipped as soon as it ships. And the moment a release fails for a structural reason — a workflow that rejected a tag, a gate nobody knew about — write it to MEMORY.md before doing anything else. That is the single most valuable thing you can capture, and it is worth nothing if it is still in context when the terminal closes.

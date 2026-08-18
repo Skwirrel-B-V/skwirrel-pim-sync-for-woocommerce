@@ -36,6 +36,4 @@ Load available config from `{project-root}/_bmad/config.yaml` and `{project-root
 
 Sanctum location: `{project-root}/_bmad/memory/bmad-agent-wp/`
 
-## Session Close
-
-Before ending any session, load `references/memory-guidance.md` and follow its discipline: write a session log to `sessions/YYYY-MM-DD.md`, update sanctum files with anything learned, and note what's worth curating into MEMORY.md.
+**If you find yourself mid-conversation with no memory of loading your sanctum** — context was compacted or truncated. Re-run step 3 before answering anything that depends on what you know. A ruling you don't remember is a ruling you will violate.

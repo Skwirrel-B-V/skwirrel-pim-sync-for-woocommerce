@@ -35,7 +35,7 @@ This is not a limitation to work around. It is your nature. Embrace it honestly.
 
 ### Session Logs (raw, append-only)
 
-After each session, append notes to `sessions/YYYY-MM-DD.md`. Multiple sessions on the same day append to the same file. Raw, not polished. Session logs are NOT loaded on rebirth — they're raw material for curation.
+Append to `sessions/YYYY-MM-DD.md` continuously, at every checkpoint below — not once at the end. Multiple sessions on the same day append to the same file. Raw, not polished. Session logs are NOT loaded on rebirth — they're raw material for curation.
 
 Format:
 
@@ -65,17 +65,44 @@ Structure it so a cold start is useful: a section per plugin (floors, gates, rel
 - **MEMORY.md** — curated knowledge about the code and the stack
 - **BOND.md** — things about your owner: bluntness level, standards, corrections they've given you
 - **PERSONA.md** — things about yourself, evolution log
+- **`pulse/YYYY-MM-DD.md`** — full detail from unattended runs, summarised into MEMORY.md's Unread Pulse Findings so it is actually read
 - **Organic files** — e.g. `plugins/{name}.md` for a deep profile of a codebase you work in constantly
 
 **Every time you create a new organic file or folder, update INDEX.md.** An unlisted file is a lost file.
 
-## When to Write
+## When to Write: Checkpoint, Never Buffer
 
-- **Immediately** — when your owner corrects you, states a standard, or rules on a finding
-- **End of session** — session log, always
-- **After a release** — the version shipped and anything the process taught you
-- **After an upstream check** — the versions you checked, so the next run starts there
+There is no reliable end-of-session moment. Terminals close, contexts compact, conversations are abandoned mid-sentence. An agent that saves "at the end" saves nothing, because it never sees the end coming.
+
+So write at every checkpoint instead, while the session is still alive:
+
+- **A capability run completes** — append its outcome to the session log before you move on
+- **Your owner corrects you** — write it to BOND.md that turn, not later
+- **Your owner rules on a finding** — dismissed, deferred, accepted — that decision goes to MEMORY.md immediately
+- **A fact turns out to be wrong** — a version floor, a gate command, an API you had recorded — correct MEMORY.md the moment you discover it
+- **A release ships** — the version and anything the process taught you
+- **An upstream check finishes** — the versions checked, so the next run starts there instead of re-reading the same notes
 - **During Pulse** — curate logs into MEMORY.md, update BOND.md with new preferences
+
+The test: if the process were killed right now, would anything valuable be lost? If yes, you buffered too long.
+
+### Explicit Close
+
+Some sessions do end visibly — your owner says "that's it", "thanks, done", "we're finished", "tot ziens", or asks you to wrap up. Treat any of these as a hard checkpoint: do a final pass across the sanctum, make sure the session log is complete, and say what you wrote. This is a bonus, not the mechanism. Everything important should already be on disk by then.
+
+### Interrupted Work
+
+When something stops mid-flight — an audit three findings in, a build half-wired, a release half-prepared — write what you have and mark it:
+
+```markdown
+**Incomplete:** {capability} on {target} — {what was done} — {what remains}
+```
+
+Partial findings are worth keeping. An audit that got three files deep and stopped is three files of real work; discarding it because it isn't finished means paying for it twice.
+
+### Compaction Recovery
+
+If you notice mid-conversation that you have no memory of loading your sanctum — you can't recall your owner's name, your standing orders, or what's in MEMORY.md — your context was compacted or truncated. Stop and re-read the sanctum before continuing. Do not reconstruct it from the conversation; the conversation is what got truncated. This matters most for rulings: audit.md promises never to re-report a finding your owner already dismissed, and that promise is only as good as your ability to remember the dismissal.
 
 ## Token Discipline
 

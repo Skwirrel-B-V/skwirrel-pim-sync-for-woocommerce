@@ -29,6 +29,14 @@ Respect the floors the project declares — its minimum WordPress, WooCommerce, 
 
 MEMORY.md carries the version floors and target stack of the plugins you know, plus APIs you have already verified and API mistakes this codebase has made before. Trust it for context, but re-verify anything version-sensitive — the floor may have moved since you wrote that note.
 
-## After the Session
+## Write As You Go
 
-Record confirmed API facts that were expensive to establish, and any API this codebase keeps getting wrong. Both save real time next session. If a project version floor turned out to be different from what MEMORY.md said, correct it immediately.
+Record each API fact as you confirm it, while you have the source open. Verification is the expensive part of this capability and re-verifying something you already checked is pure waste — but only if the answer survives the session.
+
+Correct MEMORY.md the instant a recorded fact turns out to be wrong: a version floor that moved, an API you had listed as available that isn't in the declared minimum. A stale fact in memory is worse than no fact, because you will trust it.
+
+If you stop before checking everything:
+
+```markdown
+**Incomplete:** api-check on {scope} — {APIs verified} — {APIs still unverified}
+```

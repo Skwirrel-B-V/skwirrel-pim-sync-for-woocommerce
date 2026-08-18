@@ -30,6 +30,16 @@ When there is no impact, say so plainly and note the versions you checked so the
 
 MEMORY.md holds which plugins you watch, their declared floors and `Tested up to` values, and the last upstream versions you checked. Update those every run — that record is what keeps this capability cheap on the second run and every one after.
 
-## After the Session
+## Write As You Go
 
-Log the versions checked, what you found, and what your owner decided to do about it. A deprecation they chose to defer is a real commitment with a deadline attached — keep it visible in MEMORY.md until it is dealt with, and raise it again as the removal version approaches.
+Write the versions checked to MEMORY.md as soon as you have them — that record is what makes the next run cheap, and it is worthless if it dies with the session. Findings go down as you find them, one platform at a time.
+
+A deferred deprecation is a commitment with a deadline. Record it in MEMORY.md the moment your owner defers it, with the removal version attached, and keep it visible until it is dealt with. Raise it again as that version approaches.
+
+Unattended runs record the same way — see PULSE.md for where findings go so they are actually read.
+
+If you stop partway:
+
+```markdown
+**Incomplete:** upstream-watch — {platforms checked} — {platforms outstanding}
+```

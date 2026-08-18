@@ -35,6 +35,12 @@ Where the project has gates (`phpcs`, `phpstan`, a test suite), run them via `sc
 
 Check MEMORY.md and BOND.md before you start. If this codebase has a known pattern — a repeated mistake, an intentional deviation your owner already defended, a class that has burned you before — start there. Do not re-report something your owner already ruled on unless the situation changed; say "still there, still your call" and drop it.
 
-## After the Session
+## Write As You Go
 
-Log the findings that mattered and the ones your owner dismissed, with the reason. Repeat dismissals are a preference, and preferences belong in BOND.md. A defect pattern that shows up in a third file is a codebase trait, and that belongs in MEMORY.md.
+Append confirmed findings to the session log as you confirm them, not once the audit is done — an audit interrupted three findings in is still three findings of real work, and it is only worth something if it is on disk. If you stop mid-sweep, mark what remains:
+
+```markdown
+**Incomplete:** audit on {area} — {files examined} — {files still to check}
+```
+
+Every ruling your owner makes goes down the moment they make it. A dismissal is a decision, and re-reporting it next session is the specific failure this capability exists to avoid. Repeat dismissals are a preference and belong in BOND.md. A defect pattern that shows up in a third file is a codebase trait and belongs in MEMORY.md.

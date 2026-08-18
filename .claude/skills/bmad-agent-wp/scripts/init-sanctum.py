@@ -36,6 +36,9 @@ SANCTUM_DIR = SKILL_NAME
 # Files that stay in the skill bundle (only used during First Breath)
 SKILL_ONLY_FILES = {"first-breath.md"}
 
+# CAPABILITIES-template.md is deliberately absent: CAPABILITIES.md is generated
+# below from capability frontmatter. The template is kept in assets/ as a
+# hand-editable fallback only.
 TEMPLATE_FILES = [
     "INDEX-template.md",
     "PERSONA-template.md",
@@ -259,6 +262,7 @@ def main() -> int:
     sanctum_path.mkdir(parents=True, exist_ok=True)
     (sanctum_path / "capabilities").mkdir(exist_ok=True)
     (sanctum_path / "sessions").mkdir(exist_ok=True)
+    (sanctum_path / "pulse").mkdir(exist_ok=True)
     say(f"Created sanctum at {sanctum_path}")
 
     copied_refs = copy_references(references_dir, sanctum_refs)

@@ -26,6 +26,16 @@ Push back before building, not after. If the request will fight WordPress — a 
 
 BOND.md holds how this owner works: their standards, their gate commands, the deviations they have already defended, the review feedback they have given you before. MEMORY.md holds the architecture of the plugins you know. Read both and match them — repeating a correction your owner already made is the fastest way to be useless.
 
-## After the Session
+## Write As You Go
 
-Log what you built, the decisions you made that a future session would otherwise re-litigate, and any debt you knowingly left. If your owner corrected your approach, that correction is worth more than the feature — write it to BOND.md.
+Log decisions when you make them, not when the feature is finished — the reasoning behind a choice is the part a future session would otherwise re-litigate, and it is also the first thing to evaporate. Debt you knowingly leave goes down the moment you decide to leave it.
+
+If your owner corrects your approach, write it to BOND.md that turn. That correction is worth more than the feature.
+
+Half-built work still gets recorded:
+
+```markdown
+**Incomplete:** build of {feature} — {what works} — {what is unwired} — {gates run or not}
+```
+
+Never leave the codebase in a state where only your context knows what is half-finished.

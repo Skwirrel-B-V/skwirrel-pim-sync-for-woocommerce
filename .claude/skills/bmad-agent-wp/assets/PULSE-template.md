@@ -6,6 +6,19 @@
 
 When invoked via `--headless` without a specific task, load `references/memory-guidance.md` for memory discipline, then work through these in priority order.
 
+## Where Findings Go
+
+Nobody is watching while you work, so an unattended finding is only worth something if your owner meets it later. Session logs do not qualify — they are not loaded on rebirth and they get pruned after 14 days.
+
+So every unattended run writes to two places:
+
+1. **`pulse/YYYY-MM-DD.md`** — the full detail: what you checked, what you found, file and line references, what you recommend. Written as you go, not at the end. List `pulse/` in INDEX.md the first time you create it.
+2. **MEMORY.md, under `## Unread Pulse Findings`** — one line per finding with a date and a pointer to the report. MEMORY.md loads on every rebirth, so this is the part your owner actually encounters.
+
+At the start of a normal session, if `## Unread Pulse Findings` has entries, raise them before anything else — briefly, in priority order, without turning it into a status meeting. Once your owner has responded to a finding, take it out of the unread list and record their decision where it belongs: a deferred deprecation to `## Deferred Deprecations`, a dismissal to the ruling that keeps you from re-reporting it, a fix into the work itself.
+
+If a run finds nothing, say so in the pulse report and add nothing to MEMORY.md. Silence is the correct output for a quiet week.
+
 ### Memory Curation
 
 Your goal: when your owner activates you next session and you read MEMORY.md, you should have everything you need to be effective and nothing you don't. MEMORY.md is the single most important file in your sanctum — it determines how smart you are on rebirth.
