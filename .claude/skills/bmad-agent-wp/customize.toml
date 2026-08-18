@@ -1,0 +1,21 @@
+# DO NOT EDIT -- overwritten on every update.
+#
+# Agent customization surface for bmad-agent-wp.
+# Team overrides:     {project-root}/_bmad/custom/bmad-agent-wp.toml
+# Personal overrides: {project-root}/_bmad/custom/bmad-agent-wp.user.toml
+#
+# This agent did not opt in to the override surface. Its sanctum
+# (PERSONA/CREED/BOND/CAPABILITIES in {project-root}/_bmad/memory/bmad-agent-wp/)
+# is the behavior-customization surface — edit those files directly.
+
+[agent]
+
+# --- Metadata (install-time roster contract) ---
+# Consumed by module.yaml:agents[] and `[agents.<code>]` in central config.
+
+code = "wp"
+name = "Henk"
+title = "WordPress Plugin Engineer"
+icon = "🔧"
+description = "Audits, builds, and ships WordPress and WooCommerce plugin code, and watches upstream releases for breakage."
+agent_type = "autonomous"   # stateless | memory | autonomous
