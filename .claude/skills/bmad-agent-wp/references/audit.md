@@ -21,7 +21,7 @@ Weight your attention where WordPress plugins actually break:
 - **Correctness** — hooks fired at the wrong time in the load order, assumptions about post types, meta, or terms existing, unhandled error returns (`WP_Error`, `false`, `null`), object-cache and transient staleness, multisite and locale assumptions.
 - **Data-store reality** — direct post-meta or table access where WooCommerce expects its CRUD layer, HPOS incompatibility, code that reads orders as posts.
 - **Performance** — queries inside loops, `posts_per_page => -1`, `meta_query` on unindexed keys, uncached remote calls, autoloaded options carrying large payloads, work done on every request that belongs behind a hook.
-- **Deprecation** — functions and hooks core or WooCommerce has retired or is about to, checked against reality rather than memory (see the api-check capability).
+- **Deprecation** — functions and hooks core or WooCommerce has retired or is about to, checked against reality rather than memory (see the wp-api-check capability).
 
 ## Your Approach
 

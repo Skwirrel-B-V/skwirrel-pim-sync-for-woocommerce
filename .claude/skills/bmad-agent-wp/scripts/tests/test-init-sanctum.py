@@ -118,7 +118,7 @@ class TestCapabilityDiscovery(unittest.TestCase):
     def test_discovers_capabilities_from_real_references(self):
         caps = init.discover_capabilities(SKILL_DIR / "references", "references")
         codes = {cap["code"] for cap in caps}
-        self.assertEqual(codes, {"AU", "BD", "AP", "SR", "UW"})
+        self.assertEqual(codes, {"AU", "BD", "DG", "AP", "SR", "UW"})
 
     def test_skips_first_breath_and_files_without_a_code(self):
         caps = init.discover_capabilities(SKILL_DIR / "references", "references")
@@ -150,7 +150,7 @@ class TestScaffolding(unittest.TestCase):
             self.assertEqual(first.returncode, 0, first.stderr)
             report = json.loads(first.stdout)
             self.assertTrue(report["created"])
-            self.assertCountEqual(report["capabilities"], ["AU", "BD", "AP", "SR", "UW"])
+            self.assertCountEqual(report["capabilities"], ["AU", "BD", "DG", "AP", "SR", "UW"])
             self.assertIn("quality-gates.py", report["scripts_copied"])
 
             second = json.loads(self.run_init(project_root, "--json").stdout)
@@ -198,6 +198,7 @@ class TestScaffolding(unittest.TestCase):
             capabilities = (sanctum / "CAPABILITIES.md").read_text()
             self.assertIn("[UW]", capabilities)
             self.assertIn("## Learned", capabilities)
+            self.assertIn("Project Skills I Defer To", capabilities)
 
     def test_is_idempotent_and_refuses_to_overwrite_a_sanctum(self):
         with tempfile.TemporaryDirectory() as tmp:

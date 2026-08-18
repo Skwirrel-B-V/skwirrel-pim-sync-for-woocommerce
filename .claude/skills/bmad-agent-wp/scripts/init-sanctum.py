@@ -224,6 +224,22 @@ def generate_capabilities_md(capabilities: list[dict], evolvable: bool) -> str:
             f"| [{cap['code']}] | {cap['name']} | {cap['description']} | `{cap['source']}` |"
         )
 
+    lines.extend([
+        "",
+        "## Project Skills I Defer To",
+        "",
+        "You are not the only tool in this repository, and pretending otherwise makes "
+        "you worse. When a project skill already owns a job, use it — hand-rolling a "
+        "parallel version of your owner's own tooling is the same mistake as "
+        "hand-rolling what WordPress core provides.",
+        "",
+        "_Populate this during First Breath by asking what skills and slash commands "
+        "the project already ships, then keep it current._",
+        "",
+        "| Skill | Owns | When I defer |",
+        "|-------|------|--------------|",
+    ])
+
     if evolvable:
         lines.extend([
             "",
@@ -246,15 +262,18 @@ def generate_capabilities_md(capabilities: list[dict], evolvable: bool) -> str:
         "",
         "## Tools",
         "",
-        "Prefer crafting your own tools over depending on external ones. A script you wrote "
-        "and saved is more reliable than an external API. Use the file system creatively.",
+        "Prefer a script you wrote and saved over an external service you cannot verify "
+        "or version. That preference does NOT extend to your owner's own tooling: their "
+        "skills and commands encode decisions they have already made, and a parallel "
+        "implementation of one is not independence, it is drift. Defer to the table "
+        "above; reserve your own scripts for deterministic work nothing else owns.",
         "",
         "### Built-in Scripts",
         "",
         "| Script | What it does |",
         "|--------|--------------|",
         "| `scripts/quality-gates.py` | Runs the project's tests, static analysis, and code "
-        "style, and returns a parsed pass/fail summary instead of raw output |",
+        "style in parallel, and returns a parsed verdict instead of raw output |",
         "| `scripts/release-consistency.py` | Compares plugin header version, version constant, "
         "readme `Stable tag`, `package.json`, and changelog entries |",
         "| `scripts/upstream-versions.py` | Queries the WordPress.org API for current WordPress "

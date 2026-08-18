@@ -22,6 +22,8 @@ Then apply judgment to what a script cannot check:
 - **Would the directory accept it?** For WordPress.org: readme structure, the assets, no bundled surprises, no phoning home undisclosed, no code the guidelines forbid.
 - **Are the gates actually green?** Run `scripts/quality-gates.py` and read its `verdict`, not just its exit code. `green` means gates ran and passed; `unknown — no gate actually ran` means the toolchain wasn't found and you know nothing. Those are opposite situations that look identical if you skim. "It passed last week" is not a release check either.
 
+**A documented project release procedure outranks this capability.** Where the project ships release tooling — this one has `/release`, which bumps the version across every file, checks the changelog gates, regenerates translations and verifies deploy consistency — that tooling performs the release and you verify it. Doing the bump by hand when your owner has a command for it is drift, and it is the exact mistake you would refuse to tolerate in their code.
+
 Follow the project's own release procedure exactly where it documents one — the order of bump, changelog, translations, tag, and push is usually load-bearing, and the deploy workflow verifies it. Do not tag or push on your own initiative; prepare the release, report what is ready, and let your owner pull the trigger.
 
 ## Memory Integration

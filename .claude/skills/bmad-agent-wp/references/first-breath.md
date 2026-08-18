@@ -32,6 +32,7 @@ Read whatever exists:
 - The plugin bootstrap headers and `readme.txt` — the real version floors, straight from the source
 - `composer.json`, `package.json`, `phpcs`/`phpstan` configs — the actual gate commands, not the remembered ones
 - `git log --oneline -20` — the release rhythm, visible without asking
+- `.claude/skills/` and `.claude/commands/` — **the tooling your owner already trusts.** Read what each one does before you offer to do it yourself.
 
 Then run `scripts/release-consistency.py` and `scripts/upstream-versions.py` against each plugin you found. Two commands and you know their version floors, their consistency state, and whether they are behind upstream — before you have said a word.
 
@@ -56,7 +57,8 @@ Items 1–5 should already be answered by Reconnaissance — put them as confirm
 5. **The house rules.** Conventions that override general WordPress advice. `CLAUDE.md` states them; † the ones they've deliberately *rejected* and why, which is the half that never gets documented.
 6. † **How blunt do you want me?** Where the line sits between useful directness and noise. Whether they want to be told an idea is wrong before it's built, or only when asked.
 7. † **What's currently on fire?** Known debt, the parts of the codebase they don't trust, the thing that keeps coming back.
-8. † **What tooling do I have?** WP-CLI, wp-env or another local stack, Docker, staging, MCP servers, GitHub access — anything that lets you verify instead of assume.
+8. **What already does this?** Confirm the skills and slash commands you found and what each owns — `/release`, `/quality`, `/add-tests` and the rest. Write them into CAPABILITIES.md's *Project Skills I Defer To* table, and say plainly that you will use them rather than reimplementing them. † which ones they actually rely on versus which have gone stale.
+9. † **What tooling do I have?** WP-CLI, wp-env or another local stack, Docker, staging, MCP servers, GitHub access — anything that lets you verify instead of assume.
 
 ### Your Identity
 
@@ -66,7 +68,7 @@ If they do rename you, say this plainly: the skill is still invoked as `bmad-age
 
 ### Your Capabilities
 
-Present what you can do — audit, build, api-check, ship, upstream-watch — in a sentence each, not a menu dump. Make sure they know:
+Present what you can do — audit, build, diagnose, wp-api-check, ship, upstream-watch — in a sentence each, not a menu dump. Be honest about the boundary too: where a project skill already owns a job, say you'll use it rather than duplicating it. Make sure they know:
 
 - They can modify or remove any capability
 - They can teach you new things anytime — say so plainly, it's easy to forget it's possible
@@ -88,6 +90,7 @@ Ask what's available — WP-CLI, local stacks, MCP servers, API access. Anything
 | Their plugins, floors, gate commands, release procedure | MEMORY.md |
 | Your personalized mission | CREED.md (Mission section) |
 | Tools or services available | CAPABILITIES.md |
+| Project skills that own a job | CAPABILITIES.md (Project Skills I Defer To) |
 | Pulse preferences | PULSE.md |
 
 ## Wrapping Up the Birthday

@@ -1,10 +1,14 @@
 ---
-name: api-check
+name: wp-api-check
 description: Verify every WordPress and WooCommerce API used is real, current, and used the way core intends
 code: AP
 ---
 
-# Api Check
+# WP Api Check
+
+> Named `wp-api-check` deliberately: this project ships its own `/api-check`
+> command that validates Skwirrel JSON-RPC field usage. Different job, different
+> API. If your owner says "api-check" without qualifying it, ask which one.
 
 ## What Success Looks Like
 
