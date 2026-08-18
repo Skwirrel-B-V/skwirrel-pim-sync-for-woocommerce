@@ -86,3 +86,49 @@ tests_add_filter(
 
 // Start up the WP testing environment.
 require $_tests_dir . '/includes/bootstrap.php';
+
+/**
+ * Is this JSON-RPC call the sync run's membership sweep?
+ *
+ * The sweep (Story 2.6) asks `getProductsByFilter` for the complete product-id membership of a
+ * selection: `filter: { dynamic_selection_id }` with `options: []` — no `updated_on`, no payload
+ * includes. That is a different question from the paginated content fetch, which carries the
+ * include flags, so a stub must answer it separately; otherwise the run sees an empty selection,
+ * treats the sweep as incomplete, and the stub's page counter is off by one call.
+ *
+ * @param array<string, mixed> $params JSON-RPC params of the call.
+ */
+function skwIsSweepCall( array $params ): bool {
+	return isset( $params['filter']['dynamic_selection_id'] )
+		&& empty( $params['options'] )
+		&& ! isset( $params['filter']['code'] );
+}
+
+/**
+ * Delete every Skwirrel-managed post left in the database.
+ *
+ * `WP_UnitTestCase` wraps each test in a transaction, but WooCommerce product saves write to side
+ * tables and caches that do not all roll back, so products seeded by one test file stay visible to
+ * the next. That is harmless for a test that looks up its own fixtures by id, and fatal for any
+ * test that reasons about the SIZE of the Skwirrel catalogue — the sweep diff and its mass-removal
+ * ratio are computed over every live Skwirrel-owned product in the shop.
+ *
+ * The key list is deliberately wider than the older per-file cleanups: a product seeded with ONLY
+ * `_skwirrel_product_id` (no external id, no sync stamp) is invisible to those, but is very much
+ * counted by the sweep diff.
+ */
+function skwPurgeSkwirrelPosts(): void {
+	global $wpdb;
+	$post_ids = $wpdb->get_col(
+		"SELECT DISTINCT post_id FROM {$wpdb->postmeta}
+		WHERE meta_key IN (
+			'_skwirrel_product_id',
+			'_skwirrel_external_id',
+			'_skwirrel_grouped_product_id',
+			'_skwirrel_synced_at'
+		)"
+	);
+	foreach ( $post_ids as $pid ) {
+		wp_delete_post( (int) $pid, true );
+	}
+}

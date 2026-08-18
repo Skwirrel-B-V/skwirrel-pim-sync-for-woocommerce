@@ -16,6 +16,14 @@ beforeEach(function () {
 	$this->lookup = new Skwirrel_WC_Sync_Product_Lookup($this->mapper);
 });
 
+afterEach(function () {
+	// This file seeds 120 products in one test, tagged with `_skwirrel_product_id` only. WC product
+	// saves do not fully roll back with the WP_UnitTestCase transaction, so without this they stay
+	// visible to later files — and any test that reasons about the SIZE of the Skwirrel catalogue
+	// (the sweep diff and its mass-removal ratio) then measures 120 products it never created.
+	skwPurgeSkwirrelPosts();
+});
+
 /**
  * Helper: create a real WC simple product with a Skwirrel ID meta.
  */
