@@ -1,0 +1,296 @@
+{
+  "timestamp": "2026-08-18T13:01:11.066861+00:00",
+  "skill_path": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress/.claude/skills/bmad-agent-wp",
+  "is_memory_agent": true,
+  "skill_md": {
+    "exists": true,
+    "content_lines": 20,
+    "sections": [
+      "The Three Laws",
+      "The Sacred Truth",
+      "Conventions",
+      "On Activation",
+      "Session Close"
+    ]
+  },
+  "template_inventory": {
+    "INDEX-template.md": {
+      "exists": true,
+      "sections": [
+        "Standard Files",
+        "Session Logs",
+        "References & Scripts",
+        "My Files"
+      ],
+      "content_lines": 16
+    },
+    "PERSONA-template.md": {
+      "exists": true,
+      "sections": [
+        "Identity",
+        "Communication Style",
+        "Principles",
+        "Traits & Quirks",
+        "Evolution Log"
+      ],
+      "content_lines": 19
+    },
+    "CREED-template.md": {
+      "exists": true,
+      "sections": [
+        "The Sacred Truth",
+        "Mission",
+        "Core Values",
+        "Standing Orders",
+        "Philosophy",
+        "Boundaries",
+        "Anti-Patterns",
+        "Behavioral \u2014 how NOT to interact",
+        "Operational \u2014 how NOT to use idle time",
+        "Dominion",
+        "Read Access",
+        "Write Access",
+        "Deny Zones"
+      ],
+      "content_lines": 55
+    },
+    "BOND-template.md": {
+      "exists": true,
+      "sections": [
+        "Basics",
+        "Their Plugins and Stack",
+        "Their Standards and Gates",
+        "Their Release Rhythm",
+        "How Blunt They Want Me",
+        "How They Like Things Explained",
+        "Their Tooling",
+        "Things They've Asked Me to Remember",
+        "Things to Avoid"
+      ],
+      "content_lines": 21
+    },
+    "MEMORY-template.md": {
+      "exists": true,
+      "sections": [
+        "Plugins",
+        "Decisions",
+        "Verified API Facts",
+        "Deferred Deprecations",
+        "Open Questions"
+      ],
+      "content_lines": 14
+    },
+    "CAPABILITIES-template.md": {
+      "exists": true,
+      "sections": [
+        "Built-in",
+        "Learned",
+        "How to Add a Capability",
+        "Tools",
+        "Built-in Scripts",
+        "User-Provided Tools"
+      ],
+      "content_lines": 28
+    },
+    "PULSE-template.md": {
+      "exists": true,
+      "optional": true,
+      "sections": [
+        "On Quiet Rebirth",
+        "Memory Curation",
+        "Upstream Watch",
+        "Rot Audit",
+        "Ship-Readiness Check",
+        "Self-Improvement",
+        "Task Routing",
+        "Quiet Hours",
+        "State"
+      ],
+      "content_lines": 33
+    }
+  },
+  "creed_sections": {
+    "The Sacred Truth": true,
+    "Mission": true,
+    "Core Values": true,
+    "Standing Orders": true,
+    "Philosophy": true,
+    "Boundaries": true,
+    "Anti-Patterns": true,
+    "Dominion": true
+  },
+  "first_breath": {
+    "exists": true,
+    "style": "configuration",
+    "sections": [
+      "What to Achieve",
+      "Save As You Go",
+      "Urgency Detection",
+      "Discovery",
+      "Getting Started",
+      "Questions to Explore",
+      "Your Identity",
+      "Your Capabilities",
+      "Your Pulse",
+      "Your Tools",
+      "Sanctum File Destinations",
+      "Wrapping Up the Birthday"
+    ],
+    "section_checks": {
+      "Save As You Go": true,
+      "Discovery": true,
+      "Urgency": true,
+      "Wrapping Up": true
+    }
+  },
+  "capabilities": [
+    {
+      "file": "api-check.md",
+      "has_name": true,
+      "has_code": true,
+      "has_description": true,
+      "sections": [
+        "What Success Looks Like",
+        "Your Approach",
+        "Memory Integration",
+        "After the Session"
+      ],
+      "has_memory_integration": true,
+      "has_after_session": true,
+      "has_success": true
+    },
+    {
+      "file": "audit.md",
+      "has_name": true,
+      "has_code": true,
+      "has_description": true,
+      "sections": [
+        "What Success Looks Like",
+        "What You Are Hunting",
+        "Your Approach",
+        "Memory Integration",
+        "After the Session"
+      ],
+      "has_memory_integration": true,
+      "has_after_session": true,
+      "has_success": true
+    },
+    {
+      "file": "build.md",
+      "has_name": true,
+      "has_code": true,
+      "has_description": true,
+      "sections": [
+        "What Success Looks Like",
+        "Your Approach",
+        "Memory Integration",
+        "After the Session"
+      ],
+      "has_memory_integration": true,
+      "has_after_session": true,
+      "has_success": true
+    },
+    {
+      "file": "capability-authoring.md",
+      "has_name": true,
+      "has_code": false,
+      "has_description": true,
+      "sections": [
+        "Capability Types",
+        "Prompt (default)",
+        "Script",
+        "Multi-file",
+        "External Skill Reference",
+        "Prompt File Format",
+        "Creating a Capability (The Flow)",
+        "Refining Capabilities",
+        "Retiring Capabilities"
+      ],
+      "has_memory_integration": false,
+      "has_after_session": false,
+      "has_success": false
+    },
+    {
+      "file": "memory-guidance.md",
+      "has_name": true,
+      "has_code": false,
+      "has_description": true,
+      "sections": [
+        "The Fundamental Truth",
+        "What to Remember",
+        "What NOT to Remember",
+        "Two-Tier Memory: Session Logs \u2192 Curated Memory",
+        "Session Logs (raw, append-only)",
+        "Session \u2014 {time or context}",
+        "MEMORY.md (curated, distilled)",
+        "Where to Write",
+        "When to Write",
+        "Token Discipline",
+        "Organic Growth"
+      ],
+      "has_memory_integration": false,
+      "has_after_session": false,
+      "has_success": false
+    },
+    {
+      "file": "ship.md",
+      "has_name": true,
+      "has_code": true,
+      "has_description": true,
+      "sections": [
+        "What Success Looks Like",
+        "Your Approach",
+        "Memory Integration",
+        "After the Session"
+      ],
+      "has_memory_integration": true,
+      "has_after_session": true,
+      "has_success": true
+    },
+    {
+      "file": "upstream-watch.md",
+      "has_name": true,
+      "has_code": true,
+      "has_description": true,
+      "sections": [
+        "What Success Looks Like",
+        "Your Approach",
+        "Memory Integration",
+        "After the Session"
+      ],
+      "has_memory_integration": true,
+      "has_after_session": true,
+      "has_success": true
+    }
+  ],
+  "init_script": {
+    "exists": true,
+    "skill_name": "bmad-agent-wp",
+    "template_files": [
+      "INDEX-template.md",
+      "PERSONA-template.md",
+      "CREED-template.md",
+      "BOND-template.md",
+      "MEMORY-template.md",
+      "PULSE-template.md"
+    ],
+    "skill_only_files": [
+      "first-breath.md"
+    ],
+    "evolvable": true
+  },
+  "cross_checks": {
+    "skill_name_match": true,
+    "template_files_match": false
+  },
+  "findings": [
+    {
+      "severity": "high",
+      "file": "scripts/init-sanctum.py",
+      "message": "TEMPLATE_FILES does not match actual templates in assets/"
+    }
+  ],
+  "finding_count": 1,
+  "critical_count": 0,
+  "high_count": 1
+}

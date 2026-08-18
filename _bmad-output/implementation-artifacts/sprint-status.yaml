@@ -39,7 +39,7 @@
 #   Epic 1 is foundational; Epic 2 builds on it; Epics 3 & 4 parallelize after Epic 1 seeds the pause flag.
 
 generated: 2026-06-12
-last_updated: 2026-07-22
+last_updated: 2026-08-18
 project: Skwirrel PIM sync for WooCommerce
 project_key: NOKEY
 tracking_system: file-system
@@ -81,6 +81,7 @@ development_status:
   2-3-result-deep-links: backlog
   2-4-plain-language-result-and-history: backlog
   2-5-start-over-clean-all-reset: backlog
+  2-6-scheduled-membership-sweep: ready-for-dev   # added 2026-08-18 from the 919/850 sync investigation
   epic-2-retrospective: optional
 
   # ── Epic 3: Self-diagnosis & safe updates ──

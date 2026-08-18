@@ -6,5 +6,8 @@
     "analysis"
   ],
   "engagedStepId": null,
-  "dismissed": true
+  "dismissed": true,
+  "onboardingCompletedAt": null,
+  "firstSprintOpenedAt": 1786716675239,
+  "terminalDrawerOpen": false
 }

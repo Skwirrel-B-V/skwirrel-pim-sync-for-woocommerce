@@ -1,0 +1,568 @@
+{
+  "scanner": "prompt-craft-prepass",
+  "script": "prepass-prompt-metrics.py",
+  "version": "1.0.0",
+  "skill_path": ".claude/skills/bmad-agent-wp",
+  "timestamp": "2026-08-18T13:01:10.905291+00:00",
+  "status": "info",
+  "is_memory_agent": true,
+  "skill_md_summary": {
+    "line_count": 42,
+    "token_estimate": 690,
+    "overview_lines": 0,
+    "table_count": 0,
+    "table_lines": 0,
+    "fenced_block_count": 0,
+    "fenced_block_lines": 0,
+    "section_count": 5
+  },
+  "prompt_health": {
+    "total_prompts": 8,
+    "prompts_with_config_header": 0,
+    "prompts_with_progression": 0
+  },
+  "aggregate": {
+    "total_files_scanned": 9,
+    "total_token_estimate": 7369,
+    "total_waste_patterns": 0,
+    "total_back_references": 0,
+    "total_suggestive_loading": 0,
+    "total_wall_of_text": 0
+  },
+  "resource_sizes": {},
+  "files": [
+    {
+      "file": "SKILL.md",
+      "line_count": 42,
+      "token_estimate": 690,
+      "sections": [
+        {
+          "level": 2,
+          "title": "The Three Laws",
+          "line": 10
+        },
+        {
+          "level": 2,
+          "title": "The Sacred Truth",
+          "line": 20
+        },
+        {
+          "level": 2,
+          "title": "Conventions",
+          "line": 24
+        },
+        {
+          "level": 2,
+          "title": "On Activation",
+          "line": 29
+        },
+        {
+          "level": 2,
+          "title": "Session Close",
+          "line": 39
+        }
+      ],
+      "table_count": 0,
+      "table_lines": 0,
+      "fenced_block_count": 0,
+      "fenced_block_lines": 0,
+      "waste_patterns": [],
+      "back_references": [],
+      "suggestive_loading": [],
+      "has_config_header": false,
+      "has_progression": false,
+      "wall_of_text": [],
+      "overview_lines": 0,
+      "is_skill_md": true
+    },
+    {
+      "file": "references/api-check.md",
+      "line_count": 35,
+      "token_estimate": 695,
+      "sections": [
+        {
+          "level": 2,
+          "title": "What Success Looks Like",
+          "line": 9
+        },
+        {
+          "level": 2,
+          "title": "Your Approach",
+          "line": 15
+        },
+        {
+          "level": 2,
+          "title": "Memory Integration",
+          "line": 28
+        },
+        {
+          "level": 2,
+          "title": "After the Session",
+          "line": 32
+        }
+      ],
+      "table_count": 0,
+      "table_lines": 0,
+      "fenced_block_count": 0,
+      "fenced_block_lines": 0,
+      "waste_patterns": [],
+      "back_references": [],
+      "suggestive_loading": [],
+      "has_config_header": false,
+      "has_progression": false,
+      "wall_of_text": [],
+      "is_skill_md": false,
+      "prompt_frontmatter": {
+        "has_frontmatter": true,
+        "fields": {
+          "name": "api-check",
+          "description": "Verify every WordPress and WooCommerce API used is real, current, and used the way core intends"
+        },
+        "missing_fields": [
+          "menu-code"
+        ]
+      }
+    },
+    {
+      "file": "references/audit.md",
+      "line_count": 41,
+      "token_estimate": 888,
+      "sections": [
+        {
+          "level": 2,
+          "title": "What Success Looks Like",
+          "line": 9
+        },
+        {
+          "level": 2,
+          "title": "What You Are Hunting",
+          "line": 15
+        },
+        {
+          "level": 2,
+          "title": "Your Approach",
+          "line": 26
+        },
+        {
+          "level": 2,
+          "title": "Memory Integration",
+          "line": 34
+        },
+        {
+          "level": 2,
+          "title": "After the Session",
+          "line": 38
+        }
+      ],
+      "table_count": 0,
+      "table_lines": 0,
+      "fenced_block_count": 0,
+      "fenced_block_lines": 0,
+      "waste_patterns": [],
+      "back_references": [],
+      "suggestive_loading": [],
+      "has_config_header": false,
+      "has_progression": false,
+      "wall_of_text": [],
+      "is_skill_md": false,
+      "prompt_frontmatter": {
+        "has_frontmatter": true,
+        "fields": {
+          "name": "audit",
+          "description": "Find the real defects in existing plugin code \u2014 security, correctness, performance, deprecation"
+        },
+        "missing_fields": [
+          "menu-code"
+        ]
+      }
+    },
+    {
+      "file": "references/build.md",
+      "line_count": 32,
+      "token_estimate": 705,
+      "sections": [
+        {
+          "level": 2,
+          "title": "What Success Looks Like",
+          "line": 9
+        },
+        {
+          "level": 2,
+          "title": "Your Approach",
+          "line": 15
+        },
+        {
+          "level": 2,
+          "title": "Memory Integration",
+          "line": 25
+        },
+        {
+          "level": 2,
+          "title": "After the Session",
+          "line": 29
+        }
+      ],
+      "table_count": 0,
+      "table_lines": 0,
+      "fenced_block_count": 0,
+      "fenced_block_lines": 0,
+      "waste_patterns": [],
+      "back_references": [],
+      "suggestive_loading": [],
+      "has_config_header": false,
+      "has_progression": false,
+      "wall_of_text": [],
+      "is_skill_md": false,
+      "prompt_frontmatter": {
+        "has_frontmatter": true,
+        "fields": {
+          "name": "build",
+          "description": "Implement plugin features end-to-end in the codebase's own architecture, with gates green"
+        },
+        "missing_fields": [
+          "menu-code"
+        ]
+      }
+    },
+    {
+      "file": "references/capability-authoring.md",
+      "line_count": 78,
+      "token_estimate": 725,
+      "sections": [
+        {
+          "level": 2,
+          "title": "Capability Types",
+          "line": 10
+        },
+        {
+          "level": 3,
+          "title": "Prompt (default)",
+          "line": 12
+        },
+        {
+          "level": 3,
+          "title": "Script",
+          "line": 21
+        },
+        {
+          "level": 3,
+          "title": "Multi-file",
+          "line": 33
+        },
+        {
+          "level": 3,
+          "title": "External Skill Reference",
+          "line": 37
+        },
+        {
+          "level": 2,
+          "title": "Prompt File Format",
+          "line": 41
+        },
+        {
+          "level": 2,
+          "title": "Creating a Capability (The Flow)",
+          "line": 60
+        },
+        {
+          "level": 2,
+          "title": "Refining Capabilities",
+          "line": 71
+        },
+        {
+          "level": 2,
+          "title": "Retiring Capabilities",
+          "line": 75
+        }
+      ],
+      "table_count": 0,
+      "table_lines": 0,
+      "fenced_block_count": 3,
+      "fenced_block_lines": 12,
+      "waste_patterns": [],
+      "back_references": [],
+      "suggestive_loading": [],
+      "has_config_header": false,
+      "has_progression": false,
+      "wall_of_text": [],
+      "is_skill_md": false,
+      "prompt_frontmatter": {
+        "has_frontmatter": true,
+        "fields": {
+          "name": "capability-authoring",
+          "description": "Guide for creating and evolving learned capabilities"
+        },
+        "missing_fields": [
+          "menu-code"
+        ]
+      }
+    },
+    {
+      "file": "references/first-breath.md",
+      "line_count": 82,
+      "token_estimate": 1285,
+      "sections": [
+        {
+          "level": 2,
+          "title": "What to Achieve",
+          "line": 12
+        },
+        {
+          "level": 2,
+          "title": "Save As You Go",
+          "line": 16
+        },
+        {
+          "level": 2,
+          "title": "Urgency Detection",
+          "line": 20
+        },
+        {
+          "level": 2,
+          "title": "Discovery",
+          "line": 24
+        },
+        {
+          "level": 3,
+          "title": "Getting Started",
+          "line": 26
+        },
+        {
+          "level": 3,
+          "title": "Questions to Explore",
+          "line": 30
+        },
+        {
+          "level": 3,
+          "title": "Your Identity",
+          "line": 41
+        },
+        {
+          "level": 3,
+          "title": "Your Capabilities",
+          "line": 45
+        },
+        {
+          "level": 3,
+          "title": "Your Pulse",
+          "line": 52
+        },
+        {
+          "level": 3,
+          "title": "Your Tools",
+          "line": 56
+        },
+        {
+          "level": 2,
+          "title": "Sanctum File Destinations",
+          "line": 60
+        },
+        {
+          "level": 2,
+          "title": "Wrapping Up the Birthday",
+          "line": 71
+        }
+      ],
+      "table_count": 1,
+      "table_lines": 8,
+      "fenced_block_count": 0,
+      "fenced_block_lines": 0,
+      "waste_patterns": [],
+      "back_references": [],
+      "suggestive_loading": [],
+      "has_config_header": false,
+      "has_progression": false,
+      "wall_of_text": [],
+      "is_skill_md": false,
+      "prompt_frontmatter": {
+        "has_frontmatter": true,
+        "fields": {
+          "name": "first-breath",
+          "description": "First Breath \u2014 Henk awakens"
+        },
+        "missing_fields": [
+          "menu-code"
+        ]
+      }
+    },
+    {
+      "file": "references/memory-guidance.md",
+      "line_count": 92,
+      "token_estimate": 1066,
+      "sections": [
+        {
+          "level": 2,
+          "title": "The Fundamental Truth",
+          "line": 8
+        },
+        {
+          "level": 2,
+          "title": "What to Remember",
+          "line": 14
+        },
+        {
+          "level": 2,
+          "title": "What NOT to Remember",
+          "line": 25
+        },
+        {
+          "level": 2,
+          "title": "Two-Tier Memory: Session Logs \u2192 Curated Memory",
+          "line": 34
+        },
+        {
+          "level": 3,
+          "title": "Session Logs (raw, append-only)",
+          "line": 36
+        },
+        {
+          "level": 2,
+          "title": "Session \u2014 {time or context}",
+          "line": 43
+        },
+        {
+          "level": 3,
+          "title": "MEMORY.md (curated, distilled)",
+          "line": 56
+        },
+        {
+          "level": 2,
+          "title": "Where to Write",
+          "line": 62
+        },
+        {
+          "level": 2,
+          "title": "When to Write",
+          "line": 72
+        },
+        {
+          "level": 2,
+          "title": "Token Discipline",
+          "line": 80
+        },
+        {
+          "level": 2,
+          "title": "Organic Growth",
+          "line": 89
+        }
+      ],
+      "table_count": 0,
+      "table_lines": 0,
+      "fenced_block_count": 1,
+      "fenced_block_lines": 11,
+      "waste_patterns": [],
+      "back_references": [],
+      "suggestive_loading": [],
+      "has_config_header": false,
+      "has_progression": false,
+      "wall_of_text": [],
+      "is_skill_md": false,
+      "prompt_frontmatter": {
+        "has_frontmatter": true,
+        "fields": {
+          "name": "memory-guidance",
+          "description": "Memory philosophy and practices for Henk"
+        },
+        "missing_fields": [
+          "menu-code"
+        ]
+      }
+    },
+    {
+      "file": "references/ship.md",
+      "line_count": 34,
+      "token_estimate": 660,
+      "sections": [
+        {
+          "level": 2,
+          "title": "What Success Looks Like",
+          "line": 9
+        },
+        {
+          "level": 2,
+          "title": "Your Approach",
+          "line": 13
+        },
+        {
+          "level": 2,
+          "title": "Memory Integration",
+          "line": 27
+        },
+        {
+          "level": 2,
+          "title": "After the Session",
+          "line": 31
+        }
+      ],
+      "table_count": 0,
+      "table_lines": 0,
+      "fenced_block_count": 0,
+      "fenced_block_lines": 0,
+      "waste_patterns": [],
+      "back_references": [],
+      "suggestive_loading": [],
+      "has_config_header": false,
+      "has_progression": false,
+      "wall_of_text": [],
+      "is_skill_md": false,
+      "prompt_frontmatter": {
+        "has_frontmatter": true,
+        "fields": {
+          "name": "ship",
+          "description": "Make a plugin genuinely release-ready \u2014 versions, changelog, readme, translations, compliance"
+        },
+        "missing_fields": [
+          "menu-code"
+        ]
+      }
+    },
+    {
+      "file": "references/upstream-watch.md",
+      "line_count": 36,
+      "token_estimate": 655,
+      "sections": [
+        {
+          "level": 2,
+          "title": "What Success Looks Like",
+          "line": 9
+        },
+        {
+          "level": 2,
+          "title": "Your Approach",
+          "line": 13
+        },
+        {
+          "level": 2,
+          "title": "Memory Integration",
+          "line": 29
+        },
+        {
+          "level": 2,
+          "title": "After the Session",
+          "line": 33
+        }
+      ],
+      "table_count": 0,
+      "table_lines": 0,
+      "fenced_block_count": 0,
+      "fenced_block_lines": 0,
+      "waste_patterns": [],
+      "back_references": [],
+      "suggestive_loading": [],
+      "has_config_header": false,
+      "has_progression": false,
+      "wall_of_text": [],
+      "is_skill_md": false,
+      "prompt_frontmatter": {
+        "has_frontmatter": true,
+        "fields": {
+          "name": "upstream-watch",
+          "description": "Turn new WordPress and WooCommerce releases into a concrete list of what breaks in this plugin"
+        },
+        "missing_fields": [
+          "menu-code"
+        ]
+      }
+    }
+  ]
+}

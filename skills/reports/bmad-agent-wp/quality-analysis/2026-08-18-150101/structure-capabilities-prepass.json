@@ -1,0 +1,210 @@
+{
+  "scanner": "structure-capabilities-prepass",
+  "script": "prepass-structure-capabilities.py",
+  "version": "1.0.0",
+  "skill_path": ".claude/skills/bmad-agent-wp",
+  "timestamp": "2026-08-18T13:01:10.815235+00:00",
+  "status": "warning",
+  "metadata": {
+    "frontmatter": {
+      "name": "bmad-agent-wp",
+      "description": "World-class WordPress and WooCommerce plugin engineer who audits, builds, and ships plugin code, and watches upstream releases for breakage. Use when the user asks to talk to Henk, requests the WordPress plugin engineer, or wants plugin code audited, built, API-checked, or made release-ready."
+    },
+    "sections": [
+      {
+        "level": 2,
+        "title": "The Three Laws",
+        "line": 10
+      },
+      {
+        "level": 2,
+        "title": "The Sacred Truth",
+        "line": 20
+      },
+      {
+        "level": 2,
+        "title": "Conventions",
+        "line": 24
+      },
+      {
+        "level": 2,
+        "title": "On Activation",
+        "line": 29
+      },
+      {
+        "level": 2,
+        "title": "Session Close",
+        "line": 39
+      }
+    ],
+    "is_memory_agent": true
+  },
+  "prompt_details": [
+    {
+      "file": "api-check.md",
+      "has_config_header": false,
+      "has_progression": false
+    },
+    {
+      "file": "audit.md",
+      "has_config_header": false,
+      "has_progression": false
+    },
+    {
+      "file": "build.md",
+      "has_config_header": false,
+      "has_progression": false
+    },
+    {
+      "file": "capability-authoring.md",
+      "has_config_header": false,
+      "has_progression": false
+    },
+    {
+      "file": "first-breath.md",
+      "has_config_header": false,
+      "has_progression": false
+    },
+    {
+      "file": "memory-guidance.md",
+      "has_config_header": false,
+      "has_progression": false
+    },
+    {
+      "file": "ship.md",
+      "has_config_header": false,
+      "has_progression": false
+    },
+    {
+      "file": "upstream-watch.md",
+      "has_config_header": false,
+      "has_progression": false
+    }
+  ],
+  "memory_paths": [
+    "memory/bmad-agent-wp/"
+  ],
+  "issues": [
+    {
+      "file": "api-check.md",
+      "line": 1,
+      "severity": "medium",
+      "category": "config-header",
+      "issue": "No config header with language variables found"
+    },
+    {
+      "file": "api-check.md",
+      "line": 35,
+      "severity": "high",
+      "category": "progression",
+      "issue": "No progression condition keywords found"
+    },
+    {
+      "file": "audit.md",
+      "line": 1,
+      "severity": "medium",
+      "category": "config-header",
+      "issue": "No config header with language variables found"
+    },
+    {
+      "file": "audit.md",
+      "line": 41,
+      "severity": "high",
+      "category": "progression",
+      "issue": "No progression condition keywords found"
+    },
+    {
+      "file": "build.md",
+      "line": 1,
+      "severity": "medium",
+      "category": "config-header",
+      "issue": "No config header with language variables found"
+    },
+    {
+      "file": "build.md",
+      "line": 32,
+      "severity": "high",
+      "category": "progression",
+      "issue": "No progression condition keywords found"
+    },
+    {
+      "file": "capability-authoring.md",
+      "line": 1,
+      "severity": "medium",
+      "category": "config-header",
+      "issue": "No config header with language variables found"
+    },
+    {
+      "file": "capability-authoring.md",
+      "line": 78,
+      "severity": "high",
+      "category": "progression",
+      "issue": "No progression condition keywords found"
+    },
+    {
+      "file": "first-breath.md",
+      "line": 1,
+      "severity": "medium",
+      "category": "config-header",
+      "issue": "No config header with language variables found"
+    },
+    {
+      "file": "first-breath.md",
+      "line": 82,
+      "severity": "high",
+      "category": "progression",
+      "issue": "No progression condition keywords found"
+    },
+    {
+      "file": "memory-guidance.md",
+      "line": 1,
+      "severity": "medium",
+      "category": "config-header",
+      "issue": "No config header with language variables found"
+    },
+    {
+      "file": "memory-guidance.md",
+      "line": 92,
+      "severity": "high",
+      "category": "progression",
+      "issue": "No progression condition keywords found"
+    },
+    {
+      "file": "ship.md",
+      "line": 1,
+      "severity": "medium",
+      "category": "config-header",
+      "issue": "No config header with language variables found"
+    },
+    {
+      "file": "ship.md",
+      "line": 34,
+      "severity": "high",
+      "category": "progression",
+      "issue": "No progression condition keywords found"
+    },
+    {
+      "file": "upstream-watch.md",
+      "line": 1,
+      "severity": "medium",
+      "category": "config-header",
+      "issue": "No config header with language variables found"
+    },
+    {
+      "file": "upstream-watch.md",
+      "line": 36,
+      "severity": "high",
+      "category": "progression",
+      "issue": "No progression condition keywords found"
+    }
+  ],
+  "summary": {
+    "total_issues": 16,
+    "by_severity": {
+      "critical": 0,
+      "high": 8,
+      "medium": 8,
+      "low": 0
+    }
+  }
+}

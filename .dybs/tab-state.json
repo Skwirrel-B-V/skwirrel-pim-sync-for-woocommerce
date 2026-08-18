@@ -1,12 +1,27 @@
 {
   "tabs": [
     {
+      "slashCommand": "/bmad-agent-builder",
+      "claudeSessionId": null,
+      "label": "Agent Builder",
+      "emoji": "👤",
+      "icon": "user-circle",
+      "oscTitle": "New session",
+      "storySlug": null,
+      "storyPhase": null,
+      "storyScope": null,
+      "epicNumber": null,
+      "storyNumber": null,
+      "alias": null,
+      "clean": false
+    },
+    {
       "slashCommand": null,
       "claudeSessionId": null,
-      "label": "Investigate GitHub issue 40",
+      "label": "Automated sync product status disco…",
       "emoji": "▷",
       "icon": "terminal-window",
-      "oscTitle": "Investigate GitHub issue 40",
+      "oscTitle": "Automated sync product status disco…",
       "storySlug": null,
       "storyPhase": null,
       "storyScope": null,
@@ -16,21 +31,21 @@
       "clean": true
     },
     {
-      "slashCommand": null,
+      "slashCommand": "/bmad-dev-story 2.6",
       "claudeSessionId": null,
-      "label": "Claude Code",
-      "emoji": "▷",
-      "icon": "terminal-window",
-      "oscTitle": "Claude Code",
-      "storySlug": null,
-      "storyPhase": null,
+      "label": "Create Story 2.6",
+      "emoji": "▶",
+      "icon": "code",
+      "oscTitle": null,
+      "storySlug": "2-6-scheduled-membership-sweep",
+      "storyPhase": "ready-for-dev",
       "storyScope": null,
-      "epicNumber": null,
-      "storyNumber": null,
+      "epicNumber": 2,
+      "storyNumber": "6",
       "alias": null,
-      "clean": true
+      "clean": false
     }
   ],
-  "activeIndex": 1,
-  "savedAt": "2026-07-28T09:59:26.171Z"
+  "activeIndex": 2,
+  "savedAt": "2026-08-18T13:17:57.814Z"
 }
