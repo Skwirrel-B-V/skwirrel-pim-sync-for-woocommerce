@@ -9,6 +9,8 @@ Run: python3 scripts/tests/test-upstream-versions.py
 
 import importlib.util
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -86,6 +88,32 @@ class TestUpstreamVersions(unittest.TestCase):
             self.assertEqual(declared["tested_up_to"], "6.9")
             self.assertEqual(declared["wc_tested_up_to"], "10.6")
             self.assertEqual(declared["source"], "example.php")
+
+class TestMultiPlugin(unittest.TestCase):
+    """Several plugins should share one pair of upstream lookups, not N."""
+
+    def test_offline_run_reports_every_plugin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in ("alpha", "beta"):
+                d = root / name
+                d.mkdir()
+                (d / f"{name}.php").write_text(
+                    BOOTSTRAP.replace("Example Plugin", name.title()))
+
+            result = subprocess.run(
+                [sys.executable, str(SCRIPTS_DIR / "upstream-versions.py"),
+                 str(root / "alpha"), str(root / "beta"), "--offline"],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            report = json.loads(result.stdout)
+            self.assertEqual(len(report["plugins"]), 2)
+            self.assertIn("offline", " ".join(report["notes"]))
+            # Backwards-compatible single-plugin keys still present
+            self.assertIn("declared", report)
+            self.assertIn("gaps", report)
+
 
 if __name__ == "__main__":
     unittest.main()

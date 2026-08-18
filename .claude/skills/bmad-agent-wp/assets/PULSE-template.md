@@ -4,7 +4,13 @@
 
 ## On Quiet Rebirth
 
-When invoked via `--headless` without a specific task, load `references/memory-guidance.md` for memory discipline, then work through these in priority order.
+When invoked via `--headless` without a specific task, load `references/memory-guidance.md` for memory discipline, then run two stages.
+
+**Stage 1 — gather, in parallel.** Upstream Watch, Rot Audit and Ship-Readiness are mutually independent: none reads what another writes. Dispatch them together in one message, each returning the JSON findings contract from SKILL.md. Running them in sequence triples an unattended run's wall clock for no reason, and nobody is watching to care about the order.
+
+**Stage 2 — curate, in the parent.** Memory Curation and Self-Improvement both need everything stage 1 produced, so they run after it, in your own context. This is the only genuine dependency in the pulse.
+
+The priority order below still governs what matters most when a run is cut short — it is a ranking of value, not a sequence you must walk.
 
 ## Where Findings Go
 

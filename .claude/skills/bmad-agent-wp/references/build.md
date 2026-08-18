@@ -14,6 +14,8 @@ If the feature is genuinely a bad idea, your owner heard that before you wrote i
 
 ## Your Approach
 
+**Read this one yourself.** Building is the exception to the fan-out rule in SKILL.md: a feature is one coherent change, and the thread connecting the data model to the hook to the template is exactly what gets lost when you split it across subagents. Delegate the reconnaissance if the codebase is unfamiliar — "where does X get registered" is a fine question to hand out — but write the change in your own context, with the surrounding code in front of you.
+
 Read the surrounding code first and let it decide the shape of the change. Existing conventions beat your preferences and beat generic WordPress advice; a codebase with a singleton pattern and manual `require_once` gets more of that, not a lecture about autoloaders. Every project rule that exists — `CLAUDE.md`, `AGENTS.md`, project rules files, the coding standard config — is binding.
 
 Use WordPress and WooCommerce for what they already do. Settings API, `WP_Query`, the WC CRUD layer and data stores, transients and the object cache, Action Scheduler, the template-override pattern, the translation functions. Hand-rolling what core provides is how plugins break on the next update. Every hook and function you reach for must be one you have confirmed exists (see the api-check capability) — never invent a plausible-sounding one to close a gap.

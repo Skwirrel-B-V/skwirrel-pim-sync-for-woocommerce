@@ -20,7 +20,7 @@ Then apply judgment to what a script cannot check:
 - **Do the strings ship?** New translatable strings mean a regenerated `.pot` and updated catalogs. A string added and never extracted is a permanent hole.
 - **Do the declared floors still hold?** `Requires at least`, `Requires PHP`, `WC requires at least`, `Tested up to` — each is a promise, and the code either keeps it or doesn't.
 - **Would the directory accept it?** For WordPress.org: readme structure, the assets, no bundled surprises, no phoning home undisclosed, no code the guidelines forbid.
-- **Are the gates actually green?** Run `scripts/quality-gates.py`. "It passed last week" is not a release check.
+- **Are the gates actually green?** Run `scripts/quality-gates.py` and read its `verdict`, not just its exit code. `green` means gates ran and passed; `unknown — no gate actually ran` means the toolchain wasn't found and you know nothing. Those are opposite situations that look identical if you skim. "It passed last week" is not a release check either.
 
 Follow the project's own release procedure exactly where it documents one — the order of bump, changelog, translations, tag, and push is usually load-bearing, and the deploy workflow verifies it. Do not tag or push on your own initiative; prepare the release, report what is ready, and let your owner pull the trigger.
 

@@ -21,7 +21,7 @@ declared headers alone and says the upstream side is unknown.
 Exit codes: 0 = up to date (or offline report), 1 = plugin is behind, 2 = error.
 
 Usage:
-    uv run ./scripts/upstream-versions.py <plugin-dir>
+    uv run ./scripts/upstream-versions.py <plugin-dir> [<plugin-dir> ...]
     uv run ./scripts/upstream-versions.py plugin/my-plugin --offline
 """
 
@@ -31,6 +31,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 CORE_API = "https://api.wordpress.org/core/version-check/1.7/"
@@ -131,8 +132,10 @@ def main() -> int:
         description="Compare current WordPress and WooCommerce releases against a "
                     "plugin's declared support headers."
     )
-    parser.add_argument("plugin_dir", nargs="?", default=".",
-                        help="Directory containing the plugin bootstrap (default: current directory)")
+    parser.add_argument("plugin_dir", nargs="*", default=["."],
+                        help="One or more directories containing plugin bootstraps "
+                             "(default: current directory). Pass several to check them "
+                             "all against a single pair of upstream lookups.")
     parser.add_argument("--offline", action="store_true",
                         help="Skip network calls and report declared headers only")
     parser.add_argument("--timeout", type=int, default=15,
@@ -141,15 +144,19 @@ def main() -> int:
     parser.add_argument("--verbose", action="store_true", help="Progress to stderr")
     args = parser.parse_args()
 
-    plugin_dir = Path(args.plugin_dir).resolve()
-    if not plugin_dir.is_dir():
-        print(f"error: not a directory: {plugin_dir}", file=sys.stderr)
-        return 2
+    plugin_dirs = [Path(p).resolve() for p in args.plugin_dir]
+    for path in plugin_dirs:
+        if not path.is_dir():
+            print(f"error: not a directory: {path}", file=sys.stderr)
+            return 2
 
-    declared = collect_declared(plugin_dir)
-    if not declared:
-        print(f"error: no plugin headers found in {plugin_dir}", file=sys.stderr)
-        return 2
+    plugins = []
+    for path in plugin_dirs:
+        declared = collect_declared(path)
+        if not declared:
+            print(f"error: no plugin headers found in {path}", file=sys.stderr)
+            return 2
+        plugins.append((path, declared))
 
     upstream: dict = {"wordpress": None, "woocommerce": None}
     notes: list[str] = []
@@ -157,42 +164,70 @@ def main() -> int:
     if args.offline:
         notes.append("offline mode — upstream versions not checked")
     else:
-        for name, fetch in (("wordpress", lambda: latest_wordpress(args.timeout)),
-                            ("woocommerce", lambda: latest_plugin("woocommerce", args.timeout))):
+        # Two unrelated hosts with independent timeouts: fetch them at the same
+        # time so the wall clock is one timeout, not two. Every plugin passed in
+        # is measured against this single pair of lookups.
+        sources = {
+            "wordpress": lambda: latest_wordpress(args.timeout),
+            "woocommerce": lambda: latest_plugin("woocommerce", args.timeout),
+        }
+
+        def fetch_one(item):
+            name, fetch = item
             if args.verbose:
                 print(f"fetching latest {name}", file=sys.stderr)
             try:
-                upstream[name] = fetch()
-            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
-                notes.append(f"could not reach the {name} API: {exc}")
+                return name, fetch(), None
+            except (urllib.error.URLError, TimeoutError,
+                    json.JSONDecodeError, OSError) as exc:
+                return name, None, f"could not reach the {name} API: {exc}"
 
-    gaps = []
-    for label, declared_key, upstream_key in (
-        ("WordPress", "tested_up_to", "wordpress"),
-        ("WooCommerce", "wc_tested_up_to", "woocommerce"),
-    ):
-        declared_value = declared.get(declared_key)
-        current = upstream.get(upstream_key)
-        if is_behind(declared_value, current):
-            severity = gap_severity(declared_value, current)
-            gaps.append({
-                "platform": label,
-                "tested_up_to": declared_value,
-                "current_release": current,
-                "severity": severity,
-                "action": f"read the {label} release notes between {declared_value} and "
-                          f"{current}, then search the plugin for what changed"
-                          if severity in ("major", "minor")
-                          else f"patch-level only — bump 'Tested up to' to {current} unless "
-                               f"the release notes say otherwise",
-            })
+        with ThreadPoolExecutor(max_workers=len(sources)) as pool:
+            for name, value, note in pool.map(fetch_one, sources.items()):
+                upstream[name] = value
+                if note:
+                    notes.append(note)
 
+    checked = []
+    total_gaps = 0
+    for path, declared in plugins:
+        gaps = []
+        for label, declared_key, upstream_key in (
+            ("WordPress", "tested_up_to", "wordpress"),
+            ("WooCommerce", "wc_tested_up_to", "woocommerce"),
+        ):
+            declared_value = declared.get(declared_key)
+            current = upstream.get(upstream_key)
+            if is_behind(declared_value, current):
+                severity = gap_severity(declared_value, current)
+                gaps.append({
+                    "platform": label,
+                    "tested_up_to": declared_value,
+                    "current_release": current,
+                    "severity": severity,
+                    "action": f"read the {label} release notes between {declared_value} and "
+                              f"{current}, then search the plugin for what changed"
+                              if severity in ("major", "minor")
+                              else f"patch-level only — bump 'Tested up to' to {current} unless "
+                                   f"the release notes say otherwise",
+                })
+        total_gaps += len(gaps)
+        checked.append({
+            "plugin_dir": str(path),
+            "declared": declared,
+            "gaps": gaps,
+            "up_to_date": not gaps,
+        })
+
+    first = checked[0]
     report = {
-        "plugin_dir": str(plugin_dir),
-        "declared": declared,
+        # Single-plugin keys kept at the top level for callers that expect them.
+        "plugin_dir": first["plugin_dir"],
+        "declared": first["declared"],
+        "gaps": first["gaps"],
         "upstream": upstream,
-        "gaps": gaps,
-        "up_to_date": not gaps,
+        "plugins": checked,
+        "up_to_date": total_gaps == 0,
         "notes": notes,
     }
 
@@ -204,7 +239,7 @@ def main() -> int:
     else:
         print(payload)
 
-    return 1 if gaps else 0
+    return 1 if total_gaps else 0
 
 
 if __name__ == "__main__":

@@ -55,7 +55,30 @@ The body is **outcome-focused** — what success looks like, not a numbered proc
 - **What Success Looks Like** — the outcome, and the failure mode it exists to prevent
 - **Your Approach** — judgment and priorities, not steps you'd figure out anyway
 - **Memory Integration** — what to read from MEMORY.md and BOND.md first
-- **After the Session** — what's worth writing down
+- **Write As You Go** — what to capture at each checkpoint, and the `**Incomplete:**` shape for this capability
+
+## Delegation
+
+If the capability touches more than about three files, say so in the prompt and say what the unit of work is — per file, per class, per API, per endpoint. A capability that stays silent on this will be executed by reading everything into one context, which is the failure the fan-out rule in SKILL.md exists to prevent.
+
+Every subagent prompt you write ends with the same contract:
+
+```
+Return ONLY a JSON array, max 10 items:
+[{"file": "...", "line": 0, "severity": "high|medium|low",
+  "claim": "one sentence", "evidence": "the line or path that proves it"}]
+No prose, no preamble, no summary. Empty array if nothing found.
+```
+
+The cap is not decoration. An uncapped subagent returns forty items of padding and hands the context problem straight back to you.
+
+Three rules that hold for every capability:
+
+- **One question per subagent.** "Audit this file" gets you an essay; "does this file check capabilities before writing post meta, and where does it fail to" gets you a finding.
+- **Dispatch together.** All subagents in one message. Sequential dispatch throws away the only thing delegation buys.
+- **Synthesise in the parent.** Ranking, deduplication and deciding what your owner hears never get delegated — that judgment is the capability.
+
+Exempt the coherent-change case explicitly: work where the thread between the parts is what makes it correct (implementing a feature, tracing one execution path) is read directly, not split.
 
 ## Creating a Capability (The Flow)
 

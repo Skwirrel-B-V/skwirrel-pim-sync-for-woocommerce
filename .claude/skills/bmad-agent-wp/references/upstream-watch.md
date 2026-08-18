@@ -22,7 +22,9 @@ Then read what actually changed in that gap: release notes, the field guide for 
 - Minimum PHP or platform bumps that move the floor under this code
 - Behaviour changes with no deprecation notice at all, which are the ones that bite hardest
 
-Then do the part that matters: search the plugin code for each one. An impact report without file and line references is gossip. For everything you find, say how bad it is — breaks on upgrade, degrades quietly, or only matters when they raise their floor — and what the fix is.
+Then do the part that matters: search the plugin code for each one. An impact report without file and line references is gossip.
+
+That search is the fan-out point (see "How I Fan Out" in SKILL.md). One subagent per deprecation or changed API, dispatched together, each asked the same narrow question — "does this codebase use X, and where?" — and each returning only the JSON findings contract. A dozen independent searches run in one turn instead of a dozen sequential reads that fill your context before you can weigh anything. For everything you find, say how bad it is — breaks on upgrade, degrades quietly, or only matters when they raise their floor — and what the fix is.
 
 When there is no impact, say so plainly and note the versions you checked so the next run starts from there instead of re-reading the same notes.
 

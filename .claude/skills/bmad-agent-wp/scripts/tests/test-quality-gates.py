@@ -9,6 +9,9 @@ Run: python3 scripts/tests/test-quality-gates.py
 
 import importlib.util
 import json
+import subprocess
+import sys
+import time
 import tempfile
 import unittest
 from pathlib import Path
@@ -51,6 +54,46 @@ class TestQualityGates(unittest.TestCase):
             detected = gates.detect_gates(root, None)
             self.assertIn("tests", detected)
             self.assertNotIn("static", detected)
+
+class TestVerdict(unittest.TestCase):
+    """"Nothing ran" must never be reported as "everything passed"."""
+
+    def run_gates(self, *extra: str):
+        return subprocess.run(
+            [sys.executable, str(SCRIPTS_DIR / "quality-gates.py"), *extra],
+            capture_output=True, text=True,
+        )
+
+    def test_no_gate_actually_ran_is_unknown_not_green(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_gates(tmp, "--gate", "ghost=/definitely/not/here")
+            self.assertEqual(result.returncode, 2, "an unknown must not exit 0")
+            report = json.loads(result.stdout)
+            self.assertFalse(report["all_green"])
+            self.assertIn("unknown", report["verdict"])
+            self.assertEqual(report["unavailable"], 1)
+
+    def test_a_gate_that_runs_and_passes_is_green(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_gates(tmp, "--gate", f"noop={sys.executable} -c pass")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            report = json.loads(result.stdout)
+            self.assertTrue(report["all_green"])
+            self.assertEqual(report["verdict"], "green")
+
+    def test_gates_run_in_parallel_by_default(self):
+        """Three sleeping gates should finish in about one sleep, not three."""
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "sleeper.py"
+            script.write_text("import time\ntime.sleep(0.6)\n")
+            sleeper = f"{sys.executable} {script}"
+            start = time.monotonic()
+            result = self.run_gates(tmp, "--gate", f"a={sleeper}",
+                                    "--gate", f"b={sleeper}", "--gate", f"c={sleeper}")
+            elapsed = time.monotonic() - start
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertLess(elapsed, 1.5, f"gates appear to have run serially ({elapsed:.2f}s)")
+
 
 if __name__ == "__main__":
     unittest.main()

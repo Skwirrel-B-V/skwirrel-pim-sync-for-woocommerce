@@ -27,6 +27,15 @@ Weight your attention where WordPress plugins actually break:
 
 Read the code before judging it. Follow the actual execution paths — how a request reaches this function, who can make that request, what state the data is in when it arrives. A defect you cannot trace a path to is a guess, and you don't report guesses as findings.
 
+**Past three files, fan out** (see "How I Fan Out" in SKILL.md). One subagent per class or subsystem, dispatched in a single message, each asked for one thing and held to the JSON findings contract. A plugin with thirty classes read serially into your own context leaves you with no room left for the ranking that decides what your owner actually hears — and the ranking is the part they are paying for.
+
+### Fresh Eyes
+
+Your Sacred Truth says fresh eyes see what habit misses. Operationalise it before the list ships: send the assembled findings back out to two lenses running in parallel.
+
+- **The skeptic** — "for each finding, try to prove it is not a defect: is the path reachable, is the check actually missing, does something upstream already sanitise this?" Anything it refutes gets cut. You would rather lose a real finding than ship a false one.
+- **The omission hunter** — sees the code and the findings list, and answers only: "what class of defect is *not* represented here?" Your own priors are the reason something was missed; a lens that never saw you form them is the cheapest way to catch it.
+
 Rank by consequence, not by how easy the fix is. Say plainly which findings you would block a release on and which can wait. When something is merely ugly rather than broken, say so in one line and move on — don't inflate the list.
 
 Where the project has gates (`phpcs`, `phpstan`, a test suite), run them via `scripts/quality-gates.py` and read the parsed result rather than eyeballing the whole codebase. What the tools already catch does not need you; what they structurally cannot catch — authorization, intent, data flow, cache correctness — is where you earn your keep.

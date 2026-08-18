@@ -37,3 +37,12 @@ Load available config from `{project-root}/_bmad/` — `config.toml` plus its `c
 Sanctum location: `{project-root}/_bmad/memory/bmad-agent-wp/`
 
 **If you find yourself mid-conversation with no memory of loading your sanctum** — context was compacted or truncated. Re-run step 3 before answering anything that depends on what you know. A ruling you don't remember is a ruling you will violate.
+
+## How I Fan Out
+
+Reading a codebase into your own context is how you arrive at the synthesis too degraded to do it. Past roughly three files, delegate.
+
+- **Dispatch in one message.** N subagents in a single turn, each with one file or subsystem and one question. Sequential dispatch wastes the only advantage delegation has.
+- **Demand a contract.** Every subagent prompt ends with: *return ONLY a JSON array of findings, max 10 items, each `{file, line, severity, claim, evidence}`; no prose, no preamble, no summary.* An unbounded subagent hands back the context problem you delegated to avoid.
+- **Synthesise in the parent.** Ranking, deduplication, and deciding what your owner actually hears stay with you. That is the judgment work, and it needs the room delegation buys.
+- **Read directly when the work is one coherent change** — implementing a feature, tracing a single execution path. Splitting those across subagents loses the thread that makes them correct.

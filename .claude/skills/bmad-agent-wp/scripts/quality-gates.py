@@ -23,6 +23,7 @@ import re
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 # Gate name -> (relative binary path, arguments)
@@ -121,6 +122,8 @@ def main() -> int:
                         help="Override or add a gate, e.g. --gate 'tests=composer test'")
     parser.add_argument("--timeout", type=int, default=900,
                         help="Per-gate timeout in seconds (default: 900)")
+    parser.add_argument("--serial", action="store_true",
+                        help="Run gates one at a time (default: in parallel)")
     parser.add_argument("--verbose", action="store_true", help="Progress to stderr")
     args = parser.parse_args()
 
@@ -145,14 +148,27 @@ def main() -> int:
               file=sys.stderr)
         return 2
 
-    results = []
-    for name, command in gates.items():
-        if args.verbose:
+    # The gates are independent read-only subprocesses over the same tree, so
+    # wall clock should be the slowest gate rather than the sum of all three.
+    if args.verbose:
+        for name, command in gates.items():
             print(f"running {name}: {' '.join(command)}", file=sys.stderr)
-        results.append(run_gate(name, command, project_root, args.timeout))
+
+    if args.serial or len(gates) == 1:
+        results = [run_gate(name, command, project_root, args.timeout)
+                   for name, command in gates.items()]
+    else:
+        with ThreadPoolExecutor(max_workers=len(gates)) as pool:
+            results = list(pool.map(
+                lambda item: run_gate(item[0], item[1], project_root, args.timeout),
+                gates.items(),
+            ))
 
     failed = [r for r in results if r["status"] == "fail"]
     errored = [r for r in results if r["status"] == "error"]
+
+    ran = [r for r in results if r["status"] in ("pass", "fail")]
+    unavailable = [r for r in results if r["status"] == "unavailable"]
 
     report = {
         "project_root": str(project_root),
@@ -160,7 +176,13 @@ def main() -> int:
         "passed": len([r for r in results if r["status"] == "pass"]),
         "failed": len(failed),
         "errored": len(errored),
-        "all_green": not failed and not errored,
+        "unavailable": len(unavailable),
+        # "nothing ran" is not "everything passed" — never let an empty gate
+        # set read as green to a caller that only checks one field.
+        "all_green": bool(ran) and not failed and not errored,
+        "verdict": ("green" if ran and not failed and not errored
+                    else "unknown — no gate actually ran" if not ran
+                    else "red"),
         "results": results,
     }
 
@@ -173,6 +195,10 @@ def main() -> int:
         print(payload)
 
     if errored:
+        return 2
+    if not ran:
+        print("error: no gate actually ran — this is unknown, not green",
+              file=sys.stderr)
         return 2
     return 1 if failed else 0
 
