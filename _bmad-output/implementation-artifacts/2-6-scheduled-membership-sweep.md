@@ -128,6 +128,21 @@ so that my shop stops selling products the PIM no longer lists, and I stay in co
   - [x] `class-skwirrel-wc-sync-service.php:1028-1029` claims removals are "handled per the configurable `__missing__` mapping (keep / draft / trash)". No such mapping exists in shipped code (see Open decision).
   - [x] The purge log line at `class-skwirrel-wc-sync-purge-handler.php:606` reads "applying configured handling" for a hardcoded state. Changing the log **message** is safe; do not rename the `state` context key, it is asserted on.
 
+### Review Findings
+
+- [ ] [Review][Decision] Decide how a valid empty selection can be reconciled safely — A successful zero-row sweep is forcibly downgraded to incomplete in both the service and purge handler. This prevents a transient empty response from retiring the whole catalogue, but it also means an intentionally emptied selection can never remove its final products, even through the manual escape hatch promised by AC 4. The correct patch depends on whether an empty sweep should be authoritative immediately, require explicit human confirmation, or use a second verification call.
+- [ ] [Review][Patch] Delta runs with no queued payload bypass finalization, sweep removals, and refusal reporting [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:717]
+- [ ] [Review][Patch] An incomplete sweep is still used as an authoritative grouped-product filter [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:484]
+- [ ] [Review][Patch] Membership filtering runs before the virtual/group-member exemptions required by AC 2 [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:649]
+- [ ] [Review][Patch] Sweep pagination infers completion from page size, ignores pagination metadata, and has no termination guard [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php:1116]
+- [ ] [Review][Patch] Malformed or missing product IDs in a successful sweep page can leave a partial set marked complete [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php:1108]
+- [ ] [Review][Patch] A payload row without a usable product ID bypasses the complete-sweep membership filter [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:649]
+- [ ] [Review][Patch] The entire membership sweep runs in the unbounded init step without a persisted selection/page cursor [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:484]
+- [ ] [Review][Patch] Synchronous run results omit the non-fatal removal warning stored in history [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:1334]
+- [ ] [Review][Patch] Conflicting duplicate `_skwirrel_product_id` rows are resolved by database row order and can select the wrong membership ID [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-purge-handler.php:977]
+- [ ] [Review][Patch] Required coverage does not assert multi-selection unioning, the sweep-removal run marker, or dashboard warning rendering [tests/Integration/SweepMembershipIntegrationTest.php:1]
+- [x] [Review][Defer] Runtime sweep behavior is covered only by integration tests that normal CI does not execute [.github/workflows/ci.yml:48] — deferred, pre-existing
+
 ## Dev Notes
 
 ### Why this story exists
