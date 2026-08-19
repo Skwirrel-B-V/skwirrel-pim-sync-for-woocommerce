@@ -94,8 +94,33 @@ test('exceeds_mass_removal is false when no Skwirrel products are owned (no divi
     expect(Skwirrel_WC_Sync_Purge_Handler::exceeds_mass_removal(5, 0, 0.25))->toBeFalse();
 });
 
-test('a ratio of 0 refuses any removal at all', function () {
-    expect(Skwirrel_WC_Sync_Purge_Handler::exceeds_mass_removal(1, 920, 0.0))->toBeTrue();
+test('a ratio of 0 refuses any removal above the floor', function () {
+    // The floor wins below it (see MASS_REMOVAL_FLOOR): a ratio of 0 bounds the magnitude, it does
+    // not disable removal of a handful of products. AC 4 makes the floor unconditional.
+    expect(Skwirrel_WC_Sync_Purge_Handler::exceeds_mass_removal(6, 920, 0.0))->toBeTrue();
+});
+
+// --- MASS_REMOVAL_FLOOR: a small catalogue is not locked out of every removal (AC 4) ---
+
+test('the floor is 5 products', function () {
+    expect(Skwirrel_WC_Sync_Purge_Handler::MASS_REMOVAL_FLOOR)->toBe(5);
+});
+
+test('a removal at or below the floor never trips the bound, however small the catalogue', function () {
+    // AC 4's worked example: 2 owned products, 1 leaving = 50%, far over the 25% ratio. Without a
+    // floor this shop could never retire anything on a schedule.
+    expect(Skwirrel_WC_Sync_Purge_Handler::exceeds_mass_removal(1, 2, 0.25))->toBeFalse();
+    // Exactly at the floor is still allowed ("at or below").
+    expect(Skwirrel_WC_Sync_Purge_Handler::exceeds_mass_removal(5, 8, 0.25))->toBeFalse();
+});
+
+test('one product above the floor trips the bound again when the ratio is exceeded', function () {
+    expect(Skwirrel_WC_Sync_Purge_Handler::exceeds_mass_removal(6, 8, 0.25))->toBeTrue();
+});
+
+test('the floor does not rescue a removal that is within the ratio anyway', function () {
+    // Below the floor and below the ratio: still allowed, for the ordinary reason.
+    expect(Skwirrel_WC_Sync_Purge_Handler::exceeds_mass_removal(3, 920, 0.25))->toBeFalse();
 });
 
 test('a ratio of 1 or more can never be exceeded, disabling the bound', function () {

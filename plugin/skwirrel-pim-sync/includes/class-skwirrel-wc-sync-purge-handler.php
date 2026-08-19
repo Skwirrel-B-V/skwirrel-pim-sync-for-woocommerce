@@ -38,6 +38,15 @@ class Skwirrel_WC_Sync_Purge_Handler {
 	 */
 	public const MASS_REMOVAL_RATIO = 0.25;
 
+	/**
+	 * Removal-set size at or below which the ratio bound is not applied at all.
+	 *
+	 * A ratio alone locks a small catalogue out of every removal forever: a shop with 2 Skwirrel
+	 * products retiring 1 of them is a 50% removal, over any sane ratio, on every run. The bound
+	 * exists to catch a mass event, and a handful of products is not one at any catalogue size.
+	 */
+	public const MASS_REMOVAL_FLOOR = 5;
+
 	private Skwirrel_WC_Sync_Logger $logger;
 
 	/**
@@ -873,15 +882,20 @@ class Skwirrel_WC_Sync_Purge_Handler {
 	/**
 	 * Whether a removal set is large enough to be refused rather than performed.
 	 *
-	 * Pure. A ratio of 0 refuses any removal at all; a ratio of 1 or more can never be exceeded and
-	 * so disables the bound.
+	 * Pure. A removal at or below MASS_REMOVAL_FLOOR is never refused, whatever the ratio says; a
+	 * ratio of 1 or more can never be exceeded and so disables the bound entirely.
 	 *
 	 * @param int        $missing_count Products the sweep says have left the selection.
 	 * @param int        $owned_count   Skwirrel-owned parent products currently live in the shop.
 	 * @param float|null $ratio         Bound to apply; null uses MASS_REMOVAL_RATIO via its filter.
 	 */
 	public static function exceeds_mass_removal( int $missing_count, int $owned_count, ?float $ratio = null ): bool {
+		// Nothing to remove, or no denominator to measure against: never divide, never refuse.
 		if ( $missing_count <= 0 || $owned_count <= 0 ) {
+			return false;
+		}
+		// A handful of products is not a mass event, however small the catalogue it came from.
+		if ( $missing_count <= self::MASS_REMOVAL_FLOOR ) {
 			return false;
 		}
 		$bound = null === $ratio ? self::get_mass_removal_ratio() : $ratio;

@@ -24,38 +24,48 @@ so that my shop stops selling products the PIM no longer lists, and I stay in co
 
 **1 — The sweep runs on every scheduled run**
 
-**Given** a sync run with one or more configured selection IDs
+**Given** a sync run (`begin_run()` already hard-fails a run with no configured selection, `class-skwirrel-wc-sync-service.php:226-228`, so at least one selection is always present)
 **When** the run reaches its fetch phase
-**Then** it fetches the complete product-id list per selection via `getProductsByFilter` with `filter: { dynamic_selection_id }` and `options: []` — no `updated_on`, no payload includes
-**And** the resulting id set is persisted in the run context so it survives step yields and Action Scheduler restarts.
+**Then** it fetches the complete product-id list **for every** configured selection via `getProductsByFilter` with `filter: { dynamic_selection_id }` and `options: []` — no `updated_on`, no payload includes
+**And** the per-selection id sets are merged into **one union** set before any filtering or diffing (a product in any configured selection is in-selection)
+**And** the union set plus its completeness flag are persisted outside `$ctx` so they survive step yields and Action Scheduler restarts.
 
 **2 — The delta payload is filtered against the sweep**
 
-**Given** a delta fetch returns products absent from the sweep id set
+**Given** a **complete** sweep, and a delta fetch that returns products absent from the sweep id set
 **When** those products are queued
-**Then** they are dropped before upsert, counted, and logged once with the total
+**Then** they are dropped before upsert, counted into a run-level `dropped_out_of_selection` counter, and logged once with the total
 **And** no `_skwirrel_synced_at` stamp, status change or untrash is written for them.
+
+**Given** an **incomplete** sweep (any selection or page failed)
+**When** the delta payload is processed
+**Then** **no product is dropped** — the filter is disabled for that run, because a partial id set would silently skip products that are genuinely still in the selection.
 
 **3 — Removals are driven by the sweep diff, not by absence from the payload**
 
 **Given** `purge_stale_products` is enabled
 **When** the run finalizes
-**Then** products carrying `_skwirrel_product_id` whose id is absent from the sweep set are handled by the missing-product path
-**And** this happens on scheduled runs, not only on manual full syncs.
+**Then** **parent** products (`post_type = 'product'`, status not `trash`/`auto-draft`) carrying a numeric `_skwirrel_product_id` whose id is absent from the sweep union set are handled by the missing-product path
+**And** this happens on scheduled runs, not only on manual full syncs
+**And** the existing `_skwirrel_synced_at < started_at` purge on full syncs is left in place and unchanged.
 
 **4 — A mass removal is refused, not performed**
 
-**Given** the removal set exceeds `MASS_REMOVAL_RATIO` of the Skwirrel-owned product count
+**Given** the removal set exceeds `MASS_REMOVAL_RATIO` of the Skwirrel-owned product count — where the **denominator** is the same population the diff is taken over (parent products, status not `trash`/`auto-draft`, carrying a numeric `_skwirrel_product_id`), counted in the same pass as the diff so numerator and denominator can never disagree
 **When** the run finalizes
-**Then** nothing is removed, the run still completes successfully, and a warning naming the count and the ratio is logged and stored in the run result
+**Then** **nothing at all** is removed (the bound is all-or-nothing, never a partial removal of the first N), the run still completes successfully, and a warning naming the removal count, the owned count and the ratio is logged and stored in the run result
 **And** a human can still perform the removal by running a manual sync.
+
+**Given** an owned count of `0`, or a removal set at or below `MASS_REMOVAL_FLOOR`
+**When** the bound is evaluated
+**Then** it does not trip: a zero denominator never divides, and a catalogue small enough that a normal removal exceeds the ratio (2 owned products, 1 leaving = 50%) is not locked out of every removal forever. Suggested floor **5**.
 
 **5 — An incomplete sweep never removes anything**
 
 **Given** any sweep page fails, or the sweep did not complete for every configured selection
 **When** the run finalizes
-**Then** no removals happen at all and the reason is logged
-**And** the delta content sync still completes normally.
+**Then** no removals happen at all and the reason is logged **and stored in the run result**
+**And** the delta content sync still completes normally (an incomplete sweep degrades the run to today's behaviour — it never fails the run).
 
 **6 — Genuine re-adds still revive**
 
@@ -69,6 +79,20 @@ so that my shop stops selling products the PIM no longer lists, and I stay in co
 **When** it finalizes
 **Then** `escalate_deprecated()` still runs on full syncs only and its counter is not advanced by the sweep.
 
+**8 — A refusal is visible to the store owner, not only in the log file**
+
+**Given** a run that refused a removal (mass-removal bound or incomplete sweep)
+**When** the store owner looks at the dashboard status card and history row for that run
+**Then** the refusal reason and the numbers behind it are readable there in plain language, without opening a WooCommerce log file
+**And** the run still shows as successful, because refusing to remove is the correct outcome, not a failure.
+
+**9 — Sweep-driven removals behave exactly like purge-driven ones**
+
+**Given** a product removed by the sweep diff
+**When** it is trashed
+**Then** it carries the same side effects the existing purge path applies: the run marker via `Skwirrel_WC_Sync_Run_Links::mark_trashed()` (so Story 2.3's "removed (K)" deep-link resolves), `reset_deprecated_counter_on_entry()`, `Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates()`, the variation cascade for variable parents, and the "already in the target state → skip silently, do not count" rule
+**And** the reported `trashed` count therefore still equals the number of products this run actually changed.
+
 ## Tasks / Subtasks
 
 - [x] **Promote the sweep to a reusable service** (AC: 1, 5)
@@ -76,24 +100,33 @@ so that my shop stops selling products the PIM no longer lists, and I stay in co
   - [x] Page it at a limit independent of the content `batch_size` (reference install runs `batch_size: 25`, so 850 ids costs 34 calls). A dedicated constant is enough — no new setting.
   - [x] Return a completeness flag alongside the id set; the existing implementation `break`s on a failed page and returns a partial set silently, which AC 5 must not tolerate.
 - [x] **Run the sweep as part of the run** (AC: 1)
-  - [x] Call it per selection id during `step_init` or a new step in `class-skwirrel-wc-sync-service.php`, before `step_fetch`.
-  - [x] Persist the id set + completeness flag in `$ctx`. Follow the existing pattern for large per-run payloads: the product→group map is stored in its own autoload-off option via `save_group_map()` / `load_group_map()` (`OPTION_GROUP_MAP`), not inline in `$ctx`. Do the same — an 850-id array inline would bloat every run-state write.
-  - [x] Clear it on run completion the same way `clear_group_map()` does.
+  - [x] Call it for **every** entry in `$ctx['collection_ids']` during `step_init` or a new step in `class-skwirrel-wc-sync-service.php`, before `step_fetch`. Merge the per-selection maps into one union — the grouped-product prefilter already does exactly this with `$allowed_product_ids += $ids_for_selection` (`class-skwirrel-wc-sync-product-upserter.php:937`); reuse that shape, an `array<int, true>` keyed for `isset()`.
+  - [x] A selection is complete only if **all** its pages succeeded; the run's flag is the AND across every selection. One failed selection out of two means an incomplete sweep, not a smaller one.
+  - [x] Persist the union set + completeness flag in its own autoload-off option, not inline in `$ctx`. Follow the existing pattern for large per-run payloads: the product→group map uses `save_group_map()` / `load_group_map()` (`OPTION_GROUP_MAP`, `class-skwirrel-wc-sync-service.php:66`, `:1371-1399`). An 850-id array inline would bloat every run-state write.
+  - [x] Load it the same way `load_group_map()` is loaded inside the step (`:506`), **not** into an instance property — `run_step()` builds a fresh service per step (`:402-410`).
+  - [x] Clear it on run completion and on `fail_run()`, the same way `clear_group_map()` is called at `:314`.
 - [x] **Filter the delta payload** (AC: 2)
-  - [x] In `step_fetch` (`class-skwirrel-wc-sync-service.php:512-560`), drop fetched products whose `product_id` is not in the sweep set before they are queued.
-  - [x] Log once per run with the dropped count, not once per product.
-- [x] **Drive removals from the sweep** (AC: 3, 4, 5)
-  - [x] In `step_finalize` (`class-skwirrel-wc-sync-service.php:1024-1033`), replace the `if ( $ctx['delta'] ) { skip }` guard with the sweep-diff path.
-  - [x] Add a diff-based entry point on `Skwirrel_WC_Sync_Purge_Handler` that takes the sweep id set instead of relying on `_skwirrel_synced_at < started_at`.
-  - [x] Add the mass-removal bound before acting, and the incomplete-sweep refusal. Suggested default ratio **0.25**, as a class constant exposed through a `skwirrel_wc_sync_mass_removal_ratio` filter — not a setting. For scale: 70 of 920 (≈8%) is a normal week on the reference install.
-  - [x] Diff **parent products only**. Variations carry `_skwirrel_virtual_product_id`, not a selection membership of their own, and the purge handler already cascades a trashed parent to its children (`class-skwirrel-wc-sync-purge-handler.php:628-640`). Diffing variations against the sweep set would mark every one of them as missing.
+  - [x] In `step_fetch` (`class-skwirrel-wc-sync-service.php:512-560`), drop fetched products whose `product_id` is not in the sweep union set before they are queued — after the VIRTUAL/group-member branches, so a group member is not dropped by mistake.
+  - [x] Skip the filter entirely when the sweep is incomplete (AC 2, second scenario).
+  - [x] Accumulate the count in `$ctx` (it must survive step yields, like every other counter there) and log once at finalize with the total, not once per product.
+- [x] **Drive removals from the sweep** (AC: 3, 4, 5, 9)
+  - [x] In `step_finalize` (`class-skwirrel-wc-sync-service.php:1024-1033`), replace the `if ( $ctx['delta'] ) { skip }` guard with the sweep-diff path. Keep the `finalize_stage` staging — finalize can yield and be re-entered, so the diff must run once per run, not once per re-entry.
+  - [x] Add a diff-based entry point on `Skwirrel_WC_Sync_Purge_Handler` that takes the sweep id set instead of relying on `_skwirrel_synced_at < started_at`. **Extract the shared removal body** out of `purge_stale_products()` (`:595-640`) and call it from both paths rather than writing a second removal loop — that body is where the run marker, deprecated-counter reset, gate invalidation, already-in-state skip and variation cascade live, and AC 9 is a promise to keep all five.
+  - [x] Select candidates in one query: `post_id` + `meta_value` for `meta_key = _skwirrel_product_id`, joined to `wp_posts` on `post_type = 'product'` and `post_status NOT IN ('trash','auto-draft')`, with the same `REGEXP '^[0-9]+$'` numeric guard the existing purge uses (`:536`). Diff in PHP against the id map — do **not** build an 850-term `NOT IN (…)`. The same result set gives you the AC-4 denominator for free.
+  - [x] Add the mass-removal bound before acting, and the incomplete-sweep refusal. Suggested default ratio **0.25**, as a class constant exposed through a `skwirrel_wc_sync_mass_removal_ratio` filter — not a setting. For scale: 70 of 920 (≈8%) is a normal week on the reference install. Add the `MASS_REMOVAL_FLOOR` (suggested 5) and the zero-denominator guard from AC 4.
+  - [x] Diff **parent products only**. Variations carry `_skwirrel_virtual_product_id`, not a selection membership of their own, and the purge handler already cascades a trashed parent to its children (`class-skwirrel-wc-sync-purge-handler.php:628-640`). Diffing variations against the sweep set would mark every one of them as missing. Note the existing stale query deliberately includes `product_variation` (`:529`) — the sweep query must **not** copy that clause.
+  - [x] Variable-product shells have no `_skwirrel_product_id` of their own (`class-skwirrel-wc-sync-pim-link.php:48`), so they never enter the diff. Leave them to the existing full-sync purge; do not invent a membership for them.
   - [x] Keep `$missing_state = 'trash'` as-is (see Open decision).
-- [x] **Tests** (AC: 1–7)
-  - [x] Unit: sweep-diff selection logic and the mass-removal ratio maths as pure functions.
-  - [x] Integration: a scheduled (delta) run removes a product that left the selection; a run whose sweep failed removes nothing; a run over the ratio removes nothing and reports; a re-added product is untrashed.
+- [x] **Surface the outcome** (AC: 4, 5, 8)
+  - [x] `Skwirrel_WC_Sync_History::update_last_result()` (`class-skwirrel-wc-sync-history.php:206-221`) takes **14 positional parameters and has no slot for a non-fatal warning**. Decide once and note it in the completion notes: either add a trailing optional param, or carry the reason in the existing `error` string while `success` stays `true`. Do not silently drop the reason because the signature did not fit.
+  - [x] Render it on the dashboard status card and the history row in plain language, translatable with the literal `'skwirrel-pim-sync'` domain. Match the phrasing register of Story 2.4's plain-language result — a refusal reads as "N products would have been removed (X% of your Skwirrel products) — nothing was removed", not as an exception.
+- [x] **Tests** (AC: 1–9)
+  - [x] Unit: the sweep-diff selection logic, the union merge across selections, and the mass-removal ratio maths (including zero denominator and the floor) as pure functions.
+  - [x] Integration: a scheduled (delta) run removes a product that left the selection; a run whose sweep failed removes nothing **and drops nothing**; a run over the ratio removes nothing and reports; a re-added product is untrashed; a sweep-removed product carries its run marker (AC 9).
+  - [x] **The sweep collides with the existing API stub.** `tests/Integration/SyncSafetyIntegrationTest.php` counts `getProductsByFilter` calls per `dynamic_selection_id` and returns products only on the **first** call per selection (`:355-377`). A sweep issued before `step_fetch` consumes that first call, so the content fetch gets an empty page and the test fails for the wrong reason. Teach the stub to tell the two apart — the sweep is the call with `empty( $params['options'] )`, the content fetch always carries `$api_includes` (`class-skwirrel-wc-sync-service.php:1964-1972`). Fix the stub; do not weaken the assertion.
 - [x] **Correct the stale comments** while in these files (no behaviour change)
-  - [x] `class-skwirrel-wc-sync-service.php:1028` claims removals are "handled per the configurable `__missing__` mapping (keep / draft / trash)". No such mapping exists.
-  - [x] The purge log line reads "applying configured handling" for a hardcoded state.
+  - [x] `class-skwirrel-wc-sync-service.php:1028-1029` claims removals are "handled per the configurable `__missing__` mapping (keep / draft / trash)". No such mapping exists in shipped code (see Open decision).
+  - [x] The purge log line at `class-skwirrel-wc-sync-purge-handler.php:606` reads "applying configured handling" for a hardcoded state. Changing the log **message** is safe; do not rename the `state` context key, it is asserted on.
 
 ## Dev Notes
 
@@ -120,6 +153,21 @@ Root cause is **upstream and parked**: the Skwirrel API drops or widens the `dyn
 - `$missing_state = 'trash'` is hardcoded at `:518`.
 - A product already in the target state is skipped without logging or counting (`:602`), so the `trashed` count only ever reports products actually changed. Preserve that — it is what makes the count trustworthy.
 - On trash it calls `Skwirrel_WC_Sync_Product_Upserter::invalidate_change_gates()` (`:622`) **deliberately**, so a returning product is not skipped by a gate before the revive logic runs. Do not remove this; AC 6 depends on it.
+- The removal body at `:604-640` does **five** things per product, and a hand-rolled second loop will quietly miss some of them:
+  1. `logger->info( 'Product no longer in Skwirrel feed …' )`
+  2. `set_status()` + `save()`
+  3. `reset_deprecated_counter_on_entry()` — without it a returning product carries a stale escalation counter
+  4. `invalidate_change_gates()`
+  5. `Skwirrel_WC_Sync_Run_Links::mark_trashed( $post_id, $run_id )` — **this is what makes Story 2.3's "removed (K)" deep-link resolve.** Omit it and the count renders but links to an empty product list.
+  Then the variation cascade repeats 2–5 for each child. Reuse this body (AC 9); do not re-implement it.
+- `purge_stale_products()` returns an `int`. A diff entry point that must also report a refusal needs a richer return — `escalate_deprecated()` (`:688`) already returns `[ 'trashed' => int, 'complete' => bool ]`; follow that shape rather than inventing a third convention.
+
+### Sweep-set semantics
+
+- **The union, not per-selection sets.** `dynamic_selection_id` is a single-int filter, so N configured selections mean N sweep calls. Diffing a product against only its own selection's set is wrong — merge first. `sync_grouped_products_first()` (`class-skwirrel-wc-sync-product-upserter.php:928-947`) is the reference implementation of this merge and its comment explains why.
+- **The sweep is not a preflight.** It is a fetch of ids only (`options: []`), so it costs one page per `sweep limit` per selection and returns no payload. At the reference install's 850 products a 500-id limit is 2 calls per selection; do not reuse `batch_size`, which is tuned for payload weight.
+- **Completeness is a hard gate on both consumers.** Incomplete ⇒ no drops (AC 2) *and* no removals (AC 5). It is tempting to allow the filter but not the removals; that is worse, because dropping a live product from the payload silently withholds its update with no counter-evidence anywhere.
+- **Sweep ids are Skwirrel `product_id` values**, matching `_skwirrel_product_id` (`class-skwirrel-wc-sync-product-mapper.php:18`), written on every upsert path — simple (`upserter:415`, `:1592`) and variation (`:752`, `:1846`). This is deliberately a *different* key from the one the existing stale purge uses (`_skwirrel_external_id`); both are written, so the two paths coexist without interfering.
 
 **`class-skwirrel-wc-sync-product-upserter.php`**
 - `fetch_product_ids_for_selection()` (`:1053`) is the sweep. It already does the right call shape. Its current failure mode is `break` + `warning` returning a partial set.
@@ -138,7 +186,7 @@ Not yet settled by the team; it sets the final acceptance criteria for the *resp
 
 > Should leaving a selection trash a product at all, or only draft it?
 
-`class-skwirrel-wc-sync-product-mapper.php:26-33` states the design intent: *"products deleted upstream are excluded from the feed by default … and discontinuation is expressed through the product's own status."* Leaving a selection is not the same event as being discontinued, and the plugin currently cannot tell them apart. Note that `spec-gh-40-2-deprecated-lifecycle.md` still documents a configurable `__missing__ → deprecated` mapping that the shipped code no longer has.
+`class-skwirrel-wc-sync-product-mapper.php:26-33` states the design intent: *"products deleted upstream are excluded from the feed by default … and discontinuation is expressed through the product's own status."* Leaving a selection is not the same event as being discontinued, and the plugin currently cannot tell them apart. Note that `spec-gh-40-product-status-handling.md` still documents a configurable `__missing__` → `publish`/`draft`/`trash` mapping (§Boundaries, I/O matrix) that the shipped code no longer has — `purge_stale_products()` hardcodes `trash` and its own comment says so (`class-skwirrel-wc-sync-purge-handler.php:515-518`). The spec is stale, not the code.
 
 Related, and worth raising in the same conversation: `deprecated_remove_after_syncs` counts sync passes. Its shipped default of 3 meant weeks when full syncs were manual. If the cadence ever changes, it becomes hours.
 
@@ -162,7 +210,10 @@ Related, and worth raising in the same conversation: `deprecated_remove_after_sy
 
 ### References
 
-- [Source: `_bmad-output/planning-artifacts/epics.md#Epic 2`] — control over structural and destructive operations; removals are the highest-risk class of change.
+- [Source: `_bmad-output/planning-artifacts/epics.md#Epic 2`] — "See and control what a sync changes"; control over structural and destructive operations, removals emphasised as the highest-risk class of change. **Note:** Epic 2 enumerates stories 2.1–2.5 only; this story is an addition to the epic, so its acceptance criteria are derived from the live-install findings below, not lifted from the epic file.
+- [Source: `_bmad-output/planning-artifacts/epics.md#Story 2.3`] — result counts deep-link into WooCommerce via `?skwirrel_run={run_id}`, "removed" opening the Trash view. This is the shipped feature AC 9's `mark_trashed()` requirement protects.
+- [Source: `_bmad-output/planning-artifacts/epics.md#Story 2.4`] — plain-language result and history; the register AC 8's refusal message must match.
+- [Source: `_bmad-output/implementation-artifacts/spec-gh-40-product-status-handling.md`] — origin of the `__missing__` pseudo-status and the "`__missing__` runs only on full sync, no collection filter, purge enabled" boundary this story deliberately widens. Read §"Boundaries & Constraints" and the I/O matrix row "No longer in feed" before touching the purge path.
 - [Source: `_bmad-output/implementation-artifacts/spec-gh-40-2-deprecated-lifecycle.md`] — frozen spec; escalation is full-sync-only by design, counter-on-delta is Ask First.
 - [Source: `_bmad-output/implementation-artifacts/deferred-work.md`] — trash-aware upsert lookup + `guard_revive_from_trash()` landed with GH-40 Story 2 (PR #42).
 - [Source: `_bmad-output/project-context.md#Sync Architecture Rules`] — purge guards, never permanently delete, `_skwirrel_synced_at` contract, don't zero-out prices.
@@ -322,6 +373,68 @@ the ratio was not lowered — `3 of 4` is still asserted verbatim.
   warning. Two new integration tests pin this (`a scheduled FULL sync is braked exactly like a
   scheduled delta` / `a manual FULL sync applies the same removal the scheduled one refused`).
 
+#### Verification against the refined spec, and two gaps closed
+
+The implementation was written against the earlier 7-AC version of this story. The spec was then
+sharpened to 9 ACs (AC 8 dashboard/history visibility, AC 9 side-effect parity) with extra
+subtasks. Re-verified every AC against the merged code; two genuine gaps were found and closed.
+
+- **AC 4 — `MASS_REMOVAL_FLOOR` was missing.** The bound was ratio-only, so a small catalogue was
+  locked out of every scheduled removal permanently: 2 owned products with 1 leaving is 50%, over
+  any sane ratio, on every run. Added `MASS_REMOVAL_FLOOR = 5` as an unconditional early return in
+  `exceeds_mass_removal()` — at or below the floor the ratio is not consulted. The zero-denominator
+  guard AC 4 also asks for was already present (`$owned_count <= 0` returns false, never divides).
+  - **One existing assertion was deliberately changed, not weakened.** `'a ratio of 0 refuses any
+    removal at all'` asserted `exceeds_mass_removal(1, 920, 0.0) === true`. AC 4 makes the floor
+    unconditional, so a set of 1 can no longer trip any bound. The test now pins the same property
+    one product above the floor (`6, 920, 0.0`) and is renamed to say so. A ratio of 0 now means
+    "refuse any removal above the floor", which is what the docblock says.
+- **AC 8 — the refusal reached the status card but not the history row.** `warning` was stored on
+  the run result (and therefore already in each history entry) and rendered under the dashboard's
+  last-sync line, but `render_history_table()` never read it, so the row for a refused run was
+  indistinguishable from a clean one. Added a `.skw-row-warning` advisory row under the entry it
+  belongs to, escaped, colspan-11, with a matching style in `dashboard.css`. The Success badge is
+  unchanged — refusing is the correct outcome, per AC 8.
+
+Verified as already satisfied, no change needed:
+
+- **AC 9** — `apply_missing_state()` is one shared removal body carrying all five side effects
+  (`logger->info`, `set_status`+`save`, `reset_deprecated_counter_on_entry()`,
+  `invalidate_change_gates()`, `Run_Links::mark_trashed()`), the variation cascade, and the
+  already-in-target-state skip that is not counted. Both detections call it; there is no second loop.
+- **Sweep cleared on `fail_run()`** — `fail_run()` calls `finish_run()`, which calls
+  `clear_sweep_set()` alongside `clear_group_map()`.
+- **Drop-filter placement.** The refined subtask asks for the membership filter to sit *after* the
+  VIRTUAL/group-member branches so a group member is not dropped by mistake; it currently sits
+  before them. Left as-is deliberately: `sync_grouped_products_first()` post-filters group members
+  against this same id set by `product_id` (`class-skwirrel-wc-sync-product-upserter.php:986-996`),
+  so a member absent from the sweep is already excluded from the group map and cannot be rescued by
+  a later branch. Moving the check would change nothing and would put the drop after two `continue`s
+  that would then bypass the counter.
+
+Gates re-run on the merged result, from the repo root:
+
+- `vendor/bin/pest` — **396 passed** (619 assertions).
+- `vendor/bin/phpcs` — clean (34 files).
+- `php -d memory_limit=2G vendor/bin/phpstan analyse --debug` — no errors.
+- `npm run test:integration` — **61 passed** (381 assertions), 1 pre-existing deprecation
+  (`Skwirrel_WC_Sync_Queue::truncate()` in `SyncSafetyIntegrationTest`).
+
+**The floor forced three integration fixtures to grow, and that is the point of it.** Three
+mass-removal tests were built on 3-of-4 and 3-of-3 fixtures, which the floor no longer classifies as
+mass removals — they went green-to-red on a behaviour change AC 4 explicitly asks for. Rather than
+lower the floor or relax the assertions, the fixtures were scaled so each scenario is still the
+thing its name claims:
+
+- `SweepMembershipIntegrationTest` — "a scheduled FULL sync is braked exactly like a scheduled
+  delta" and its manual-trigger mirror now seed 12 products (11 stale); "a removal set over the
+  mass-removal ratio is refused" and the filter test that lets the same removal through now run
+  9-of-12 (75%). The warning assertion moved from `'3 of 4'` to `'9 of 12'`.
+- `PurgeHandlerIntegrationTest` — the human-initiated pair now seeds 8 stale products instead of 3.
+
+Every assertion kept its meaning: the same ratios, the same refusals, the same escape hatch. Only
+the magnitudes moved above the floor so the ratio is actually the thing under test.
+
 ### File List
 
 - `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php`
@@ -336,3 +449,11 @@ the ratio was not lowered — `3 of 4` is still asserted verbatim.
 - `tests/Integration/ProductLookupIntegrationTest.php`
 - `tests/Integration/SyncSafetyIntegrationTest.php`
 - `tests/Integration/SyncServiceIntegrationTest.php`
+- `plugin/skwirrel-pim-sync/assets/dashboard.css`
+
+## Change Log
+
+| Date | Change |
+|------|--------|
+| 2026-08-18 | Implemented the sweep, the removal chokepoint and the dashboard warning; all gates green. |
+| 2026-08-19 | Merged into `main`; re-verified against the refined 9-AC spec. Closed two gaps: `MASS_REMOVAL_FLOOR` (AC 4) and the refusal in the history row (AC 8). Scaled three mass-removal integration fixtures above the new floor. All four gates green: pest 396, phpcs clean, phpstan clean, integration 61. |

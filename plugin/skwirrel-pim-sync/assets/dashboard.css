@@ -770,6 +770,18 @@
 	background: #fef3c7;
 }
 
+/* Advisory attached to the run above it: a successful run that withheld an action. */
+.skw-row-warning,
+.skw-row-warning:hover {
+	background: #fffbeb;
+}
+
+.skw-row-warning td {
+	padding-top: 0;
+	border-top: 0;
+	font-size: 12px;
+}
+
 .skw-td-left {
 	padding: 12px 16px;
 	text-align: left;

@@ -679,6 +679,10 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						$trashed       = (int) ( $entry['trashed'] ?? 0 );
 						$deprecated    = (int) ( $entry['deprecated'] ?? 0 );
 						$run_id        = (string) ( $entry['run_id'] ?? '' );
+						// A run can succeed and still have deliberately withheld something — today a
+						// removal refused by the mass-removal bound or by an incomplete membership
+						// sweep. It belongs on the row, not only in the log file.
+						$warning = trim( (string) ( $entry['warning'] ?? '' ) );
 						// Only the latest run's markers are current, so only its cells link.
 						$link_run      = ( '' !== $run_id && $run_id === $latest_run_id ) ? $run_id : '';
 						$total         = $is_purge ? $trashed : ( $created + $updated + $unchanged + $failed );
@@ -734,6 +738,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 								<?php endif; ?>
 							</td>
 						</tr>
+						<?php if ( '' !== $warning ) : ?>
+							<tr class="skw-entry-row skw-row-warning">
+								<td colspan="11" class="skw-td-left skw-c-yellow"><?php echo esc_html( $warning ); ?></td>
+							</tr>
+						<?php endif; ?>
 					<?php endforeach; ?>
 				</tbody>
 			</table>

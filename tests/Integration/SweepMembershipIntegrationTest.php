@@ -243,14 +243,16 @@ test( 'a scheduled FULL sync is braked exactly like a scheduled delta', function
 	// The 2026-08-18 15:31 production run was a scheduled sync with delta:false — the
 	// force_full_sync flag, armed by the previous run's own purge, promoted it. Nobody was at the
 	// keyboard, so it must not get the human escape hatch just because it is a full sync.
-	$ids = [ 5001, 5002, 5003, 5004 ];
+	// Twelve products, so the eleven that go stale are both over the 25% ratio AND over
+	// MASS_REMOVAL_FLOOR — a set at or below the floor is never treated as a mass removal.
+	$ids = range( 5001, 5012 );
 	$wc  = [];
 	foreach ( $ids as $sid ) {
 		$wc[ $sid ] = sweepSeedProduct( $sid );
 	}
 
 	// Everything is still in the selection, but nothing is in the delta payload except 5001 — on a
-	// FULL run the synced_at detection therefore marks the other three as stale.
+	// FULL run the synced_at detection therefore marks the other eleven as stale.
 	sweepStub( $ids, [ 5001 ] );
 
 	$result = ( new Skwirrel_WC_Sync_Service() )->run_sync( false, Skwirrel_WC_Sync_History::TRIGGER_SCHEDULED );
@@ -268,7 +270,7 @@ test( 'a scheduled FULL sync is braked exactly like a scheduled delta', function
 test( 'a manual FULL sync applies the same removal the scheduled one refused', function () {
 	// Identical fixture and stub to the test above — only the trigger differs. This is the escape
 	// hatch AC 4 requires, and it is keyed on who started the run, not on delta vs full.
-	$ids = [ 5001, 5002, 5003, 5004 ];
+	$ids = range( 5001, 5012 );
 	$wc  = [];
 	foreach ( $ids as $sid ) {
 		$wc[ $sid ] = sweepSeedProduct( $sid );
@@ -279,9 +281,9 @@ test( 'a manual FULL sync applies the same removal the scheduled one refused', f
 	$result = ( new Skwirrel_WC_Sync_Service() )->run_sync( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
 
 	expect( $result['success'] )->toBeTrue();
-	expect( $result['trashed'] ?? 0 )->toBe( 3 );
+	expect( $result['trashed'] ?? 0 )->toBe( 11 );
 	expect( get_post_status( $wc[5001] ) )->toBe( 'publish' );
-	expect( get_post_status( $wc[5004] ) )->toBe( 'trash' );
+	expect( get_post_status( $wc[5012] ) )->toBe( 'trash' );
 } );
 
 // ------------------------------------------------------------------
@@ -289,14 +291,15 @@ test( 'a manual FULL sync applies the same removal the scheduled one refused', f
 // ------------------------------------------------------------------
 
 test( 'a removal set over the mass-removal ratio is refused and reported', function () {
-	$ids = [ 5001, 5002, 5003, 5004 ];
+	$ids = range( 5001, 5012 );
 	$wc  = [];
 	foreach ( $ids as $sid ) {
 		$wc[ $sid ] = sweepSeedProduct( $sid );
 	}
 
-	// Only 5001 remains: 3 of 4 (75%) would be removed, far over the 25% bound.
-	sweepStub( [ 5001 ], [ 5001 ] );
+	// Only 5001, 5002 and 5003 remain: 9 of 12 (75%) would be removed — over the 25% bound, and
+	// over MASS_REMOVAL_FLOOR, so this is a mass removal rather than the ordinary handful.
+	sweepStub( [ 5001, 5002, 5003 ], [ 5001 ] );
 
 	$result = ( new Skwirrel_WC_Sync_Service() )->run_sync( true, Skwirrel_WC_Sync_History::TRIGGER_SCHEDULED );
 
@@ -311,26 +314,28 @@ test( 'a removal set over the mass-removal ratio is refused and reported', funct
 	$warning = (string) ( $last['warning'] ?? '' );
 	expect( $warning )->toContain( 'Mass removal refused' );
 	// The warning names the count and the ratio so an admin can judge it.
-	expect( $warning )->toContain( '3 of 4' );
+	expect( $warning )->toContain( '9 of 12' );
 	expect( $warning )->toContain( '25' );
 } );
 
 test( 'raising the mass-removal ratio through its filter lets the same removal through', function () {
-	$ids = [ 5001, 5002, 5003, 5004 ];
+	// Same 9-of-12 fixture as the refusal above, so the filter is what makes the difference here
+	// and not the floor: 75% is under the raised 90% bound.
+	$ids = range( 5001, 5012 );
 	$wc  = [];
 	foreach ( $ids as $sid ) {
 		$wc[ $sid ] = sweepSeedProduct( $sid );
 	}
 
 	add_filter( 'skwirrel_wc_sync_mass_removal_ratio', static fn () => 0.9 );
-	sweepStub( [ 5001 ], [ 5001 ] );
+	sweepStub( [ 5001, 5002, 5003 ], [ 5001 ] );
 
 	$result = ( new Skwirrel_WC_Sync_Service() )->run_sync( true, Skwirrel_WC_Sync_History::TRIGGER_SCHEDULED );
 
 	expect( $result['success'] )->toBeTrue();
-	expect( $result['trashed'] ?? 0 )->toBe( 3 );
+	expect( $result['trashed'] ?? 0 )->toBe( 9 );
 	expect( get_post_status( $wc[5001] ) )->toBe( 'publish' );
-	expect( get_post_status( $wc[5004] ) )->toBe( 'trash' );
+	expect( get_post_status( $wc[5012] ) )->toBe( 'trash' );
 } );
 
 // ------------------------------------------------------------------

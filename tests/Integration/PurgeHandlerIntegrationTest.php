@@ -176,36 +176,39 @@ test( 'purge_stale_products cascades trash to variations of a stale variable par
 
 test( 'purge_stale_products refuses a mass removal when the run was not human-initiated', function () {
 	$now = time();
-	// 3 of 3 stale (100%) — far past the 25% bound.
-	$a = createPurgeProduct( 'EXT-MASS-A', '1' );
-	$b = createPurgeProduct( 'EXT-MASS-B', '1' );
-	$c = createPurgeProduct( 'EXT-MASS-C', '1' );
+	// 8 of 8 stale (100%) — far past the 25% bound, and above MASS_REMOVAL_FLOOR so the ratio is
+	// actually consulted. A set at or below the floor is never a mass removal at any catalogue size.
+	$seeded = [];
+	foreach ( range( 1, 8 ) as $n ) {
+		$seeded[] = createPurgeProduct( 'EXT-MASS-' . $n, '1' );
+	}
 
 	$result = $this->purge_handler->purge_stale_products( $now, $this->mapper, '', false, true );
 
 	expect( $result['refused'] )->toBeTrue();
 	expect( $result['trashed'] )->toBe( 0 );
 	expect( $result['message'] )->toContain( 'Mass removal refused' );
-	expect( get_post_status( $a ) )->toBe( 'publish' );
-	expect( get_post_status( $b ) )->toBe( 'publish' );
-	expect( get_post_status( $c ) )->toBe( 'publish' );
+	foreach ( $seeded as $id ) {
+		expect( get_post_status( $id ) )->toBe( 'publish' );
+	}
 } );
 
 test( 'purge_stale_products performs the same mass removal when a human initiated the run', function () {
 	// Identical fixture to the test above — only the explicit human_initiated fact differs.
 	// This is AC 4's escape hatch: a person who asked for the sync sees the result.
-	$now = time();
-	$a   = createPurgeProduct( 'EXT-HUMAN-A', '1' );
-	$b   = createPurgeProduct( 'EXT-HUMAN-B', '1' );
-	$c   = createPurgeProduct( 'EXT-HUMAN-C', '1' );
+	$now    = time();
+	$seeded = [];
+	foreach ( range( 1, 8 ) as $n ) {
+		$seeded[] = createPurgeProduct( 'EXT-HUMAN-' . $n, '1' );
+	}
 
 	$result = $this->purge_handler->purge_stale_products( $now, $this->mapper, '', true, true );
 
 	expect( $result['refused'] )->toBeFalse();
-	expect( $result['trashed'] )->toBe( 3 );
-	expect( get_post_status( $a ) )->toBe( 'trash' );
-	expect( get_post_status( $b ) )->toBe( 'trash' );
-	expect( get_post_status( $c ) )->toBe( 'trash' );
+	expect( $result['trashed'] )->toBe( 8 );
+	foreach ( $seeded as $id ) {
+		expect( get_post_status( $id ) )->toBe( 'trash' );
+	}
 } );
 
 test( 'purge_stale_products removes nothing when the membership picture is incomplete, even for a human', function () {
