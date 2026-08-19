@@ -29,6 +29,19 @@ phpunit.xml
 # Agent worktrees — local checkouts, never part of the tree
 .claude/worktrees/
 
+# wp-env bind-mount placeholders. .wp-env.json maps these repo-root files into
+# wp-content/plugins/skwirrel-pim-sync/, which IS this directory, so Docker keeps
+# recreating them here as empty files. The plugin has no dev tooling of its own —
+# ignoring them also stops it being shipped by accident.
+/plugin/skwirrel-pim-sync/composer.json
+/plugin/skwirrel-pim-sync/composer.lock
+/plugin/skwirrel-pim-sync/phpunit.xml.dist
+/plugin/skwirrel-pim-sync/phpunit-integration.xml.dist
+/plugin/skwirrel-pim-sync/phpstan.neon.dist
+/plugin/skwirrel-pim-sync/.phpcs.xml.dist
+/plugin/skwirrel-pim-sync/tests/
+/plugin/skwirrel-pim-sync/vendor/
+
 # Skwirrel ERP reference
 skwirrel/
 /mu-plugins/essec-skwirrel-specs.php
