@@ -48,3 +48,10 @@ skwirrel/
 /.bmad-board
 .bmad-board/tab-state.json
 .bmad-board/session-history.json
+
+# BMAD skill run artefacts. Skills write their plan and validation reports next to
+# their own definition, so a run dirties the skill directory itself. These are the
+# output of a run, not part of the skill — 25 of them were committed by accident in
+# 2823b89 and removed again by the 6.11.0 update.
+.claude/skills/**/workflow-plan*.md
+.claude/skills/**/validation-report-20*.md
