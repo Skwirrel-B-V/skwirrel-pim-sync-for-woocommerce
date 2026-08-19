@@ -24,6 +24,7 @@ phpunit.xml
 
 # BMAD local board state
 .bmad-board/
+.dybs/
 
 # Skwirrel ERP reference
 skwirrel/
