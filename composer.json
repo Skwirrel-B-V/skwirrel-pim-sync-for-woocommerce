@@ -31,7 +31,7 @@
     },
     "scripts": {
         "test": "pest",
-        "analyse": "phpstan analyse",
+        "analyse": "phpstan analyse --memory-limit=2G",
         "cs": "phpcs",
         "cs-fix": "phpcbf",
         "install-plugin": "composer -d plugin/skwirrel-pim-sync install"

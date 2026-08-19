@@ -178,7 +178,7 @@ Full end-to-end release guide: [`docs/release.md`](docs/release.md). Summary:
 ```bash
 # All three must pass before committing:
 vendor/bin/pest            # Unit tests (stub bootstrap, no Docker)
-vendor/bin/phpstan analyse # Static analysis (level 6, baseline in phpstan-baseline.neon)
+vendor/bin/phpstan analyse --memory-limit=2G # Static analysis (level 6, baseline in phpstan-baseline.neon)
 vendor/bin/phpcs           # Code style (WordPress standards)
 
 # Auto-fix code style issues:
@@ -212,7 +212,7 @@ See `tests/Integration/README.md` for the full guide.
 - CSS assets: `plugin/skwirrel-pim-sync/assets/admin.css` (admin settings page) and `plugin/skwirrel-pim-sync/assets/product-documents.css` (frontend documents tab)
 - The `SKWIRREL_WC_SYNC_DEBUG_ETIM` constant enables detailed ETIM debug logging to the uploads directory
 - The `SKWIRREL_VERBOSE_SYNC` constant or `verbose_logging` setting enables verbose log output
-- Static analysis: `vendor/bin/phpstan analyse` (config in `phpstan.neon.dist`, baseline in `phpstan-baseline.neon`)
+- Static analysis: `vendor/bin/phpstan analyse --memory-limit=2G` (config in `phpstan.neon.dist`, baseline in `phpstan-baseline.neon`)
 - Code style: `vendor/bin/phpcs` (config in `.phpcs.xml.dist`)
 - Unit tests: `vendor/bin/pest` (Pest PHP, config in `phpunit.xml.dist`, stub bootstrap in `tests/bootstrap.php`)
 - Integration tests: `npm run test:integration` (Pest + real WP via wp-env, bootstrap in `tests/Integration/bootstrap.php`)

@@ -177,7 +177,7 @@ Anything that would require stubbing more than a line or two of WP/WC:
 Not tests, but part of the same pre-commit gate:
 
 ```bash
-vendor/bin/phpstan analyse       # level 6, config: phpstan.neon.dist, baseline: phpstan-baseline.neon
+vendor/bin/phpstan analyse --memory-limit=2G       # level 6, config: phpstan.neon.dist, baseline: phpstan-baseline.neon
 vendor/bin/phpcs                 # WordPress standards, config: .phpcs.xml.dist
 vendor/bin/phpcbf                # auto-fix code style issues
 ```
@@ -190,7 +190,7 @@ All three must pass. CI re-runs them on push to `main` and on pull requests (`.g
 
 ```bash
 vendor/bin/pest              # Unit tests
-vendor/bin/phpstan analyse   # Static analysis
+vendor/bin/phpstan analyse --memory-limit=2G   # Static analysis
 vendor/bin/phpcs             # Code style
 ```
 

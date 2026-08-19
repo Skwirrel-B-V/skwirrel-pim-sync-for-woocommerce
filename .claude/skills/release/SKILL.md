@@ -46,7 +46,7 @@ Check whether this release added/changed any `__()`/`esc_html__()` etc. strings 
 ```bash
 vendor/bin/phpcbf            # autofix style first
 vendor/bin/phpcs
-vendor/bin/phpstan analyse   # if it OOMs locally: php -d memory_limit=2G vendor/bin/phpstan analyse
+vendor/bin/phpstan analyse --memory-limit=2G
 vendor/bin/pest
 ```
 Do not weaken the phpstan baseline or tests to pass — fix findings.

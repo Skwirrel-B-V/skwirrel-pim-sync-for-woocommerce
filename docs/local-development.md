@@ -114,7 +114,7 @@ All three must pass before every commit. CI (`.github/workflows/ci.yml`) re-runs
 
 ```bash
 vendor/bin/pest              # Unit tests (stub bootstrap, no Docker)
-vendor/bin/phpstan analyse   # Static analysis, level 6 (baseline: phpstan-baseline.neon)
+vendor/bin/phpstan analyse --memory-limit=2G   # Static analysis, level 6 (baseline: phpstan-baseline.neon)
 vendor/bin/phpcs             # WordPress coding standards (config: .phpcs.xml.dist)
 
 vendor/bin/phpcbf            # Auto-fix code style issues

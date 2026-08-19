@@ -66,7 +66,7 @@ Priority areas:
 
 ```bash
 # PHPStan (level 6)
-vendor/bin/phpstan analyse
+vendor/bin/phpstan analyse --memory-limit=2G
 
 # PHP_CodeSniffer
 vendor/bin/phpcs
@@ -81,7 +81,7 @@ vendor/bin/phpcbf
 
 ```bash
 vendor/bin/pest            # Unit tests
-vendor/bin/phpstan analyse # Static analysis
+vendor/bin/phpstan analyse --memory-limit=2G # Static analysis
 vendor/bin/phpcs           # Code style
 ```
 

@@ -48,7 +48,7 @@ Run everything from the repo root:
 
 ```bash
 vendor/bin/pest              # unit tests
-vendor/bin/phpstan analyse   # static analysis
+vendor/bin/phpstan analyse --memory-limit=2G   # static analysis
 vendor/bin/phpcs             # code style
 npm run test:integration     # integration tests (requires npm run env:start)
 ```
@@ -58,7 +58,7 @@ Test counts above are a snapshot of `main`; run `vendor/bin/pest` for the author
 ## Contributing
 
 - Every change bumps the version in all three spots (plugin header, `SKWIRREL_WC_SYNC_VERSION` constant, `readme.txt` Stable tag) — see [`docs/release.md`](docs/release.md).
-- Pre-commit quality gate: `vendor/bin/pest`, `vendor/bin/phpstan analyse`, `vendor/bin/phpcs` — all three must pass. CI re-runs them on PRs and pushes to `main`.
+- Pre-commit quality gate: `vendor/bin/pest`, `vendor/bin/phpstan analyse --memory-limit=2G`, `vendor/bin/phpcs` — all three must pass. CI re-runs them on PRs and pushes to `main`.
 
 ## License
 

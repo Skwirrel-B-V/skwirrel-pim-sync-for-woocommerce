@@ -44,7 +44,7 @@ When working on the Skwirrel PIM Sync plugin specifically:
 - Settings stored in `skwirrel_wc_sync_settings` option array
 - Auth token stored separately in `skwirrel_wc_sync_auth_token`
 - Logging via `Skwirrel_WC_Sync_Logger` wrapping `wc_get_logger()`
-- Run `vendor/bin/pest`, `vendor/bin/phpstan analyse`, and `vendor/bin/phpcs` before committing
+- Run `vendor/bin/pest`, `vendor/bin/phpstan analyse --memory-limit=2G`, and `vendor/bin/phpcs` before committing
 - Every change requires a version bump in the plugin header and `SKWIRREL_WC_SYNC_VERSION` constant
 
 **Update your agent memory** as you discover code patterns, hook usage, class relationships, WooCommerce API patterns, and architectural decisions in the codebase. This builds up institutional knowledge across conversations. Write concise notes about what you found and where.
