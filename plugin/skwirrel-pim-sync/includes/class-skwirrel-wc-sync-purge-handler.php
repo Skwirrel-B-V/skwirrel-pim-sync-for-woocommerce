@@ -1059,7 +1059,11 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		);
 	}
 
-	/** Normalize a database identifier without allowing integer overflow or lossy casts. */
+	/**
+	 * Normalize a database identifier without allowing integer overflow or lossy casts.
+	 *
+	 * @param mixed $value Candidate identifier.
+	 */
 	private static function normalize_positive_id( $value ): ?int {
 		if ( is_int( $value ) ) {
 			return $value > 0 ? $value : null;

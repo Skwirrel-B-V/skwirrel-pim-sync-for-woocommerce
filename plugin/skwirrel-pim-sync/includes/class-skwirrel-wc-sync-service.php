@@ -1595,7 +1595,11 @@ class Skwirrel_WC_Sync_Service {
 		// On 'done'/'failed' the step already cleared the run state and released the mutex.
 	}
 
-	/** Build the poison-loop progress signature for a persisted async run. */
+	/**
+	 * Build the poison-loop progress signature for a persisted async run.
+	 *
+	 * @param array<string, mixed> $state Persisted run context.
+	 */
 	private static function progress_signature( array $state ): string {
 		$watermark = (int) ( $state['fetched'] ?? 0 ) + (int) ( $state['processed'] ?? 0 ) + (int) ( $state['virtual_done'] ?? 0 )
 			+ (int) ( $state['rel_done'] ?? 0 ) + (int) ( $state['trashed'] ?? 0 ) + (int) ( $state['finalize_passes'] ?? 0 );
