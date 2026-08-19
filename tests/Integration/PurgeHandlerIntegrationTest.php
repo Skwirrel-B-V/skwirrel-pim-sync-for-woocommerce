@@ -24,14 +24,8 @@ beforeEach(function () {
 	// assertions are independent. WP_UnitTestCase rolls back the parent
 	// transaction, but WC writes to several side tables and caches that
 	// don't always participate, leading to flaky count assertions.
+	skwPurgeSkwirrelPosts();
 	global $wpdb;
-	$leftover_post_ids = $wpdb->get_col(
-		"SELECT DISTINCT post_id FROM {$wpdb->postmeta}
-		WHERE meta_key IN ('_skwirrel_external_id', '_skwirrel_grouped_product_id', '_skwirrel_synced_at')"
-	);
-	foreach ( $leftover_post_ids as $pid ) {
-		wp_delete_post( (int) $pid, true );
-	}
 	$leftover_term_ids = $wpdb->get_col(
 		"SELECT DISTINCT term_id FROM {$wpdb->termmeta} WHERE meta_key = '_skwirrel_category_id'"
 	);
@@ -85,9 +79,9 @@ test( 'purge_stale_products returns 0 when no stale products exist', function ()
 	createPurgeProduct( 'EXT-FRESH-1', (string) $now );
 	createPurgeProduct( 'EXT-FRESH-2', (string) $now );
 
-	$result = $this->purge_handler->purge_stale_products( $now - 10, $this->mapper );
+	$result = $this->purge_handler->purge_stale_products( $now - 10, $this->mapper, '', true, true );
 
-	expect( $result )->toBe( 0 );
+	expect( $result['trashed'] )->toBe( 0 );
 } );
 
 test( 'purge_stale_products trashes products with synced_at older than threshold', function () {
@@ -95,9 +89,9 @@ test( 'purge_stale_products trashes products with synced_at older than threshold
 	$stale_id      = createPurgeProduct( 'EXT-STALE', (string) ( $now - 1000 ) );
 	$fresh_id      = createPurgeProduct( 'EXT-FRESH', (string) $now );
 
-	$result = $this->purge_handler->purge_stale_products( $now - 500, $this->mapper );
+	$result = $this->purge_handler->purge_stale_products( $now - 500, $this->mapper, '', true, true );
 
-	expect( $result )->toBe( 1 );
+	expect( $result['trashed'] )->toBe( 1 );
 	expect( get_post_status( $stale_id ) )->toBe( 'trash' );
 	expect( get_post_status( $fresh_id ) )->toBe( 'publish' );
 } );
@@ -105,9 +99,9 @@ test( 'purge_stale_products trashes products with synced_at older than threshold
 test( 'purge_stale_products trashes products with missing synced_at meta', function () {
 	$id = createPurgeProduct( 'EXT-NOSYNC', null );
 
-	$result = $this->purge_handler->purge_stale_products( time(), $this->mapper );
+	$result = $this->purge_handler->purge_stale_products( time(), $this->mapper, '', true, true );
 
-	expect( $result )->toBe( 1 );
+	expect( $result['trashed'] )->toBe( 1 );
 	expect( get_post_status( $id ) )->toBe( 'trash' );
 } );
 
@@ -118,9 +112,9 @@ test( 'purge_stale_products skips products with corrupt non-numeric synced_at me
 	$now = time();
 	$id  = createPurgeProduct( 'EXT-CORRUPT', 'not-a-timestamp' );
 
-	$result = $this->purge_handler->purge_stale_products( $now, $this->mapper );
+	$result = $this->purge_handler->purge_stale_products( $now, $this->mapper, '', true, true );
 
-	expect( $result )->toBe( 0 );
+	expect( $result['trashed'] )->toBe( 0 );
 	expect( get_post_status( $id ) )->toBe( 'publish' );
 } );
 
@@ -133,9 +127,9 @@ test( 'purge_stale_products ignores non-Skwirrel products', function () {
 
 	$stale_id = createPurgeProduct( 'EXT-STALE', '1' );
 
-	$result = $this->purge_handler->purge_stale_products( time(), $this->mapper );
+	$result = $this->purge_handler->purge_stale_products( time(), $this->mapper, '', true, true );
 
-	expect( $result )->toBe( 1 );
+	expect( $result['trashed'] )->toBe( 1 );
 	expect( get_post_status( $stale_id ) )->toBe( 'trash' );
 	expect( get_post_status( $plain_id ) )->toBe( 'publish' );
 } );
@@ -144,9 +138,9 @@ test( 'purge_stale_products skips products that are already trashed', function (
 	$id = createPurgeProduct( 'EXT-ALREADY-TRASHED', '1' );
 	wp_trash_post( $id );
 
-	$result = $this->purge_handler->purge_stale_products( time(), $this->mapper );
+	$result = $this->purge_handler->purge_stale_products( time(), $this->mapper, '', true, true );
 
-	expect( $result )->toBe( 0 );
+	expect( $result['trashed'] )->toBe( 0 );
 } );
 
 test( 'purge_stale_products cascades trash to variations of a stale variable parent', function () {
@@ -165,11 +159,65 @@ test( 'purge_stale_products cascades trash to variations of a stale variable par
 	$variation->set_status( 'publish' );
 	$variation_id = (int) $variation->save();
 
-	$result = $this->purge_handler->purge_stale_products( $now - 500, $this->mapper );
+	$result = $this->purge_handler->purge_stale_products( $now - 500, $this->mapper, '', true, true );
 
-	expect( $result )->toBe( 2 ); // parent + 1 variation
+	expect( $result['trashed'] )->toBe( 2 ); // parent + 1 variation
 	expect( get_post_status( $parent_id ) )->toBe( 'trash' );
 	expect( get_post_status( $variation_id ) )->toBe( 'trash' );
+} );
+
+// ------------------------------------------------------------------
+// The removal chokepoint guards the FULL-SYNC path too
+//
+// A scheduled run goes full whenever `skwirrel_wc_sync_force_full_sync` is armed — which the purge
+// itself arms — so "full sync" never implied "a human asked for it". These pin that the bound and
+// the completeness precondition sit on the removal decision, not on the delta/full branch.
+// ------------------------------------------------------------------
+
+test( 'purge_stale_products refuses a mass removal when the run was not human-initiated', function () {
+	$now = time();
+	// 3 of 3 stale (100%) — far past the 25% bound.
+	$a = createPurgeProduct( 'EXT-MASS-A', '1' );
+	$b = createPurgeProduct( 'EXT-MASS-B', '1' );
+	$c = createPurgeProduct( 'EXT-MASS-C', '1' );
+
+	$result = $this->purge_handler->purge_stale_products( $now, $this->mapper, '', false, true );
+
+	expect( $result['refused'] )->toBeTrue();
+	expect( $result['trashed'] )->toBe( 0 );
+	expect( $result['message'] )->toContain( 'Mass removal refused' );
+	expect( get_post_status( $a ) )->toBe( 'publish' );
+	expect( get_post_status( $b ) )->toBe( 'publish' );
+	expect( get_post_status( $c ) )->toBe( 'publish' );
+} );
+
+test( 'purge_stale_products performs the same mass removal when a human initiated the run', function () {
+	// Identical fixture to the test above — only the explicit human_initiated fact differs.
+	// This is AC 4's escape hatch: a person who asked for the sync sees the result.
+	$now = time();
+	$a   = createPurgeProduct( 'EXT-HUMAN-A', '1' );
+	$b   = createPurgeProduct( 'EXT-HUMAN-B', '1' );
+	$c   = createPurgeProduct( 'EXT-HUMAN-C', '1' );
+
+	$result = $this->purge_handler->purge_stale_products( $now, $this->mapper, '', true, true );
+
+	expect( $result['refused'] )->toBeFalse();
+	expect( $result['trashed'] )->toBe( 3 );
+	expect( get_post_status( $a ) )->toBe( 'trash' );
+	expect( get_post_status( $b ) )->toBe( 'trash' );
+	expect( get_post_status( $c ) )->toBe( 'trash' );
+} );
+
+test( 'purge_stale_products removes nothing when the membership picture is incomplete, even for a human', function () {
+	// Completeness is a precondition, not a preference — absence cannot be proven from a partial
+	// picture no matter who asked, so even human_initiated does not bypass it.
+	$id = createPurgeProduct( 'EXT-INCOMPLETE', '1' );
+
+	$result = $this->purge_handler->purge_stale_products( time(), $this->mapper, '', true, false );
+
+	expect( $result['refused'] )->toBeTrue();
+	expect( $result['trashed'] )->toBe( 0 );
+	expect( get_post_status( $id ) )->toBe( 'publish' );
 } );
 
 // ------------------------------------------------------------------

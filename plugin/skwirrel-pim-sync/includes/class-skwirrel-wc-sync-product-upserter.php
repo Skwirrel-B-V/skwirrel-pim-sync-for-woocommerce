@@ -15,6 +15,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Skwirrel_WC_Sync_Product_Upserter {
 
+	/**
+	 * Rows per page for the membership sweep (`fetch_product_ids_for_selection()`).
+	 *
+	 * Deliberately independent of the content `batch_size`: the sweep asks for no payload
+	 * (`options: []`), so its pages are id-only and cheap. A reference install runs
+	 * `batch_size: 25`, which would turn an 850-product selection into 34 sweep calls.
+	 */
+	private const SWEEP_PAGE_LIMIT = 500;
+
 	private Skwirrel_WC_Sync_Logger $logger;
 	private Skwirrel_WC_Sync_Product_Mapper $mapper;
 	private Skwirrel_WC_Sync_Product_Lookup $lookup;
@@ -906,9 +915,14 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * @param array<int>                      $collection_ids Selection IDs to filter by.
 	 * @param string                          $run_id         Current run uuid, so each shell carries this
 	 *                                                        run's deep-link marker.
+	 * @param array<int, bool>|null           $allowed_product_ids Pre-computed selection membership
+	 *                                                        (the run's sweep). Pass it to reuse the
+	 *                                                        sweep the service already performed
+	 *                                                        instead of repeating the same calls; null
+	 *                                                        makes this method fetch it itself.
 	 * @return array{created: int, updated: int, unchanged: int, map: array}
 	 */
-	public function sync_grouped_products_first( Skwirrel_WC_Sync_JsonRpc_Client $client, array $options, array $collection_ids = [], string $run_id = '' ): array {
+	public function sync_grouped_products_first( Skwirrel_WC_Sync_JsonRpc_Client $client, array $options, array $collection_ids = [], string $run_id = '', ?array $allowed_product_ids = null ): array {
 		$created              = 0;
 		$updated              = 0;
 		$unchanged            = 0;
@@ -925,22 +939,23 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'include_languages'         => $this->get_include_languages(),
 		];
 
-		// Build allowed product IDs from every configured dynamic selection.
-		// `dynamic_selection_id` is a single-int filter on the API, so multiple
-		// configured selections become one prefilter call per id; the resulting
-		// ID maps are merged so a grouped product is kept whenever ANY of its
-		// members lives in ANY of the configured selections.
-		$allowed_product_ids = null;
-		if ( ! empty( $collection_ids ) ) {
+		// Allowed product IDs across every configured dynamic selection. The caller normally hands
+		// this in — it is the run's membership sweep, already fetched once — so the same calls are
+		// not repeated here. When it is not supplied (direct callers, tests), fetch it: the API's
+		// `dynamic_selection_id` is a single-int filter, so multiple configured selections become one
+		// prefilter call per id and the resulting ID maps are merged, keeping a grouped product
+		// whenever ANY of its members lives in ANY of the configured selections.
+		if ( null === $allowed_product_ids && ! empty( $collection_ids ) ) {
 			$allowed_product_ids = [];
 			foreach ( $collection_ids as $selection_id ) {
-				$ids_for_selection    = $this->fetch_product_ids_for_selection( $client, (int) $selection_id, $batch_size );
-				$allowed_product_ids += $ids_for_selection;
+				$sweep                = $this->fetch_product_ids_for_selection( $client, (int) $selection_id );
+				$allowed_product_ids += $sweep['ids'];
 				$this->logger->info(
 					'Fetched product IDs for selection filter',
 					[
 						'dynamic_selection_id' => (int) $selection_id,
-						'product_count'        => count( $ids_for_selection ),
+						'product_count'        => count( $sweep['ids'] ),
+						'complete'             => $sweep['complete'],
 					]
 				);
 			}
@@ -1040,19 +1055,30 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	}
 
 	/**
-	 * Fetch all product IDs belonging to a dynamic selection.
+	 * Fetch the complete product-id membership of one dynamic selection ("the sweep").
 	 *
-	 * Used to post-filter grouped products: only groups containing at least
-	 * one product from the selection should be synced.
+	 * This is the only API call that reports selection membership truthfully: it carries no
+	 * `updated_on` clause and no payload includes, so the upstream scoping bug (which widens or
+	 * drops the `dynamic_selection_id` scope when an `updated_on` filter is present) cannot affect
+	 * it. Two callers rely on it — the grouped-product post-filter and the sync service's
+	 * membership sweep, which drives both payload filtering and removals.
+	 *
+	 * Paged at SWEEP_PAGE_LIMIT rather than the content `batch_size`: the rows are id-only, so a
+	 * store running `batch_size: 25` would otherwise spend dozens of round-trips on a few hundred
+	 * ids. Because removals are decided from this set, a failed page is reported as
+	 * `complete => false` instead of silently returning a partial set.
 	 *
 	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client               API client.
-	 * @param int                             $dynamic_selection_id  Selection ID.
-	 * @param int                             $batch_size            Products per page.
-	 * @return array<int, true> Product IDs as keys for fast isset() lookup.
+	 * @param int                             $dynamic_selection_id Selection ID.
+	 * @param int|null                        $page_limit           Rows per page; null uses SWEEP_PAGE_LIMIT.
+	 * @return array{ids: array<int, true>, complete: bool} Product IDs as keys for fast isset()
+	 *                                                      lookup, plus whether every page was read.
 	 */
-	private function fetch_product_ids_for_selection( Skwirrel_WC_Sync_JsonRpc_Client $client, int $dynamic_selection_id, int $batch_size ): array {
-		$ids  = [];
-		$page = 1;
+	public function fetch_product_ids_for_selection( Skwirrel_WC_Sync_JsonRpc_Client $client, int $dynamic_selection_id, ?int $page_limit = null ): array {
+		$limit = null === $page_limit ? self::SWEEP_PAGE_LIMIT : $page_limit;
+		$limit = max( 1, $limit );
+		$ids   = [];
+		$page  = 1;
 		do {
 			$result = $client->call(
 				'getProductsByFilter',
@@ -1060,7 +1086,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					'filter'  => [ 'dynamic_selection_id' => $dynamic_selection_id ],
 					'options' => [],
 					'page'    => $page,
-					'limit'   => $batch_size,
+					'limit'   => $limit,
 				]
 			);
 			if ( ! $result['success'] ) {
@@ -1068,10 +1094,14 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					'Failed to fetch product IDs for selection filter',
 					[
 						'dynamic_selection_id' => $dynamic_selection_id,
+						'page'                 => $page,
 						'error'                => $result['error'] ?? [],
 					]
 				);
-				break;
+				return [
+					'ids'      => $ids,
+					'complete' => false,
+				];
 			}
 			$products = $result['result']['products'] ?? [];
 			$count    = count( $products );
@@ -1083,13 +1113,16 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 			unset( $result, $products );
 			self::free_wpdb_memory();
-			if ( $count < $batch_size ) {
+			if ( $count < $limit ) {
 				break;
 			}
 			++$page;
 		} while ( true );
 
-		return $ids;
+		return [
+			'ids'      => $ids,
+			'complete' => true,
+		];
 	}
 
 	/**

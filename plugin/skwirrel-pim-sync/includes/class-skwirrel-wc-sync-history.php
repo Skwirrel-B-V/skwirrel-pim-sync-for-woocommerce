@@ -200,6 +200,8 @@ class Skwirrel_WC_Sync_History {
 	 * @param int    $unchanged          Number of products skipped as unchanged.
 	 * @param int    $deprecated         Number of products this run left in the deprecated status.
 	 * @param string $run_id             Run uuid, for run-scoped product deep-links from the overview.
+	 * @param string $warning            Non-fatal advisory for a successful run that deliberately
+	 *                                   withheld an action (e.g. a refused mass removal).
 	 *
 	 * @return void
 	 */
@@ -217,7 +219,8 @@ class Skwirrel_WC_Sync_History {
 		string $log_file = '',
 		int $unchanged = 0,
 		int $deprecated = 0,
-		string $run_id = ''
+		string $run_id = '',
+		string $warning = ''
 	): void {
 		$result = [
 			'success'            => $ok,
@@ -229,6 +232,9 @@ class Skwirrel_WC_Sync_History {
 			'deprecated'         => $deprecated,
 			'categories_removed' => $categories_removed,
 			'error'              => $error,
+			// Non-fatal advisory for a run that succeeded but deliberately did not do something —
+			// today: a removal refused by the mass-removal bound or by an incomplete membership sweep.
+			'warning'            => $warning,
 			'with_attributes'    => $with_attrs,
 			'without_attributes' => $without_attrs,
 			'trigger'            => $trigger,

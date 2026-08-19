@@ -188,6 +188,11 @@ test( 'run_sync records failure and does NOT advance last_sync when a later page
 			if ( $is_attr_fetch ) {
 				return [ 'products' => [ $page1_product ] ];
 			}
+			// Membership sweep (Story 2.6): answer it outside the page counter so it does not
+			// consume the content fetch's first page. The product is in the selection.
+			if ( skwIsSweepCall( $params ) ) {
+				return [ 'products' => [ [ 'product_id' => $page1_product['product_id'] ] ] ];
+			}
 			++$page;
 			if ( 1 === $page ) {
 				return [ 'products' => [ $page1_product ] ];
@@ -247,6 +252,11 @@ test( 'run_sync does NOT trigger stale-product purge when a later page fails', f
 			if ( $is_attr_fetch ) {
 				return [ 'products' => [ $page1_product ] ];
 			}
+			// Membership sweep (Story 2.6): answer it outside the page counter so it does not
+			// consume the content fetch's first page. The product is in the selection.
+			if ( skwIsSweepCall( $params ) ) {
+				return [ 'products' => [ [ 'product_id' => $page1_product['product_id'] ] ] ];
+			}
 			++$page;
 			if ( 1 === $page ) {
 				return [ 'products' => [ $page1_product ] ];
@@ -305,6 +315,11 @@ test( 'heartbeat transient is cleared after a successful run, so the next click 
 				&& 'product_id' === $params['filter']['code']['type'];
 			if ( $is_attr_fetch ) {
 				return [ 'products' => [ $skwirrel_product ] ];
+			}
+			// Membership sweep (Story 2.6): answer it outside the page counter so it does not
+			// consume the content fetch's first page. The product is in the selection.
+			if ( skwIsSweepCall( $params ) ) {
+				return [ 'products' => [ [ 'product_id' => $skwirrel_product['product_id'] ] ] ];
 			}
 			++$page;
 			return 1 === $page ? [ 'products' => [ $skwirrel_product ] ] : [ 'products' => [] ];
@@ -367,10 +382,18 @@ test( 'run_sync queries every configured selection id, not just the first one', 
 				return [ 'products' => [ $product_in_two ] ];
 			}
 			$selection_id = (int) ( $params['filter']['dynamic_selection_id'] ?? 0 );
+			$product      = 1 === $selection_id ? $product_in_one : $product_in_two;
+			// Membership sweep (Story 2.6): each selection contains its own product. Answered
+			// outside the per-selection page counter so it does not consume page 1.
+			if ( skwIsSweepCall( $params ) ) {
+				return isset( $selection_calls[ $selection_id ] )
+					? [ 'products' => [ [ 'product_id' => $product['product_id'] ] ] ]
+					: [ 'products' => [] ];
+			}
 			if ( isset( $selection_calls[ $selection_id ] ) ) {
 				++$selection_calls[ $selection_id ];
 				if ( 1 === $selection_calls[ $selection_id ] ) {
-					return [ 'products' => [ 1 === $selection_id ? $product_in_one : $product_in_two ] ];
+					return [ 'products' => [ $product ] ];
 				}
 			}
 			return [ 'products' => [] ];
@@ -405,10 +428,10 @@ test( 'sync_grouped_products_first queries every selection id when building the 
 		]
 	) );
 
-	// Per-id call counter for getProductsByFilter. Both the main-fetch loop
-	// (already multi-selection-aware after the 3.8.0 fix) and the grouped-
-	// products prefilter use this RPC, so a correct implementation queries
-	// each configured id from BOTH paths — i.e. at least twice per id.
+	// Per-id call counter for getProductsByFilter. Two things must query every configured
+	// selection id: the main fetch loop (multi-selection-aware since the 3.8.0 fix) and the
+	// membership sweep, whose id set also feeds sync_grouped_products_first's post-filter.
+	// So a correct implementation hits each configured id at least twice.
 	$by_selection = [];
 	safetyStub( [
 		'getBrands'           => [ 'brands' => [] ],
@@ -427,10 +450,9 @@ test( 'sync_grouped_products_first queries every selection id when building the 
 	$result  = $service->run_sync( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
 
 	expect( $result['success'] )->toBeTrue();
-	// Both selections must have been hit at least twice (once by the main
-	// fetch loop, once by sync_grouped_products_first's prefilter). Today
-	// the prefilter only uses $collection_ids[0], so selection 2 ends up
-	// at exactly 1 call instead of 2 — the test fails red against main.
+	// Both selections must have been hit at least twice — once by the membership sweep that
+	// feeds the grouped post-filter, once by the main fetch loop. Before the 3.8.0 fix the
+	// prefilter only used $collection_ids[0], so selection 2 ended up at exactly 1 call.
 	expect( $by_selection[1] ?? 0 )->toBeGreaterThanOrEqual( 2 );
 	expect( $by_selection[2] ?? 0 )->toBeGreaterThanOrEqual( 2 );
 } );
@@ -482,6 +504,11 @@ test( 'empty cross_sells in the API payload clears existing WC cross_sells', fun
 				&& 'product_id' === $params['filter']['code']['type'];
 			if ( $is_attr_fetch ) {
 				return [ 'products' => [ $skwirrel_product ] ];
+			}
+			// Membership sweep (Story 2.6): answer it outside the page counter so it does not
+			// consume the content fetch's first page. The product is in the selection.
+			if ( skwIsSweepCall( $params ) ) {
+				return [ 'products' => [ [ 'product_id' => $skwirrel_product['product_id'] ] ] ];
 			}
 			++$page;
 			return 1 === $page ? [ 'products' => [ $skwirrel_product ] ] : [ 'products' => [] ];

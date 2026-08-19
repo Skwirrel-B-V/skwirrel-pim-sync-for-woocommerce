@@ -27,6 +27,17 @@ class Skwirrel_WC_Sync_Purge_Handler {
 	 */
 	private const DEPRECATED_BATCH_SIZE = 100;
 
+	/**
+	 * Fraction of the Skwirrel-owned parent-product count above which a sweep-driven removal is
+	 * refused rather than performed.
+	 *
+	 * A scheduled run removes products silently, so an upstream hiccup that returns a short (but
+	 * technically successful) selection must not be able to empty the shop. For scale: 70 of 920
+	 * (~8%) is a normal week on the reference install. Override with the
+	 * `skwirrel_wc_sync_mass_removal_ratio` filter — deliberately not a setting.
+	 */
+	public const MASS_REMOVAL_RATIO = 0.25;
+
 	private Skwirrel_WC_Sync_Logger $logger;
 
 	/**
@@ -503,11 +514,20 @@ class Skwirrel_WC_Sync_Purge_Handler {
 	 * Safety: the synced_at meta value is validated as numeric before comparison to
 	 * prevent corrupt meta values from causing incorrect trashing.
 	 *
-	 * @param int                              $sync_started_at Unix timestamp when the sync run started.
-	 * @param Skwirrel_WC_Sync_Product_Mapper  $mapper          Product mapper instance (for meta key accessors).
-	 * @return int Number of products and variations moved to trash.
+	 * This is only the DETECTION. Whether the resulting set may actually be removed is decided by
+	 * apply_missing_state(), the single chokepoint every removal passes through — which is why the
+	 * explicit facts (`$human_initiated`, `$membership_complete`) are required arguments here rather
+	 * than something this method infers from being "the full-sync path".
+	 *
+	 * @param int                             $sync_started_at     Unix timestamp when the sync run started.
+	 * @param Skwirrel_WC_Sync_Product_Mapper $mapper              Product mapper instance (for meta key accessors).
+	 * @param string                          $run_id              Current run uuid, for the deep-link marker.
+	 * @param bool                            $human_initiated     Whether a person started this run.
+	 * @param bool                            $membership_complete Whether the membership picture is complete.
+	 * @param float|null                      $ratio               Mass-removal bound; null uses the filtered default.
+	 * @return array{trashed:int, refused:bool, message:string}
 	 */
-	public function purge_stale_products( int $sync_started_at, Skwirrel_WC_Sync_Product_Mapper $mapper, string $run_id = '' ): int {
+	public function purge_stale_products( int $sync_started_at, Skwirrel_WC_Sync_Product_Mapper $mapper, string $run_id, bool $human_initiated, bool $membership_complete, ?float $ratio = null ): array {
 		global $wpdb;
 		$external_id_meta = $mapper->get_external_id_meta_key();
 		$synced_at_meta   = $mapper->get_synced_at_meta_key();
@@ -573,7 +593,11 @@ class Skwirrel_WC_Sync_Purge_Handler {
 
 		if ( empty( $all_stale ) ) {
 			$this->logger->verbose( 'No stale products found' );
-			return 0;
+			return [
+				'trashed' => 0,
+				'refused' => false,
+				'message' => '',
+			];
 		}
 
 		// Log pre-purge summary
@@ -586,24 +610,160 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			]
 		);
 
+		return $this->apply_missing_state(
+			$all_stale,
+			$this->count_stale_purge_universe( $external_id_meta ),
+			$human_initiated,
+			$membership_complete,
+			'synced_at',
+			$missing_state,
+			$run_id,
+			$ratio
+		);
+	}
+
+	/**
+	 * THE removal chokepoint: authorise a set of missing products, then retire them.
+	 *
+	 * Every "this product is gone, retire it" decision in the sync run goes through here, and the
+	 * safety checks live INSIDE it rather than at the call sites. That is deliberate and structural:
+	 * a new detection path cannot reach a removal without inheriting the bound, because there is no
+	 * other code that writes the missing-state. Adding a guard at a caller instead would only guard
+	 * the callers that exist today.
+	 *
+	 * The guard's inputs are explicit facts supplied by whoever knows them — never re-derived here
+	 * from delta/full, the trigger name, or anything else that merely correlates today. Every one of
+	 * them fails CLOSED: an unknown, absent or incoherent signal means remove nothing.
+	 *
+	 *  - `$membership_complete` (from the sweep) is a hard precondition and is never bypassable.
+	 *    Absence cannot be proven from an incomplete picture, no matter who asked.
+	 *  - `$human_initiated` (from the run's trigger) bypasses only the MAGNITUDE bound — that is the
+	 *    deliberate escape hatch: a person who asked for the sync sees the result and can act on it.
+	 *    An unattended run never gets it.
+	 *  - An incoherent denominator (fewer owned products than candidates) means the caller measured
+	 *    two different universes, so the ratio would be meaningless — refuse rather than guess.
+	 *
+	 * NB: the deprecated-lifecycle escalation deliberately does NOT come through here. It is not an
+	 * inference about selection membership — it is an explicit per-product countdown that the admin
+	 * configured via `deprecated_remove_after_syncs`, and its cadence is frozen by the GH-40 spec.
+	 *
+	 * @param array<int, int> $candidate_ids       Product/variation IDs judged missing.
+	 * @param int             $owned_count         Size of the universe those candidates were drawn from.
+	 * @param bool            $human_initiated     Whether a person started this run (explicit fact).
+	 * @param bool            $membership_complete Whether the membership picture covers every
+	 *                                             configured selection (explicit fact).
+	 * @param string          $detection           Which detection produced the set, for logging.
+	 * @param string          $missing_state       Post status to apply (always `trash` today).
+	 * @param string          $run_id              Current run uuid, for the deep-link marker.
+	 * @param float|null      $ratio               Mass-removal bound; null uses the filtered default.
+	 * @return array{trashed:int, refused:bool, message:string} Posts actually changed, whether the
+	 *                                             removal was refused, and the reason to surface.
+	 */
+	private function apply_missing_state(
+		array $candidate_ids,
+		int $owned_count,
+		bool $human_initiated,
+		bool $membership_complete,
+		string $detection,
+		string $missing_state,
+		string $run_id,
+		?float $ratio = null
+	): array {
+		$none = [
+			'trashed' => 0,
+			'refused' => false,
+			'message' => '',
+		];
+
+		// Precondition 1 — the membership picture must be complete. Not bypassable by anyone.
+		if ( ! $membership_complete ) {
+			$message = __( 'Removal skipped: the product membership picture for this run is incomplete, so no product can be proven to have left the selection. The product sync itself finished normally.', 'skwirrel-pim-sync' );
+			$this->logger->warning(
+				$message,
+				[
+					'detection'  => $detection,
+					'candidates' => count( $candidate_ids ),
+				]
+			);
+			return [
+				'trashed' => 0,
+				'refused' => true,
+				'message' => $message,
+			];
+		}
+
+		$candidate_ids = array_values( array_unique( array_map( 'intval', $candidate_ids ) ) );
+		$missing_count = count( $candidate_ids );
+		if ( 0 === $missing_count ) {
+			return $none;
+		}
+
+		// Precondition 2 — the denominator must contain the candidates. If it does not, the caller
+		// counted two different universes and the ratio below would be nonsense.
+		if ( $owned_count < $missing_count ) {
+			$message = __( 'Removal skipped: the removal set could not be measured against the catalogue it came from. Nothing was removed.', 'skwirrel-pim-sync' );
+			$this->logger->warning(
+				$message,
+				[
+					'detection' => $detection,
+					'missing'   => $missing_count,
+					'owned'     => $owned_count,
+				]
+			);
+			return [
+				'trashed' => 0,
+				'refused' => true,
+				'message' => $message,
+			];
+		}
+
+		// Precondition 3 — magnitude. Only a human-initiated run may exceed it.
+		$bound = null === $ratio ? self::get_mass_removal_ratio() : $ratio;
+		if ( ! $human_initiated && self::exceeds_mass_removal( $missing_count, $owned_count, $bound ) ) {
+			$message = sprintf(
+				/* translators: 1: number of products, 2: total Skwirrel-managed products, 3: percentage of the catalogue, 4: allowed percentage */
+				__( 'Mass removal refused: %1$d of %2$d Skwirrel products (%3$s%%) are no longer in the selection, which exceeds the %4$s%% safety limit. Nothing was removed. Run a manual sync to apply it.', 'skwirrel-pim-sync' ),
+				$missing_count,
+				$owned_count,
+				(string) round( ( $missing_count / $owned_count ) * 100, 1 ),
+				(string) round( $bound * 100, 1 )
+			);
+			$this->logger->warning(
+				$message,
+				[
+					'detection'   => $detection,
+					'missing'     => $missing_count,
+					'owned'       => $owned_count,
+					'ratio'       => round( $missing_count / $owned_count, 4 ),
+					'limit_ratio' => $bound,
+					'product_ids' => array_slice( $candidate_ids, 0, 20 ),
+				]
+			);
+			return [
+				'trashed' => 0,
+				'refused' => true,
+				'message' => $message,
+			];
+		}
+
 		$trashed = 0;
-		foreach ( $all_stale as $post_id ) {
+		foreach ( $candidate_ids as $post_id ) {
 			$product = wc_get_product( $post_id );
 			if ( ! $product ) {
-				$this->logger->verbose( 'Stale product not found, skipped', [ 'wc_id' => $post_id ] );
+				$this->logger->verbose( 'Missing product not found in WooCommerce, skipped', [ 'wc_id' => $post_id ] );
 				continue;
 			}
 
 			// Already in the target state from an earlier run: do not re-save it (and re-inflate the
-			// count) on every subsequent full sync — a stale product keeps its old
-			// _skwirrel_synced_at and would otherwise match forever. The variation cascade below
-			// still runs: a parent trashed by a previous run that died mid-loop, or trashed by hand,
-			// can sit in the target state while its variations are still published and purchasable.
+			// count) on every subsequent run — a stale product keeps its old _skwirrel_synced_at and
+			// would otherwise match forever. The variation cascade below still runs: a parent trashed
+			// by a previous run that died mid-loop, or trashed by hand, can sit in the target state
+			// while its variations are still published and purchasable.
 			$parent_handled = ( $product->get_status() === $missing_state );
 
 			if ( ! $parent_handled ) {
 				$this->logger->info(
-					'Product no longer in Skwirrel feed — applying configured handling',
+					'Product no longer in the Skwirrel selection — retiring it',
 					[
 						'wc_id' => $post_id,
 						'sku'   => $product->get_sku(),
@@ -642,10 +802,204 @@ class Skwirrel_WC_Sync_Purge_Handler {
 		}
 
 		if ( $trashed > 0 ) {
-			$this->logger->info( 'Stale products cleaned up', [ 'count' => $trashed ] );
+			$this->logger->info(
+				'Products no longer in the Skwirrel selection cleaned up',
+				[
+					'count'     => $trashed,
+					'detection' => $detection,
+				]
+			);
 		}
 
-		return $trashed;
+		return [
+			'trashed' => $trashed,
+			'refused' => false,
+			'message' => '',
+		];
+	}
+
+	/**
+	 * Count the live, Skwirrel-owned posts that the stale-purge detection draws from.
+	 *
+	 * Deliberately the same joins, statuses, post types and meta keys as the two stale queries,
+	 * minus the staleness clause — so the stale set is always a subset of this count and the
+	 * chokepoint's ratio compares like with like.
+	 *
+	 * @param string $external_id_meta External-id meta key.
+	 */
+	private function count_stale_purge_universe( string $external_id_meta ): int {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(DISTINCT pm.post_id)
+                 FROM {$wpdb->postmeta} pm
+                 INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                     AND p.post_status NOT IN ('trash', 'auto-draft')
+                     AND p.post_type IN ('product', 'product_variation')
+                 WHERE pm.meta_key IN (%s, %s)
+                     AND pm.meta_value != ''",
+				$external_id_meta,
+				Skwirrel_WC_Sync_Product_Lookup::GROUPED_PRODUCT_ID_META
+			)
+		);
+	}
+
+	/**
+	 * Select the products whose Skwirrel product id is absent from the sweep set.
+	 *
+	 * Pure: no WordPress, no database — the removal decision is the highest-risk part of the run,
+	 * so it is unit-testable on its own.
+	 *
+	 * @param array<int, int>  $owned     Map of WooCommerce post id => Skwirrel product id.
+	 * @param array<int, bool> $sweep_ids Sweep membership set, Skwirrel product id => true.
+	 * @return array<int, int> WooCommerce post ids to retire (list, re-indexed).
+	 */
+	public static function select_missing_ids( array $owned, array $sweep_ids ): array {
+		$missing = [];
+		foreach ( $owned as $post_id => $product_id ) {
+			// A product with no usable Skwirrel id cannot be proven absent — never remove it.
+			if ( (int) $product_id <= 0 ) {
+				continue;
+			}
+			if ( ! isset( $sweep_ids[ (int) $product_id ] ) ) {
+				$missing[] = (int) $post_id;
+			}
+		}
+		return $missing;
+	}
+
+	/**
+	 * Whether a removal set is large enough to be refused rather than performed.
+	 *
+	 * Pure. A ratio of 0 refuses any removal at all; a ratio of 1 or more can never be exceeded and
+	 * so disables the bound.
+	 *
+	 * @param int        $missing_count Products the sweep says have left the selection.
+	 * @param int        $owned_count   Skwirrel-owned parent products currently live in the shop.
+	 * @param float|null $ratio         Bound to apply; null uses MASS_REMOVAL_RATIO via its filter.
+	 */
+	public static function exceeds_mass_removal( int $missing_count, int $owned_count, ?float $ratio = null ): bool {
+		if ( $missing_count <= 0 || $owned_count <= 0 ) {
+			return false;
+		}
+		$bound = null === $ratio ? self::get_mass_removal_ratio() : $ratio;
+		return ( $missing_count / $owned_count ) > $bound;
+	}
+
+	/**
+	 * The active mass-removal bound.
+	 *
+	 * Exposed as a filter rather than a setting: it is a safety rail, not a preference, and a store
+	 * that genuinely wants a bigger removal can perform it with a manual sync.
+	 */
+	public static function get_mass_removal_ratio(): float {
+		return (float) apply_filters( 'skwirrel_wc_sync_mass_removal_ratio', self::MASS_REMOVAL_RATIO );
+	}
+
+	/**
+	 * Retire the products that the membership sweep says have left the Skwirrel selection.
+	 *
+	 * Detection here is driven by the sweep diff rather than by `_skwirrel_synced_at`, which is what
+	 * makes it usable on a delta run: a delta payload never contains every live product, so absence
+	 * from the payload proves nothing, while absence from the sweep does.
+	 *
+	 * Only parent products (`post_type = 'product'`) carrying `_skwirrel_product_id` are diffed.
+	 * Variations do not hold a selection membership of their own — they descend from a virtual
+	 * product — so diffing them would mark every variation as missing; a retired variable parent
+	 * cascades to its children in apply_missing_state() instead.
+	 *
+	 * This is only the DETECTION — every guard lives in apply_missing_state(), the chokepoint. The
+	 * one refusal handled here is local to this detection: a zero-length sweep set says nothing
+	 * about the selection being empty, so it is reported as an incomplete membership picture rather
+	 * than as "everything is gone".
+	 *
+	 * @param array<int, bool>                $sweep_ids           Sweep membership set, Skwirrel product id => true.
+	 * @param Skwirrel_WC_Sync_Product_Mapper $mapper              Product mapper (for the meta key accessor).
+	 * @param string                          $run_id              Current run uuid, for the deep-link marker.
+	 * @param bool                            $human_initiated     Whether a person started this run.
+	 * @param bool                            $membership_complete Whether the sweep covered every selection.
+	 * @param float|null                      $ratio               Mass-removal bound; null uses the filtered default.
+	 * @return array{trashed:int, missing:int, owned:int, refused:bool, message:string}
+	 */
+	public function purge_missing_from_sweep( array $sweep_ids, Skwirrel_WC_Sync_Product_Mapper $mapper, string $run_id, bool $human_initiated, bool $membership_complete, ?float $ratio = null ): array {
+		global $wpdb;
+
+		$product_id_meta = $mapper->get_product_id_meta_key();
+		$missing_state   = 'trash';
+
+		$empty = [
+			'trashed' => 0,
+			'missing' => 0,
+			'owned'   => 0,
+			'refused' => false,
+			'message' => '',
+		];
+
+		// A zero-length sweep set is not evidence that the selection is empty — it is an absent
+		// signal, so it downgrades the membership picture to incomplete and the chokepoint refuses.
+		if ( empty( $sweep_ids ) ) {
+			$membership_complete = false;
+		}
+
+		// Live, Skwirrel-owned parent products and the Skwirrel id each one claims. Trashed and
+		// auto-draft posts are excluded so an already-retired product is not re-counted forever.
+		// The numeric guard mirrors the stale-purge SQL: corrupt meta is skipped, never cast.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT pm.post_id, pm.meta_value AS skwirrel_product_id
+                 FROM {$wpdb->postmeta} pm
+                 INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                     AND p.post_status NOT IN ('trash', 'auto-draft')
+                     AND p.post_type = 'product'
+                 WHERE pm.meta_key = %s
+                     AND pm.meta_value REGEXP '^[0-9]+$'",
+				$product_id_meta
+			)
+		);
+
+		$owned = [];
+		foreach ( (array) $rows as $row ) {
+			$owned[ (int) $row->post_id ] = (int) $row->skwirrel_product_id;
+		}
+		unset( $rows );
+
+		$owned_count = count( $owned );
+		$missing     = self::select_missing_ids( $owned, $sweep_ids );
+
+		$missing_count = count( $missing );
+		if ( $missing_count > 0 ) {
+			$this->logger->info(
+				'Products no longer in the Skwirrel selection detected by the membership sweep',
+				[
+					'count'       => $missing_count,
+					'owned'       => $owned_count,
+					'product_ids' => array_slice( $missing, 0, 20 ),
+				]
+			);
+		}
+
+		$outcome = $this->apply_missing_state(
+			$missing,
+			$owned_count,
+			$human_initiated,
+			$membership_complete,
+			'sweep',
+			$missing_state,
+			$run_id,
+			$ratio
+		);
+
+		return array_merge(
+			$empty,
+			$outcome,
+			[
+				'missing' => $missing_count,
+				'owned'   => $owned_count,
+			]
+		);
 	}
 
 	/**

@@ -178,6 +178,10 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							<?php endif; ?>
 						<?php endif; ?>
 					</p>
+					<?php // A successful run can still have withheld something (e.g. a refused mass removal). ?>
+					<?php if ( ! empty( $last_result['warning'] ) ) : ?>
+						<p class="skw-status-meta skw-c-yellow"><?php echo esc_html( (string) $last_result['warning'] ); ?></p>
+					<?php endif; ?>
 				</div>
 			</div>
 		<?php endif; ?>
