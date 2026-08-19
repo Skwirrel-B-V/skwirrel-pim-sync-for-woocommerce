@@ -11,9 +11,11 @@ _Curated long-term knowledge. Structured so a cold start is immediately useful._
 - **Floors (3.12.2):** WP >= 6.9, PHP >= 8.3, WC >= 8.0. Tested to WP 7.0 (readme), WC 10.6 (bootstrap header).
 - **Note:** the bootstrap declares no `Tested up to` of its own — only readme.txt carries it. Worth aligning.
 - **Ships to:** WordPress.org via SVN, on tag push (`.github/workflows/deploy.yml`).
-- **Gates:** `vendor/bin/pest`, `vendor/bin/phpstan analyse` (level 6 + baseline), `vendor/bin/phpcs`. All three before every commit. Integration suite needs Docker/wp-env.
+- **Gates:** `vendor/bin/pest`, `vendor/bin/phpstan analyse --memory-limit=2G` (level 6 + baseline), `vendor/bin/phpcs`. All three before every commit. Integration suite needs Docker/wp-env.
 - **Release:** version in plugin header + `SKWIRREL_WC_SYNC_VERSION` + readme `Stable tag` + package.json; changelog in both CHANGELOG.md and readme.txt (deploy fails without `= X.Y.Z =`). Tag `X.Y.Z`, no `v`.
 - **Release trap (documented):** the `wordpress-org` environment's allowed-tag pattern is **fnmatch, not regex**. `[0-9]+.[0-9]+.[0-9]+` silently matches nothing and blocks every deploy.
+- **Integration suite reality (verified 2026-08-19):** `tests/Pest.php`'s `uses(WP_UnitTestCase::class)->in('Integration')` binding does NOT take effect — integration tests run as plain `PHPUnit\Framework\TestCase`, so there are **no DB transactions**; `tests/Integration/README.md` claims there are and is wrong. Hence the manual purge helpers in `tests/Integration/bootstrap.php`. wp-env pins WP 7.0 + WC 10.8.
+- **Admin-menu testing recipe:** `wp-admin/menu.php` (+ `wp-admin/includes/menu.php`) can only be loaded once per PHP process (function declarations), and must be required with the menu globals imported via `global`. Snapshot core's baseline from an `admin_menu` callback at `-PHP_INT_MAX`, then restore + re-fire per scenario. Rendered top-level order ≠ raw `$menu` keys: WooCommerce opts into `custom_menu_order` and rewrites the list. See `tests/Integration/AdminMenuIntegrationTest.php`.
 - **State at 2026-08-18:** version 3.12.2, fully consistent across all five locations.
 
 ## Decisions
