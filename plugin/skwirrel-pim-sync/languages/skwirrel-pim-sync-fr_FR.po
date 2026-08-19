@@ -6,7 +6,7 @@ msgstr ""
 "Project-Id-Version: Skwirrel PIM sync for WooCommerce 1.7.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/skwirrel-pim-"
 "sync\n"
-"POT-Creation-Date: 2026-08-19T12:22:31+00:00\n"
+"POT-Creation-Date: 2026-08-19T13:32:25+00:00\n"
 "PO-Revision-Date: 2026-02-26 12:00+0000\n"
 "Last-Translator: Skwirrel Sync <info@skwirrel.eu>\n"
 "Language-Team: Français (France)\n"
@@ -1781,7 +1781,7 @@ msgid "Product synced successfully (%s)."
 msgstr "Produit synchronisé avec succès (%s)."
 
 #. translators: %s = grouped product ID
-#: includes/class-skwirrel-wc-sync-product-upserter.php:1359
+#: includes/class-skwirrel-wc-sync-product-upserter.php:1424
 #, php-format
 msgid "Product %s"
 msgstr "Produit %s"
@@ -1792,16 +1792,18 @@ msgid ""
 "so no product can be proven to have left the selection. The product sync "
 "itself finished normally."
 msgstr ""
-"Suppression ignorée : la vue de l'appartenance à la sélection est incomplète pour cette exécution, aucun produit ne peut donc être prouvé comme ayant quitté la sélection. La synchronisation des produits elle-même s'est terminée normalement."
-
+"Suppression ignorée : la vue de l'appartenance à la sélection est incomplète "
+"pour cette exécution, aucun produit ne peut donc être prouvé comme ayant "
+"quitté la sélection. La synchronisation des produits elle-même s'est "
+"terminée normalement."
 
 #: includes/class-skwirrel-wc-sync-purge-handler.php:713
 msgid ""
 "Removal skipped: the removal set could not be measured against the catalogue "
 "it came from. Nothing was removed."
 msgstr ""
-"Suppression ignorée : l'ensemble à supprimer n'a pas pu être comparé au catalogue dont il provient. Rien n'a été supprimé."
-
+"Suppression ignorée : l'ensemble à supprimer n'a pas pu être comparé au "
+"catalogue dont il provient. Rien n'a été supprimé."
 
 #. translators: 1: number of products, 2: total Skwirrel-managed products, 3: percentage of the catalogue, 4: allowed percentage
 #: includes/class-skwirrel-wc-sync-purge-handler.php:734
@@ -1811,16 +1813,36 @@ msgid ""
 "in the selection, which exceeds the %4$s%% safety limit. Nothing was "
 "removed. Run a manual sync to apply it."
 msgstr ""
-"Suppression massive refusée : %1$d des %2$d produits Skwirrel (%3$s%%) ne font plus partie de la sélection, ce qui dépasse la limite de sécurité de %4$s%%. Rien n'a été supprimé. Lancez une synchronisation manuelle pour l'appliquer."
+"Suppression massive refusée : %1$d des %2$d produits Skwirrel (%3$s%%) ne "
+"font plus partie de la sélection, ce qui dépasse la limite de sécurité de "
+"%4$s%%. Rien n'a été supprimé. Lancez une synchronisation manuelle pour "
+"l'appliquer."
 
+#: includes/class-skwirrel-wc-sync-purge-handler.php:970
+msgid ""
+"Removal skipped: the product membership could not be read from the database "
+"safely. Nothing was removed."
+msgstr ""
+"Suppression ignorée : l'appartenance des produits n'a pas pu être lue de "
+"manière fiable dans la base de données. Rien n'a été supprimé."
 
-#: includes/class-skwirrel-wc-sync-purge-handler.php:986
+#: includes/class-skwirrel-wc-sync-purge-handler.php:1003
+msgid ""
+"Removal skipped: a product has an invalid Skwirrel product ID, so its "
+"selection membership cannot be determined safely. Nothing was removed."
+msgstr ""
+"Suppression ignorée : un produit possède un identifiant produit Skwirrel non "
+"valide, son appartenance à la sélection ne peut donc pas être déterminée de "
+"façon fiable. Rien n'a été supprimé."
+
+#: includes/class-skwirrel-wc-sync-purge-handler.php:1015
 msgid ""
 "Removal skipped: a product has conflicting Skwirrel product IDs, so its "
 "selection membership cannot be determined safely. Nothing was removed."
 msgstr ""
-"Suppression ignorée : un produit présente des identifiants produit Skwirrel contradictoires, son appartenance à la sélection ne peut donc pas être déterminée de façon fiable. Rien n'a été supprimé."
-
+"Suppression ignorée : un produit présente des identifiants produit Skwirrel "
+"contradictoires, son appartenance à la sélection ne peut donc pas être "
+"déterminée de façon fiable. Rien n'a été supprimé."
 
 #: includes/class-skwirrel-wc-sync-service.php:161
 msgid ""
@@ -1829,52 +1851,65 @@ msgstr ""
 "Une synchronisation est déjà en cours ; le lancement d’une seconde exécution "
 "simultanée est refusé."
 
-#: includes/class-skwirrel-wc-sync-service.php:531
+#: includes/class-skwirrel-wc-sync-service.php:510
+msgid ""
+"Sync aborted before product changes because the membership sweep returned an "
+"empty selection while grouped-product sync is enabled. Run a manual sync to "
+"confirm an intentionally empty selection."
+msgstr ""
+"Synchronisation interrompue avant toute modification de produit, car le "
+"contrôle d'appartenance a renvoyé une sélection vide alors que la "
+"synchronisation des produits groupés est activée. Lancez une synchronisation "
+"manuelle pour confirmer une sélection intentionnellement vide."
+
+#: includes/class-skwirrel-wc-sync-service.php:511
+msgid ""
+"Sync aborted before product changes because the membership sweep was "
+"incomplete while grouped-product sync is enabled. Retry after the selection "
+"check succeeds."
+msgstr ""
+"Synchronisation interrompue avant toute modification de produit, car le "
+"contrôle d'appartenance était incomplet alors que la synchronisation des "
+"produits groupés est activée. Réessayez après la réussite du contrôle de la "
+"sélection."
+
+#: includes/class-skwirrel-wc-sync-service.php:544
 msgid "Fetching products from API…"
 msgstr "Récupération des produits via l'API…"
 
 #. translators: 1: API error message, 2: page number, 3: selection id
-#: includes/class-skwirrel-wc-sync-service.php:663
+#: includes/class-skwirrel-wc-sync-service.php:696
 #, php-format
 msgid "Fetch failed at page %2$d (selection %3$d): %1$s"
 msgstr "Échec de la récupération à la page %2$d (sélection %3$d) : %1$s"
 
 #. translators: %d = number of products fetched so far
-#: includes/class-skwirrel-wc-sync-service.php:748
+#: includes/class-skwirrel-wc-sync-service.php:781
 #, php-format
 msgid "Fetching products from API… (%d found)"
 msgstr "Récupération des produits via l'API… (%d trouvés)"
 
-#: includes/class-skwirrel-wc-sync-service.php:794
-#: includes/class-skwirrel-wc-sync-service.php:830
-#: includes/class-skwirrel-wc-sync-service.php:845
+#: includes/class-skwirrel-wc-sync-service.php:827
+#: includes/class-skwirrel-wc-sync-service.php:863
+#: includes/class-skwirrel-wc-sync-service.php:878
 msgid "Creating & syncing products…"
 msgstr "Création & synchronisation des produits…"
 
-#: includes/class-skwirrel-wc-sync-service.php:853
-#: includes/class-skwirrel-wc-sync-service.php:1079
+#: includes/class-skwirrel-wc-sync-service.php:886
+#: includes/class-skwirrel-wc-sync-service.php:1112
 msgid "Finalizing variable products…"
 msgstr "Finalisation des produits variables…"
 
-#: includes/class-skwirrel-wc-sync-service.php:1092
-#: includes/class-skwirrel-wc-sync-service.php:1148
+#: includes/class-skwirrel-wc-sync-service.php:1125
+#: includes/class-skwirrel-wc-sync-service.php:1181
 msgid "Linking related products…"
 msgstr "Liaison des produits associés…"
 
-#: includes/class-skwirrel-wc-sync-service.php:1182
+#: includes/class-skwirrel-wc-sync-service.php:1215
 msgid "Cleaning up…"
 msgstr "Nettoyage…"
 
-#: includes/class-skwirrel-wc-sync-service.php:1315
-msgid ""
-"Removal skipped: the membership sweep returned an empty selection. Nothing "
-"was removed during this scheduled run; run a manual sync to confirm and "
-"apply an intentionally empty selection."
-msgstr ""
-"Suppression ignorée : le balayage d'appartenance a renvoyé une sélection vide. Rien n'a été supprimé lors de cette exécution planifiée ; lancez une synchronisation manuelle pour confirmer et appliquer une sélection intentionnellement vide."
-
-
-#: includes/class-skwirrel-wc-sync-service.php:1534
+#: includes/class-skwirrel-wc-sync-service.php:1570
 msgid ""
 "Sync stalled: a step made no progress across several attempts and was "
 "aborted (check the log for a fatal error or a problem product)."
@@ -1882,6 +1917,17 @@ msgstr ""
 "Synchronisation bloquée : une étape n'a fait aucun progrès après plusieurs "
 "tentatives et a été interrompue (consultez le journal pour une erreur fatale "
 "ou un produit problématique)."
+
+#: includes/class-skwirrel-wc-sync-service.php:2425
+msgid ""
+"Removal skipped: the membership sweep returned an empty selection. Nothing "
+"was removed during this scheduled run; run a manual sync to confirm and "
+"apply an intentionally empty selection."
+msgstr ""
+"Suppression ignorée : le balayage d'appartenance a renvoyé une sélection "
+"vide. Rien n'a été supprimé lors de cette exécution planifiée ; lancez une "
+"synchronisation manuelle pour confirmer et appliquer une sélection "
+"intentionnellement vide."
 
 #: includes/class-skwirrel-wc-sync-taxonomy-manager.php:141
 #: includes/class-skwirrel-wc-sync-taxonomy-manager.php:153

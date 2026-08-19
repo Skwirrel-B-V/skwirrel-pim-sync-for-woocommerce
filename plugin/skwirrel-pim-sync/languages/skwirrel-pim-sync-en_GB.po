@@ -6,7 +6,7 @@ msgstr ""
 "Project-Id-Version: Skwirrel PIM sync for WooCommerce 1.7.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/skwirrel-pim-"
 "sync\n"
-"POT-Creation-Date: 2026-08-19T12:22:31+00:00\n"
+"POT-Creation-Date: 2026-08-19T13:32:25+00:00\n"
 "PO-Revision-Date: 2026-02-26 12:00+0000\n"
 "Last-Translator: Skwirrel Sync <info@skwirrel.eu>\n"
 "Language-Team: English (United Kingdom)\n"
@@ -628,7 +628,6 @@ msgstr "Find your selection IDs at %s."
 msgid "Custom class collection ID (optional)"
 msgstr "Custom class collection ID (optional)"
 
-
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:964
 msgid "e.g. 5"
 msgstr "e.g. 5"
@@ -1119,7 +1118,6 @@ msgstr[1] "%d new statuses found — reloading…"
 msgid "Status details updated — reloading…"
 msgstr "Status details updated — reloading…"
 
-
 #: includes/class-skwirrel-wc-sync-admin-settings.php:721
 msgid "No new statuses found. Every status in the catalogue is already listed."
 msgstr ""
@@ -1220,7 +1218,6 @@ msgstr "Network error."
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1475
 msgid "Fetching…"
 msgstr "Fetching…"
-
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1476
 msgid "Could not refresh statuses."
@@ -1691,7 +1688,7 @@ msgid "Product synced successfully (%s)."
 msgstr "Product synced successfully (%s)."
 
 #. translators: %s = grouped product ID
-#: includes/class-skwirrel-wc-sync-product-upserter.php:1359
+#: includes/class-skwirrel-wc-sync-product-upserter.php:1424
 #, php-format
 msgid "Product %s"
 msgstr "Product %s"
@@ -1718,7 +1715,19 @@ msgid ""
 "removed. Run a manual sync to apply it."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-purge-handler.php:986
+#: includes/class-skwirrel-wc-sync-purge-handler.php:970
+msgid ""
+"Removal skipped: the product membership could not be read from the database "
+"safely. Nothing was removed."
+msgstr "Removal skipped: the product membership could not be read from the database safely. Nothing was removed."
+
+#: includes/class-skwirrel-wc-sync-purge-handler.php:1003
+msgid ""
+"Removal skipped: a product has an invalid Skwirrel product ID, so its "
+"selection membership cannot be determined safely. Nothing was removed."
+msgstr "Removal skipped: a product has an invalid Skwirrel product ID, so its selection membership cannot be determined safely. Nothing was removed."
+
+#: includes/class-skwirrel-wc-sync-purge-handler.php:1015
 msgid ""
 "Removal skipped: a product has conflicting Skwirrel product IDs, so its "
 "selection membership cannot be determined safely. Nothing was removed."
@@ -1729,56 +1738,70 @@ msgid ""
 "Another sync is already running; refusing to start a second concurrent run."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-service.php:531
+#: includes/class-skwirrel-wc-sync-service.php:510
+msgid ""
+"Sync aborted before product changes because the membership sweep returned an "
+"empty selection while grouped-product sync is enabled. Run a manual sync to "
+"confirm an intentionally empty selection."
+msgstr "Sync aborted before product changes because the membership sweep returned an empty selection while grouped-product sync is enabled. Run a manual sync to confirm an intentionally empty selection."
+
+#: includes/class-skwirrel-wc-sync-service.php:511
+msgid ""
+"Sync aborted before product changes because the membership sweep was "
+"incomplete while grouped-product sync is enabled. Retry after the selection "
+"check succeeds."
+msgstr "Sync aborted before product changes because the membership sweep was incomplete while grouped-product sync is enabled. Retry after the selection check succeeds."
+
+#: includes/class-skwirrel-wc-sync-service.php:544
 msgid "Fetching products from API…"
 msgstr "Fetching products from API…"
 
 #. translators: 1: API error message, 2: page number, 3: selection id
-#: includes/class-skwirrel-wc-sync-service.php:663
+#: includes/class-skwirrel-wc-sync-service.php:696
 #, php-format
 msgid "Fetch failed at page %2$d (selection %3$d): %1$s"
 msgstr "Fetch failed at page %2$d (selection %3$d): %1$s"
 
 #. translators: %d = number of products fetched so far
-#: includes/class-skwirrel-wc-sync-service.php:748
+#: includes/class-skwirrel-wc-sync-service.php:781
 #, php-format
 msgid "Fetching products from API… (%d found)"
 msgstr "Fetching products from API… (%d found)"
 
-#: includes/class-skwirrel-wc-sync-service.php:794
-#: includes/class-skwirrel-wc-sync-service.php:830
-#: includes/class-skwirrel-wc-sync-service.php:845
+#: includes/class-skwirrel-wc-sync-service.php:827
+#: includes/class-skwirrel-wc-sync-service.php:863
+#: includes/class-skwirrel-wc-sync-service.php:878
 msgid "Creating & syncing products…"
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-service.php:853
-#: includes/class-skwirrel-wc-sync-service.php:1079
+#: includes/class-skwirrel-wc-sync-service.php:886
+#: includes/class-skwirrel-wc-sync-service.php:1112
 msgid "Finalizing variable products…"
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-service.php:1092
-#: includes/class-skwirrel-wc-sync-service.php:1148
+#: includes/class-skwirrel-wc-sync-service.php:1125
+#: includes/class-skwirrel-wc-sync-service.php:1181
 msgid "Linking related products…"
 msgstr "Linking related products…"
 
-#: includes/class-skwirrel-wc-sync-service.php:1182
+#: includes/class-skwirrel-wc-sync-service.php:1215
 msgid "Cleaning up…"
 msgstr "Cleaning up…"
 
-#: includes/class-skwirrel-wc-sync-service.php:1315
+#: includes/class-skwirrel-wc-sync-service.php:1570
+msgid ""
+"Sync stalled: a step made no progress across several attempts and was "
+"aborted (check the log for a fatal error or a problem product)."
+msgstr ""
+"Sync stalled: a step made no progress across several attempts and was "
+"aborted (check the log for a fatal error or a problem product)."
+
+#: includes/class-skwirrel-wc-sync-service.php:2425
 msgid ""
 "Removal skipped: the membership sweep returned an empty selection. Nothing "
 "was removed during this scheduled run; run a manual sync to confirm and "
 "apply an intentionally empty selection."
 msgstr ""
-
-#: includes/class-skwirrel-wc-sync-service.php:1534
-msgid ""
-"Sync stalled: a step made no progress across several attempts and was "
-"aborted (check the log for a fatal error or a problem product)."
-msgstr ""
-"Sync stalled: a step made no progress across several attempts and was "
-"aborted (check the log for a fatal error or a problem product)."
 
 #: includes/class-skwirrel-wc-sync-taxonomy-manager.php:141
 #: includes/class-skwirrel-wc-sync-taxonomy-manager.php:153

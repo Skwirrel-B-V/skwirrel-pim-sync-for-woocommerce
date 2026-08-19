@@ -145,16 +145,16 @@ so that my shop stops selling products the PIM no longer lists, and I stay in co
 
 #### Re-review Findings
 
-- [ ] [Review][Patch] Abort before product writes when grouped sync is enabled and the membership sweep is incomplete, preventing both catalogue-wide grouped imports and grouped members being handled as simple products (decision: fail safely and retry later) [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:505]
-- [ ] [Review][Patch] A complete empty scheduled sweep is still authoritative for grouped and payload filtering, so a transient empty response can suppress every update even though removal is refused; surface the warning even when purge is disabled [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:520]
-- [ ] [Review][Patch] A successful sweep response with no `products` field is accepted as an authoritative empty page instead of an incomplete sweep [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php:1165]
-- [ ] [Review][Patch] Sweep completion accepts lossy or contradictory pagination metadata and treats a short page as terminal when metadata is absent, allowing server-side page caps to truncate membership silently; validate progress and detect repeated pages [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php:1165]
-- [ ] [Review][Patch] Oversized digit strings overflow into `PHP_INT_MAX`, while collection settings also admit zero, negative, decimal, and overflowing IDs; normalize all sweep, payload, and purge identifiers as strict positive platform integers [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:1427]
-- [ ] [Review][Patch] SKU fallback can classify an out-of-selection payload row as an allowed group member when it shares a SKU with an in-selection product [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:710]
-- [ ] [Review][Patch] A database error while loading owned-product membership is cast to an empty result and reported as a successful no-op instead of refusing removal with a warning [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-purge-handler.php:957]
-- [ ] [Review][Patch] The incomplete-sweep grouped regression test returns no groups, so it cannot prove that grouped filtering is disabled or that the selected fail-safe policy is honored [tests/Integration/SweepMembershipIntegrationTest.php:1]
-- [ ] [Review][Patch] The persisted sweep selection/page cursor, deadline yield, resume path, and poison-loop signature have no Action Scheduler regression coverage [tests/Integration/SweepMembershipIntegrationTest.php:1]
-- [ ] [Review][Patch] The manual empty-sweep escape-hatch test runs a delta sync even though the admin action invokes a full sync, and the scheduled-empty test needs a non-empty payload to expose accidental authoritative filtering [tests/Integration/SweepMembershipIntegrationTest.php:1]
+- [x] [Review][Patch] Abort before product writes when grouped sync is enabled and the membership sweep is incomplete, preventing both catalogue-wide grouped imports and grouped members being handled as simple products (decision: fail safely and retry later) [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:505]
+- [x] [Review][Patch] A complete empty scheduled sweep is still authoritative for grouped and payload filtering, so a transient empty response can suppress every update even though removal is refused; surface the warning even when purge is disabled [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:520]
+- [x] [Review][Patch] A successful sweep response with no `products` field is accepted as an authoritative empty page instead of an incomplete sweep [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php:1165]
+- [x] [Review][Patch] Sweep completion accepts lossy or contradictory pagination metadata and treats a short page as terminal when metadata is absent, allowing server-side page caps to truncate membership silently; validate progress and detect repeated pages [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php:1165]
+- [x] [Review][Patch] Oversized digit strings overflow into `PHP_INT_MAX`, while collection settings also admit zero, negative, decimal, and overflowing IDs; normalize all sweep, payload, and purge identifiers as strict positive platform integers [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:1427]
+- [x] [Review][Patch] SKU fallback can classify an out-of-selection payload row as an allowed group member when it shares a SKU with an in-selection product [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:710]
+- [x] [Review][Patch] A database error while loading owned-product membership is cast to an empty result and reported as a successful no-op instead of refusing removal with a warning [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-purge-handler.php:957]
+- [x] [Review][Patch] The incomplete-sweep grouped regression test returns no groups, so it cannot prove that grouped filtering is disabled or that the selected fail-safe policy is honored [tests/Integration/SweepMembershipIntegrationTest.php:1]
+- [x] [Review][Patch] The persisted sweep selection/page cursor, deadline yield, resume path, and poison-loop signature have no Action Scheduler regression coverage [tests/Integration/SweepMembershipIntegrationTest.php:1]
+- [x] [Review][Patch] The manual empty-sweep escape-hatch test runs a delta sync even though the admin action invokes a full sync, and the scheduled-empty test needs a non-empty payload to expose accidental authoritative filtering [tests/Integration/SweepMembershipIntegrationTest.php:1]
 
 ## Dev Notes
 
@@ -484,6 +484,26 @@ the magnitudes moved above the floor so the ratio is actually the thing under te
   `php -d memory_limit=2G vendor/bin/phpstan analyse --debug --no-progress` — no errors;
   `npm run test:integration` — 87 passed (539 assertions), 1 pre-existing deprecation.
 
+#### Re-review remediation (2026-08-19)
+
+- Incomplete or unattended-empty membership results now abort before grouped shells or payloads are
+  written when grouped-product sync is enabled. Product-only runs continue without treating an
+  unattended empty result as authoritative, and the warning remains visible when purge is disabled.
+- Sweep pages now require a valid `products` collection, strict non-lossy pagination metadata when
+  supplied, forward progress, and strict positive platform-sized identifiers. Metadata-free APIs are
+  read through an empty terminal page so server-side caps cannot truncate membership silently.
+- Authoritative membership resolves grouped rows by validated product id rather than SKU fallback.
+  Purge database failures and invalid/overflowing product-id meta now refuse removal explicitly.
+- Added regression coverage for grouped fail-safe aborts, missing/contradictory/repeated pagination,
+  server-capped pages, overflow, async yield/resume and poison signatures, SKU collisions, scheduled
+  empty payload processing, purge-disabled warnings, and the real manual full-sync escape hatch.
+- Updated and compiled every shipped translation catalogue for the four new operator-facing safety
+  messages.
+- Final gates: `vendor/bin/pest` — 396 passed (619 assertions); `vendor/bin/phpcs` — clean;
+  `php -d memory_limit=2G vendor/bin/phpstan analyse --debug --no-progress` — no errors;
+  `npm run test:integration` — 97 passed (569 assertions), 1 pre-existing deprecation;
+  all seven catalogues pass `msgfmt --check`.
+
 ### File List
 
 - `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php`
@@ -499,6 +519,9 @@ the magnitudes moved above the floor so the ratio is actually the thing under te
 - `tests/Integration/SyncSafetyIntegrationTest.php`
 - `tests/Integration/SyncServiceIntegrationTest.php`
 - `plugin/skwirrel-pim-sync/assets/dashboard.css`
+- `plugin/skwirrel-pim-sync/languages/skwirrel-pim-sync.pot`
+- `plugin/skwirrel-pim-sync/languages/skwirrel-pim-sync-*.po`
+- `plugin/skwirrel-pim-sync/languages/skwirrel-pim-sync-*.mo`
 
 ## Change Log
 
@@ -506,3 +529,4 @@ the magnitudes moved above the floor so the ratio is actually the thing under te
 |------|--------|
 | 2026-08-18 | Implemented the sweep, the removal chokepoint and the dashboard warning; all gates green. |
 | 2026-08-19 | Merged into `main`; re-verified against the refined 9-AC spec. Closed two gaps: `MASS_REMOVAL_FLOOR` (AC 4) and the refusal in the history row (AC 8). Scaled three mass-removal integration fixtures above the new floor. All four gates green: pest 396, phpcs clean, phpstan clean, integration 61. |
+| 2026-08-19 | Completed the adversarial re-review: hardened grouped fail-safe behavior, empty-sweep handling, pagination, identifiers, SKU membership and database failures; added async and edge-case coverage; refreshed all translations. |

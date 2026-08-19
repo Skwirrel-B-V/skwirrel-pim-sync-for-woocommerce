@@ -2,6 +2,13 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.13.1]
+
+### Fixed — translated selection-safety messages
+
+* Added the four safety messages introduced by the final Story 2.6 review to every shipped locale and recompiled all MO catalogues. Grouped-sync aborts, database-read refusals and invalid-ID refusals no longer fall back to English.
+* Included the PHPStan helper annotations committed immediately after the 3.13.0 tag, keeping the release branch clean under the configured level-6 analysis.
+
 ## [3.13.0]
 
 ### Added — scheduled removals are driven by a selection membership sweep (story 2.6)
