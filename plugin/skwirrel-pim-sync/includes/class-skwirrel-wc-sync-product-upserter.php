@@ -24,6 +24,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 */
 	private const SWEEP_PAGE_LIMIT = 500;
 
+	/** Hard stop for malformed pagination that never reports a final page. */
+	private const MAX_SWEEP_PAGES = 10000;
+
 	private Skwirrel_WC_Sync_Logger $logger;
 	private Skwirrel_WC_Sync_Product_Mapper $mapper;
 	private Skwirrel_WC_Sync_Product_Lookup $lookup;
@@ -920,9 +923,12 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 *                                                        sweep the service already performed
 	 *                                                        instead of repeating the same calls; null
 	 *                                                        makes this method fetch it itself.
+	 * @param bool                            $apply_selection_filter Whether grouped members may be
+	 *                                                        filtered by selection membership. False
+	 *                                                        disables filtering after an incomplete sweep.
 	 * @return array{created: int, updated: int, unchanged: int, map: array}
 	 */
-	public function sync_grouped_products_first( Skwirrel_WC_Sync_JsonRpc_Client $client, array $options, array $collection_ids = [], string $run_id = '', ?array $allowed_product_ids = null ): array {
+	public function sync_grouped_products_first( Skwirrel_WC_Sync_JsonRpc_Client $client, array $options, array $collection_ids = [], string $run_id = '', ?array $allowed_product_ids = null, bool $apply_selection_filter = true ): array {
 		$created              = 0;
 		$updated              = 0;
 		$unchanged            = 0;
@@ -945,10 +951,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		// `dynamic_selection_id` is a single-int filter, so multiple configured selections become one
 		// prefilter call per id and the resulting ID maps are merged, keeping a grouped product
 		// whenever ANY of its members lives in ANY of the configured selections.
-		if ( null === $allowed_product_ids && ! empty( $collection_ids ) ) {
+		if ( $apply_selection_filter && null === $allowed_product_ids && ! empty( $collection_ids ) ) {
 			$allowed_product_ids = [];
 			foreach ( $collection_ids as $selection_id ) {
-				$sweep                = $this->fetch_product_ids_for_selection( $client, (int) $selection_id );
+				$sweep = $this->fetch_product_ids_for_selection( $client, (int) $selection_id );
+				if ( ! $sweep['complete'] ) {
+					$apply_selection_filter = false;
+					$allowed_product_ids    = null;
+					break;
+				}
 				$allowed_product_ids += $sweep['ids'];
 				$this->logger->info(
 					'Fetched product IDs for selection filter',
@@ -986,15 +997,16 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 			foreach ( $groups as $group ) {
 				// Post-filter: keep only members that are in the dynamic selection.
-				if ( null !== $allowed_product_ids ) {
+				if ( $apply_selection_filter && null !== $allowed_product_ids ) {
 					$members_key = isset( $group['_products'] ) ? '_products' : 'products';
 					$members     = $group[ $members_key ] ?? [];
 					$filtered    = [];
 					foreach ( $members as $item ) {
-						$pid = is_array( $item )
+						$raw_pid = is_array( $item )
 							? ( $item['product_id'] ?? null )
-							: (int) $item;
-						if ( null !== $pid && isset( $allowed_product_ids[ (int) $pid ] ) ) {
+							: $item;
+						$pid     = self::normalize_positive_id( $raw_pid );
+						if ( null !== $pid && isset( $allowed_product_ids[ $pid ] ) ) {
 							$filtered[] = $item;
 						}
 					}
@@ -1043,7 +1055,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				'product_ids_in_groups' => count( $product_ids_in_groups ),
 				'skipped_by_selection'  => $skipped,
 				'unchanged'             => $unchanged,
-				'filtered_by_selection' => null !== $allowed_product_ids,
+				'filtered_by_selection' => $apply_selection_filter && null !== $allowed_product_ids,
 			]
 		);
 		return [
@@ -1075,27 +1087,27 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 *                                                      lookup, plus whether every page was read.
 	 */
 	public function fetch_product_ids_for_selection( Skwirrel_WC_Sync_JsonRpc_Client $client, int $dynamic_selection_id, ?int $page_limit = null ): array {
-		$limit = null === $page_limit ? self::SWEEP_PAGE_LIMIT : $page_limit;
-		$limit = max( 1, $limit );
-		$ids   = [];
-		$page  = 1;
+		$ids                  = [];
+		$page                 = 1;
+		$previous_fingerprint = '';
 		do {
-			$result = $client->call(
-				'getProductsByFilter',
-				[
-					'filter'  => [ 'dynamic_selection_id' => $dynamic_selection_id ],
-					'options' => [],
-					'page'    => $page,
-					'limit'   => $limit,
-				]
-			);
-			if ( ! $result['success'] ) {
+			$sweep = $this->fetch_product_ids_page_for_selection( $client, $dynamic_selection_id, $page, $page_limit );
+			$ids  += $sweep['ids'];
+			if ( ! $sweep['complete'] ) {
+				return [
+					'ids'      => $ids,
+					'complete' => false,
+				];
+			}
+			if ( ! $sweep['has_more'] ) {
+				break;
+			}
+			if ( '' !== $previous_fingerprint && $previous_fingerprint === $sweep['fingerprint'] ) {
 				$this->logger->warning(
-					'Failed to fetch product IDs for selection filter',
+					'Membership sweep pagination repeated a page without making progress',
 					[
 						'dynamic_selection_id' => $dynamic_selection_id,
 						'page'                 => $page,
-						'error'                => $result['error'] ?? [],
 					]
 				);
 				return [
@@ -1103,18 +1115,19 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					'complete' => false,
 				];
 			}
-			$products = $result['result']['products'] ?? [];
-			$count    = count( $products );
-			foreach ( $products as $p ) {
-				$pid = $p['product_id'] ?? $p['id'] ?? null;
-				if ( null !== $pid ) {
-					$ids[ (int) $pid ] = true;
-				}
-			}
-			unset( $result, $products );
-			self::free_wpdb_memory();
-			if ( $count < $limit ) {
-				break;
+			$previous_fingerprint = $sweep['fingerprint'];
+			if ( $page >= self::MAX_SWEEP_PAGES ) {
+				$this->logger->warning(
+					'Membership sweep exceeded its pagination safety limit',
+					[
+						'dynamic_selection_id' => $dynamic_selection_id,
+						'page'                 => $page,
+					]
+				);
+				return [
+					'ids'      => $ids,
+					'complete' => false,
+				];
 			}
 			++$page;
 		} while ( true );
@@ -1123,6 +1136,194 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'ids'      => $ids,
 			'complete' => true,
 		];
+	}
+
+	/**
+	 * Fetch and validate one membership-sweep page.
+	 *
+	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client               API client.
+	 * @param int                             $dynamic_selection_id Selection ID.
+	 * @param int                             $page                 One-based page number.
+	 * @param int|null                        $page_limit           Rows per page; null uses the default.
+	 * @return array{ids: array<int, true>, complete: bool, has_more: bool, fingerprint: string}
+	 */
+	public function fetch_product_ids_page_for_selection( Skwirrel_WC_Sync_JsonRpc_Client $client, int $dynamic_selection_id, int $page, ?int $page_limit = null ): array {
+		if ( $dynamic_selection_id <= 0 || $page <= 0 || $page > self::MAX_SWEEP_PAGES ) {
+			$this->logger->warning(
+				'Membership sweep received an invalid selection or page number',
+				[
+					'dynamic_selection_id' => $dynamic_selection_id,
+					'page'                 => $page,
+				]
+			);
+			return [
+				'ids'         => [],
+				'complete'    => false,
+				'has_more'    => false,
+				'fingerprint' => '',
+			];
+		}
+		$limit  = max( 1, null === $page_limit ? self::SWEEP_PAGE_LIMIT : $page_limit );
+		$result = $client->call(
+			'getProductsByFilter',
+			[
+				'filter'  => [ 'dynamic_selection_id' => $dynamic_selection_id ],
+				'options' => [],
+				'page'    => max( 1, $page ),
+				'limit'   => $limit,
+			]
+		);
+		if ( ! $result['success'] ) {
+			$this->logger->warning(
+				'Failed to fetch product IDs for selection filter',
+				[
+					'dynamic_selection_id' => $dynamic_selection_id,
+					'page'                 => $page,
+					'error'                => $result['error'] ?? [],
+				]
+			);
+			return [
+				'ids'         => [],
+				'complete'    => false,
+				'has_more'    => false,
+				'fingerprint' => '',
+			];
+		}
+
+		$data = $result['result'] ?? null;
+		if ( ! is_array( $data ) || ! array_key_exists( 'products', $data ) || ! is_array( $data['products'] ) ) {
+			$this->logger->warning(
+				'Membership sweep returned an invalid or missing products collection',
+				[
+					'dynamic_selection_id' => $dynamic_selection_id,
+					'page'                 => $page,
+				]
+			);
+			return [
+				'ids'         => [],
+				'complete'    => false,
+				'has_more'    => false,
+				'fingerprint' => '',
+			];
+		}
+		$products      = $data['products'];
+		$has_page_info = array_key_exists( 'page', $data );
+		$page_info     = $has_page_info ? $data['page'] : null;
+		if ( $has_page_info && ! is_array( $page_info ) ) {
+			$this->logger->warning(
+				'Membership sweep returned invalid pagination metadata',
+				[
+					'dynamic_selection_id' => $dynamic_selection_id,
+					'page'                 => $page,
+				]
+			);
+			return [
+				'ids'         => [],
+				'complete'    => false,
+				'has_more'    => false,
+				'fingerprint' => '',
+			];
+		}
+
+		$ids = [];
+		foreach ( $products as $product ) {
+			$raw_id = is_array( $product ) ? ( $product['product_id'] ?? $product['id'] ?? null ) : null;
+			$id     = self::normalize_positive_id( $raw_id );
+			if ( null === $id ) {
+				$this->logger->warning(
+					'Membership sweep returned a product without a usable product id',
+					[
+						'dynamic_selection_id' => $dynamic_selection_id,
+						'page'                 => $page,
+					]
+				);
+				return [
+					'ids'         => $ids,
+					'complete'    => false,
+					'has_more'    => false,
+					'fingerprint' => '',
+				];
+			}
+			$ids[ $id ] = true;
+		}
+
+		$fingerprint = hash( 'sha256', implode( ',', array_keys( $ids ) ) );
+		if ( $has_page_info ) {
+			$current_page = self::normalize_positive_id( $page_info['current_page'] ?? null );
+			$total_pages  = self::normalize_positive_id( $page_info['number_of_pages'] ?? null );
+			if ( null === $current_page || null === $total_pages || $current_page !== $page || $total_pages < $current_page ) {
+				$this->logger->warning(
+					'Membership sweep returned contradictory pagination metadata',
+					[
+						'dynamic_selection_id' => $dynamic_selection_id,
+						'page'                 => $page,
+						'current_page'         => $page_info['current_page'] ?? null,
+						'number_of_pages'      => $page_info['number_of_pages'] ?? null,
+					]
+				);
+				return [
+					'ids'         => $ids,
+					'complete'    => false,
+					'has_more'    => false,
+					'fingerprint' => $fingerprint,
+				];
+			}
+			$has_more = $current_page < $total_pages;
+		} else {
+			// Without metadata, only an empty page proves exhaustion. This tolerates APIs that cap
+			// the returned page below our requested limit instead of silently truncating membership.
+			$has_more = ! empty( $products );
+		}
+
+		if ( $has_more && empty( $products ) ) {
+			$this->logger->warning(
+				'Membership sweep pagination reported more pages after an empty page',
+				[
+					'dynamic_selection_id' => $dynamic_selection_id,
+					'page'                 => $page,
+				]
+			);
+			return [
+				'ids'         => [],
+				'complete'    => false,
+				'has_more'    => false,
+				'fingerprint' => $fingerprint,
+			];
+		}
+
+		unset( $result, $data, $products, $page_info );
+		self::free_wpdb_memory();
+
+		return [
+			'ids'         => $ids,
+			'complete'    => true,
+			'has_more'    => $has_more,
+			'fingerprint' => $fingerprint,
+		];
+	}
+
+	/**
+	 * Normalize an API identifier without accepting lossy casts.
+	 *
+	 * @param mixed $value Candidate identifier.
+	 */
+	private static function normalize_positive_id( $value ): ?int {
+		if ( is_int( $value ) ) {
+			return $value > 0 ? $value : null;
+		}
+		if ( is_string( $value ) && ctype_digit( $value ) ) {
+			$digits = ltrim( $value, '0' );
+			if ( '' === $digits ) {
+				return null;
+			}
+			$max = (string) PHP_INT_MAX;
+			if ( strlen( $digits ) > strlen( $max ) || ( strlen( $digits ) === strlen( $max ) && strcmp( $digits, $max ) > 0 ) ) {
+				return null;
+			}
+			$normalized = (int) $digits;
+			return $normalized > 0 ? $normalized : null;
+		}
+		return null;
 	}
 
 	/**
@@ -1150,7 +1351,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$sku        = null;
 			$order      = 999;
 			if ( is_array( $item ) ) {
-				$product_id = isset( $item['product_id'] ) ? (int) $item['product_id'] : null;
+				$product_id = self::normalize_positive_id( $item['product_id'] ?? null );
 				$sku        = (string) ( $item['internal_product_code'] ?? '' );
 				$order      = isset( $item['order'] ) ? (int) $item['order'] : 999;
 			} else {
@@ -1422,7 +1623,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				$order      = isset( $item['order'] ) ? (int) $item['order'] : 999;
 			}
 			if ( $product_id && '' !== $sku ) {
-				$info                                      = [
+				$info                                  = [
 					'grouped_product_id'     => $grouped_id,
 					'order'                  => $order,
 					'sku'                    => $sku,
@@ -1431,8 +1632,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					'custom_variation_codes' => $custom_variation_codes,
 					'virtual_product_id'     => $virtual_product_id,
 				];
-				$product_to_group_map[ (int) $product_id ] = $info;
-				$product_to_group_map[ 'sku:' . $sku ]     = $info;
+				$product_to_group_map[ $product_id ]   = $info;
+				$product_to_group_map[ 'sku:' . $sku ] = $info;
 			}
 		}
 

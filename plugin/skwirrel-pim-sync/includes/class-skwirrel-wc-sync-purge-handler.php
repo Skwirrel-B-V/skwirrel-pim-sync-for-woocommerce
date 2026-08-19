@@ -924,10 +924,9 @@ class Skwirrel_WC_Sync_Purge_Handler {
 	 * product — so diffing them would mark every variation as missing; a retired variable parent
 	 * cascades to its children in apply_missing_state() instead.
 	 *
-	 * This is only the DETECTION — every guard lives in apply_missing_state(), the chokepoint. The
-	 * one refusal handled here is local to this detection: a zero-length sweep set says nothing
-	 * about the selection being empty, so it is reported as an incomplete membership picture rather
-	 * than as "everything is gone".
+	 * This is only the DETECTION — removal guards live in apply_missing_state() and the service's
+	 * explicit scheduled-empty check. A complete empty set is authoritative for a manual run, which
+	 * is the human escape hatch for intentionally clearing a selection.
 	 *
 	 * @param array<int, bool>                $sweep_ids           Sweep membership set, Skwirrel product id => true.
 	 * @param Skwirrel_WC_Sync_Product_Mapper $mapper              Product mapper (for the meta key accessor).
@@ -951,12 +950,6 @@ class Skwirrel_WC_Sync_Purge_Handler {
 			'message' => '',
 		];
 
-		// A zero-length sweep set is not evidence that the selection is empty — it is an absent
-		// signal, so it downgrades the membership picture to incomplete and the chokepoint refuses.
-		if ( empty( $sweep_ids ) ) {
-			$membership_complete = false;
-		}
-
 		// Live, Skwirrel-owned parent products and the Skwirrel id each one claims. Trashed and
 		// auto-draft posts are excluded so an already-retired product is not re-counted forever.
 		// The numeric guard mirrors the stale-purge SQL: corrupt meta is skipped, never cast.
@@ -973,12 +966,62 @@ class Skwirrel_WC_Sync_Purge_Handler {
 				$product_id_meta
 			)
 		);
+		if ( null === $rows && '' !== (string) $wpdb->last_error ) {
+			$message = __( 'Removal skipped: the product membership could not be read from the database safely. Nothing was removed.', 'skwirrel-pim-sync' );
+			$this->logger->warning( $message, [ 'database_error' => (string) $wpdb->last_error ] );
+			return array_merge(
+				$empty,
+				[
+					'refused' => true,
+					'message' => $message,
+				]
+			);
+		}
 
-		$owned = [];
+		$owned               = [];
+		$conflicting_meta    = false;
+		$conflicting_post_id = 0;
+		$invalid_meta        = false;
 		foreach ( (array) $rows as $row ) {
-			$owned[ (int) $row->post_id ] = (int) $row->skwirrel_product_id;
+			$post_id    = (int) $row->post_id;
+			$product_id = self::normalize_positive_id( $row->skwirrel_product_id );
+			if ( $post_id <= 0 || null === $product_id ) {
+				$invalid_meta        = true;
+				$conflicting_post_id = $post_id;
+				break;
+			}
+			if ( isset( $owned[ $post_id ] ) && $owned[ $post_id ] !== $product_id ) {
+				$conflicting_meta    = true;
+				$conflicting_post_id = $post_id;
+				break;
+			}
+			$owned[ $post_id ] = $product_id;
 		}
 		unset( $rows );
+
+		if ( $invalid_meta ) {
+			$message = __( 'Removal skipped: a product has an invalid Skwirrel product ID, so its selection membership cannot be determined safely. Nothing was removed.', 'skwirrel-pim-sync' );
+			$this->logger->warning( $message, [ 'wc_id' => $conflicting_post_id ] );
+			return array_merge(
+				$empty,
+				[
+					'refused' => true,
+					'message' => $message,
+				]
+			);
+		}
+
+		if ( $conflicting_meta ) {
+			$message = __( 'Removal skipped: a product has conflicting Skwirrel product IDs, so its selection membership cannot be determined safely. Nothing was removed.', 'skwirrel-pim-sync' );
+			$this->logger->warning( $message, [ 'wc_id' => $conflicting_post_id ] );
+			return array_merge(
+				$empty,
+				[
+					'refused' => true,
+					'message' => $message,
+				]
+			);
+		}
 
 		$owned_count = count( $owned );
 		$missing     = self::select_missing_ids( $owned, $sweep_ids );
@@ -1014,6 +1057,25 @@ class Skwirrel_WC_Sync_Purge_Handler {
 				'owned'   => $owned_count,
 			]
 		);
+	}
+
+	/** Normalize a database identifier without allowing integer overflow or lossy casts. */
+	private static function normalize_positive_id( $value ): ?int {
+		if ( is_int( $value ) ) {
+			return $value > 0 ? $value : null;
+		}
+		if ( is_string( $value ) && ctype_digit( $value ) ) {
+			$digits = ltrim( $value, '0' );
+			if ( '' === $digits ) {
+				return null;
+			}
+			$max = (string) PHP_INT_MAX;
+			if ( strlen( $digits ) > strlen( $max ) || ( strlen( $digits ) === strlen( $max ) && strcmp( $digits, $max ) > 0 ) ) {
+				return null;
+			}
+			return (int) $digits;
+		}
+		return null;
 	}
 
 	/**

@@ -115,6 +115,14 @@ class Skwirrel_WC_Sync_Action_Scheduler {
 			// already armed the schedule — re-arming is harmless but it is not
 			// an upgrade, so don't emit a misleading log line.
 			if ( '' !== $stored ) {
+				// The admin screen moved from a WooCommerce submenu to its own top-level menu.
+				// Only upgraded sites get the temporary signpost under WooCommerce; a fresh
+				// install ($stored === '') never had it there and never needs the pointer.
+				// @deprecated Remove this flag write together with the signpost in 3.15.0.
+				if ( class_exists( 'Skwirrel_WC_Sync_Admin_Settings' ) ) {
+					update_option( Skwirrel_WC_Sync_Admin_Settings::WC_SIGNPOST_OPTION, true, false );
+				}
+
 				( new Skwirrel_WC_Sync_Logger() )->info(
 					'Plugin upgraded — recurring sync schedule re-armed.',
 					[

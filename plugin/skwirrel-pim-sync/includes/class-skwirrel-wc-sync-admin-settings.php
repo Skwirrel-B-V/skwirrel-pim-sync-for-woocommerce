@@ -11,10 +11,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Skwirrel_WC_Sync_Admin_Settings {
 
-	private const PAGE_SLUG        = 'skwirrel-pim-sync';
-	private const OPTION_KEY       = 'skwirrel_wc_sync_settings';
-	private const TOKEN_OPTION_KEY = 'skwirrel_wc_sync_auth_token';
-	private const MASK             = '••••••••';
+	private const PAGE_SLUG  = 'skwirrel-pim-sync';
+	private const OPTION_KEY = 'skwirrel_wc_sync_settings';
+
+	/**
+	 * Flag option: show the temporary "Skwirrel" signpost under the WooCommerce menu.
+	 *
+	 * Set by Skwirrel_WC_Sync_Action_Scheduler::maybe_upgrade_reschedule() only when the site
+	 * upgraded from a version that still had the admin screen as a WooCommerce submenu. Fresh
+	 * installs never set it and never see the signpost.
+	 *
+	 * @deprecated The signpost is a migration aid only. Remove this constant, the option, the
+	 *             flag write in the upgrade routine and add_woocommerce_signpost() in 3.15.0.
+	 */
+	public const WC_SIGNPOST_OPTION = 'skwirrel_wc_sync_show_wc_signpost';
+	private const TOKEN_OPTION_KEY  = 'skwirrel_wc_sync_auth_token';
+	private const MASK              = '••••••••';
 
 	private static ?self $instance = null;
 
@@ -57,7 +69,12 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	private const STATUS_SCAN_RETRIES = 1;
 
 	private function __construct() {
-		add_action( 'admin_menu', [ $this, 'add_menu' ], 99 );
+		add_action( 'admin_menu', [ $this, 'add_menu' ], 10 );
+		// Registered late so the signpost lands at the bottom of WooCommerce's own submenu
+		// (WC adds Settings at priority 50 and Status at 60).
+		add_action( 'admin_menu', [ $this, 'add_woocommerce_signpost' ], 99 );
+		add_filter( 'submenu_file', [ $this, 'highlight_active_tab' ], 10, 2 );
+		add_action( 'admin_head', [ $this, 'print_menu_icon_css' ] );
 		add_action( 'admin_init', [ $this, 'register_settings' ] );
 		add_action( 'admin_post_skwirrel_wc_sync_test', [ $this, 'handle_test_connection' ] );
 		add_action( 'admin_post_skwirrel_wc_sync_run', [ $this, 'handle_sync_now' ] );
@@ -117,15 +134,141 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		return ( '' !== $base && self::is_dark_hex( $base ) ) ? $base : '#1d2327';
 	}
 
+	/**
+	 * Tab links shown as submenu entries, keyed by the `tab` value they select.
+	 *
+	 * These are *links*, not pages: they are registered with an empty page title and no callback,
+	 * so core renders them via the raw-href branch in wp-admin/menu-header.php and never treats
+	 * them as separate admin pages. The whole screen remains the single page `skwirrel-pim-sync`.
+	 *
+	 * @return array<string, string> tab value => submenu slug (a relative admin URL).
+	 */
+	private static function tab_submenu_slugs(): array {
+		return [
+			'settings' => 'admin.php?page=' . self::PAGE_SLUG . '&tab=settings',
+			'debug'    => 'admin.php?page=' . self::PAGE_SLUG . '&tab=debug',
+		];
+	}
+
 	public function add_menu(): void {
-		add_submenu_page(
-			'woocommerce',
+		// Position 58.9 lands after the WooCommerce cluster (WooCommerce 55.5, Sales reports 55.6,
+		// Payments 56, Marketing 58) and before core's separator2 (59) and Appearance (60).
+		add_menu_page(
 			__( 'Skwirrel Sync', 'skwirrel-pim-sync' ),
-			__( 'Skwirrel Sync', 'skwirrel-pim-sync' ),
+			__( 'Skwirrel', 'skwirrel-pim-sync' ),
 			'manage_woocommerce',
 			self::PAGE_SLUG,
-			[ $this, 'render_page' ]
+			[ $this, 'render_page' ],
+			'none',
+			58.9
 		);
+
+		// Re-registering the parent slug as the first submenu item renames the duplicated
+		// entry core would otherwise label "Skwirrel". No callback: the parent already owns it.
+		add_submenu_page(
+			self::PAGE_SLUG,
+			__( 'Skwirrel Sync', 'skwirrel-pim-sync' ),
+			__( 'Status', 'skwirrel-pim-sync' ),
+			'manage_woocommerce',
+			self::PAGE_SLUG
+		);
+
+		$tabs = self::tab_submenu_slugs();
+
+		add_submenu_page( self::PAGE_SLUG, '', __( 'Settings', 'skwirrel-pim-sync' ), 'manage_woocommerce', $tabs['settings'] );
+		add_submenu_page( self::PAGE_SLUG, '', __( 'Sync logs', 'skwirrel-pim-sync' ), 'manage_woocommerce', $tabs['debug'] );
+
+		// Pure navigation: jumps to the "Sync Now" block on the status screen. It deliberately
+		// does not trigger a sync — an admin menu link must never perform a state change.
+		add_submenu_page(
+			self::PAGE_SLUG,
+			'',
+			__( 'Sync now', 'skwirrel-pim-sync' ),
+			'manage_woocommerce',
+			'admin.php?page=' . self::PAGE_SLUG . '#skwirrel-sync-now'
+		);
+	}
+
+	/**
+	 * The Skwirrel mark as a base64 SVG, used as a CSS mask so the icon inherits the admin
+	 * colour scheme (and the hover/current states) like every other menu icon does.
+	 *
+	 * A data-URI passed to add_menu_page() is painted as an image and cannot be recoloured,
+	 * which is why the icon is registered as 'none' and drawn here instead.
+	 *
+	 * Generated from assets/menu-icon.svg — regenerate both together if the mark changes.
+	 */
+	private const MENU_ICON_SVG_BASE64 = 'PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMCAyMCI+PHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNMyAwSDE3QTMgMyAwIDAgMSAyMCAzVjE3QTMgMyAwIDAgMSAxNyAyMEgzQTMgMyAwIDAgMSAwIDE3VjNBMyAzIDAgMCAxIDMgMFpNOC43OSAzLjA1TDExLjE3IDMuMDVMMTEuOTkgMy4yNEwxMi41OCAzLjU1TDEzLjI0IDQuMThMMTMuNTkgNC43N0wxMy43OSA1LjM1TDEzLjgzIDYuODhMMTMuNTUgNy4yN0wxMy4yNCA3LjQyTDExLjk5IDcuNDJMMTEuNjQgNy4yM0wxMS40MSA2LjhMMTEuMzcgNS44MkwxMS4wMiA1LjM5TDEwLjc0IDUuMjdMOS4yMiA1LjI3TDguODMgNS40N0w4LjU1IDUuOUw4LjU1IDcuNzNMOC42NyA3Ljk3TDguOTEgOC4yTDkuMTQgOC4zMkwxMC44MiA4LjM2TDExLjA1IDguNDhMMTEuMjkgOC43NUwxMS4zNyA4Ljk4TDExLjM3IDEwLjUxTDExLjQ4IDEwLjc4TDExLjc2IDExLjA1TDEyLjA3IDExLjE3TDEzLjM2IDExLjIxTDEzLjcxIDExLjQ4TDEzLjgzIDExLjcyTDEzLjgzIDE0LjM0TDEzLjU5IDE1LjE2TDEzLjIgMTUuNzhMMTIuNzcgMTYuMjFMMTIuMjMgMTYuNTZMMTEuNTYgMTYuOEw4LjY3IDE2Ljg0TDcuOTMgMTYuNjRMNy4zIDE2LjI5TDYuNzIgMTUuNzRMNi4zMyAxNS4wOEw2LjE3IDE0LjYxTDYuMDkgMTQuMDZMNi4xMyAxMi41OEw2LjQxIDEyLjE5TDYuNzYgMTIuMDNMNy45MyAxMi4wM0w4LjIgMTIuMTVMOC40IDEyLjM0TDguNTUgMTIuNzNMOC41NSAxMy45OEw4LjcxIDE0LjNMOS4wNiAxNC41N0wxMC43OCAxNC42MUwxMS4yMSAxNC4zNEwxMS40MSAxMy45NUwxMS40MSAxMS44TDExLjI1IDExLjQ1TDExLjA5IDExLjI5TDEwLjc4IDExLjEzTDkuMyAxMS4xM0w4Ljk1IDExLjAyTDguNzEgMTAuNzhMOC41OSAxMC41MUw4LjU5IDkuMDJMOC40NCA4LjYzTDguMjQgOC40NEw4LjAxIDguMzJMNi41NiA4LjI0TDYuMjEgNy45M0w2LjEzIDcuNzdMNi4xMyA1LjUxTDYuMjkgNC45Mkw2LjUyIDQuNDVMNi44OCAzLjk4TDcuNSAzLjQ4TDcuOTcgMy4yNFoiLz48L3N2Zz4=';
+
+	/**
+	 * Paint the menu icon. Printed on every admin screen because the menu is on every screen;
+	 * inlined rather than enqueued so a 1 KB mask never costs an HTTP request.
+	 */
+	public function print_menu_icon_css(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return;
+		}
+
+		$mask = 'url("data:image/svg+xml;base64,' . self::MENU_ICON_SVG_BASE64 . '") no-repeat center / 20px 20px';
+
+		// Masking the ::before rather than the div is deliberate: every admin colour scheme, and
+		// core's hover/current rules, set `color` on `div.wp-menu-image::before`. Painting the mask
+		// with currentColor there makes the mark follow all of them for free, exactly like a dashicon.
+		$css = '#adminmenu #toplevel_page_' . self::PAGE_SLUG . ' div.wp-menu-image::before{'
+			. 'content:"";'
+			. 'display:inline-block;'
+			. 'width:20px;height:20px;'
+			. 'padding:7px 0;'  // core's own metric for menu icons; keeps us aligned with the neighbours
+			. 'box-sizing:content-box;'
+			. 'background:currentColor;'
+			. '-webkit-mask:' . $mask . ';'
+			. 'mask:' . $mask . ';'
+			. '}';
+
+		printf( '<style id="skwirrel-menu-icon">%s</style>', $css ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- static CSS, no user input.
+	}
+
+	/**
+	 * Temporary signpost under WooCommerce for sites that upgraded from a version where this
+	 * screen lived there. A link only — no callback, so no second page is registered.
+	 *
+	 * @deprecated Remove this method (and WC_SIGNPOST_OPTION) in 3.15.0.
+	 */
+	public function add_woocommerce_signpost(): void {
+		if ( ! get_option( self::WC_SIGNPOST_OPTION, false ) ) {
+			return;
+		}
+
+		add_submenu_page(
+			'woocommerce',
+			'',
+			__( 'Skwirrel', 'skwirrel-pim-sync' ),
+			'manage_woocommerce',
+			'admin.php?page=' . self::PAGE_SLUG
+		);
+	}
+
+	/**
+	 * Light up the submenu entry matching the tab currently being viewed.
+	 *
+	 * Core sets no $submenu_file for this screen, so without this filter it falls back to
+	 * matching $plugin_page against the submenu slug — which only ever highlights "Status".
+	 *
+	 * @param string|null $submenu_file Current submenu file.
+	 * @param string      $parent_file  Current parent file.
+	 * @return string|null
+	 */
+	public function highlight_active_tab( $submenu_file, $parent_file ) {
+		if ( self::PAGE_SLUG !== $parent_file ) {
+			return $submenu_file;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only menu state.
+		$tab  = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
+		$tabs = self::tab_submenu_slugs();
+
+		// Tabs without their own submenu entry (and the dashboard itself) fall back to "Status".
+		return $tabs[ $tab ] ?? self::PAGE_SLUG;
 	}
 
 	public function register_settings(): void {

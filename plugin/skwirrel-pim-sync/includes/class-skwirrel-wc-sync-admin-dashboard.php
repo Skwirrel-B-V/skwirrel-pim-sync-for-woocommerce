@@ -191,7 +191,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 
 			<?php // -- Sync Now -- ?>
 			<?php if ( $sync_in_progress ) : ?>
-				<div class="skw-block skw-block-disabled">
+				<div id="skwirrel-sync-now" class="skw-block skw-block-disabled">
 					<div class="skw-block-icon skw-bg-blue">
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="24" height="24" class="skw-spin"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182M21.015 4.356v4.992" stroke-linecap="round" stroke-linejoin="round" /></svg>
 					</div>
@@ -201,7 +201,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					</div>
 				</div>
 			<?php else : ?>
-				<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skwirrel_wc_sync_run' ), 'skwirrel_wc_sync_run', '_wpnonce' ) ); ?>" class="skw-block">
+				<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skwirrel_wc_sync_run' ), 'skwirrel_wc_sync_run', '_wpnonce' ) ); ?>" id="skwirrel-sync-now" class="skw-block">
 					<div class="skw-block-icon skw-bg-blue">
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="24" height="24"><path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
 					</div>

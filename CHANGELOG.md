@@ -2,6 +2,36 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.13.0]
+
+### Added — scheduled removals are driven by a selection membership sweep (story 2.6)
+
+* **Removals now follow the selection, not the delta payload.** A scheduled run fetches the complete product-id list for every configured selection (`getProductsByFilter` with `dynamic_selection_id`, no payload includes), merges them into one union set, and diffs against that. Previously a product's absence from a delta page was the only removal signal, which conflates "not changed since last sync" with "no longer sold".
+* **The sweep is resumable.** `run_membership_sweep_step()` reads one page at a time against the step deadline and persists its cursor and id set outside `$ctx`, so it survives step yields and Action Scheduler restarts. Bounded by `MAX_SWEEP_PAGES`.
+* **An incomplete sweep never removes anything.** If any selection or page fails, the payload filter and the removal diff are both disabled for that run — a partial id set would otherwise read every unfetched product as "gone". The product sync itself still completes normally.
+* **A mass removal is refused rather than performed.** `exceeds_mass_removal()` bounds a run's removal set by ratio *and* by an absolute floor (`MASS_REMOVAL_FLOOR`, 5). Ratio alone permanently locks small catalogues out of scheduled removals — two products with one leaving is a 50% removal on every run. Below the floor the ratio is not consulted at all. The ratio is filterable, and a manual sync remains the escape hatch.
+* **An empty sweep result is treated as suspicious, not as "remove everything."** A scheduled run that gets back an empty selection removes nothing and says so; applying a deliberately emptied selection requires a manual sync.
+* **Conflicting Skwirrel product IDs on one product abort its removal** instead of guessing at its membership.
+* **A refusal is visible in the sync history, not only in the log.** `render_history_table()` renders the advisory under the run it belongs to. The Success badge is unchanged on purpose: refusing to remove is the correct outcome, not a failure.
+* Sweep-driven removals go through the same path as purge-driven ones, so the deprecated escalation cadence and the revive-on-re-add behaviour are untouched.
+
+### Added — the plugin has its own top-level admin menu
+
+* **"Skwirrel" is now a top-level menu item** instead of a submenu under WooCommerce, with submenu entries for Status, Settings, Sync logs and Sync now. The plugin has its own scheduler, its own logs and its own failure mode; it is an adjacent system rather than a WooCommerce setting.
+* **The page URL is unchanged** (`admin.php?page=skwirrel-pim-sync`), so bookmarks, documentation and the plugin action link keep working. Position 58.9 places it after the WooCommerce cluster and before Appearance; the capability stays `manage_woocommerce`.
+* **The tab links are registered as links, not pages** (empty page title, no callback), so `$_parent_pages` ownership and top-level highlighting stay with our own menu. A `submenu_file` filter lights up the entry matching the active tab; `?tab=history` deliberately falls back to Status.
+* **"Sync now" navigates, it does not sync.** An admin menu entry that performs a state change is a GET side-effect on every admin page — browser prefetch, link scanners and "open all in tabs" would each start a full PIM import. It jumps to the Sync Now block on the status screen instead.
+* **The menu icon is the Skwirrel mark, painted as a CSS mask** on `div.wp-menu-image::before` with `currentColor`. A data-URI passed to `add_menu_page()` renders as an image and cannot be recoloured; masking the pseudo-element makes the mark follow every admin colour scheme and the hover/current states exactly like a dashicon.
+* **Sites upgrading from an earlier version keep a temporary "Skwirrel" link under the WooCommerce menu** so nobody concludes the plugin broke. Fresh installs never see it; scheduled for removal in 3.15.0.
+
+### Fixed — translations
+
+* **de_DE: "Sync Now" read "Synchronisierungsverlauf"** ("sync history"), copied from the entry three blocks below it.
+* **de_DE: the "Show delete warning on Skwirrel products" setting was labelled "Alle Skwirrel-Produkte löschen"** — "delete all Skwirrel products". A checkbox German-speaking admins would reasonably avoid, describing the opposite of what it does.
+* **de_DE: `API Connection` rendered as "Verbindung testen"** (the button below it) and `Scheduling` as "Geplant".
+* **`Find your category IDs at %s.` and `Find your selection IDs at %s.` had collapsed onto one translation** in all five non-English locales — each locale carried the other string's wording for one of the two.
+* The five sweep advisory messages from story 2.6 are translated in all locales; previously they fell back to English.
+
 ## [3.12.2]
 
 ### Fixed — code review follow-ups on 3.12.1

@@ -191,7 +191,7 @@ test( 'run_sync records failure and does NOT advance last_sync when a later page
 			// Membership sweep (Story 2.6): answer it outside the page counter so it does not
 			// consume the content fetch's first page. The product is in the selection.
 			if ( skwIsSweepCall( $params ) ) {
-				return [ 'products' => [ [ 'product_id' => $page1_product['product_id'] ] ] ];
+				return [ 'products' => [ [ 'product_id' => $page1_product['product_id'] ] ], 'page' => [ 'current_page' => 1, 'number_of_pages' => 1 ] ];
 			}
 			++$page;
 			if ( 1 === $page ) {
@@ -255,7 +255,7 @@ test( 'run_sync does NOT trigger stale-product purge when a later page fails', f
 			// Membership sweep (Story 2.6): answer it outside the page counter so it does not
 			// consume the content fetch's first page. The product is in the selection.
 			if ( skwIsSweepCall( $params ) ) {
-				return [ 'products' => [ [ 'product_id' => $page1_product['product_id'] ] ] ];
+				return [ 'products' => [ [ 'product_id' => $page1_product['product_id'] ] ], 'page' => [ 'current_page' => 1, 'number_of_pages' => 1 ] ];
 			}
 			++$page;
 			if ( 1 === $page ) {
@@ -319,7 +319,7 @@ test( 'heartbeat transient is cleared after a successful run, so the next click 
 			// Membership sweep (Story 2.6): answer it outside the page counter so it does not
 			// consume the content fetch's first page. The product is in the selection.
 			if ( skwIsSweepCall( $params ) ) {
-				return [ 'products' => [ [ 'product_id' => $skwirrel_product['product_id'] ] ] ];
+				return [ 'products' => [ [ 'product_id' => $skwirrel_product['product_id'] ] ], 'page' => [ 'current_page' => 1, 'number_of_pages' => 1 ] ];
 			}
 			++$page;
 			return 1 === $page ? [ 'products' => [ $skwirrel_product ] ] : [ 'products' => [] ];
@@ -387,8 +387,8 @@ test( 'run_sync queries every configured selection id, not just the first one', 
 			// outside the per-selection page counter so it does not consume page 1.
 			if ( skwIsSweepCall( $params ) ) {
 				return isset( $selection_calls[ $selection_id ] )
-					? [ 'products' => [ [ 'product_id' => $product['product_id'] ] ] ]
-					: [ 'products' => [] ];
+					? [ 'products' => [ [ 'product_id' => $product['product_id'] ] ], 'page' => [ 'current_page' => 1, 'number_of_pages' => 1 ] ]
+					: [ 'products' => [], 'page' => [ 'current_page' => 1, 'number_of_pages' => 1 ] ];
 			}
 			if ( isset( $selection_calls[ $selection_id ] ) ) {
 				++$selection_calls[ $selection_id ];
@@ -508,7 +508,7 @@ test( 'empty cross_sells in the API payload clears existing WC cross_sells', fun
 			// Membership sweep (Story 2.6): answer it outside the page counter so it does not
 			// consume the content fetch's first page. The product is in the selection.
 			if ( skwIsSweepCall( $params ) ) {
-				return [ 'products' => [ [ 'product_id' => $skwirrel_product['product_id'] ] ] ];
+				return [ 'products' => [ [ 'product_id' => $skwirrel_product['product_id'] ] ], 'page' => [ 'current_page' => 1, 'number_of_pages' => 1 ] ];
 			}
 			++$page;
 			return 1 === $page ? [ 'products' => [ $skwirrel_product ] ] : [ 'products' => [] ];

@@ -116,7 +116,7 @@ test('run_sync creates a new WooCommerce product from a Skwirrel API response', 
 			// Membership sweep: the product IS in the selection. Answered outside the page
 			// counter so it does not consume the content fetch's first page.
 			if (skwIsSweepCall($params)) {
-				return ['products' => [['product_id' => $skwirrel_product['product_id']]]];
+				return ['products' => [['product_id' => $skwirrel_product['product_id']]], 'page' => ['current_page' => 1, 'number_of_pages' => 1]];
 			}
 
 			++$fetch_call_count;
@@ -180,7 +180,7 @@ test('run_sync updates an existing product matched by external_id instead of cre
 				return ['products' => [$skwirrel_product]];
 			}
 			if (skwIsSweepCall($params)) {
-				return ['products' => [['product_id' => $skwirrel_product['product_id']]]];
+				return ['products' => [['product_id' => $skwirrel_product['product_id']]], 'page' => ['current_page' => 1, 'number_of_pages' => 1]];
 			}
 			++$fetch_call_count;
 			return $fetch_call_count === 1

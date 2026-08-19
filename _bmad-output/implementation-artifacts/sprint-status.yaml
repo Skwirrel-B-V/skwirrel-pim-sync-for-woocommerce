@@ -81,7 +81,7 @@ development_status:
   2-3-result-deep-links: backlog
   2-4-plain-language-result-and-history: backlog
   2-5-start-over-clean-all-reset: backlog
-  2-6-scheduled-membership-sweep: review          # added 2026-08-18 from the 919/850 sync investigation
+  2-6-scheduled-membership-sweep: done            # added 2026-08-18 from the 919/850 sync investigation
   epic-2-retrospective: optional
 
   # ── Epic 3: Self-diagnosis & safe updates ──

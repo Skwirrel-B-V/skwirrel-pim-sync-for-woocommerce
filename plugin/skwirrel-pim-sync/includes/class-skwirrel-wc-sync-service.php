@@ -100,7 +100,7 @@ class Skwirrel_WC_Sync_Service {
 	 *
 	 * @param bool   $delta   Use delta sync (updated_on >= last sync) if possible.
 	 * @param string $trigger What initiated the sync: 'manual' or 'scheduled'.
-	 * @return array{success: bool, created: int, updated: int, failed: int, error?: string}
+	 * @return array{success: bool, created: int, updated: int, failed: int, error?: string, warning?: string}
 	 */
 	public function run_sync( bool $delta = false, string $trigger = Skwirrel_WC_Sync_History::TRIGGER_MANUAL ): array {
 		$begin = $this->begin_run( $delta, $trigger );
@@ -324,50 +324,56 @@ class Skwirrel_WC_Sync_Service {
 		self::clear_sweep_set();
 
 		$ctx = [
-			'run_id'          => $sync_run_id,
-			'step'            => 'init',
-			'delta'           => $delta,
-			'trigger'         => $trigger,
+			'run_id'                 => $sync_run_id,
+			'step'                   => 'init',
+			'delta'                  => $delta,
+			'trigger'                => $trigger,
 			// Resolved ONCE, here, where the fact is actually known: did a person ask for this run?
 			// Downstream reads only this boolean. It must never be re-derived from `delta` — a
 			// scheduled run goes full whenever `skwirrel_wc_sync_force_full_sync` is armed (which the
 			// purge itself arms, via Delete_Protection), so "full sync" does NOT imply "a human asked".
 			// Anything other than an explicit manual trigger is treated as unattended: fail closed.
-			'human_initiated' => Skwirrel_WC_Sync_History::TRIGGER_MANUAL === $trigger,
-			'started_at'      => time(),
-			'sync_sig'        => $sync_sig,
-			'gate_enabled'    => $gate_enabled,
-			'log_file'        => $log_filename,
-			'options'         => $options,
-			'api_includes'    => $api_includes,
-			'batch_size'      => $batch_size,
-			'collection_ids'  => $collection_ids,
-			'fetch_filter'    => $fetch_filter,
-			'sel_index'       => 0,
-			'page'            => 1,
-			'sweep_complete'  => false,
-			'sweep_count'     => 0,
-			'sweep_dropped'   => 0,
-			'fetched'         => 0,
-			'total'           => 0,
-			'virtual_total'   => 0,
-			'processed'       => 0,
-			'virtual_done'    => 0,
-			'rel_done'        => 0,
-			'created'         => 0,
-			'updated'         => 0,
-			'unchanged'       => 0,
-			'failed'          => 0,
-			'with_attrs'      => 0,
-			'without_attrs'   => 0,
-			'partial_commit'  => false,
-			'seen_categories' => [],
-			'stall'           => 0,
-			'last_progress'   => 0,
-			'hash_mode'       => $hash_mode,
-			'hash_match'      => 0,
-			'hash_mismatch'   => 0,
-			'hash_new'        => 0,
+			'human_initiated'        => Skwirrel_WC_Sync_History::TRIGGER_MANUAL === $trigger,
+			'started_at'             => time(),
+			'sync_sig'               => $sync_sig,
+			'gate_enabled'           => $gate_enabled,
+			'log_file'               => $log_filename,
+			'options'                => $options,
+			'api_includes'           => $api_includes,
+			'batch_size'             => $batch_size,
+			'collection_ids'         => $collection_ids,
+			'fetch_filter'           => $fetch_filter,
+			'sel_index'              => 0,
+			'page'                   => 1,
+			'init_stage'             => '',
+			'sweep_sel_index'        => 0,
+			'sweep_page'             => 1,
+			'sweep_selection_count'  => 0,
+			'sweep_last_fingerprint' => '',
+			'sweep_had_failure'      => false,
+			'sweep_complete'         => false,
+			'sweep_count'            => 0,
+			'sweep_dropped'          => 0,
+			'fetched'                => 0,
+			'total'                  => 0,
+			'virtual_total'          => 0,
+			'processed'              => 0,
+			'virtual_done'           => 0,
+			'rel_done'               => 0,
+			'created'                => 0,
+			'updated'                => 0,
+			'unchanged'              => 0,
+			'failed'                 => 0,
+			'with_attrs'             => 0,
+			'without_attrs'          => 0,
+			'partial_commit'         => false,
+			'seen_categories'        => [],
+			'stall'                  => 0,
+			'last_progress'          => 0,
+			'hash_mode'              => $hash_mode,
+			'hash_match'             => 0,
+			'hash_mismatch'          => 0,
+			'hash_new'               => 0,
 		];
 
 		$this->logger->info(
@@ -437,7 +443,7 @@ class Skwirrel_WC_Sync_Service {
 
 		switch ( $ctx['step'] ) {
 			case 'init':
-				return $this->step_init( $ctx );
+				return $this->step_init( $ctx, $deadline );
 			case 'fetch':
 				return $this->step_fetch( $ctx, $deadline );
 			case 'process':
@@ -457,37 +463,68 @@ class Skwirrel_WC_Sync_Service {
 	 * Step: pre-sync. Idempotent (re-entrant on resume) — category/brand/custom-class syncs are
 	 * upserts and grouped-product shells are looked up by key, so re-running is safe.
 	 *
-	 * @param array<string, mixed> $ctx Run context (mutated in place).
+	 * @param array<string, mixed> $ctx      Run context (mutated in place).
+	 * @param float                $deadline Wall-clock time budget for this action.
 	 */
-	private function step_init( array &$ctx ): string {
+	private function step_init( array &$ctx, float $deadline ): string {
 		$client = $this->get_client();
 		if ( ! $client ) {
 			return $this->fail_run( $ctx, 'Invalid configuration' );
 		}
 		$options = $ctx['options'];
 
-		self::free_wpdb_memory();
-		wp_cache_flush();
+		if ( empty( $ctx['init_stage'] ) ) {
+			self::free_wpdb_memory();
+			wp_cache_flush();
 
-		$this->check_abort();
-		if ( ! empty( $options['sync_categories'] ) ) {
-			$this->category_sync->sync_category_tree( $client, $options, $this->get_include_languages() );
-		}
-		$this->brand_sync->sync_all_brands( $client );
-		if ( ! empty( $options['sync_custom_classes'] ) || ! empty( $options['sync_trade_item_custom_classes'] ) ) {
-			$this->taxonomy_manager->sync_all_custom_classes( $client, $options, $this->get_include_languages() );
-		}
+			$this->check_abort();
+			if ( ! empty( $options['sync_categories'] ) ) {
+				$this->category_sync->sync_category_tree( $client, $options, $this->get_include_languages() );
+			}
+			$this->brand_sync->sync_all_brands( $client );
+			if ( ! empty( $options['sync_custom_classes'] ) || ! empty( $options['sync_trade_item_custom_classes'] ) ) {
+				$this->taxonomy_manager->sync_all_custom_classes( $client, $options, $this->get_include_languages() );
+			}
+			$ctx['init_stage'] = 'sweep';
 
-		self::free_wpdb_memory();
-		wp_cache_flush();
+			self::free_wpdb_memory();
+			wp_cache_flush();
+		}
 
 		// The sweep runs BEFORE the grouped-product pass: the grouped post-filter needs exactly the
-		// same selection membership, so handing it the sweep avoids repeating those calls.
-		$sweep = $this->run_membership_sweep( $client, $ctx );
+		// same selection membership, so handing it the sweep avoids repeating those calls. It reads
+		// one page at a time and persists its cursor/set before yielding.
+		if ( 'sweep' === $ctx['init_stage'] && ! $this->run_membership_sweep_step( $client, $ctx, $deadline ) ) {
+			return 'continue';
+		}
+		$ctx['init_stage'] = 'grouped';
+		$sweep             = self::load_sweep_set( (string) $ctx['run_id'] );
+		$empty_unattended  = ! empty( $sweep['complete'] ) && empty( $sweep['ids'] ) && empty( $ctx['human_initiated'] );
+		$authoritative     = ! empty( $sweep['complete'] ) && ! $empty_unattended;
+		if ( $empty_unattended ) {
+			$ctx['removal_warning'] = self::scheduled_empty_sweep_warning();
+			$this->logger->warning( $ctx['removal_warning'], [ 'detection' => $ctx['delta'] ? 'sweep' : 'synced_at' ] );
+		}
+		if ( ! empty( $options['sync_grouped_products'] ) && ! $authoritative ) {
+			$message = $empty_unattended
+				? __( 'Sync aborted before product changes because the membership sweep returned an empty selection while grouped-product sync is enabled. Run a manual sync to confirm an intentionally empty selection.', 'skwirrel-pim-sync' )
+				: __( 'Sync aborted before product changes because the membership sweep was incomplete while grouped-product sync is enabled. Retry after the selection check succeeds.', 'skwirrel-pim-sync' );
+			return $this->fail_run( $ctx, $message );
+		}
+		if ( microtime( true ) >= $deadline ) {
+			return 'continue';
+		}
 
 		$product_to_group_map = [];
 		if ( ! empty( $options['sync_grouped_products'] ) ) {
-			$grouped_result       = $this->upserter->sync_grouped_products_first( $client, $options, $ctx['collection_ids'], (string) $ctx['run_id'], empty( $sweep ) ? null : $sweep );
+			$grouped_result       = $this->upserter->sync_grouped_products_first(
+				$client,
+				$options,
+				$ctx['collection_ids'],
+				(string) $ctx['run_id'],
+				$authoritative ? $sweep['ids'] : null,
+				$authoritative
+			);
 			$product_to_group_map = $grouped_result['map'];
 			$ctx['created']      += $grouped_result['created'];
 			$ctx['updated']      += $grouped_result['updated'];
@@ -525,38 +562,84 @@ class Skwirrel_WC_Sync_Service {
 	 * an incomplete sweep. The set is persisted out-of-band so it survives step yields and Action
 	 * Scheduler restarts.
 	 *
-	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client API client.
-	 * @param array<string, mixed>            $ctx    Run context (mutated in place).
-	 * @return array<int, bool> The membership set (Skwirrel product id => true), for reuse in this step.
+	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client   API client.
+	 * @param array<string, mixed>            $ctx      Run context (mutated in place).
+	 * @param float                           $deadline Wall-clock time budget for this action.
+	 * @return bool Whether every selection/page has now been attempted.
 	 */
-	private function run_membership_sweep( Skwirrel_WC_Sync_JsonRpc_Client $client, array &$ctx ): array {
-		$ids      = [];
-		$complete = true;
+	private function run_membership_sweep_step( Skwirrel_WC_Sync_JsonRpc_Client $client, array &$ctx, float $deadline ): bool {
+		$stored          = self::load_sweep_set( (string) $ctx['run_id'] );
+		$ids             = $stored['ids'];
+		$collection_ids  = (array) $ctx['collection_ids'];
+		$selection_count = count( $collection_ids );
 
-		foreach ( (array) $ctx['collection_ids'] as $selection_id ) {
+		while ( (int) $ctx['sweep_sel_index'] < $selection_count ) {
 			$this->check_abort();
-			$sweep = $this->upserter->fetch_product_ids_for_selection( $client, (int) $selection_id );
-			$ids  += $sweep['ids'];
-			if ( ! $sweep['complete'] ) {
-				$complete = false;
+			$selection_id                 = (int) $collection_ids[ (int) $ctx['sweep_sel_index'] ];
+			$page                         = (int) $ctx['sweep_page'];
+			$sweep                        = $this->upserter->fetch_product_ids_page_for_selection( $client, $selection_id, $page );
+			$repeated_page                = $page > 1
+				&& '' !== (string) ( $ctx['sweep_last_fingerprint'] ?? '' )
+				&& (string) $ctx['sweep_last_fingerprint'] === $sweep['fingerprint'];
+			$ids                         += $sweep['ids'];
+			$ctx['sweep_selection_count'] = (int) $ctx['sweep_selection_count'] + count( $sweep['ids'] );
+
+			if ( $repeated_page ) {
+				$ctx['sweep_had_failure'] = true;
+				$this->logger->warning(
+					'Membership sweep pagination repeated a page without making progress',
+					[
+						'dynamic_selection_id' => $selection_id,
+						'page'                 => $page,
+					]
+				);
+				++$ctx['sweep_sel_index'];
+				$ctx['sweep_page']             = 1;
+				$ctx['sweep_selection_count']  = 0;
+				$ctx['sweep_last_fingerprint'] = '';
+			} elseif ( ! $sweep['complete'] ) {
+				$ctx['sweep_had_failure'] = true;
+				$this->logger->warning(
+					'Membership sweep for selection is incomplete',
+					[
+						'dynamic_selection_id' => $selection_id,
+						'page'                 => $page,
+						'product_count'        => (int) $ctx['sweep_selection_count'],
+					]
+				);
+				++$ctx['sweep_sel_index'];
+				$ctx['sweep_page']             = 1;
+				$ctx['sweep_selection_count']  = 0;
+				$ctx['sweep_last_fingerprint'] = '';
+			} elseif ( $sweep['has_more'] ) {
+				$ctx['sweep_page']             = $page + 1;
+				$ctx['sweep_last_fingerprint'] = $sweep['fingerprint'];
+			} else {
+				$this->logger->info(
+					'Membership sweep for selection',
+					[
+						'dynamic_selection_id' => $selection_id,
+						'product_count'        => (int) $ctx['sweep_selection_count'],
+						'complete'             => true,
+					]
+				);
+				++$ctx['sweep_sel_index'];
+				$ctx['sweep_page']             = 1;
+				$ctx['sweep_selection_count']  = 0;
+				$ctx['sweep_last_fingerprint'] = '';
 			}
-			$this->logger->info(
-				'Membership sweep for selection',
-				[
-					'dynamic_selection_id' => (int) $selection_id,
-					'product_count'        => count( $sweep['ids'] ),
-					'complete'             => $sweep['complete'],
-				]
-			);
+
+			$complete = (int) $ctx['sweep_sel_index'] >= $selection_count && empty( $ctx['sweep_had_failure'] );
+			self::save_sweep_set( (string) $ctx['run_id'], $ids, $complete );
+			$ctx['sweep_count']    = count( $ids );
+			$ctx['sweep_complete'] = $complete;
+
+			if ( microtime( true ) >= $deadline && (int) $ctx['sweep_sel_index'] < $selection_count ) {
+				return false;
+			}
 		}
 
-		// An empty-but-"successful" sweep is not proof that the selection is empty; treating it as
-		// complete would let a single odd API response retire the whole catalogue.
-		if ( $complete && empty( $ids ) ) {
-			$complete = false;
-			$this->logger->warning( 'Membership sweep returned no product ids for any configured selection — treating it as incomplete; nothing will be removed this run.' );
-		}
-
+		$complete              = empty( $ctx['sweep_had_failure'] );
 		$ctx['sweep_complete'] = $complete;
 		$ctx['sweep_count']    = count( $ids );
 		self::save_sweep_set( (string) $ctx['run_id'], $ids, $complete );
@@ -570,7 +653,7 @@ class Skwirrel_WC_Sync_Service {
 			$this->logger->info( 'Membership sweep complete', [ 'product_ids' => count( $ids ) ] );
 		}
 
-		return $ids;
+		return true;
 	}
 
 	/**
@@ -591,7 +674,8 @@ class Skwirrel_WC_Sync_Service {
 		$queue           = new Skwirrel_WC_Sync_Queue( $ctx['run_id'] );
 		$group_map       = self::load_group_map( $ctx['run_id'] );
 		$sweep           = self::load_sweep_set( (string) $ctx['run_id'] );
-		$sweep_ids       = $sweep['complete'] ? $sweep['ids'] : [];
+		$authoritative   = ! empty( $sweep['complete'] ) && ( ! empty( $sweep['ids'] ) || ! empty( $ctx['human_initiated'] ) );
+		$sweep_ids       = $authoritative ? $sweep['ids'] : [];
 		$collection_ids  = $ctx['collection_ids'];
 		$batch_size      = (int) $ctx['batch_size'];
 		$selection_count = count( $collection_ids );
@@ -639,21 +723,12 @@ class Skwirrel_WC_Sync_Service {
 			);
 
 			foreach ( $products as $product ) {
-				$skwirrel_product_id = $product['product_id'] ?? $product['id'] ?? null;
-
-				// Membership filter. The delta call returns products that have already left the
-				// selection (upstream scoping bug), and importing them re-publishes retired products
-				// and stamps _skwirrel_synced_at on them. Drop them before they reach the queue so no
-				// status change, untrash or sync stamp is ever written. Only applied when the sweep
-				// completed — an incomplete sweep must never suppress a legitimate product.
-				if ( ! empty( $sweep_ids ) && null !== $skwirrel_product_id && ! isset( $sweep_ids[ (int) $skwirrel_product_id ] ) ) {
-					++$ctx['sweep_dropped'];
-					continue;
-				}
+				$raw_product_id      = $product['product_id'] ?? $product['id'] ?? null;
+				$skwirrel_product_id = self::normalize_positive_id( $raw_product_id );
 
 				$virtual_info = null;
 				if ( null !== $skwirrel_product_id ) {
-					$virtual_info = $group_map[ 'virtual:' . (int) $skwirrel_product_id ] ?? null;
+					$virtual_info = $group_map[ 'virtual:' . $skwirrel_product_id ] ?? null;
 				}
 				if ( $virtual_info && ! empty( $virtual_info['is_virtual_for_variable'] ) ) {
 					$queue->insert_virtual_item( $product, (int) $virtual_info['wc_variable_id'] );
@@ -667,14 +742,31 @@ class Skwirrel_WC_Sync_Service {
 
 				$sku_for_lookup = (string) ( $product['internal_product_code'] ?? $product['manufacturer_product_code'] ?? $this->mapper->get_sku( $product ) );
 				$group_info     = null;
-				if ( null !== $skwirrel_product_id && '' !== $skwirrel_product_id ) {
-					$group_info = $group_map[ (int) $skwirrel_product_id ] ?? null;
+				if ( null !== $skwirrel_product_id ) {
+					$group_info = $group_map[ $skwirrel_product_id ] ?? null;
 				}
-				if ( ! $group_info && '' !== $sku_for_lookup ) {
+				if ( ! $authoritative && ! $group_info && '' !== $sku_for_lookup ) {
 					$group_info = $group_map[ 'sku:' . $sku_for_lookup ] ?? null;
 				}
 
-				$queue->insert_item( $product, $group_info );
+				// Group members are already constrained when the complete sweep builds the group map.
+				// Queue them before the general payload filter so virtual/grouped products retain their
+				// parent relationship even when their own payload shape is not direct selection membership.
+				if ( $group_info ) {
+					$queue->insert_item( $product, $group_info );
+					++$ctx['fetched'];
+					continue;
+				}
+
+				// Membership filter. A complete sweep is authoritative even when it is empty. A simple
+				// payload row without a positive integer product id cannot be proven in-selection and is
+				// dropped fail-closed rather than allowed to revive or stamp a retired product.
+				if ( $authoritative && ( null === $skwirrel_product_id || ! isset( $sweep_ids[ $skwirrel_product_id ] ) ) ) {
+					++$ctx['sweep_dropped'];
+					continue;
+				}
+
+				$queue->insert_item( $product, null );
 				++$ctx['fetched'];
 			}
 
@@ -716,13 +808,12 @@ class Skwirrel_WC_Sync_Service {
 
 		if ( $ctx['delta'] && 0 === $ctx['fetched'] ) {
 			$this->logger->info( 'Delta sync: no products updated since last sync (across all configured selections)' );
-			// Clean no-op completion — restore the signature we invalidated at run start (the checkpoint
-			// is intentionally left unchanged, matching the pre-refactor behavior).
-			update_option( 'skwirrel_wc_sync_last_sync_sig', $ctx['sync_sig'] );
-			Skwirrel_WC_Sync_History::update_last_result( true, 0, 0, 0, '', 0, 0, 0, 0, $ctx['trigger'], $ctx['log_file'], 0 );
-			( new Skwirrel_WC_Sync_Queue( $ctx['run_id'] ) )->cleanup();
-			$this->finish_run();
-			return 'done';
+			// No content work remains, but finalization is not optional: the membership sweep can
+			// still prove that products left the selection, or carry a refusal that must reach history.
+			$ctx['total']         = 0;
+			$ctx['virtual_total'] = 0;
+			$ctx['step']          = 'finalize';
+			return 'continue';
 		}
 
 		$ctx['total']         = $queue->count_items( false );
@@ -1250,6 +1341,15 @@ class Skwirrel_WC_Sync_Service {
 		$human_initiated     = ! empty( $ctx['human_initiated'] );
 		$membership_complete = ! empty( $sweep['complete'] );
 
+		// A successful empty sweep is a valid statement for a person deliberately reconciling an
+		// emptied selection, but it is too destructive to trust unattended. Scheduled runs refuse the
+		// empty-catalogue transition regardless of the ratio/floor; a manual run is the explicit escape.
+		if ( $membership_complete && empty( $sweep['ids'] ) && ! $human_initiated ) {
+			$message = self::scheduled_empty_sweep_warning();
+			$this->logger->warning( $message, [ 'detection' => $ctx['delta'] ? 'sweep' : 'synced_at' ] );
+			return $message;
+		}
+
 		if ( $ctx['delta'] ) {
 			$result = $this->purge_handler->purge_missing_from_sweep(
 				$sweep['ids'],
@@ -1329,7 +1429,7 @@ class Skwirrel_WC_Sync_Service {
 	 * @param array<string, mixed> $ctx     Run context.
 	 * @param bool                 $success Whether the run succeeded.
 	 * @param string               $error   Error message when not successful.
-	 * @return array{success: bool, created: int, updated: int, unchanged: int, failed: int, error?: string}
+	 * @return array{success: bool, created: int, updated: int, unchanged: int, failed: int, error?: string, warning?: string}
 	 */
 	private function result_from_ctx( array $ctx, bool $success, string $error = '' ): array {
 		$result = [
@@ -1346,7 +1446,34 @@ class Skwirrel_WC_Sync_Service {
 		if ( '' !== $error ) {
 			$result['error'] = $error;
 		}
+		if ( '' !== (string) ( $ctx['removal_warning'] ?? '' ) ) {
+			$result['warning'] = (string) $ctx['removal_warning'];
+		}
 		return $result;
+	}
+
+	/**
+	 * Normalize an API identifier without accepting lossy casts such as `"12x"` or `12.5`.
+	 *
+	 * @param mixed $value Candidate identifier.
+	 */
+	private static function normalize_positive_id( $value ): ?int {
+		if ( is_int( $value ) ) {
+			return $value > 0 ? $value : null;
+		}
+		if ( is_string( $value ) && ctype_digit( $value ) ) {
+			$digits = ltrim( $value, '0' );
+			if ( '' === $digits ) {
+				return null;
+			}
+			$max = (string) PHP_INT_MAX;
+			if ( strlen( $digits ) > strlen( $max ) || ( strlen( $digits ) === strlen( $max ) && strcmp( $digits, $max ) > 0 ) ) {
+				return null;
+			}
+			$normalized = (int) $digits;
+			return $normalized > 0 ? $normalized : null;
+		}
+		return null;
 	}
 
 	// ---------------------------------------------------------------------
@@ -1431,9 +1558,7 @@ class Skwirrel_WC_Sync_Service {
 		// or that step's own progress reads as a stall. `finalize` yields while the deprecated
 		// escalation works through its batches, and none of the fetch/process counters change
 		// then — so its progress (products trashed, batches advanced) is part of the signature.
-		$watermark = (int) $state['fetched'] + (int) $state['processed'] + (int) $state['virtual_done']
-			+ (int) $state['rel_done'] + (int) ( $state['trashed'] ?? 0 ) + (int) ( $state['finalize_passes'] ?? 0 );
-		$sig       = $state['step'] . ':' . $watermark;
+		$sig = self::progress_signature( $state );
 		if ( ( $state['last_progress_sig'] ?? '' ) === $sig ) {
 			$state['stall'] = (int) ( $state['stall'] ?? 0 ) + 1;
 		} else {
@@ -1468,6 +1593,16 @@ class Skwirrel_WC_Sync_Service {
 			Skwirrel_WC_Sync_Action_Scheduler::enqueue_step( $run_id );
 		}
 		// On 'done'/'failed' the step already cleared the run state and released the mutex.
+	}
+
+	/** Build the poison-loop progress signature for a persisted async run. */
+	private static function progress_signature( array $state ): string {
+		$watermark = (int) ( $state['fetched'] ?? 0 ) + (int) ( $state['processed'] ?? 0 ) + (int) ( $state['virtual_done'] ?? 0 )
+			+ (int) ( $state['rel_done'] ?? 0 ) + (int) ( $state['trashed'] ?? 0 ) + (int) ( $state['finalize_passes'] ?? 0 );
+		return (string) ( $state['step'] ?? '' ) . ':' . $watermark . ':'
+			. (string) ( $state['init_stage'] ?? '' ) . ':'
+			. (int) ( $state['sweep_sel_index'] ?? 0 ) . ':'
+			. (int) ( $state['sweep_page'] ?? 0 );
 	}
 
 	/**
@@ -2271,7 +2406,19 @@ class Skwirrel_WC_Sync_Service {
 			return [];
 		}
 		$parts = preg_split( '/[\s,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY );
-		return array_values( array_map( 'intval', array_filter( $parts, 'is_numeric' ) ) );
+		$ids   = [];
+		foreach ( (array) $parts as $part ) {
+			$id = self::normalize_positive_id( $part );
+			if ( null !== $id ) {
+				$ids[ $id ] = $id;
+			}
+		}
+		return array_values( $ids );
+	}
+
+	/** Warning shown when an unattended empty sweep is not trusted as authoritative. */
+	private static function scheduled_empty_sweep_warning(): string {
+		return __( 'Removal skipped: the membership sweep returned an empty selection. Nothing was removed during this scheduled run; run a manual sync to confirm and apply an intentionally empty selection.', 'skwirrel-pim-sync' );
 	}
 
 	private function get_include_languages(): array {

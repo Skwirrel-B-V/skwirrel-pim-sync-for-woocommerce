@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 3.12.2
+Stable tag: 3.13.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,17 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.13.0 =
+
+* New: Skwirrel Sync now has its own menu in the WordPress admin instead of sitting under WooCommerce, with Status, Settings, Sync logs and Sync now as sub-items. Your existing bookmarks keep working, and sites upgrading from an older version keep a link under WooCommerce for a few releases so nothing goes missing.
+* New: scheduled syncs now decide what to remove by checking which products are still in your Skwirrel selection, instead of assuming a product that did not change has been withdrawn.
+* New: a sync that would remove an unusually large part of your catalogue refuses to do it and tells you so in the sync history, with the Success badge intact — nothing is removed until you run a manual sync to confirm.
+* New: if the selection check could not be completed, or came back empty, nothing is removed at all. Your products are synced as usual.
+* Fix: German — "Sync Now" was labelled "Synchronisierungsverlauf" (sync history), and the "Show delete warning on Skwirrel products" setting was labelled "Delete all Skwirrel products". Both now say what they do.
+* Fix: German — "API Connection" and "Scheduling" showed the wrong labels.
+* Fix: Dutch, German and French — the hints for finding your category IDs and your selection IDs both showed the same text; they now describe the right one.
+* Fix: the warnings a sync shows when it refuses to remove products are now translated instead of appearing in English.
 
 = 3.12.2 =
 
