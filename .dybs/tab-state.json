@@ -16,27 +16,12 @@
       "clean": false
     },
     {
-      "slashCommand": null,
-      "claudeSessionId": null,
-      "label": "Automated sync product status disco…",
-      "emoji": "▷",
-      "icon": "terminal-window",
-      "oscTitle": "Automated sync product status disco…",
-      "storySlug": null,
-      "storyPhase": null,
-      "storyScope": null,
-      "epicNumber": null,
-      "storyNumber": null,
-      "alias": null,
-      "clean": true
-    },
-    {
       "slashCommand": "/bmad-dev-story 2.6",
       "claudeSessionId": null,
       "label": "Create Story 2.6",
       "emoji": "▶",
       "icon": "code",
-      "oscTitle": null,
+      "oscTitle": "Claude Code",
       "storySlug": "2-6-scheduled-membership-sweep",
       "storyPhase": "ready-for-dev",
       "storyScope": null,
@@ -46,6 +31,6 @@
       "clean": false
     }
   ],
-  "activeIndex": 2,
-  "savedAt": "2026-08-18T13:17:57.814Z"
+  "activeIndex": 1,
+  "savedAt": "2026-08-18T13:20:34.908Z"
 }

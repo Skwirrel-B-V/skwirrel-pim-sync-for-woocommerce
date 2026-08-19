@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BMad Method · Quality Analysis: bmad-agent-wp</title>
+<style>
+:root {
+  --bg: #0d1117; --surface: #161b22; --surface2: #21262d; --border: #30363d;
+  --text: #e6edf3; --text-muted: #8b949e; --text-dim: #6e7681;
+  --critical: #f85149; --high: #f0883e; --medium: #d29922; --low: #58a6ff;
+  --strength: #3fb950; --suggestion: #a371f7;
+  --accent: #58a6ff; --accent-hover: #79c0ff;
+  --brand: #a371f7;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff; --surface: #f6f8fa; --surface2: #eaeef2; --border: #d0d7de;
+    --text: #1f2328; --text-muted: #656d76; --text-dim: #8c959f;
+    --critical: #cf222e; --high: #bc4c00; --medium: #9a6700; --low: #0969da;
+    --strength: #1a7f37; --suggestion: #8250df;
+    --accent: #0969da; --accent-hover: #0550ae;
+    --brand: #8250df;
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.5; padding: 2rem; max-width: 900px; margin: 0 auto; }
+.brand { color: var(--brand); font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.25rem; }
+h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+.subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem; }
+.subtitle a { color: var(--accent); text-decoration: none; }
+.subtitle a:hover { text-decoration: underline; }
+.portrait { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1.25rem; margin-bottom: 1.5rem; }
+.portrait-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+.portrait-icon { font-size: 2rem; }
+.portrait-name { font-size: 1.25rem; font-weight: 700; }
+.portrait-title { font-size: 0.9rem; color: var(--text-muted); }
+.portrait-desc { font-size: 0.95rem; color: var(--text-muted); line-height: 1.6; font-style: italic; }
+.grade { font-size: 2.5rem; font-weight: 700; margin: 0.5rem 0; }
+.grade-Excellent { color: var(--strength); }
+.grade-Good { color: var(--low); }
+.grade-Fair { color: var(--medium); }
+.grade-Poor { color: var(--critical); }
+.narrative { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem; line-height: 1.6; }
+.badge { display: inline-flex; align-items: center; padding: 0.15rem 0.5rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 600; }
+.badge-critical { background: color-mix(in srgb, var(--critical) 20%, transparent); color: var(--critical); }
+.badge-high { background: color-mix(in srgb, var(--high) 20%, transparent); color: var(--high); }
+.badge-medium { background: color-mix(in srgb, var(--medium) 20%, transparent); color: var(--medium); }
+.badge-low { background: color-mix(in srgb, var(--low) 20%, transparent); color: var(--low); }
+.badge-strength { background: color-mix(in srgb, var(--strength) 20%, transparent); color: var(--strength); }
+.badge-good { background: color-mix(in srgb, var(--strength) 15%, transparent); color: var(--strength); }
+.badge-attention { background: color-mix(in srgb, var(--medium) 15%, transparent); color: var(--medium); }
+.section { border: 1px solid var(--border); border-radius: 0.5rem; margin: 0.75rem 0; overflow: hidden; }
+.section-header { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; background: var(--surface); cursor: pointer; user-select: none; }
+.section-header:hover { background: var(--surface2); }
+.section-header .arrow { font-size: 0.7rem; transition: transform 0.15s; color: var(--text-muted); width: 1rem; }
+.section-header.open .arrow { transform: rotate(90deg); }
+.section-header .label { font-weight: 600; flex: 1; }
+.section-header .actions { display: flex; gap: 0.5rem; }
+.section-body { display: none; }
+.section-body.open { display: block; }
+.cap-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 1rem; border-top: 1px solid var(--border); }
+.cap-row:hover { background: var(--surface); }
+.cap-name { font-weight: 600; font-size: 0.9rem; flex: 1; }
+.cap-file { font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim); }
+.cap-findings { display: none; padding: 0.5rem 1rem 0.5rem 2rem; border-top: 1px solid var(--border); background: var(--bg); }
+.cap-findings.open { display: block; }
+.cap-finding { font-size: 0.85rem; padding: 0.25rem 0; color: var(--text-muted); }
+.item { padding: 0.75rem 1rem; border-top: 1px solid var(--border); }
+.item:hover { background: var(--surface); }
+.item-title { font-weight: 600; font-size: 0.9rem; }
+.item-file { font-family: var(--mono); font-size: 0.75rem; color: var(--text-muted); }
+.item-desc { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem; }
+.item-action { font-size: 0.85rem; margin-top: 0.25rem; }
+.item-action strong { color: var(--strength); }
+.opp { padding: 1rem; border-top: 1px solid var(--border); }
+.opp-header { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.opp-name { font-weight: 600; font-size: 1rem; flex: 1; }
+.opp-count { font-size: 0.8rem; color: var(--text-muted); }
+.opp-desc { font-size: 0.9rem; color: var(--text-muted); margin: 0.5rem 0; }
+.opp-impact { font-size: 0.85rem; color: var(--text-dim); font-style: italic; }
+.opp-findings { margin-top: 0.75rem; padding-left: 1rem; border-left: 2px solid var(--border); display: none; }
+.opp-findings.open { display: block; }
+.opp-finding { font-size: 0.85rem; padding: 0.25rem 0; color: var(--text-muted); }
+.opp-finding .source { font-size: 0.75rem; color: var(--text-dim); }
+.btn { background: none; border: 1px solid var(--border); border-radius: 0.25rem; padding: 0.3rem 0.7rem; cursor: pointer; color: var(--text-muted); font-size: 0.8rem; transition: all 0.15s; }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+.btn-primary:hover { background: var(--accent-hover); }
+.strength-item { padding: 0.5rem 1rem; border-top: 1px solid var(--border); }
+.strength-item .title { font-weight: 600; font-size: 0.9rem; color: var(--strength); }
+.strength-item .detail { font-size: 0.85rem; color: var(--text-muted); }
+.analysis-section { padding: 0.75rem 1rem; border-top: 1px solid var(--border); }
+.analysis-section h4 { font-size: 0.9rem; margin-bottom: 0.25rem; }
+.analysis-section p { font-size: 0.85rem; color: var(--text-muted); }
+.analysis-finding { font-size: 0.85rem; padding: 0.25rem 0 0.25rem 1rem; border-left: 2px solid var(--border); margin: 0.25rem 0; color: var(--text-muted); }
+.recs { padding: 0.75rem 1rem; border-top: 1px solid var(--border); }
+.rec { padding: 0.3rem 0; font-size: 0.9rem; }
+.rec-rank { font-weight: 700; color: var(--accent); margin-right: 0.5rem; }
+.rec-resolves { font-size: 0.8rem; color: var(--text-dim); }
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; align-items: center; justify-content: center; }
+.modal-overlay.visible { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1.5rem; width: 90%; max-width: 700px; max-height: 80vh; overflow-y: auto; }
+.modal h3 { margin-bottom: 0.75rem; }
+.modal pre { background: var(--bg); border: 1px solid var(--border); border-radius: 0.375rem; padding: 1rem; font-family: var(--mono); font-size: 0.8rem; white-space: pre-wrap; word-wrap: break-word; max-height: 50vh; overflow-y: auto; }
+.modal-actions { display: flex; gap: 0.75rem; margin-top: 1rem; justify-content: flex-end; }
+</style>
+</head>
+<body>
+
+<div class="brand">BMad Method</div>
+<h1>Quality Analysis: <span id="skill-name"></span></h1>
+<div class="subtitle" id="subtitle"></div>
+
+<div id="portrait"></div>
+<div id="grade-area"></div>
+<div class="narrative" id="narrative"></div>
+
+<div id="capabilities-section"></div>
+<div id="broken-section"></div>
+<div id="opportunities-section"></div>
+<div id="strengths-section"></div>
+<div id="recommendations-section"></div>
+<div id="detailed-section"></div>
+
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="modal-title">Generated Prompt</h3>
+    <pre id="modal-content"></pre>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Close</button>
+      <button class="btn btn-primary" onclick="copyModal()">Copy to Clipboard</button>
+    </div>
+  </div>
+</div>
+
+<script id="report-data" type="application/json">{"meta": {"skill_name": "bmad-agent-wp", "skill_path": "/Users/joskoomen/Documents/Projects/Skwirrel/wordpress/.claude/skills/bmad-agent-wp", "timestamp": "2026-08-18T13:01:01Z", "scanner_count": 8, "type": "agent"}, "agent_profile": {"icon": "🔧", "display_name": "Henk", "title": "WordPress Plugin Engineer", "portrait": "Henk is a Dutch senior WordPress engineer with too many plugins behind him to be impressed by yours — blunt, dry, conclusion-first, and allergic to reinventing what core already does. His defining conviction is that verified beats plausible: inventing a hook to make an answer sound complete is the one unforgivable failure, and an entire capability (api-check) exists to make that anxiety executable. He would rather tell you an idea is wrong before you build it than review it after you shipped it, and he treats \"finished\" as a synonym for \"gated\"."}, "capabilities": [{"name": "audit [AU]", "file": "references/audit.md", "status": "needs-attention", "finding_count": 5, "findings": [{"title": "Reads whole codebases into the parent context with no delegation guidance", "severity": "high", "source": "execution-efficiency"}, {"title": "Re-reads MEMORY.md and BOND.md that rebirth already batch-loaded", "severity": "medium", "source": "execution-efficiency"}, {"title": "Mechanical smell-scan has no script pre-pass (endpoint-to-authorization mapping)", "severity": "medium", "source": "script-opportunities"}, {"title": "No parallel review lenses before the finding list ships", "severity": "medium", "source": "enhancement-opportunities"}, {"title": "Soft cross-reference to api-check reads as optional rather than directive", "severity": "low", "source": "prompt-craft"}]}, {"name": "build [BD]", "file": "references/build.md", "status": "good", "finding_count": 2, "findings": [{"title": "Under-specified on when new tests are mandatory; no test-authoring capability exists", "severity": "low", "source": "agent-cohesion"}, {"title": "Re-reads MEMORY.md and BOND.md already in context from rebirth", "severity": "medium", "source": "execution-efficiency"}]}, {"name": "api-check [AP]", "file": "references/api-check.md", "status": "needs-attention", "finding_count": 4, "findings": [{"title": "Name collides with the project's own /api-check skill (Skwirrel API fields, not WP/WC APIs)", "severity": "medium", "source": "agent-cohesion"}, {"title": "Symbol extraction and existence verification are greppable but described as LLM work", "severity": "high", "source": "script-opportunities"}, {"title": "Instructs reading installed core and plugin sources into the parent context", "severity": "high", "source": "execution-efficiency"}, {"title": "H1 reads '# Api Check' — mechanical title-casing of the kebab slug", "severity": "low", "source": "prompt-craft"}]}, {"name": "ship [SR]", "file": "references/ship.md", "status": "needs-attention", "finding_count": 6, "findings": [{"title": "Duplicates the project's /release skill and never mentions deferring to it", "severity": "medium", "source": "agent-cohesion"}, {"title": "Translation catalog consistency is fully deterministic and fully unscripted", "severity": "high", "source": "script-opportunities"}, {"title": "An empty gate set is indistinguishable from all gates passing", "severity": "medium", "source": "enhancement-opportunities"}, {"title": "WordPress.org readme/directory compliance is a checklist, not a judgment", "severity": "medium", "source": "script-opportunities"}, {"title": "Changelog-from-diff and declared floors are cross-referenced by eye", "severity": "medium", "source": "script-opportunities"}, {"title": "Serializes two independent scripts on a presentational 'first'", "severity": "low", "source": "execution-efficiency"}]}, {"name": "upstream-watch [UW]", "file": "references/upstream-watch.md", "status": "needs-attention", "finding_count": 4, "findings": [{"title": "Impact search is ad-hoc per-symbol grepping with no script", "severity": "high", "source": "script-opportunities"}, {"title": "Finds the breakage but has no handoff to build; deferred deprecations have no dated escalation", "severity": "medium", "source": "enhancement-opportunities"}, {"title": "'Last upstream versions checked' is instructed into both MEMORY.md and PULSE.md State", "severity": "low", "source": "agent-cohesion"}, {"title": "[AP] vs [UW] boundary is thin from the user's side", "severity": "low", "source": "agent-cohesion"}]}, {"name": "Pulse / unattended runs", "file": "assets/PULSE-template.md", "status": "needs-attention", "finding_count": 5, "findings": [{"title": "Findings land in session logs that are never loaded on rebirth and prune at 14 days", "severity": "medium", "source": "agent-cohesion"}, {"title": "Five independent workstreams run strictly sequentially in the one session where nobody waits", "severity": "medium", "source": "execution-efficiency"}, {"title": "--headless on an un-born agent starts an interview with nobody there", "severity": "high", "source": "enhancement-opportunities"}, {"title": "Sanctum hygiene (line counts, date math, INDEX drift, placeholders) is eyeball arithmetic", "severity": "high", "source": "script-opportunities"}, {"title": "No task-carrying headless mode and no output contract for automators", "severity": "medium", "source": "enhancement-opportunities"}]}], "narrative": "This is one of the most coherent memory agents in the fleet — the persona is load-bearing rather than decorative, intelligence placement between prompts and scripts is exemplary, and four independent scanners returned zero waste and the cleanest customization-abuse profile they expect to see. Nothing is broken and there are no critical findings. The opportunities are environmental: Henk was built as though he were the only tool in the repo, he reads whole codebases into his own context instead of fanning out, and the two mechanisms his entire value rests on — writing memory at session close and being born from config.yaml — both rest on assumptions this project already breaks.", "grade": "Good", "broken": [], "opportunities": [{"name": "Memory is written by luck", "description": "Session Close fires only if the agent happens to notice a wind-down, but sessions end by a closed terminal, a compaction, or an exhausted context. In all three cases the sanctum write never happens and the entire session's learning is lost. First Breath already solved this — 'Save As You Go' is the best paragraph in the skill — and then the discipline is abandoned for every session after birth.", "severity": "high", "impact": "Turns an agent that intends to have memory into one that actually has it, and stops findings evaporating on interruption or compaction.", "action": "Extend checkpoint-as-you-go to normal sessions: append to the session log after each completed capability run, correction, and ruling instead of buffering to the end. Recognise explicit close phrases, mark interrupted work with an **Incomplete:** marker, re-read the sanctum on compaction recovery, and move the Session Close section out of the bootloader into CREED's Standing Orders.", "finding_count": 5, "findings": [{"title": "Session Close has no reliable trigger", "file": "SKILL.md", "line": 39, "detail": "'Before ending any session' assumes the agent can detect an ending. It cannot. This is the highest-consequence instruction in the bootloader and the one with no trigger.", "source": "prompt-craft"}, {"title": "Session Close belongs in the sanctum, not the bootloader", "file": "SKILL.md", "line": 39, "detail": "Per the memory-agent pattern only identity seed, Three Laws, Sacred Truth, mission and activation routing belong in the bootloader. Costs four lines on every rebirth and restates what memory-guidance.md already owns.", "source": "sanctum-architecture"}, {"title": "No mid-flight abandonment path", "file": "references/audit.md", "line": 38, "detail": "Owner walks away three findings into an audit; nothing preserves the partial list. Capability prompts should write what they have on interruption.", "source": "enhancement-opportunities"}, {"title": "Compaction drops MEMORY.md rulings with no recovery", "file": "references/memory-guidance.md", "line": 72, "detail": "After compaction the persona survives but the sanctum load may not — so Henk will re-report a dismissal that audit.md explicitly promises never to re-report.", "source": "enhancement-opportunities"}, {"title": "Pulse findings are written where they will never be read", "file": "assets/PULSE-template.md", "line": 25, "detail": "Unattended findings go to session logs, which memory-guidance.md states are not loaded on rebirth and are pruned after 14 days.", "source": "agent-cohesion"}]}, {"name": "Birth starts with a guess", "description": "The agent whose creed is 'never claim what you haven't verified' opens its life with an unverified guess. SKILL.md and init-sanctum.py both load _bmad/config.yaml; this project stores config in _bmad/config.toml, where user_name = \"Jos\" actually lives — so BOND.md is seeded with 'friend'. Compounding it, First Breath asks eight questions that CLAUDE.md and .claude/rules/*.md already answer in full, two directories away.", "severity": "high", "impact": "Restores the persona's central promise from second one, cuts eight onboarding questions to three, and makes the first impression competence instead of a form.", "action": "Teach init-sanctum.py to read TOML first (tomllib is stdlib on 3.11+) and name both formats in the activation line. Insert a Reconnaissance step before Discovery that reads CLAUDE.md/AGENTS.md/.claude/rules/ and confirms rather than asks. While in the script, parse the [agent] block from customize.toml and add {agent_name}/{agent_icon}/{agent_title} to the substitution dict.", "finding_count": 4, "findings": [{"title": "Config format mismatch — YAML expected, TOML present", "file": "SKILL.md", "line": 31, "detail": "Both SKILL.md and init-sanctum.py look for config.yaml/config.user.yaml; this project uses config.toml/config.user.toml. user_name falls back to 'friend'.", "source": "enhancement-opportunities"}, {"title": "First Breath asks what the repo already answers", "file": "references/first-breath.md", "line": 30, "detail": "Eight substantial questions where CLAUDE.md already supplies layout, floors, gate commands, release procedure and house rules — while the same file says 'keep it short'.", "source": "enhancement-opportunities"}, {"title": "Name, icon and title are hardcoded in three places with no single source", "file": "assets/PERSONA-template.md", "line": 4, "detail": "customize.toml, SKILL.md and PERSONA-template.md each carry the identity triplet independently; init-sanctum.py never reads the TOML, so the template is a literal copy rather than a projection.", "source": "customization-surface"}, {"title": "A First Breath rename never reaches the invocation trigger", "file": "references/first-breath.md", "line": 42, "detail": "First Breath invites a rename, but the frontmatter description is regenerated on every update and still only fires on 'Henk'. One sentence prevents a confusing session three weeks later.", "source": "customization-surface"}]}, {"name": "No fan-out vocabulary anywhere in the agent", "description": "Across 7 markdown files and 4 scripts the only batching or delegation word in the bundle is the single 'Batch-load' in SKILL.md:35. Every inherently multi-file capability instructs Henk to read the codebase into his own context — on this project's ~28 plugin classes that means tens of thousands of tokens arrive before a single finding, leaving the context too degraded for the synthesis that actually matters.", "severity": "high", "impact": "60–85% of parent context saved on a multi-class audit, roughly 3x wall clock on the independent Pulse stage, and 40–60% off gate wall clock on every audit, build and ship.", "action": "Add one 'How I fan out' block to SKILL.md — when to delegate (more than ~3 files), how to dispatch (one message, N subagents), what to demand back (return ONLY a capped JSON findings array). Add a Delegation section to capability-authoring.md so learned capabilities inherit it, split the Pulse into a parallel stage and a curation stage, and thread quality-gates.py and upstream-versions.py with ThreadPoolExecutor.", "finding_count": 6, "findings": [{"title": "Capabilities read whole codebases in the parent context", "file": "references/audit.md", "line": 28, "detail": "audit.md:28, api-check.md:17 and upstream-watch.md:25 all instruct direct reading. build.md:17 is correctly a parent-side read and should be exempted explicitly.", "source": "execution-efficiency"}, {"title": "No subagent output-format contract exists", "file": "references/capability-authoring.md", "line": 53, "detail": "No 'return ONLY', no token budget, no JSON schema anywhere in the skill — so every future learned capability inherits the gap.", "source": "execution-efficiency"}, {"title": "Pulse runs five independent workstreams sequentially", "file": "assets/PULSE-template.md", "line": 7, "detail": "Upstream Watch, Rot Audit and Ship-Readiness are mutually independent; only Memory Curation → Self-Improvement is a genuine dependency.", "source": "execution-efficiency"}, {"title": "quality-gates.py runs pest/phpstan/phpcs serially", "file": "scripts/quality-gates.py", "line": 148, "detail": "Three independent read-only subprocesses on the same tree; wall clock is the sum rather than the max on the most-run script in the agent.", "source": "execution-efficiency"}, {"title": "upstream-versions.py serialises two unrelated hosts and re-fetches per plugin", "file": "scripts/upstream-versions.py", "line": 160, "detail": "Core-offers and plugin-info calls run in a serial loop at 15s timeout each, and the single plugin_dir argument means N subprocess launches hitting the same two APIs.", "source": "execution-efficiency"}, {"title": "No parallel review lenses before a finding list ships", "file": "references/audit.md", "line": 13, "detail": "The Sacred Truth's 'fresh eyes see what habit misses' is stated but never operationalised — a skeptic lens and an omission lens would catch what Henk's own priors miss.", "source": "enhancement-opportunities"}]}, {"name": "Built as if he were the only tool in the repo", "description": "Not one capability prompt, nor SKILL.md, nor the CAPABILITIES template mentions a single external or project skill — while this repository ships /release (which the owner's own memory says to use instead of bumping by hand), /quality, /api-check, /add-tests, /add-translation and /sync-debug. The tooling doctrine ('prefer crafting your own tools over depending on external ones') actively pushes Henk away from the skills his owner already trusts, which sits oddly against his loudest conviction that you don't hand-roll a replacement for something that already exists.", "severity": "medium", "impact": "Stops Henk duplicating tooling the owner already trusts, kills a name collision, and closes the two capability seams the project's own skill roster reveals.", "action": "Add a 'Project Skills I Defer To' table to CAPABILITIES-template.md, seeded by a new First Breath question about existing skills and commands. Have ship.md state that a documented project release procedure outranks its own approach. Scope the tooling doctrine to prefer own scripts over unverifiable external services, and the owner's existing skills over a parallel one. Then add a triage/diagnose capability and settle test authoring.", "finding_count": 6, "findings": [{"title": "No capability references the project's existing skills", "file": "assets/CAPABILITIES-template.md", "line": 30, "detail": "capability-authoring.md defines an 'External Skill Reference' capability type, so the architecture supports this — the content never uses it.", "source": "agent-cohesion"}, {"title": "[AP] collides by name with the project's /api-check skill", "file": "references/api-check.md", "line": 4, "detail": "The project skill validates Skwirrel API fields; the capability validates WP/WC APIs. Confusion is likely; consider renaming to wp-api-check.", "source": "agent-cohesion"}, {"title": "Tooling doctrine contradicts 'core already did it'", "file": "assets/CAPABILITIES-template.md", "line": 30, "detail": "An agent whose first principle is 'don't hand-roll a replacement' hand-rolls a replacement for the project's own release tooling.", "source": "agent-cohesion"}, {"title": "No reactive-diagnosis capability", "file": "assets/CAPABILITIES-template.md", "line": 7, "detail": "'It broke last night — find out why' falls in the seam between proactive audit and fix-it build. The repo has a /sync-debug skill precisely because this need exists.", "source": "agent-cohesion"}, {"title": "No test-authoring capability though 'finished means gated' is a core value", "file": "references/build.md", "line": 21, "detail": "Three capabilities run the gates; nothing owns creating coverage.", "source": "agent-cohesion"}, {"title": "No out-of-scope boundary", "file": "assets/CREED-template.md", "line": 62, "detail": "Nothing says what Henk doesn't do (themes, Gutenberg blocks, JS bundles) or who to hand off to. A blunt 'that's not mine, ask X' is entirely in character.", "source": "enhancement-opportunities"}]}, {"name": "Autonomy produces work with nowhere to land", "description": "Pulse is genuinely well designed — five prioritised activities each naming its script and its deliverable standard, plus --headless task routing that puts Henk ahead of most agents. But unattended findings are written to session logs that are never re-read, and the automator who wants 'audit this diff, give me JSON' has no door: --headless means 'run the pulse', not 'run this task' — no target, no output contract, no exit code, no report path.", "severity": "medium", "impact": "Turns Henk from a conversation partner into infrastructure that CI, /schedule and other skills can call — a category change in value for roughly thirty lines of instruction.", "action": "Define a Pulse output artefact (pulse/YYYY-MM-DD.md plus a 'Pending for owner' section in MEMORY.md), list it in INDEX-template.md, and add a Rebirth step that leads with unreported findings. Add --headless:{code} --target <path> with a report file and one-line JSON stdout contract, guard the un-born headless case so cron never starts an interview, and make an empty gate set a blocking unknown rather than a pass.", "finding_count": 5, "findings": [{"title": "Pulse findings written to session logs that are never re-read", "file": "assets/PULSE-template.md", "line": 25, "detail": "No file in INDEX.md is designated as the thing the owner reads, and no Rebirth step says 'here is what I found while you were away'.", "source": "agent-cohesion"}, {"title": "--headless on a fresh install starts an interview with nobody", "file": "SKILL.md", "line": 33, "detail": "No sanctum routes to First Breath before the headless branch is considered, so a cron job against an un-born agent hangs or invents answers.", "source": "enhancement-opportunities"}, {"title": "No task-carrying headless mode and no output contract", "file": "assets/PULSE-template.md", "line": 41, "detail": "The four --headless:* routes scope a pulse but cannot take a target. CI cannot use Henk today except as a scheduled sweeper.", "source": "enhancement-opportunities"}, {"title": "Findings have no persistent artifact", "file": "references/audit.md", "line": 38, "detail": "Audits live in conversation scrollback; a sanctum/reports/ directory gives the owner something to come back to tomorrow.", "source": "enhancement-opportunities"}, {"title": "An empty gate set reads as green", "file": "references/ship.md", "line": 23, "detail": "quality-gates.py skipping undetected gates is right, but 'zero gates ran' is structurally indistinguishable from 'all gates passed' unless the agent reads carefully.", "source": "enhancement-opportunities"}]}, {"name": "Two copies of every reference and script exist after birth", "description": "SKILL.md declares that bare paths resolve from the skill root, but init-sanctum.py copies every reference and script into the sanctum, INDEX-template.md describes them as living there, and the generated CAPABILITIES table uses a bare references/ prefix. At runtime the same path names two different files, and the sanctum copy is frozen at birth date — a skill update never reaches an already-born Henk. The failure is silent: a stale copy runs without erroring.", "severity": "medium", "impact": "Removes the one place a compaction-surviving agent can pick the wrong file, and makes skill updates actually reach a born agent.", "action": "Declare a third {sanctum}-prefixed rule in Conventions and pick an authority per directory — sanctum wins for capability prompts (that's where evolution happens), skill root wins for scripts (those get bug fixes). Use it explicitly in the generated CAPABILITIES table, add a version stamp so rebirth notices drift, and give init-sanctum.py a --refresh mode that regenerates the Built-in table while preserving the Learned table.", "finding_count": 4, "findings": [{"title": "Bare-path resolution is ambiguous after First Breath", "file": "SKILL.md", "line": 26, "detail": "init-sanctum.py:264-272 duplicates references/ and scripts/ into the sanctum while SKILL.md:26 says bare paths resolve from the skill root. Flagged independently by four scanners.", "source": "structure"}, {"title": "assets/CAPABILITIES-template.md claims to be an unreachable fallback", "file": "assets/CAPABILITIES-template.md", "line": 3, "detail": "It is not in TEMPLATE_FILES and generate_capabilities_md() has no branch that reads it — so it is an unversioned second copy of the routing table, and its Built-in Scripts table is duplicated verbatim inside the Python function.", "source": "structure"}, {"title": "No supported way to refresh a sanctum after a skill update", "file": "scripts/init-sanctum.py", "line": 225, "detail": "The script refuses to touch an existing sanctum, so a skill update adding a sixth capability leaves the sanctum's table stale forever.", "source": "script-opportunities"}, {"title": "capabilities/ is missing from INDEX-template.md", "file": "assets/INDEX-template.md", "line": 14, "detail": "init-sanctum.py creates the folder and capability-authoring.md writes into it, but the index lists only references/, scripts/ and sessions/.", "source": "structure"}]}, {"name": "Deterministic work is still done by eyeball", "description": "The script layer is above the median — three tested, PEP 723, stdlib-only tools own the most expensive recurring operations, and the prompts explain why the split exists so a future session doesn't re-implement the check in prose. What remains unscripted is nonetheless fully mechanical: comparing gettext calls across seven locales by eye, grepping core for every symbol a file touches, and doing date arithmetic over sessions/ during an unattended Pulse.", "severity": "medium", "impact": "Roughly 4,400–10,050 tokens saved per invocation cycle, plus better accuracy — a regex cannot fail to notice a symbol the way an LLM can.", "action": "Build in value-per-effort order: sanctum-doctor.py first (smallest, most reusable, protects the unattended path), then i18n-consistency.py (zero judgment involved), then api-surface.py with --extract/--verify/--symbols modes feeding api-check, audit and upstream-watch. Extend release-consistency.py with --since-tag, floor cross-referencing and readme lint rather than writing new scripts.", "finding_count": 5, "findings": [{"title": "Translation catalog consistency is fully deterministic and fully unscripted", "file": "references/ship.md", "line": 20, "detail": "Seven locales x2 files plus a .pot compared by eye against the whole includes/ tree; the prompt itself calls a miss 'a permanent hole'. ~800–1,500 tokens per ship.", "source": "script-opportunities"}, {"title": "API existence verification is described as LLM work", "file": "references/api-check.md", "line": 17, "detail": "Symbol enumeration and core-tree grepping are both mechanical; ~1,000–2,500 tokens per api-check. The largest zero-token win available.", "source": "script-opportunities"}, {"title": "Upstream impact search is ad-hoc per-symbol grepping", "file": "references/upstream-watch.md", "line": 25, "detail": "A dozen deprecations means a dozen tool round-trips and result dumps, where one --symbols call would guarantee the file:line references the prompt says separate a report from gossip.", "source": "script-opportunities"}, {"title": "Sanctum hygiene during Pulse is eyeball arithmetic", "file": "references/memory-guidance.md", "line": 58, "detail": "Log pruning by date math, MEMORY line counting, INDEX drift diffing and placeholder hunting — four deterministic operations an LLM does approximately, on the unattended path. ~600–1,200 tokens per Pulse.", "source": "script-opportunities"}, {"title": "Capability registration is a seven-step manual edit with an unenforced uniqueness constraint", "file": "references/capability-authoring.md", "line": 60, "detail": "Hand-edited markdown tables plus a two-letter code that must be unique; discover_capabilities() silently skips malformed frontmatter, so a bad learned capability just vanishes.", "source": "script-opportunities"}]}], "strengths": [{"title": "The persona is load-bearing, not decorative", "detail": "Almost every trait in the identity seed traces to a concrete instruction — 'never invent' becomes a CREED value, a hard boundary and an entire capability; 'say it before it's built' becomes build.md's push-back clause; 'blunt' becomes an anti-pattern list that forbids padding. Three independent scanners called this out. Do not soften it."}, {"title": "Intelligence placement is exemplary", "detail": "Deterministic work lives in three tested Python scripts, judgment lives in the prompts — and the prompts explain why the split exists ('invisible to a human and fatal to a deploy'), which stops a future session helpfully re-implementing the check in prose. No script classifies meaning; no prompt validates structure."}, {"title": "Success is framed as outcome plus failure mode, uniformly", "detail": "All five capabilities open by describing the end state and naming the failure they exist to prevent. 'A good audit is uncomfortable to read and impossible to argue with.' 'An impact report without file and line references is gossip.' This is the structure that lets an agent improvise correctly off-script."}, {"title": "Zero measurable waste", "detail": "Nine files, 7,369 tokens, no defensive padding, no back-references, no suggestive loading, no wall-of-text. The path-standards and scripts lint scanners both returned completely clean. Nothing to cut for its own sake."}, {"title": "The customization surface is empty on purpose, and says so", "detail": "customize.toml carries metadata only, and its header names the sanctum as the real behaviour surface with a full path — pre-empting the 'nothing to turn, must not be customizable' failure. Gate commands, capability prompts, pulse cadence and learned capabilities were all routed to places that survive a bundle update. The cleanest abuse profile the scanner expects to see."}, {"title": "Memory discipline is genuinely well designed", "detail": "Two tiers, a hard 200-line budget with a stated rationale, a 'what NOT to remember' list where every entry carries its reason, and — best of all — 'a dismissal is a decision, not an oversight', which prevents the classic memory-agent failure of re-reporting findings the owner already rejected."}, {"title": "First Breath respects the owner", "detail": "Urgency Detection ('a senior engineer who insists on a questionnaire before touching the problem is not one you'd hire') is the single best design decision in the onboarding, backed by save-as-you-go, weave-don't-list, skip-what's-answered, a placeholder cleanup sweep, and a closing instruction to find something real in their code."}, {"title": "Every script has a test", "detail": "scripts/tests/ covers all four Python tools including init-sanctum, which is rare at this layer and is what makes the script-expansion recommendations cheap to act on."}], "detailed_analysis": {"structure": {"assessment": "Structurally sound with no critical findings: all bootloader-required sections present, the full seven-template sanctum set in assets/, and all five routed capabilities resolving to real files with valid unique codes. The pre-pass's 16 issues are all false positives for this agent class — stateless-workflow expectations (config headers, progression gates) applied to outcome-focused prompts that deliberately reject numbered procedures. Excluding those, 2 medium and 5 low findings and no blockers.", "findings": [{"title": "Ship capability code SR is non-mnemonic", "file": "references/ship.md", "line": 4, "detail": "SH is unclaimed. Purely cosmetic, and only worth changing before a sanctum is born since the code is a user-facing trigger.", "source": "structure"}, {"title": "Description trigger clause is broad on the verb 'built'", "file": "SKILL.md", "line": 3, "detail": "This workspace also ships bmad-build and quick-dev, both claiming general build intent. Narrowing to quoted domain-anchored phrases would prevent wrong-agent activation on a plain 'add a setting to the plugin'.", "source": "structure"}, {"title": "On Activation states its sanctum path after the branches that depend on it", "file": "SKILL.md", "line": 29, "detail": "All three branches hinge on whether the sanctum exists, but the location is given at line 37. Branch 1 also never says how to detect 'no sanctum'.", "source": "structure"}, {"title": "Headless task variants are undocumented in the bootloader", "file": "SKILL.md", "line": 34, "detail": "PULSE-template.md defines four --headless:* routes that are reachable but that nothing in the skill bundle tells an owner exist.", "source": "structure"}]}, "persona": {"assessment": "Above-average seed craft. The identity seed does personality work rather than description work, and its central commitment ('never once invented a hook to make an answer sound complete') is testable and recurs as a CREED boundary and as an entire capability's reason for existing. Voice is consistent across all nine files with zero register shift, and the persona templates ship pre-seeded with real content so the agent has a working personality during First Breath rather than after it.", "overview_quality": "bootloader", "findings": [{"title": "api-check H1 reads '# Api Check'", "file": "references/api-check.md", "line": 7, "detail": "Mechanical title-casing of the kebab slug. '# API Check' would read as written by the persona rather than generated.", "source": "prompt-craft"}, {"title": "The Sacred Truth is duplicated verbatim between bootloader and CREED", "file": "SKILL.md", "line": 20, "detail": "~90 tokens of exact repetition on every rebirth — but load-bearing on the First Breath path where no sanctum exists yet. Trim rather than remove.", "source": "prompt-craft"}, {"title": "Soft cross-capability references read as optional", "file": "references/audit.md", "line": 24, "detail": "'(see the api-check capability)' is a hint, not an instruction. In build.md the mandatory part is already stated inline; in audit.md the deprecation bullet leans on it more.", "source": "prompt-craft"}]}, "cohesion": {"assessment": "One of the more coherent memory agents scanned. Identity, values, capabilities, scripts and Pulse all point at the same thing, and the five capabilities form a genuinely closed lifecycle (find, fix, verify, release, watch) with no dead ends. The weaknesses are environmental rather than internal contradictions: no awareness of the project's own skill roster, and an unattended output path with nowhere to land.", "dimensions": {"persona_capability_alignment": {"score": "strong", "notes": "Every claim in the description is backed by an actual capability; nothing is promised that isn't delivered. Minor: the persona's centre of gravity is review rather than construction, though 'engineer who builds' is still honest."}, "identity_consistency": {"score": "strong", "notes": "Name, icon and title agree across SKILL.md, customize.toml and PERSONA-template. The Three Laws are stated once and CREED's boundaries are their concrete expression. Nothing contradicts anything else."}, "capability_completeness": {"score": "moderate", "notes": "The core loop chains cleanly, but reactive diagnosis, test authoring, and floor-raising decisions are all unowned — and the first is the most common request in a shipping plugin's life."}, "redundancy": {"score": "strong", "notes": "No two capabilities do the same job. Deprecation appears in three places with clean division of labour. Only genuine overlaps: the thin [AP]/[UW] boundary and 'last versions checked' living in both MEMORY.md and PULSE State."}, "external_skill_integration": {"score": "weak", "notes": "Zero references to /release, /quality, /api-check, /add-tests or /sync-debug, and a tooling doctrine that actively discourages discovering them. The architecture supports external skill references; the content never uses it."}, "capability_granularity": {"score": "strong", "notes": "Five distinct verbs at the Goldilocks level, each with a failure mode it exists to prevent, unique two-letter codes, and consistent adherence to the agent's own authoring format."}, "user_journey_coherence": {"score": "moderate", "notes": "Entry points are clear and exits produce actionable artefacts, but unattended work has no reader and reactive entry ('the sync broke last night') has no capability to land on."}}, "findings": []}, "efficiency": {"assessment": "The dependency pre-pass came back completely clean — no cycles, no subagent chains, no mis-orderable sequences — because the agent is written in outcome-prose rather than procedures. The real finding is the inverse of what the pre-pass hunts for: no delegation vocabulary at all. The memory-loading strategy, by contrast, is correct and should be preserved deliberately.", "findings": [{"title": "Every capability re-reads MEMORY.md and BOND.md that rebirth already loaded", "file": "references/audit.md", "line": 36, "detail": "All five capabilities open with an imperative to fetch files SKILL.md:35 already batch-loaded — two redundant reads per invocation, compounding when the owner switches capabilities. Reword to consult-not-load.", "source": "execution-efficiency"}, {"title": "Ship serializes two independent scripts on a presentational 'first'", "file": "references/ship.md", "line": 15, "detail": "Nothing in the consistency report changes how the gates are run or interpreted; both should be dispatched in one message and interpreted together.", "source": "execution-efficiency"}]}, "experience": {"assessment": "Six journeys walked. Onboarding contains the single best design decision in the bundle (Urgency Detection) alongside eight questions the repo already answers. The expert has no fast path for a one-question verification, the confused user has no boundary or hand-off, and four edge-case transitions are undefined — including a genuine rule collision between 'never soften a security finding' and 'record dismissals as rulings'.", "journeys": [{"archetype": "first-timer", "summary": "Types 'talk to Henk', the sanctum is scaffolded, and First Breath begins — deferring the questionnaire if their first message is a real bug. Then gets asked eight substantial questions that CLAUDE.md already answers two directories away.", "friction_points": ["Eight discovery questions fight the file's own 'keep it short' instruction", "Being asked to recite what CLAUDE.md and .claude/rules/ already state reads as not having looked", "Nothing tells them what the two-letter capability codes are for once First Breath ends"], "bright_spots": ["Urgency Detection serves a real request first and learns by working", "'Your Capabilities' says the evolvability out loud — most memory agents forget to"]}, {"archetype": "expert", "summary": "Types 'Henk, audit the sync service'. Rebirth batch-loads six sanctum files, greets, and gets to work — fast and correct.", "friction_points": ["No fast path: a thirty-second 'does this hook fire on the cart page?' costs a full six-file rebirth", "No way to skip the greeting", "An expert who has already decided still gets the CREED-mandated push-back pass with no 'you already argued this one' acknowledgement"], "bright_spots": ["Six-file batch-load is a single correct batch, not a drip of reads", "Capability prompts are tight enough that loading one costs almost nothing"]}, {"archetype": "confused", "summary": "Asks Henk to fix a theme, write a Gutenberg block, or debug a JS bundle. The persona improvises — probably fine, probably blunt — but nothing defines the boundary or hands off.", "friction_points": ["No out-of-scope statement anywhere in SKILL.md, CREED or any capability", "Henk cannot tell them that /release, /quality or /api-check already exist and are narrower"], "bright_spots": ["The persona's bluntness makes a refusal in character rather than awkward, once one is written"]}, {"archetype": "edge-case", "summary": "Four technically valid situations with undefined behaviour: a multi-plugin repo, a mid-conversation [AU] to [BD] pivot, context compaction, and an owner dismissing a security finding.", "friction_points": ["BOND and MEMORY assume plural plugins; every script takes exactly one plugin dir", "Unfinished audit findings evaporate on a pivot to fixing one of them", "Compaction can drop MEMORY.md rulings, so Henk re-reports a dismissal audit.md promises never to re-report", "CREED forbids softening a security finding while audit.md records dismissals as rulings — the two collide with no resolution"], "bright_spots": ["MEMORY.md is already structured per plugin, so multi-plugin support is cheap now rather than a retrofit"]}, {"archetype": "hostile-environment", "summary": "The sharpest findings live here: a config format mismatch that makes birth greet the owner as 'friend', headless-on-a-fresh-install that interviews nobody, and post-birth sanctum/skill drift where two divergent copies of every prompt exist.", "friction_points": ["config.yaml expected, config.toml present — user_name falls back to 'friend'", "A cron job against an un-born agent takes the First Breath branch and hangs", "'Zero gates ran' is indistinguishable from 'all gates passed' in a project where vendor/ was never installed", "Owner edits to a sanctum capability prompt may never be read because bare paths resolve to the skill root"], "bright_spots": ["upstream-versions.py --offline is a model of honest degradation: it says the gap is unknown rather than guessing version numbers"]}, {"archetype": "automator", "summary": "Wants 'audit this diff and give me JSON' from CI or a schedule. PULSE's four --headless:* routes put Henk ahead of most agents, but they scope a pulse rather than carry a task.", "friction_points": ["No way to pass a target — a file, a PR, a plugin dir", "No defined output contract, exit code, or report location", "CI can use Henk today only as a scheduled sweeper"], "bright_spots": ["All three working scripts already emit JSON to stdout, diagnostics to stderr, and 0/1/2 exit codes", "Capability prompts are outcome-first and require no human in the loop"]}], "autonomous": {"potential": "easily-adaptable", "notes": "Arguably the strongest headless story expected of a memory agent. Real task routing, JSON-emitting scripts with proper exit codes, and capability prompts that need no human. Three gaps close it: a task-carrying invocation with a target, a report-file plus JSON stdout contract, and a guard so --headless on an un-born agent seeds defaults instead of interviewing. [AU], [AP], [UW] and the diagnostic half of [SR] could auto-resolve today; [BD] should stay human-gated at the 'is this a bad idea' moment, then run free."}, "findings": [{"title": "No fast path for a single verification question", "file": "SKILL.md", "line": 35, "detail": "An [AP]-lite 'just tell me if this hook exists' that skips full rebirth fits the agent's core value and would get used weekly.", "source": "enhancement-opportunities"}, {"title": "Security-finding dismissal conflict is unresolved", "file": "assets/CREED-template.md", "line": 62, "detail": "Decide explicitly: security findings can be accepted as risk but never deleted from the record, and should resurface at ship time.", "source": "enhancement-opportunities"}, {"title": "Multi-plugin is claimed but not designed", "file": "assets/MEMORY-template.md", "line": 5, "detail": "Record a plugin registry with a path per plugin and have PULSE loop it into one aggregate report. Cheap now, expensive to retrofit after the owner adds their second plugin.", "source": "enhancement-opportunities"}, {"title": "Quiet hours cannot be self-enforced", "file": "assets/PULSE-template.md", "line": 49, "detail": "Henk has no scheduler; whatever invokes him decides when he runs. First Breath should say so and offer to write the cron//schedule setup.", "source": "enhancement-opportunities"}, {"title": "'Surprise and delight' has no volume control", "file": "assets/CREED-template.md", "line": 30, "detail": "The standing order to mention the unrelated thing you noticed is great, and one owner in three will find it noise. Add a BOND.md dial.", "source": "enhancement-opportunities"}, {"title": "No 'what did you learn about me' surface", "file": "assets/BOND-template.md", "line": 1, "detail": "A trivial 'show me my BOND' builds trust in the memory and catches bad memory early — owners of memory agents love and distrust the memory in equal measure.", "source": "enhancement-opportunities"}]}, "scripts": {"assessment": "Four scripts, all tested, all following the standard the agent preaches in capability-authoring.md:31 — PEP 723, argparse --help, JSON to stdout, exit 0/1/2, stdlib-only with the one network exception explicitly justified. This is a genuinely well-built layer; the eleven findings are coverage gaps rather than quality problems. Recommended order: sanctum-doctor.py, i18n-consistency.py, api-surface.py, then extensions to release-consistency.py.", "token_savings": "~4,400–10,050 tokens per invocation cycle", "findings": [{"title": "wp-attack-surface.py should be scoped to endpoint-to-authorization mapping only", "file": "references/audit.md", "line": 19, "detail": "PHPCS WordPress-Extra sniffs already cover escaping, nonces and unprepared SQL, and quality-gates.py already runs them. The script should cover what PHPCS structurally cannot express, making audit.md:32's line executable rather than aspirational.", "source": "script-opportunities"}, {"title": "Learned-capability frontmatter is unvalidated and drops silently", "file": "scripts/init-sanctum.py", "line": 118, "detail": "discover_capabilities() requires name and code and silently skips files lacking either, so a malformed learned capability just vanishes from CAPABILITIES.md with no error.", "source": "script-opportunities"}, {"title": "Authoring spec and shipped examples disagree on frontmatter fields", "file": "references/capability-authoring.md", "line": 43, "detail": "The spec declares five fields (name, description, code, added, type); all five built-ins carry three. The built-ins are the worked examples a learning agent pattern-matches against.", "source": "prompt-craft"}]}, "sanctum": {"present": true, "assessment": "A well-built sanctum: 20 content lines in the bootloader, all seven templates present and seeded with real domain content rather than scaffold text, and a mission that is genuinely species-specific. CREED reads as conviction rather than filler, PULSE is genuinely operational with a script and a deliverable standard per activity, and the init script is defensive in the right places with a test at a layer that rarely has one. Findings are refinements: Session Close's placement, the CAPABILITIES asset duplication, and an undefined {skill-root} placeholder.", "bootloader_lines": 20, "template_count": 7, "first_breath_style": "configuration", "findings": [{"title": "{skill-root} is used three lines after Conventions defines only {project-root}", "file": "SKILL.md", "line": 33, "detail": "The init-script invocation passes {skill-root} without it appearing in the Conventions list. Add it, or drop the braces and say 'the skill directory'.", "source": "sanctum-architecture"}, {"title": "Eight First Breath discovery questions against a 3–7 guideline", "file": "references/first-breath.md", "line": 30, "detail": "Each is load-bearing and the file says to weave rather than list them, so this reads as coverage rather than interrogation. Questions 5 and 7 overlap in practice if the conversation ever feels long.", "source": "sanctum-architecture"}]}}, "recommendations": [{"rank": 1, "action": "Extend checkpoint-as-you-go from First Breath to every session — append to the session log after each capability run, correction and ruling instead of relying on an untriggerable Session Close, and move Session Close into CREED's Standing Orders.", "resolves": 5, "effort": "medium"}, {"rank": 2, "action": "Add a 'How I fan out' block to SKILL.md — when to delegate, dispatch N subagents in one message, demand capped JSON back — plus a Delegation section in capability-authoring.md so learned capabilities inherit it.", "resolves": 6, "effort": "medium"}, {"rank": 3, "action": "Fix the config loader (TOML first) and add a Reconnaissance step before Discovery that reads CLAUDE.md and confirms rather than asks. The cheapest high-value fix in the agent.", "resolves": 4, "effort": "low"}, {"rank": 4, "action": "Resolve the sanctum/skill path duplication: declare a {sanctum} rule, pick an authority per directory, version-stamp the copy, and add a --refresh mode to init-sanctum.py.", "resolves": 4, "effort": "medium"}, {"rank": 5, "action": "Teach Henk his neighbours — a 'Project Skills I Defer To' table seeded by a First Breath question, a scoped tooling doctrine, and the two missing capability seams (diagnose, cover).", "resolves": 6, "effort": "medium"}, {"rank": 6, "action": "Give autonomy an output channel and automators a door: a Pulse report artefact surfaced at rebirth, plus --headless:{code} --target with a JSON contract and an un-born guard.", "resolves": 5, "effort": "medium"}, {"rank": 7, "action": "Build sanctum-doctor.py, then i18n-consistency.py, then api-surface.py — in that order; the first is smallest, most reusable, and protects the unattended path.", "resolves": 5, "effort": "high"}, {"rank": 8, "action": "Wire init-sanctum.py to seed PERSONA.md from the customize.toml [agent] block, and add the read-only seed comment marking name/title/icon as birth seeds rather than live settings.", "resolves": 3, "effort": "low"}]}</script>
+<script>
+const RAW = JSON.parse(document.getElementById('report-data').textContent);
+const DATA = normalize(RAW);
+
+function normalize(d) {
+  if (d.meta) {
+    d.meta.skill_name = d.meta.skill_name || d.meta.skill || d.meta.name || 'Unknown';
+    d.meta.scanner_count = typeof d.meta.scanner_count === 'number' ? d.meta.scanner_count
+      : Array.isArray(d.meta.scanners_run) ? d.meta.scanners_run.length
+      : d.meta.scanner_count || 0;
+  }
+  d.strengths = (d.strengths || []).map(s =>
+    typeof s === 'string' ? { title: s, detail: '' } : { title: s.title || '', detail: s.detail || '' }
+  );
+  (d.opportunities || []).forEach(o => {
+    o.name = o.name || o.title || '';
+    o.finding_count = o.finding_count || (o.findings || o.findings_resolved || []).length;
+    if (!o.findings && o.findings_resolved) o.findings = [];
+    o.action = o.action || o.fix || '';
+  });
+  (d.broken || []).forEach(b => {
+    b.detail = b.detail || b.description || '';
+    b.action = b.action || b.fix || '';
+  });
+  (d.recommendations || []).forEach((r, i) => {
+    r.action = r.action || r.description || '';
+    r.rank = r.rank || i + 1;
+  });
+  // Fix journeys
+  if (d.detailed_analysis && d.detailed_analysis.experience) {
+    d.detailed_analysis.experience.journeys = (d.detailed_analysis.experience.journeys || []).map(j => ({
+      archetype: j.archetype || j.persona || j.name || 'Unknown',
+      summary: j.summary || j.journey_summary || j.description || j.friction || '',
+      friction_points: j.friction_points || (j.friction ? [j.friction] : []),
+      bright_spots: j.bright_spots || (j.bright ? [j.bright] : [])
+    }));
+  }
+  // Fix capabilities
+  (d.capabilities || []).forEach(c => {
+    c.finding_count = c.finding_count || (c.findings || []).length;
+    c.status = c.status || (c.finding_count > 0 ? 'needs-attention' : 'good');
+  });
+  return d;
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function init() {
+  const m = DATA.meta;
+  document.getElementById('skill-name').textContent = m.skill_name;
+  document.getElementById('subtitle').innerHTML =
+    `${esc(m.skill_path)} &bull; ${m.timestamp ? m.timestamp.split('T')[0] : ''} &bull; ${m.scanner_count || 0} scanners &bull; <a href="quality-report.md">Full Report &nearr;</a>`;
+
+  renderPortrait();
+  document.getElementById('grade-area').innerHTML = `<div class="grade grade-${DATA.grade}">${esc(DATA.grade)}</div>`;
+  document.getElementById('narrative').textContent = DATA.narrative || '';
+
+  renderCapabilities();
+  renderBroken();
+  renderOpportunities();
+  renderStrengths();
+  renderRecommendations();
+  renderDetailed();
+}
+
+function renderPortrait() {
+  const p = DATA.agent_profile;
+  if (!p) return;
+  let html = `<div class="portrait"><div class="portrait-header">`;
+  if (p.icon) html += `<span class="portrait-icon">${esc(p.icon)}</span>`;
+  html += `<div><div class="portrait-name">${esc(p.display_name)}</div>`;
+  if (p.title) html += `<div class="portrait-title">${esc(p.title)}</div>`;
+  html += `</div></div>`;
+  if (p.portrait) html += `<div class="portrait-desc">${esc(p.portrait)}</div>`;
+  html += `</div>`;
+  document.getElementById('portrait').innerHTML = html;
+}
+
+function renderCapabilities() {
+  const caps = DATA.capabilities || [];
+  if (!caps.length) return;
+  const good = caps.filter(c => c.status === 'good').length;
+  const attn = caps.length - good;
+  let summary = `${caps.length} capabilities`;
+  if (attn > 0) summary += ` \u00b7 ${attn} need attention`;
+
+  let html = `<div class="section"><div class="section-header open" onclick="toggleSection(this)">`;
+  html += `<span class="arrow">&#9654;</span><span class="label">Capabilities (${summary})</span>`;
+  html += `</div><div class="section-body open">`;
+  caps.forEach((cap, idx) => {
+    const statusBadge = cap.status === 'good'
+      ? `<span class="badge badge-good">Good</span>`
+      : `<span class="badge badge-attention">${cap.finding_count} observation${cap.finding_count !== 1 ? 's' : ''}</span>`;
+    const hasFindings = cap.findings && cap.findings.length > 0;
+    html += `<div class="cap-row" ${hasFindings ? `onclick="toggleCapFindings(${idx})" style="cursor:pointer"` : ''}>`;
+    html += `${statusBadge} <span class="cap-name">${esc(cap.name)}</span>`;
+    if (cap.file) html += `<span class="cap-file">${esc(cap.file)}</span>`;
+    html += `</div>`;
+    if (hasFindings) {
+      html += `<div class="cap-findings" id="cap-findings-${idx}">`;
+      cap.findings.forEach(f => {
+        html += `<div class="cap-finding">`;
+        if (f.severity) html += `<span class="badge badge-${f.severity}">${esc(f.severity)}</span> `;
+        html += `${esc(f.title)}`;
+        if (f.source) html += ` <span class="source" style="font-size:0.75rem;color:var(--text-dim)">[${esc(f.source)}]</span>`;
+        html += `</div>`;
+      });
+      html += `</div>`;
+    }
+  });
+  html += `</div></div>`;
+  document.getElementById('capabilities-section').innerHTML = html;
+}
+
+function renderBroken() {
+  const items = DATA.broken || [];
+  if (!items.length) return;
+  let html = `<div class="section"><div class="section-header open" onclick="toggleSection(this)">`;
+  html += `<span class="arrow">&#9654;</span><span class="label">Broken / Critical (${items.length})</span>`;
+  html += `<div class="actions"><button class="btn btn-primary" onclick="event.stopPropagation();showBrokenPrompt()">Fix These</button></div>`;
+  html += `</div><div class="section-body open">`;
+  items.forEach(item => {
+    const loc = item.file ? `${item.file}${item.line ? ':'+item.line : ''}` : '';
+    html += `<div class="item"><span class="badge badge-${item.severity || 'high'}">${esc(item.severity || 'high')}</span> `;
+    if (loc) html += `<span class="item-file">${esc(loc)}</span>`;
+    html += `<div class="item-title">${esc(item.title)}</div>`;
+    if (item.detail) html += `<div class="item-desc">${esc(item.detail)}</div>`;
+    if (item.action) html += `<div class="item-action"><strong>Fix:</strong> ${esc(item.action)}</div>`;
+    html += `</div>`;
+  });
+  html += `</div></div>`;
+  document.getElementById('broken-section').innerHTML = html;
+}
+
+function renderOpportunities() {
+  const opps = DATA.opportunities || [];
+  if (!opps.length) return;
+  let html = `<div class="section"><div class="section-header open" onclick="toggleSection(this)">`;
+  html += `<span class="arrow">&#9654;</span><span class="label">Opportunities (${opps.length})</span>`;
+  html += `</div><div class="section-body open">`;
+  opps.forEach((opp, idx) => {
+    html += `<div class="opp"><div class="opp-header">`;
+    html += `<span class="badge badge-${opp.severity || 'medium'}">${esc(opp.severity || 'medium')}</span>`;
+    html += `<span class="opp-name">${idx+1}. ${esc(opp.name)}</span>`;
+    html += `<span class="opp-count">${opp.finding_count || (opp.findings||[]).length} observations</span>`;
+    html += `<button class="btn" onclick="toggleFindings(${idx})">Details</button>`;
+    html += `<button class="btn btn-primary" onclick="showThemePrompt(${idx})">Fix This</button>`;
+    html += `</div>`;
+    html += `<div class="opp-desc">${esc(opp.description)}</div>`;
+    if (opp.impact) html += `<div class="opp-impact">Impact: ${esc(opp.impact)}</div>`;
+    html += `<div class="opp-findings" id="findings-${idx}">`;
+    (opp.findings || []).forEach(f => {
+      const loc = f.file ? `${f.file}${f.line ? ':'+f.line : ''}` : '';
+      html += `<div class="opp-finding"><strong>${esc(f.title)}</strong>`;
+      if (loc) html += ` <span class="item-file">${esc(loc)}</span>`;
+      if (f.source) html += ` <span class="source">[${esc(f.source)}]</span>`;
+      if (f.detail) html += `<br>${esc(f.detail)}`;
+      html += `</div>`;
+    });
+    html += `</div></div>`;
+  });
+  html += `</div></div>`;
+  document.getElementById('opportunities-section').innerHTML = html;
+}
+
+function renderStrengths() {
+  const items = DATA.strengths || [];
+  if (!items.length) return;
+  let html = `<div class="section"><div class="section-header" onclick="toggleSection(this)">`;
+  html += `<span class="arrow">&#9654;</span><span class="label">Strengths (${items.length})</span>`;
+  html += `</div><div class="section-body">`;
+  items.forEach(s => {
+    html += `<div class="strength-item"><div class="title">${esc(s.title)}</div>`;
+    if (s.detail) html += `<div class="detail">${esc(s.detail)}</div>`;
+    html += `</div>`;
+  });
+  html += `</div></div>`;
+  document.getElementById('strengths-section').innerHTML = html;
+}
+
+function renderRecommendations() {
+  const recs = DATA.recommendations || [];
+  if (!recs.length) return;
+  let html = `<div class="section"><div class="section-header open" onclick="toggleSection(this)">`;
+  html += `<span class="arrow">&#9654;</span><span class="label">Recommendations</span>`;
+  html += `</div><div class="section-body open"><div class="recs">`;
+  recs.forEach(r => {
+    html += `<div class="rec"><span class="rec-rank">#${r.rank}</span>${esc(r.action)}`;
+    if (r.resolves) html += ` <span class="rec-resolves">(resolves ${r.resolves} observations)</span>`;
+    html += `</div>`;
+  });
+  html += `</div></div></div>`;
+  document.getElementById('recommendations-section').innerHTML = html;
+}
+
+function renderDetailed() {
+  const da = DATA.detailed_analysis;
+  if (!da) return;
+  const dims = [
+    ['structure', 'Structure & Capabilities'],
+    ['persona', 'Persona & Voice'],
+    ['cohesion', 'Identity Cohesion'],
+    ['efficiency', 'Execution Efficiency'],
+    ['experience', 'Conversation Experience'],
+    ['scripts', 'Script Opportunities']
+  ];
+  let html = `<div class="section"><div class="section-header" onclick="toggleSection(this)">`;
+  html += `<span class="arrow">&#9654;</span><span class="label">Detailed Analysis</span>`;
+  html += `</div><div class="section-body">`;
+  dims.forEach(([key, label]) => {
+    const dim = da[key];
+    if (!dim) return;
+    html += `<div class="analysis-section"><h4>${label}</h4>`;
+    if (dim.assessment) html += `<p>${esc(dim.assessment)}</p>`;
+    if (dim.dimensions) {
+      html += `<table style="width:100%;font-size:0.85rem;margin:0.5rem 0;border-collapse:collapse;">`;
+      html += `<tr><th style="text-align:left;padding:0.3rem;border-bottom:1px solid var(--border)">Dimension</th><th style="text-align:left;padding:0.3rem;border-bottom:1px solid var(--border)">Score</th><th style="text-align:left;padding:0.3rem;border-bottom:1px solid var(--border)">Notes</th></tr>`;
+      Object.entries(dim.dimensions).forEach(([d, v]) => {
+        if (v && typeof v === 'object') {
+          html += `<tr><td style="padding:0.3rem;border-bottom:1px solid var(--border)">${esc(d.replace(/_/g,' '))}</td><td style="padding:0.3rem;border-bottom:1px solid var(--border)">${esc(v.score||'')}</td><td style="padding:0.3rem;border-bottom:1px solid var(--border)">${esc(v.notes||'')}</td></tr>`;
+        }
+      });
+      html += `</table>`;
+    }
+    if (dim.journeys && dim.journeys.length) {
+      dim.journeys.forEach(j => {
+        html += `<div style="margin:0.5rem 0"><strong>${esc(j.archetype)}</strong>: ${esc(j.summary || j.journey_summary || '')}`;
+        if (j.friction_points && j.friction_points.length) {
+          html += `<ul style="color:var(--high);font-size:0.85rem;padding-left:1.25rem">`;
+          j.friction_points.forEach(fp => { html += `<li>${esc(fp)}</li>`; });
+          html += `</ul>`;
+        }
+        html += `</div>`;
+      });
+    }
+    if (dim.autonomous) {
+      const a = dim.autonomous;
+      html += `<p><strong>Headless Potential:</strong> ${esc(a.potential||'')}`;
+      if (a.notes) html += ` \u2014 ${esc(a.notes)}`;
+      html += `</p>`;
+    }
+    (dim.findings || []).forEach(f => {
+      const loc = f.file ? `${f.file}${f.line ? ':'+f.line : ''}` : '';
+      html += `<div class="analysis-finding">`;
+      if (f.severity) html += `<span class="badge badge-${f.severity}">${esc(f.severity)}</span> `;
+      html += `${esc(f.title)}`;
+      if (loc) html += ` <span class="item-file">${esc(loc)}</span>`;
+      html += `</div>`;
+    });
+    html += `</div>`;
+  });
+  html += `</div></div>`;
+  document.getElementById('detailed-section').innerHTML = html;
+}
+
+function toggleSection(el) { el.classList.toggle('open'); el.nextElementSibling.classList.toggle('open'); }
+function toggleFindings(idx) { document.getElementById('findings-'+idx).classList.toggle('open'); }
+function toggleCapFindings(idx) { document.getElementById('cap-findings-'+idx).classList.toggle('open'); }
+
+function showThemePrompt(idx) {
+  const opp = DATA.opportunities[idx];
+  if (!opp) return;
+  let prompt = `## Task: ${opp.name}\nAgent path: ${DATA.meta.skill_path}\n\n### Problem\n${opp.description}\n\n### Fix\n${opp.action}\n\n`;
+  if (opp.findings && opp.findings.length) {
+    prompt += `### Specific observations to address:\n\n`;
+    opp.findings.forEach((f, i) => {
+      const loc = f.file ? (f.line ? `${f.file}:${f.line}` : f.file) : '';
+      prompt += `${i+1}. **${f.title}**`;
+      if (loc) prompt += ` (${loc})`;
+      if (f.detail) prompt += `\n   ${f.detail}`;
+      prompt += `\n`;
+    });
+  }
+  document.getElementById('modal-title').textContent = `Fix: ${opp.name}`;
+  document.getElementById('modal-content').textContent = prompt.trim();
+  document.getElementById('modal').classList.add('visible');
+}
+
+function showBrokenPrompt() {
+  const items = DATA.broken || [];
+  let prompt = `## Task: Fix Critical Issues\nAgent path: ${DATA.meta.skill_path}\n\n`;
+  items.forEach((item, i) => {
+    const loc = item.file ? (item.line ? `${item.file}:${item.line}` : item.file) : '';
+    prompt += `${i+1}. **[${(item.severity||'high').toUpperCase()}] ${item.title}**\n`;
+    if (loc) prompt += `   File: ${loc}\n`;
+    if (item.detail) prompt += `   Context: ${item.detail}\n`;
+    if (item.action) prompt += `   Fix: ${item.action}\n\n`;
+  });
+  document.getElementById('modal-title').textContent = 'Fix Critical Issues';
+  document.getElementById('modal-content').textContent = prompt.trim();
+  document.getElementById('modal').classList.add('visible');
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('visible'); }
+function copyModal() {
+  navigator.clipboard.writeText(document.getElementById('modal-content').textContent).then(() => {
+    const btn = document.querySelector('.modal .btn-primary');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy to Clipboard'; }, 1500);
+  });
+}
+
+init();
+</script>
+</body>
+</html>
