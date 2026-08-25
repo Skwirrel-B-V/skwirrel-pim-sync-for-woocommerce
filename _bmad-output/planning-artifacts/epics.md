@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4]
+stepsCompleted: [1, 2, 3, 4, 'ch2-step-01', 'ch2-reconciliation', 'ch2-step-02', 'ch2-step-03']
 inputDocuments:
   - '_bmad-output/planning-artifacts/prds/prd-wordpress-2026-06-10/prd.md'
   - '_bmad-output/planning-artifacts/architecture.md'
@@ -681,3 +681,431 @@ precedence over the story text above where they conflict. Net story count ≈ 27
 - **Implementation order within Epic 1 is by dependency, not by number.** The new stories were appended, so renumber-free ordering is: `1.1 → 1.2 → 1.4(write-guard seam) → 1.3 → 1.5a → 1.11(AJAX endpoints) → 1.5b → 1.5c → 1.6 → 1.7 → 1.8(progress UI, consumes 1.11) → 1.9a → 1.15(upgrade smoke) → 1.9b → 1.10 → 1.13/1.14(canary suites)`. Build 1.11 **before** 1.8; build the 1.4 write-guard seam **before** 1.3.
 - **1.13 (no-orphaned-variation) is not a backward dependency on Epic 2.** It lands its **sync/assembly-path** coverage in Epic 1 (1.5/1.6 paths) where those stories already exist; the **reset-path** coverage is added as an AC extension on **2.5** when reset is built. Epic 1 never waits on Epic 2.
 - **1.14 (regression-canary)** depends only on the already-shipped 3.10.x fixes (no in-epic forward dep); it can land any time after 1.1.
+
+---
+
+# Chapter 2 — Client request (Jeroen) — folded in 2026-08-19
+
+Source: client request from Jeroen (five items), fully elicited with Jos on 2026-08-19. This chapter is
+additive to Chapter 1 (FR-1–17 / Epics 1–4). It introduces **Epic 5** (admin configuration & feedback)
+and **Epic 6** (custom class field mapping), and **amends Chapter 1 where noted**.
+
+## Chapter 2 — Requirements Inventory
+
+### New Functional Requirements
+
+- **FR-18:** **Custom class → stock quantity.** A configurable product-level custom-feature ID/code supplies a numeric stock quantity, written via `set_manage_stock(true)` + `set_stock_quantity()`. Applies to simple products **and** variations. A missing/empty value **never** overwrites existing WooCommerce stock. Rides the normal delta/full sync — no separate schedule.
+- **FR-19:** **Custom class → product content.** Configurable product-level custom-feature IDs/codes supply **product title**, **short description** and **long description**. Each mapping is independent and optional (empty = off). The custom-class value **overrides** the existing source, falling back to the current chain when empty (title: `product_erp_description` → translations). Long description passes through `wp_kses_post`. Product slugs are **not** rewritten.
+- **FR-20:** **Context ID.** An optional settings field whose value is sent as an API parameter on every JSON-RPC call. Empty = parameter omitted, so the API applies its own default (`1`). Changing it sets the existing `skwirrel_wc_sync_force_full_sync` flag, so the catalog can never end up a mix of two contexts.
+- **FR-21:** **Test Connection results.** The connection test reports round-trip time, HTTP/JSON-RPC status, and total products found — proving not just reachability but that the configuration actually returns data.
+- **FR-22:** **Required-field marking.** Required settings fields carry a visible `*` and `aria-required`; existing save-time validation errors render **inline next to the failing field** instead of only as a top-of-page notice. Conditionally-required fields show their marker only when the condition holds.
+- **FR-23:** **Document links carry a readable, language-aware name.** A product document's link text is the human `product_attachment_title` for the configured language — resolved through the same `_attachment_translations` exact → prefix → first-entry chain images already use — instead of the raw `file_name`. The raw filename remains the last-resort fallback, so a document is never nameless.
+
+### Amended Chapter 1 Requirements
+
+- **FR-3 (amended):** intent-grouped settings are **delivered as tabs** — four intent groups (Connection / What to sync / How it looks / Advanced) **plus a fifth "Field mapping" tab** for FR-18/FR-19. Tabs are presentation-only over the existing single form: every field stays in the DOM and submits in one save. **Chapter 1 Story 4.1 is superseded by Epic 5's tabs story.** Epic 4 retains Stories 4.2, 4.3, 4.4.
+- **UX-DR6 (amended):** the four intent groups become the tab set defined above.
+
+### New Non-Functional Requirement
+
+- **NFR-9 (Non-destructive field mapping):** a value absent from the PIM must never clear or zero data already present in WooCommerce. Extends the existing "don't zero-out prices" rule to stock (FR-18), to title/descriptions (FR-19), and to document link names (FR-23 — a missing translation falls back, never renders empty). Testable: sync a product whose mapped feature is missing/empty and assert the WooCommerce value is unchanged.
+
+### New UX Design Requirements
+
+- **UX-DR13: Tabbed settings navigation.** Presentation-only tabs over the existing single settings form (48+ inputs, 8 field groups re-homed into 4 intent groups + Field mapping). Requirements: all fields remain in the DOM and submit together (never split into per-tab option writes — `sanitize_settings()` validates **across** groups); deep-linking via `#tab-slug`; a tab containing a validation error is visibly marked; the first tab with an error auto-opens on load; keyboard-operable with visible focus (NFR-7); usable with JS off (no tab hides a field permanently).
+- **UX-DR14: Required-field marking & inline errors.** `*` + `aria-required` on required fields; `add_settings_error()` messages rendered adjacent to their field; conditional markers (`custom_collection_id`, `super_category_id`) appear only when their condition holds. Must be tab-aware — an inline error on a collapsed tab is a regression against today's top-of-page notice.
+
+### Chapter 2 FR Coverage Map
+
+- FR-3 (amended) → **Epic 5** (tabbed settings; supersedes Story 4.1)
+- FR-18 → **Epic 6** (custom class → stock)
+- FR-19 → **Epic 6** (custom class → title / short / long description)
+- FR-20 → **Epic 5** (Context ID)
+- FR-21 → **Epic 5** (Test Connection metrics)
+- FR-22 → **Epic 5** (required-field markers + inline errors)
+- FR-23 → **Epic 6** (document link names)
+- NFR-9 → **Epic 6** (enforced), **Epic 5** (no destructive default on the new fields)
+- UX-DR13, UX-DR14 → **Epic 5**
+
+### Open Items (must resolve before dev)
+
+- **FR-20 — exact API parameter name for the Context ID is unconfirmed.** Jos to verify against the Skwirrel API docs. Known: it is an API parameter, optional, API default `1`. Blocks Epic 5's Context ID story only.
+
+### Deliberately Out of Scope (recorded, not built)
+
+- **Stock on a faster cadence** than the normal sync (stock-only sync job, or live stock at checkout). Decided: stock rides the existing sync. Revisit only against a concrete oversell problem.
+- **Test Connection count honouring the configured collection IDs and Context ID.** Would catch the "connection fine, zero products sync" failure. Noted as a follow-up to FR-21.
+- **Trade-item-level custom classes** as a mapping source. FR-18/FR-19 are product-level only.
+
+## Chapter 2 — Backlog Reconciliation (audited 2026-08-19 against 3.13.1 as-built)
+
+Chapter 1's story text still describes the **Resolver / Change_Set / Run_Ledger rewrite that was
+abandoned** in the 2026-07-22 correct-course (see `sprint-change-proposal-2026-07-22.md`). Epic 1 shipped
+as incremental hardening of the queue core instead. Sprint-status was re-baselined then; **the story text
+below in Chapter 1 was not**, and three more releases (3.12.0 → 3.13.1) have shipped since. Verdicts below
+are from reading the code and test suite, not the changelog.
+
+### Verified DONE — story text in Chapter 1 is obsolete
+
+| Story | Verdict | Evidence in as-built |
+|---|---|---|
+| **1.7** per-run marker | **DONE** — sprint-status says `backlog` | `class-skwirrel-wc-sync-run-links.php`, `_skwirrel_last_run_id` + `_skwirrel_run_outcome` written in upserter / service / purge-handler; `tests/Unit/RunLinksTest.php` |
+| **2.3** result deep-links (FR-15) | **DONE** — sprint-status says `backlog` | Shipped 3.12.1; hardened through 3.12.2 (outcome-as-a-set, parent stamping, trash inclusion, `show_in_admin_all_list` selection) |
+| **3.8** Connectors-forward credentials (FR-11) | **DONE** — sprint-status says `backlog` | `class-skwirrel-wc-sync-connectors.php` (`get_token()`, `register_connector()`, `maybe_migrate_token()`), `tests/Unit/ConnectorsApiTest.php`; shipped 3.10.0 |
+
+### Verified still OPEN — story stands as written
+
+- **1.12** clean uninstall & deactivate — no `uninstall.php`, no `register_deactivation_hook`. Real gap.
+- **1.13** no-orphaned-variation invariant suite — no WC-level invariant test.
+- **1.15** upgrade-from-3.10.2 smoke — no activation/upgrade fixture test.
+- **2.1** change_set_table component, **2.2** preflight — no preflight/dry-run code anywhere.
+- **2.5** start-over / clean-all reset — only `handle_reset_settings()` exists (settings only, **not** products). Story stands.
+- **Epic 3 entirely** except 3.8 — no health, diagnostics or compatibility class exists.
+- **4.4a** guided setup shell — nothing.
+
+### Needs re-scoping — partially delivered, story text now overstates the remaining work
+
+- **1.3** Resolver + Change_Set — the resolver half was **dropped** with the rewrite; only the Change_Set *forecast* survives, and only as an Epic 2 preflight dependency. Retitle to "Change_Set forecast over the queue core" or fold into 2.2.
+- **1.14** regression-canary suite — most canaries now exist as real tests (`ActionSchedulerRearmTest`, `CategoryRenameTest`, `ConnectorsApiTest`, `ProductUpserterPriceTest`, `UnchangedGateTest`). Residual: object-cache-bust on settings save, and a true price-zero-out behaviour test (the existing one asserts the *setting default*, not the behaviour).
+- **2.4** plain-language result & history — largely shipped: history table with trigger labels, Deprecated column, run-scoped links, sweep advisories rendered under their run (3.13.0). Residual is copy/IA polish, not a build.
+- **4.3** sensible defaults — the documented defaults already satisfy this (purge OFF, etc.). Reduce to an audit-and-document story.
+- **4.4b** live credential verify — `handle_test_connection_ajax()` already autosaves and verifies live against Skwirrel. Residual is the wizard gate, which belongs to 4.4a.
+
+### Superseded by Chapter 2
+
+- **4.1** intent-grouped settings — delivered by Epic 5's tabbed-settings story (FR-3 amended). **Strike from Epic 4.**
+
+### As-built facts that change how Chapter 2 must be built
+
+- **A page-level `?tab=` mechanism already exists** (3.13.0 top-level menu: Status / Settings / Sync logs / Sync now, with a `submenu_file` filter highlighting the active entry). Epic 5's settings tabs are a **second level inside** the Settings tab — they must not collide with the `?tab=` query var, and should reuse the existing `.skw-*` components rather than introduce a second tab system.
+- **HTML5 `required` is already on three fields** (`subdomain`, `super_category_id`, `collection_ids`) with no asterisk, no `aria-required`, and no inline error. FR-22 is therefore partly "finish and make consistent", not "add from scratch" — and `custom_collection_id`, the conditional case, has none of it.
+- **`prices_managed_outside_skwirrel` already exists as a setting** — the precedent for NFR-9. If stock needs the same escape hatch, mirror that naming (`stock_managed_outside_skwirrel`) rather than inventing a new pattern.
+- **Four classes shipped since the Chapter 1 docs were written** and are absent from the CLAUDE.md class map: `connectors`, `deprecated-status`, `pim-link`, `run-links`. Documentation debt, tracked here so it is not rediscovered.
+
+## Chapter 2 — Epic List
+
+### Epic 5: A settings screen you can navigate, trust, and verify
+A store owner finds the setting they need without scrolling past forty others, can see at a glance which
+fields are mandatory and exactly which one rejected their save, can point the plugin at a specific Skwirrel
+context, and can prove from the settings screen that the connection is not merely reachable but actually
+returning products.
+**FRs covered:** FR-3 (amended — supersedes Story 4.1), FR-20, FR-21, FR-22 · **UX:** UX-DR6 (amended), UX-DR13, UX-DR14 · **NFR:** NFR-7 (a11y/i18n)
+*Standalone. Touches only the admin surface and the JSON-RPC client's parameter/response handling — no sync-path risk. Independently shippable ahead of Epic 6.*
+
+### Epic 6: Stock and product content driven from Skwirrel data
+A store owner maps a Skwirrel custom-class feature onto WooCommerce stock quantity, product title, short
+description and long description — so the fields their PIM actually owns stop being maintained twice — with
+a hard guarantee that a value missing from the PIM never wipes what WooCommerce already has.
+**FRs covered:** FR-18, FR-19, FR-23 · **NFR:** NFR-9 (non-destructive field mapping — the epic's defining constraint)
+*Standalone: its settings render as a field group in whatever container exists. Epic 5 promotes that group to its own tab; neither epic blocks the other.*
+
+### Chapter 2 Epic Sequencing
+
+- **Epic 5 first** is preferred but not required — it builds the Field mapping tab that Epic 6's fields belong in, so shipping it first avoids re-homing them later.
+- **Neither epic depends on Epics 1–4.** Epic 5 supersedes Story 4.1 and can proceed while Epic 1's remaining gaps (1.12, 1.13, 1.15) stay open.
+- **Where this sits against the in-flight backlog is a sprint-planning call.** These are client-requested; Epics 2 and 3 are not. Do not let that resolve itself by default.
+
+---
+
+## Epic 5: A settings screen you can navigate, trust, and verify
+
+Make the settings surface navigable, honest about what it requires, and able to prove the connection works.
+Standalone — admin surface plus the JSON-RPC client's parameter and response handling. No sync-path risk.
+
+**Implementation order: 5.1 → 5.2 → 5.3 → 5.4.** 5.2 depends on 5.1 (inline errors must be tab-aware);
+5.3 and 5.4 are independent of both and may be pulled forward if 5.1 stalls.
+
+### Story 5.1: Tabbed settings navigation (FR-3, UX-DR13)
+
+As a store owner,
+I want the settings grouped into tabs I can move between,
+So that I can find the setting I need without scrolling past forty I don't.
+
+**Acceptance Criteria:**
+
+**Given** the settings screen
+**When** it renders
+**Then** every existing field belongs to exactly one of four tabs — **Connection** · **What to sync** · **How it looks** · **Advanced** — built from the existing `.skw-*` components.
+**And** the current eight groups re-home as: *API Connection* → Connection; *Sync Options* + *Product status handling* → What to sync; *Media & Language* + *Permalinks* → How it looks; *Scheduling* + *Sync Logs* + *Advanced* → Advanced. The Danger Zone stays outside the tab set, where it is today.
+
+**Given** the tabbed screen
+**When** I save
+**Then** all fields submit in a single request exactly as before — fields on inactive tabs remain in the DOM and are **not** split into per-tab option writes, because `sanitize_settings()` validates across groups (`custom_collection_id` is required based on `sync_custom_classes`).
+**And** saving from any tab leaves every other tab's stored values unchanged.
+
+**Given** a save that produced validation errors
+**When** the screen re-renders
+**Then** each tab containing an error is visibly marked (not colour alone — icon or count, per NFR-7), and the first tab with an error is the one opened.
+
+**Given** a URL carrying `#tab-{slug}`
+**When** the page loads
+**Then** that tab opens. **And** the anchor mechanism does not collide with the existing page-level `?tab=` query var used by the top-level menu (Status / Settings / Sync logs).
+
+**Given** JavaScript is unavailable
+**When** the screen renders
+**Then** no field is unreachable — the panels degrade to sequential sections rather than hiding content permanently.
+
+**Given** keyboard-only navigation
+**When** I move through the tabs
+**Then** they are reachable and operable with a visible focus ring, and the tab/panel relationship is exposed to assistive technology.
+
+**And** the tab registration is extensible, so Epic 6 can add its Field mapping tab without modifying this story's markup.
+
+### Story 5.2: Required fields are marked, and errors point at the field (FR-22, UX-DR14)
+
+As a store owner,
+I want to see which fields are mandatory and exactly which one rejected my save,
+So that I'm not hunting through a long form guessing what went wrong.
+
+**Acceptance Criteria:**
+
+**Given** the settings screen
+**When** it renders
+**Then** every unconditionally required field shows a `*` next to its label and carries `aria-required`, and the three fields that already use the bare HTML5 `required` attribute (`subdomain`, `super_category_id`, `collection_ids`) are brought into that same treatment rather than left inconsistent.
+
+**Given** a conditionally required field (`custom_collection_id`, `super_category_id`)
+**When** the condition that makes it required is not met
+**Then** it shows no marker; **when** the condition is met, the marker appears — matching the rule `sanitize_settings()` will actually enforce on save.
+
+**Given** a save that fails validation
+**When** the screen re-renders
+**Then** each `add_settings_error()` message is rendered adjacent to the field it concerns, in addition to the existing summary, and the field is programmatically associated with its message for screen readers.
+
+**Given** a failing field on a collapsed tab
+**When** the screen re-renders
+**Then** that tab is opened and marked (Story 5.1) — an inline error on a hidden tab must never be less visible than today's top-of-page notice.
+
+**And** all new strings are translatable under `skwirrel-pim-sync`, English source.
+
+### Story 5.3: Context ID (FR-20)
+
+As a store owner whose Skwirrel instance serves more than one context,
+I want to tell the plugin which context to read,
+So that I import the content intended for this shop.
+
+**Acceptance Criteria:**
+
+**Given** the Connection tab
+**When** it renders
+**Then** an optional **Context ID** field is present with placeholder `1` and help text stating that leaving it empty uses the Skwirrel default.
+
+**Given** a Context ID is set
+**When** any JSON-RPC call is made
+**Then** the value is sent as the documented API parameter on `getProducts`, `getProductsByFilter` and `getGroupedProducts` alike.
+
+**Given** the Context ID field is empty
+**When** any JSON-RPC call is made
+**Then** the parameter is omitted entirely, so existing installs behave exactly as before this story.
+
+**Given** a shop that has already synced
+**When** the Context ID is changed and saved
+**Then** `skwirrel_wc_sync_force_full_sync` is set, so the next run is a full sync and the catalog cannot end up a mix of two contexts.
+**And** the admin is told, in plain language, that a full re-sync will follow.
+
+**Given** a non-numeric or negative value
+**When** the settings are saved
+**Then** it is rejected with an inline error (Story 5.2), not silently coerced.
+
+> ⚠️ **BLOCKED UNTIL CONFIRMED:** the exact API parameter name is unverified. Jos to confirm against the Skwirrel API docs before this story starts. Known: optional API parameter, API-side default `1`.
+
+### Story 5.4: Test Connection reports what actually came back (FR-21)
+
+As a store owner,
+I want the connection test to tell me more than "it worked",
+So that I can see the integration is genuinely returning products rather than merely reachable.
+
+**Acceptance Criteria:**
+
+**Given** a successful test
+**When** the result renders
+**Then** it reports round-trip time, the HTTP / JSON-RPC status, and the total number of products the API reports — replacing the current bare success message.
+
+**Given** a connection that succeeds but returns zero products
+**When** the result renders
+**Then** the zero count is stated plainly as a warning-toned result, not as an unqualified success.
+
+**Given** a failing test
+**When** the result renders
+**Then** the round-trip time and status are still reported alongside the existing error message, so a timeout is distinguishable from a rejection.
+
+**Given** the test runs
+**When** it completes
+**Then** it performs no writes beyond the existing connection-settings autosave in `handle_test_connection_ajax()`, and the auth token appears nowhere in the rendered output (NFR-4).
+
+**And** the counts render with tabular figures and all new strings are translatable.
+
+> **Follow-up, explicitly not in this story:** making the product count honour the configured `collection_ids` and Context ID. That is what would catch "connection fine, zero products sync" — recorded in the Chapter 2 out-of-scope list.
+
+---
+
+## Epic 6: Stock and product content driven from Skwirrel data
+
+Let a store owner map product-level custom-class features onto native WooCommerce fields, so data the PIM
+already owns stops being maintained twice — under a hard guarantee that a value missing from the PIM never
+wipes what WooCommerce already has (**NFR-9**).
+
+**Implementation order: 6.1 → 6.2 → 6.3 → 6.5 → 6.4.** 6.5 is independent of 6.1's resolver and may land at any point. 6.1 establishes the resolver and the settings group that
+6.2 and 6.3 consume. Standalone against Epic 5: the settings render as an ordinary field group, promoted to
+a Field mapping tab via Story 5.1's registration when that exists.
+
+### Story 6.1: Stock quantity from a custom class — simple products (FR-18, NFR-9)
+
+As a store owner,
+I want a Skwirrel custom-class feature to drive my product stock,
+So that I stop maintaining stock levels in two systems.
+
+**Acceptance Criteria:**
+
+**Given** the settings screen
+**When** it renders
+**Then** a **Field mapping** group exists containing a **Stock quantity** field that accepts a product-level custom-feature ID or code, empty by default. **And** when Story 5.1's tab registration is present, the group registers as its own tab; when it is not, it renders as an ordinary field group.
+
+**Given** a mapped feature ID and a simple product whose product-level custom classes carry a numeric value for it
+**When** the product syncs
+**Then** the product is saved with `set_manage_stock( true )` and `set_stock_quantity( value )`, resolved through the existing `Custom_Class_Extractor` (product level only — `_custom_classes`, never `_trade_item_custom_classes`).
+
+**Given** the mapped feature is absent, empty, or non-numeric on a product
+**When** the product syncs
+**Then** the product's existing WooCommerce stock quantity and `manage_stock` flag are left **exactly** as they were — never zeroed, never flipped to unmanaged. *(NFR-9. Mirrors the `prices_managed_outside_skwirrel` guarantee.)*
+
+**Given** no feature ID is configured
+**When** any product syncs
+**Then** no stock-related write occurs at all, and behaviour is byte-for-byte what it was before this story.
+
+**Given** the mapped stock value changes upstream while nothing else about the product does
+**When** a delta sync runs
+**Then** the product is **not** skipped by the unchanged gate — the resolved mapping values participate in `_skwirrel_content_hash`, or the change would never land.
+
+**And** unit coverage pins: numeric value written; missing value leaves stock untouched; non-numeric value leaves stock untouched; unconfigured mapping writes nothing.
+
+### Story 6.2: Stock quantity on variations (FR-18, NFR-9)
+
+As a store owner selling variable products,
+I want each variation to carry its own stock,
+So that variable products report availability as accurately as simple ones.
+
+**Acceptance Criteria:**
+
+**Given** stock mapping is configured and a variation's own Skwirrel product carries a numeric value for the mapped feature
+**When** the grouped sync runs
+**Then** that variation is saved with managed stock and its quantity — each variation resolving the same feature ID against **its own** product-level custom classes, since variations are themselves Skwirrel products.
+
+**Given** the existing variation paths that hardcode `set_manage_stock( false )` and force `instock` in `class-skwirrel-wc-sync-product-upserter.php`
+**When** stock mapping is configured
+**Then** those hardcoded assumptions no longer override a resolved quantity.
+**And when** stock mapping is **not** configured, those paths behave exactly as they do today — this story changes nothing for shops that never opt in.
+
+**Given** variations with resolved stock
+**When** the group finishes assembling
+**Then** the variable parent's aggregate stock status is refreshed through the existing `WC_Product_Variable::sync_stock_status()` call rather than a parallel mechanism.
+
+**Given** a variation whose mapped feature is missing or empty
+**When** the sync runs
+**Then** that variation's existing stock state is left untouched (NFR-9), and its siblings' resolution is unaffected.
+
+**And** a price-on-request variation keeps its existing out-of-stock treatment — stock mapping does not override that rule.
+
+### Story 6.3: Title, short and long description from custom classes (FR-19, NFR-9)
+
+As a store owner,
+I want product copy to come from the custom-class fields my PIM actually authors,
+So that the shop shows the text my team maintains rather than an ERP description.
+
+**Acceptance Criteria:**
+
+**Given** the Field mapping group
+**When** it renders
+**Then** it contains three further optional fields — **Product title**, **Short description**, **Long description** — each accepting a product-level custom-feature ID or code, each independently empty by default.
+
+**Given** a mapped feature that resolves to a non-empty value
+**When** the product syncs
+**Then** that value is written to the corresponding WooCommerce field, overriding the existing source.
+
+**Given** a mapped feature that is absent or resolves to an empty value
+**When** the product syncs
+**Then** the existing resolution chain applies unchanged — title falls back to `product_erp_description` → translations; short and long description fall back to their current chains. A product never ends up with an empty title because the PIM omitted a value (NFR-9).
+
+**Given** a long-description value containing markup
+**When** it is written
+**Then** it passes through `wp_kses_post()` — formatting survives, unsafe markup does not.
+
+**Given** a value carrying custom-class translations
+**When** it is resolved
+**Then** language selection follows the existing `image_language` / `include_languages` settings, consistent with every other translated field.
+
+**Given** a product whose title changes because of this mapping
+**When** it syncs
+**Then** its slug is **not** rewritten — `update_slug_on_resync` behaviour is untouched, so existing product URLs and their SEO value survive.
+
+**Given** a mapped content value changes upstream while nothing else does
+**When** a delta sync runs
+**Then** the product is not skipped by the unchanged gate (same content-hash requirement as 6.1).
+
+**And** the three mappings work independently: configuring only the long description leaves title and short description entirely alone.
+
+---
+
+### Story 6.5: Document links show a readable name in the shop's language (FR-23, NFR-9)
+
+As a shop visitor,
+I want a product's documents listed by their real names in my language,
+So that I can tell a mounting instruction from a declaration of performance without opening both.
+
+**Acceptance Criteria:**
+
+**Given** a document attachment whose `_attachment_translations` contains an entry for the configured `image_language`
+**When** the product syncs
+**Then** `$doc['name']` is that entry's `product_attachment_title`, and the frontend documents tab renders it as the link text.
+
+**Given** no exact language match, but a translation sharing the two-letter prefix (`nl-BE` configured, `nl` present)
+**When** the name resolves
+**Then** the prefix match is used — the same exact → prefix → first-entry chain `get_attachment_meta_for_language()` already applies to images, not a second parallel implementation.
+
+**Given** an attachment with no translations, or translations carrying an empty title
+**When** the name resolves
+**Then** it falls back to `product_attachment_title` on the attachment itself, then to `file_name`, then to the URL basename — a document is never rendered nameless (NFR-9).
+
+**Given** products synced before this story landed, whose stored `_skwirrel_document_attachments` hold raw filenames
+**When** they are re-synced
+**Then** the stored names are refreshed to the resolved titles — no separate migration, the normal delta/full sync repairs them.
+
+**Given** a document title containing HTML or a stray tag
+**When** it renders in the documents tab and the admin meta box
+**Then** it is escaped at output (`esc_html`) exactly as today — this story changes which string is chosen, never how it is escaped.
+
+**And** the three quality gates (`pest`, `phpstan` level 6, `phpcs`) pass.
+
+**Implementation notes (as-built, verified 2026-08-19 against 3.13.1):**
+- The defect is one line: `class-skwirrel-wc-sync-attachment-handler.php:262` reads
+  `$att['file_name'] ?? $att['product_attachment_title'] ?? ''` — raw filename first, translations never consulted.
+- `get_attachment_meta_for_language()` (same class, line 40) already implements the required chain for images.
+  It is `private` and reads `image_language` from the settings option directly; reuse it rather than duplicating.
+- Consumers of `$doc['name']` are `class-skwirrel-wc-sync-product-documents.php:82` (frontend tab),
+  `:125` (admin meta box) and `templates/single-product/tabs/skwirrel-documents.php:30` (overridable template).
+  All three already `esc_html()`; none need changing.
+- `image_language` is the existing language setting. Do **not** introduce a `document_language` twin — if a
+  separate axis is ever wanted, that is a new FR, not a silent addition here.
+
+### Story 6.4: The non-destructive guarantee is pinned by tests (NFR-9)
+
+As a maintainer,
+I want the "a missing PIM value never clears WooCommerce data" rule pinned by tests,
+So that it cannot regress the way an unpinned invariant eventually does.
+
+**Acceptance Criteria:**
+
+**Given** each of the four mappings (stock, title, short description, long description)
+**When** a product syncs whose mapped feature is absent, empty, or malformed
+**Then** an automated test asserts the existing WooCommerce value is unchanged — one case per mapping, on simple products and on variations for stock.
+
+**Given** a sync where the API response omits `_custom_classes` entirely
+**When** the run completes
+**Then** no mapped field is written on any product, and the run reports success rather than failing.
+
+**Given** the regression-canary suite (Story 1.14) exists
+**When** this story completes
+**Then** these cases join it, alongside the "don't zero out prices" canary they extend.
+**And given** Story 1.14 is still open (it is `backlog` as of 2026-08-19)
+**Then** this story stands alone as its own Pest file — it must never be blocked on 1.14 landing first.
+
+**And** the three quality gates (`pest`, `phpstan` level 6, `phpcs`) pass.

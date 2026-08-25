@@ -39,7 +39,7 @@
 #   Epic 1 is foundational; Epic 2 builds on it; Epics 3 & 4 parallelize after Epic 1 seeds the pause flag.
 
 generated: 2026-06-12
-last_updated: 2026-08-19
+last_updated: 2026-08-25  # story 6-2 contexted (ready-for-dev)
 project: Skwirrel PIM sync for WooCommerce
 project_key: NOKEY
 tracking_system: file-system
@@ -62,7 +62,7 @@ development_status:
   1-5b-committer-through-ledger: done               # draft-until-complete + _skwirrel_synced_at + unchanged gate
   # 1-5c-atomic-claim-reaper-crash-resume: DROPPED   # concurrency via SyncMutex/heartbeat; crash-resume golden test not built
   1-6-variable-grouped-assembly: done               # sync_grouped_products_first(), in-place variation update
-  1-7-per-run-marker: backlog                       # OPEN — run header done, _skwirrel_last_run_id stamp missing (FR-15 dep)
+  1-7-per-run-marker: done                          # AS-BUILT 2026-08-19: Run_Links class + _skwirrel_last_run_id/_skwirrel_run_outcome + RunLinksTest
   1-8-resumable-progress-ui: done                   # reactive banner/toast shipped; explicit Resume affordance deferred
   # 1-9a-idle-phased-to-ledger-migration: DROPPED    # nothing to migrate to (no ledger)
   # 1-9b-migrate-during-resume: DROPPED              # nothing to migrate to (no ledger)
@@ -78,7 +78,7 @@ development_status:
   epic-2: backlog
   2-1-change-set-presentation-component: backlog
   2-2-preflight-before-sync: backlog
-  2-3-result-deep-links: backlog
+  2-3-result-deep-links: done                     # AS-BUILT 2026-08-19: shipped 3.12.1, hardened through 3.12.2
   2-4-plain-language-result-and-history: backlog
   2-5-start-over-clean-all-reset: backlog
   2-6-scheduled-membership-sweep: done            # added 2026-08-18 from the 919/850 sync investigation
@@ -94,14 +94,31 @@ development_status:
   3-6-health-screen-and-hub-badge: backlog
   3-7a-compatibility-guard-and-degradation-matrix: backlog
   3-7b-degradation-ui-surface: backlog
-  3-8-connectors-forward-credentials: backlog
+  3-8-connectors-forward-credentials: done      # AS-BUILT 2026-08-19: Connectors class + ConnectorsApiTest, shipped 3.10.0
   epic-3-retrospective: optional
 
   # ── Epic 4: Legible setup & settings ──
   epic-4: backlog
-  4-1-intent-grouped-settings: backlog
+  # 4-1-intent-grouped-settings: SUPERSEDED       # by Epic 5 tabbed settings (FR-3 amended, Chapter 2)
   4-2-visible-setting-relations: backlog
   4-3-sensible-defaults: backlog
   4-4a-guided-setup-wizard-shell: backlog
   4-4b-live-credential-verify: backlog
   epic-4-retrospective: optional
+
+  # ── Epic 5: A settings screen you can navigate, trust, and verify (Chapter 2 — client request) ──
+  epic-5: in-progress
+  5-1-tabbed-settings-navigation: ready-for-dev          # supersedes 4-1; builds extensible tab registration | gh#44
+  5-2-required-field-markers-and-inline-errors: ready-for-dev   # story file created 2026-08-25; ships field-level layer + seam, tabs stay in 5-1 | gh#45
+  5-3-context-id: ready-for-dev                    # UNBLOCKED 2026-08-25: param is `include_contexts`, already hardcoded [1] at 6 sites | gh#46
+  5-4-test-connection-metrics: ready-for-dev  # gh#47
+  epic-5-retrospective: optional
+
+  # ── Epic 6: Stock and product content from Skwirrel data (Chapter 2 — client request) ──
+  epic-6: in-progress
+  6-1-stock-from-custom-class-simple: ready-for-dev  # establishes resolver + Field mapping settings group | gh#48
+  6-2-stock-on-variations: ready-for-dev           # lifts hardcoded set_manage_stock(false); consumes 6-1's apply_stock_mapping() | gh#49
+  6-3-title-and-descriptions-from-custom-class: ready-for-dev  # gh#50
+  6-5-document-link-names-language-aware: ready-for-dev  # FR-23 — added 2026-08-25 from Jeroen's mail; one-line defect at attachment-handler:262 | gh#52
+  6-4-non-destructive-mapping-test-suite: ready-for-dev  # NFR-9 canary; extends story 1-14. BLOCKED in practice on 6-1/6-2/6-3 — story carries a prerequisite gate
+  epic-6-retrospective: optional
