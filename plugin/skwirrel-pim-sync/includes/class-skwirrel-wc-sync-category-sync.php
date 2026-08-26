@@ -180,7 +180,7 @@ class Skwirrel_WC_Sync_Category_Sync {
 		$params = [
 			'super_category_id'             => $super_id,
 			'include_category_translations' => true,
-			'include_contexts'              => [ 1 ],
+			'include_contexts'              => Skwirrel_WC_Sync_Admin_Settings::get_context_ids() ?? [ 1 ],
 		];
 
 		if ( ! empty( $languages ) ) {

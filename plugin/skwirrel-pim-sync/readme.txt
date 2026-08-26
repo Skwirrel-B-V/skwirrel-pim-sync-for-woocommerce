@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 3.15.0
+Stable tag: 3.16.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,13 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.16.0 =
+
+* New: an optional Context ID on the API Connection settings, for Skwirrel instances that serve more than one context. Leave it empty to keep using the Skwirrel default context — that is what your shop does today.
+* New: the Context ID is applied to products, product groups and categories alike, so your catalogue can never end up a mix of two contexts.
+* New: changing the Context ID re-imports your whole catalogue on the next synchronisation, and says so when you save. Saving without changing it does not.
+* New: a Context ID that is not a whole number greater than 0 is rejected with a message at the field, stays visible so you can correct it, and is never sent to Skwirrel.
 
 = 3.15.0 =
 

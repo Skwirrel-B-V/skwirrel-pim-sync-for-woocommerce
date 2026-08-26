@@ -796,7 +796,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				'label'  => __( 'Connection', 'skwirrel-pim-sync' ),
 				'order'  => 10,
 				'render' => 'render_settings_panel_connection',
-				'fields' => array( 'skwirrel_subdomain', 'endpoint_url', 'auth_token' ),
+				'fields' => array( 'skwirrel_subdomain', 'endpoint_url', 'auth_token', 'context_id' ),
 			),
 			'what-to-sync' => array(
 				'label'  => __( 'What to sync', 'skwirrel-pim-sync' ),
@@ -1376,6 +1376,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<div class="skw-field">
 					<label for="retries" class="skw-label"><?php esc_html_e( 'Retries', 'skwirrel-pim-sync' ); ?></label>
 					<input type="number" id="retries" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[retries]" value="<?php echo esc_attr( (string) ( $opts['retries'] ?? 2 ) ); ?>" min="0" max="5" class="skw-input skw-input-sm" />
+				</div>
+				<div class="skw-field"<?php $this->render_field_wrapper_attr( 'context_id' ); ?>>
+					<label for="context_id" class="skw-label"><?php esc_html_e( 'Context ID', 'skwirrel-pim-sync' ); ?></label>
+					<input type="number" id="context_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[context_id]" value="<?php echo esc_attr( (string) ( $opts['context_id'] ?? '' ) ); ?>" min="1" step="1" placeholder="1" class="skw-input skw-input-sm"<?php $this->render_field_state_attrs( 'context_id', 'context_id-hint' ); ?> />
+					<?php $this->render_field_error( 'context_id' ); ?>
+					<p class="skw-field-hint" id="context_id-hint"><?php esc_html_e( 'Optional. Leave this empty unless Skwirrel told you otherwise — an empty field uses the Skwirrel default context. Fill it in only if your Skwirrel instance serves several shops and you need the content of one specific context. Changing it re-imports your whole catalogue on the next synchronisation.', 'skwirrel-pim-sync' ); ?></p>
 				</div>
 			</div>
 			<div class="skw-field-actions">

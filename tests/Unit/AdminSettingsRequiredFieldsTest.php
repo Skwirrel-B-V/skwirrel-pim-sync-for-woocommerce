@@ -87,8 +87,17 @@ test('is_field_required matches the registry and is false for an unknown field',
     expect(Skwirrel_WC_Sync_Admin_Settings::is_field_required($values, 'auth_token'))->toBeFalse();
 });
 
-test('every error code maps to a field the registry knows about', function () {
+/*
+ * Widened for story 5.3: `context_id` is validated but optional, so the required-field registry is
+ * no longer the full set of fields an error can point at. The check that matters is unchanged —
+ * every mapped field must be a field the screen actually renders — so it now reads the tab
+ * registry, which lists every field ID the settings screen knows, required or not.
+ */
+test('every error code maps to a field the settings screen knows about', function () {
     $known = array_keys(Skwirrel_WC_Sync_Admin_Settings::required_fields([]));
+    foreach (Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs() as $tab) {
+        $known = array_merge($known, $tab['fields'] ?? []);
+    }
 
     foreach (Skwirrel_WC_Sync_Admin_Settings::error_field_map() as $code => $field) {
         expect(in_array($field, $known, true))

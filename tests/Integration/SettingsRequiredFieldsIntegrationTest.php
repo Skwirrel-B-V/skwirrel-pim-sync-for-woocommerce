@@ -513,11 +513,14 @@ test( 'an inline message is added to the field description, not swapped in for t
 test( 'every mapped error code renders at the field it names', function (): void {
 	Skwirrel_WC_Sync_Admin_Settings::instance()->sanitize_settings(
 		[
-			'sync_categories'      => '1',
+			'sync_categories'       => '1',
 			'sync_grouped_products' => '1',
-			'super_category_id'    => '',
-			'collection_ids'       => '',
-			'custom_collection_id' => '',
+			'super_category_id'     => '',
+			'collection_ids'        => '',
+			'custom_collection_id'  => '',
+			// Not a required field, but a validated one (Story 5.3) — the map covers every code
+			// that can be raised, so every code must be raised here.
+			'context_id'            => 'abc',
 		]
 	);
 

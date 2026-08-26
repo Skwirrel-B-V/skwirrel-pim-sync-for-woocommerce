@@ -190,6 +190,9 @@ test( 'every input name the pre-tabs settings form rendered is still rendered', 
 
 	$expected   = skwSettingsBaselineInputNames();
 	$expected[] = 'skwirrel_wc_sync_settings[status_mapping][*]';
+	// Added to the API Connection group after the pre-tabs baseline was captured: Story 5.3's
+	// optional Context ID. The baseline list stays a record of what the pre-tabs form rendered.
+	$expected[] = 'skwirrel_wc_sync_settings[context_id]';
 	$expected   = array_values( array_unique( $expected ) );
 	sort( $expected );
 

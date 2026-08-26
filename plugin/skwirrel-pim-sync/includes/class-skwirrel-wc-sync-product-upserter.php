@@ -945,6 +945,14 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'include_languages'         => $this->get_include_languages(),
 		];
 
+		// Only sent when a Context ID is actually configured. getGroupedProducts has never been
+		// given this parameter, so adding it unconditionally would change the request every
+		// existing install makes.
+		$context_ids = Skwirrel_WC_Sync_Admin_Settings::get_context_ids();
+		if ( null !== $context_ids ) {
+			$params['include_contexts'] = $context_ids;
+		}
+
 		// Allowed product IDs across every configured dynamic selection. The caller normally hands
 		// this in — it is the run's membership sweep, already fetched once — so the same calls are
 		// not repeated here. When it is not supplied (direct callers, tests), fetch it: the API's
@@ -1163,12 +1171,17 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				'fingerprint' => '',
 			];
 		}
-		$limit  = max( 1, null === $page_limit ? self::SWEEP_PAGE_LIMIT : $page_limit );
+		$limit       = max( 1, null === $page_limit ? self::SWEEP_PAGE_LIMIT : $page_limit );
+		$options     = [];
+		$context_ids = Skwirrel_WC_Sync_Admin_Settings::get_context_ids();
+		if ( null !== $context_ids ) {
+			$options['include_contexts'] = $context_ids;
+		}
 		$result = $client->call(
 			'getProductsByFilter',
 			[
 				'filter'  => [ 'dynamic_selection_id' => $dynamic_selection_id ],
-				'options' => [],
+				'options' => $options,
 				'page'    => max( 1, $page ),
 				'limit'   => $limit,
 			]

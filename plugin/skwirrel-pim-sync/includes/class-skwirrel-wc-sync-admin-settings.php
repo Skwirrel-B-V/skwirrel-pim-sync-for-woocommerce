@@ -254,7 +254,45 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			delete_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
 			Skwirrel_WC_Sync_Action_Scheduler::instance()->schedule();
 			$this->bust_settings_cache();
+			$this->maybe_force_full_sync_on_context_change( is_array( $old_value ) ? $old_value : [], $value );
 		}
+	}
+
+	/**
+	 * Force the next sync to run as a full sync when the effective context changed.
+	 *
+	 * Products already in the catalogue came from the old context; a delta sync would only touch
+	 * what changed upstream and leave the rest behind, producing a catalogue mixed from two
+	 * contexts. Comparing the *resolved* context — not the raw string — means a re-save, or one
+	 * invalid value replaced by another, never schedules a full re-sync it does not need.
+	 *
+	 * @param array<string, mixed> $old_value Settings before the save.
+	 * @param array<string, mixed> $value     Settings after the save.
+	 */
+	private function maybe_force_full_sync_on_context_change( array $old_value, array $value ): void {
+		$old = self::resolve_context_ids( $old_value['context_id'] ?? '' );
+		$new = self::resolve_context_ids( $value['context_id'] ?? '' );
+
+		if ( $old === $new ) {
+			return;
+		}
+
+		update_option( 'skwirrel_wc_sync_force_full_sync', true, false );
+
+		( new Skwirrel_WC_Sync_Logger() )->info(
+			'force_full_sync flag set: the Skwirrel context ID changed — the next sync will run as full so the catalogue cannot mix two contexts.',
+			[
+				'old_context' => null === $old ? 'default' : $old[0],
+				'new_context' => null === $new ? 'default' : $new[0],
+			]
+		);
+
+		add_settings_error(
+			self::OPTION_KEY,
+			'context_id_changed',
+			__( 'The context ID changed, so the next synchronisation imports your whole catalogue again. This makes sure every product and category comes from the new context.', 'skwirrel-pim-sync' ),
+			'info'
+		);
 	}
 
 	/**
@@ -359,6 +397,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			'super_category_id_required'    => 'super_category_id',
 			'collection_ids_required'       => 'collection_ids',
 			'custom_collection_id_required' => 'custom_collection_id',
+			'context_id'                    => 'context_id',
 		];
 	}
 
@@ -373,6 +412,20 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out['auth_token'] = ! empty( $token ) ? self::MASK : '';
 		$out['timeout']    = isset( $input['timeout'] ) ? max( 5, min( 120, (int) $input['timeout'] ) ) : 30;
 		$out['retries']    = isset( $input['retries'] ) ? max( 0, min( 5, (int) $input['retries'] ) ) : 2;
+		// Context ID: optional. Empty means "use the Skwirrel default context". An invalid value is
+		// reported and stored verbatim so the user sees what they typed, but get_context_ids() refuses
+		// to resolve it, so it never reaches the API.
+		$out['context_id'] = isset( $input['context_id'] ) && is_scalar( $input['context_id'] )
+			? sanitize_text_field( trim( (string) $input['context_id'] ) )
+			: '';
+		if ( '' !== $out['context_id'] && null === self::resolve_context_ids( $out['context_id'] ) ) {
+			add_settings_error(
+				self::OPTION_KEY,
+				'context_id',
+				__( 'The context ID must be a whole number greater than 0. Leave it empty to use the Skwirrel default context.', 'skwirrel-pim-sync' ),
+				'error'
+			);
+		}
 		// Enforce the dynamic minimum rest window server-side: a too-short interval (e.g. forced via a
 		// crafted POST) is bumped up to the smallest recurrence that still leaves a full hour of rest.
 		$interval = (string) ( $input['sync_interval'] ?? '' );
@@ -530,6 +583,56 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			return (string) get_option( self::TOKEN_OPTION_KEY, '' );
 		}
 		return $token;
+	}
+
+	/**
+	 * Resolve a raw Context ID setting to the `include_contexts` value the API expects.
+	 *
+	 * One rule, one place: the sanitiser's validation, {@see self::get_context_ids()} and the
+	 * force-full-sync comparison in {@see self::on_settings_updated()} all read this, so the message
+	 * shown to the user, the value sent to the API and the decision to re-sync can never disagree.
+	 *
+	 * @param mixed $raw Stored setting value.
+	 * @return array<int, int>|null Single-element context list, or null when unset/invalid.
+	 */
+	private static function resolve_context_ids( $raw ): ?array {
+		if ( ! is_scalar( $raw ) ) {
+			return null;
+		}
+
+		$value = trim( (string) $raw );
+		if ( '' === $value || 1 !== preg_match( '/^[0-9]+$/', $value ) ) {
+			return null;
+		}
+
+		// Casting an out-of-range digit string saturates at PHP_INT_MAX, which would silently send a
+		// different context than the administrator entered. Compare the normalized decimal string
+		// before casting so an oversized ID stays invalid and inert.
+		$normalized = ltrim( $value, '0' );
+		$max_int    = (string) PHP_INT_MAX;
+		if ( '' === $normalized
+			|| strlen( $normalized ) > strlen( $max_int )
+			|| ( strlen( $normalized ) === strlen( $max_int ) && strcmp( $normalized, $max_int ) > 0 )
+		) {
+			return null;
+		}
+
+		return [ (int) $normalized ];
+	}
+
+	/**
+	 * The configured Skwirrel context, in the shape every context-aware JSON-RPC call site passes as
+	 * `include_contexts`.
+	 *
+	 * Null means "not configured" — every call site then keeps the behaviour it has today, which is
+	 * what makes the Context ID a no-op for installs that never set it.
+	 *
+	 * @return array<int, int>|null
+	 */
+	public static function get_context_ids(): ?array {
+		$opts = get_option( self::OPTION_KEY, [] );
+
+		return self::resolve_context_ids( is_array( $opts ) ? ( $opts['context_id'] ?? '' ) : '' );
 	}
 
 	public static function get_auth_token(): string {
@@ -843,25 +946,27 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// request for minutes (120s × up to six attempts), which would defeat the chunking above —
 		// the browser or an FPM/proxy timeout would kill the refresh with no continuation returned.
 		// A discovery scan is a best-effort read, so it fails fast and resumes on the next chunk.
-		$client = new Skwirrel_WC_Sync_JsonRpc_Client(
+		$client      = new Skwirrel_WC_Sync_JsonRpc_Client(
 			$endpoint,
 			(string) ( $opts['auth_type'] ?? 'token' ),
 			$token,
 			min( self::STATUS_SCAN_TIMEOUT, max( 5, (int) ( $opts['timeout'] ?? 30 ) ) ),
 			min( self::STATUS_SCAN_RETRIES, max( 0, (int) ( $opts['retries'] ?? 2 ) ) )
 		);
-		$result = $client->call(
-			'getProducts',
-			[
-				'page'                         => max( 1, $page ),
-				'limit'                        => $limit,
-				'include_product_status'       => true,
-				'include_product_translations' => false,
-				'include_attachments'          => false,
-				'include_trade_items'          => false,
-				'include_categories'           => false,
-			]
-		);
+		$params      = [
+			'page'                         => max( 1, $page ),
+			'limit'                        => $limit,
+			'include_product_status'       => true,
+			'include_product_translations' => false,
+			'include_attachments'          => false,
+			'include_trade_items'          => false,
+			'include_categories'           => false,
+		];
+		$context_ids = self::get_context_ids();
+		if ( null !== $context_ids ) {
+			$params['include_contexts'] = $context_ids;
+		}
+		$result = $client->call( 'getProducts', $params );
 
 		if ( empty( $result['success'] ) ) {
 			return new WP_Error( 'skwirrel_api_error', (string) ( $result['error']['message'] ?? __( 'The request to Skwirrel failed.', 'skwirrel-pim-sync' ) ) );

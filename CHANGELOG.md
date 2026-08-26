@@ -2,6 +2,19 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.16.0]
+
+### Added — Context ID (story 5.3)
+
+* **An optional Context ID on the API Connection settings.** A Skwirrel instance can serve more than one context; the field tells the plugin which one this shop reads. Leave it empty and the Skwirrel default context is used, which is what every install has been doing all along.
+* **The configured context reaches every call that takes one.** `getProducts`, `getProductsByFilter` (main run, membership sweep, single-product re-sync, grouped members and the attribute re-fetch), `getGroupedProducts` and `getCategories` all read one helper, `Skwirrel_WC_Sync_Admin_Settings::get_context_ids()`. Status discovery follows the configured context too. Categories deliberately follow the Context ID: products from one context filed under another context's category tree is exactly the mixed catalogue this setting exists to prevent.
+* **Changing the context re-imports the catalogue.** A save that changes the *effective* context sets `skwirrel_wc_sync_force_full_sync`, so the next run is a full sync instead of a delta that would leave half the catalogue on the old context. The admin is told this in plain language on save. A save that leaves the effective context alone — any other setting edited, a plain re-save, or one rejected value replaced by another — sets nothing and says nothing.
+* **An invalid Context ID is reported and inert.** A non-numeric value, `0` or a negative number raises a validation message at the field and is stored exactly as typed so it can be seen and corrected, but it never resolves and never reaches the API: the call sites fall back to the behaviour they have today.
+
+### Notes
+
+* Installs that never touch the field send byte-for-byte the request they send now — the five call sites that already send `include_contexts: [1]` keep sending it, while the two `getGroupedProducts` sites, the membership sweep and status discovery keep omitting it. Those four calls only gain the parameter when a Context ID is actually configured.
+
 ## [3.15.0]
 
 ### Added — required fields are marked, and errors point at the field (story 5.2)

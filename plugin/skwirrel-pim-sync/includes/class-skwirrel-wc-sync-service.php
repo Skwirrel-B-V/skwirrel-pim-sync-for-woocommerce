@@ -268,7 +268,7 @@ class Skwirrel_WC_Sync_Service {
 			'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
 			'include_related_products'     => ! empty( $options['sync_related_products'] ),
 			'include_languages'            => $this->get_include_languages(),
-			'include_contexts'             => [ 1 ],
+			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::get_context_ids() ?? [ 1 ],
 		];
 
 		$sync_cc        = ! empty( $options['sync_custom_classes'] );
@@ -1808,7 +1808,7 @@ class Skwirrel_WC_Sync_Service {
 			'include_etim'                 => true,
 			'include_etim_translations'    => true,
 			'include_languages'            => $this->get_include_languages(),
-			'include_contexts'             => [ 1 ],
+			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::get_context_ids() ?? [ 1 ],
 		];
 
 		$sync_cc              = ! empty( $options['sync_custom_classes'] );
@@ -1970,6 +1970,12 @@ class Skwirrel_WC_Sync_Service {
 			'include_languages'         => $this->get_include_languages(),
 		];
 
+		/** This conditional is documented in Product_Upserter::sync_grouped_products_first(). */
+		$context_ids = Skwirrel_WC_Sync_Admin_Settings::get_context_ids();
+		if ( null !== $context_ids ) {
+			$params['include_contexts'] = $context_ids;
+		}
+
 		do {
 			$params['page']  = $page;
 			$params['limit'] = $batch_size;
@@ -2084,7 +2090,7 @@ class Skwirrel_WC_Sync_Service {
 			'include_etim'                 => true,
 			'include_etim_translations'    => true,
 			'include_languages'            => $this->get_include_languages(),
-			'include_contexts'             => [ 1 ],
+			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::get_context_ids() ?? [ 1 ],
 		];
 
 		$sync_cc              = ! empty( $options['sync_custom_classes'] );
@@ -2219,7 +2225,7 @@ class Skwirrel_WC_Sync_Service {
 					$attr_includes['include_etim']              = true;
 					$attr_includes['include_etim_translations'] = true;
 					$attr_includes['include_languages']         = $this->get_include_languages();
-					$attr_includes['include_contexts']          = [ 1 ];
+					$attr_includes['include_contexts']          = Skwirrel_WC_Sync_Admin_Settings::get_context_ids() ?? [ 1 ];
 					$attr_product                               = $this->fetch_product_attributes( $client, $product, $attr_includes );
 				} else {
 					$attr_product = $product;
@@ -2340,6 +2346,7 @@ class Skwirrel_WC_Sync_Service {
 			'auth_token'                    => '',
 			'timeout'                       => 30,
 			'retries'                       => 2,
+			'context_id'                    => '',
 			'batch_size'                    => 10,
 			'sync_categories'               => true,
 			'sync_grouped_products'         => false,
