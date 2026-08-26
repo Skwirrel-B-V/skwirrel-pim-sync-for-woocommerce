@@ -802,7 +802,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				'label'  => __( 'What to sync', 'skwirrel-pim-sync' ),
 				'order'  => 20,
 				'render' => 'render_settings_panel_what_to_sync',
-				'fields' => array( 'batch_size', 'super_category_id', 'collection_ids', 'custom_collection_id' ),
+				'fields' => array( 'batch_size', 'super_category_id', 'collection_ids', 'custom_collection_id', 'stock_quantity_feature' ),
 			),
 			'how-it-looks' => array(
 				'label'  => __( 'How it looks', 'skwirrel-pim-sync' ),
@@ -1032,6 +1032,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private function render_settings_panel_what_to_sync( array $context ): void {
 		$this->render_fieldgroup_sync_options( (array) $context['opts'], (string) $context['subdomain'] );
 		$this->render_fieldgroup_product_status( (array) $context['opts'] );
+		$this->render_fieldgroup_field_mapping( (array) $context['opts'] );
 	}
 
 	/**
@@ -1785,6 +1786,31 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<label for="deprecated_remove_after_syncs" class="skw-label"><?php esc_html_e( 'Remove deprecated products after (full syncs)', 'skwirrel-pim-sync' ); ?></label>
 				<input type="number" id="deprecated_remove_after_syncs" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[deprecated_remove_after_syncs]" value="<?php echo esc_attr( (string) ( $opts['deprecated_remove_after_syncs'] ?? 3 ) ); ?>" min="0" max="999" class="skw-input skw-input-sm" />
 				<p class="skw-field-hint"><?php esc_html_e( 'How many full syncs a product stays in the Deprecated status before it is moved to the trash. 0 = remove immediately (trashed on the same full sync it becomes deprecated — no review window). Only applies to statuses mapped to Deprecated.', 'skwirrel-pim-sync' ); ?></p>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "Field mapping" field group (FR-18).
+	 *
+	 * Each field here names one Skwirrel custom feature that drives a WooCommerce field.
+	 * Empty means the mapping is off — the sync then behaves exactly as it did before the
+	 * mapping existed, and never touches the WooCommerce value.
+	 *
+	 * @param array<string,mixed> $opts Stored plugin settings.
+	 */
+	private function render_fieldgroup_field_mapping( array $opts ): void {
+		?>
+		<div class="skw-fieldgroup">
+			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Field mapping', 'skwirrel-pim-sync' ); ?></h3>
+			<p class="skw-field-hint"><?php esc_html_e( 'Drive WooCommerce fields from a Skwirrel custom class feature, so you no longer maintain the same value in two systems.', 'skwirrel-pim-sync' ); ?></p>
+			<div class="skw-field">
+				<label for="stock_quantity_feature" class="skw-label"><?php esc_html_e( 'Stock quantity', 'skwirrel-pim-sync' ); ?></label>
+				<input type="text" id="stock_quantity_feature" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[stock_quantity_feature]" value="<?php echo esc_attr( (string) ( $opts['stock_quantity_feature'] ?? '' ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 1234 or STOCK_QTY', 'skwirrel-pim-sync' ); ?>"
+				<?php $this->render_field_state_attrs( 'stock_quantity_feature', 'stock_quantity_feature-hint' ); ?> />
+				<?php $this->render_field_error( 'stock_quantity_feature' ); ?>
+				<p class="skw-field-hint" id="stock_quantity_feature-hint"><?php esc_html_e( 'The ID or code of one product-level custom feature holding the stock quantity. Leave empty to turn the mapping off and manage stock in WooCommerce as before. When a product has no value for this feature, its current stock is left untouched — never set to 0 and never switched to unmanaged. Trade-item level features are not used.', 'skwirrel-pim-sync' ); ?></p>
 			</div>
 		</div>
 		<?php

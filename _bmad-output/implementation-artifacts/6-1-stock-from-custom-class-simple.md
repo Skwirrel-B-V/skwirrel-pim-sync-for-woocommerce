@@ -1,5 +1,5 @@
 ---
-status: ready-for-dev
+status: review
 baseline_revision: 0f7c3c4
 context:
   - _bmad-output/project-context.md
@@ -11,7 +11,7 @@ context:
 
 # Story 6.1: Stock quantity from a custom class — simple products
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -86,34 +86,34 @@ so that I stop maintaining stock levels in two systems.
 
 ## Tasks / Subtasks
 
-- [ ] **Add the resolver to the custom-class extractor** (AC: 2, 3, 9)
-  - [ ] Add one public method to `class-skwirrel-wc-sync-custom-class-extractor.php`, e.g. `resolve_numeric_feature_value( array $product, string $mapping ): ?float` (or `?string` — pick one and be consistent with what `set_stock_quantity()` accepts). It must be **pure**: no `get_option()`, no WC calls, so `tests/Unit/` can drive it directly on the stub bootstrap.
-  - [ ] Reuse `collect_custom_classes( $product, false )` — the `false` is AC 2's product-level-only guarantee, and it is already the default.
-  - [ ] Match the mapping string against **both** `custom_feature_id` / `custom_class_feature_id` (numeric) and `custom_feature_code` (string, case-insensitive). `get_custom_feature_values_for_ids()` (`:302`) matches by ID and `filter_custom_classes()` (`:75`) matches by code — follow those two shapes, do not invent a third.
-  - [ ] Skip `not_applicable` features, exactly as every other extractor method does.
-  - [ ] Return the **raw numeric** value, not the display string. `format_custom_feature_value()` appends the unit for type `N` ("500 st"), which is right for an attribute and wrong for a stock quantity. Read `numeric_value` for type `N`; accept a numeric `text_value` for `T`/`A` only if it passes `is_numeric()`. Anything else → `null`.
-  - [ ] Delegate from `Skwirrel_WC_Sync_Product_Mapper` alongside the existing custom-class passthroughs (`class-skwirrel-wc-sync-product-mapper.php:981-1050`) so the upserter calls the mapper, consistent with every other field.
-- [ ] **Add the setting** (AC: 1, 4, 5)
-  - [ ] Sanitize in `class-skwirrel-wc-sync-admin-settings.php` next to the other custom-class keys (`:420-430`). A single `sanitize_text_field()` + `trim()` is enough; empty string is the default and the off switch.
-  - [ ] Render in `class-skwirrel-wc-sync-admin-dashboard.php` as a new `.skw-fieldgroup` titled **Field mapping**, placed after *Product status handling* (`:1141`) and before *Advanced* (`:1195`). Copy the `deprecated_remove_after_syncs` field markup (`:1188`) for structure: `.skw-field` > `.skw-label` > input > `.skw-field-hint`.
-  - [ ] Hint copy must say what "empty" means (mapping off) and that a missing value never clears existing stock — that is the NFR-9 promise the store owner is trusting.
-  - [ ] All strings translatable with the literal domain `'skwirrel-pim-sync'`. **No** `.pot`/`.po`/`.mo` regeneration in this story — that is release-time, via `/release`.
-  - [ ] Add the key to the upserter's `get_options()` defaults (`class-skwirrel-wc-sync-product-upserter.php:3178`), mirroring how `prices_managed_outside_skwirrel` is defaulted there.
-  - [ ] Do **not** add the key to `compute_sync_signature()`'s `$ignore` denylist (`class-skwirrel-wc-sync-service.php:2376-2392`) — AC 5 depends on it being hashed.
-- [ ] **Request the payload the mapping needs** (AC: 6)
-  - [ ] In `begin_run()` (`class-skwirrel-wc-sync-service.php:274-310`), extend the condition that sets `include_custom_classes` + `include_custom_collection_id` to also fire when the stock mapping is non-empty. The grouped-products branch at `:305-309` is the precedent — copy that shape.
-  - [ ] Mirror it in the two other request builders that set the same flags: `:1814-1824` and `:2090-2098`.
-  - [ ] The hard-fail on a missing `custom_collection_id` (`:244-249`) is gated on `sync_custom_classes` / `sync_trade_item_custom_classes` / `sync_grouped_products`. **Do not extend that hard-fail** to the stock mapping — a store owner configuring a stock field must not be able to lock themselves out of syncing. Warn and run with mapping inert (AC 6).
-- [ ] **Write the stock in both simple-product paths** (AC: 2, 3, 7, 8)
-  - [ ] Add one private helper on the upserter, e.g. `apply_stock_mapping( WC_Product $wc_product, array $product ): void`, that resolves and writes, and does nothing when the setting is empty or the value is `null`.
-  - [ ] Call it from `create_or_update_product()` (`:1662`) immediately after the price block and before `$wc_product->save()` (`:1822`) — the queued catalogue path, which is what every normal run uses.
-  - [ ] Call it from the legacy `upsert_product()` (`:239`) at the equivalent point after its price block (`~:388`). This path is still live: `Skwirrel_WC_Sync_Service::upsert_product()` (`:1775`) and the single-product edit-screen resync (`:1898`) both go through it. Missing it means "sync this product" from the product editor silently does not update stock.
-  - [ ] Never call `set_stock_status()` from this story. WooCommerce derives status from managed quantity; forcing it here would fight `wc_update_product_stock_status()` and the variable-parent aggregation in 6.2.
-  - [ ] Leave `class-skwirrel-wc-sync-product-upserter.php:620-660`, `:1440-1460` and `:1940-1970` (variation + parent stock) untouched (AC 8).
-- [ ] **Tests** (AC: 9)
-  - [ ] New `tests/Unit/StockMappingTest.php` driving the extractor resolver directly across the four cases in AC 9, plus: value present under a *trade-item* class only → `null` (proves AC 2's product-level scope), and `not_applicable` → `null`.
-  - [ ] Extend the settings-default coverage the way `tests/Unit/ProductUpserterPriceTest.php` does — it reflects into the private `get_options()` and asserts the default. Follow that file's `beforeEach()` construction of the upserter verbatim; it is the only working recipe for instantiating it under the stub bootstrap.
-  - [ ] Do not weaken an existing assertion, and do not regenerate `phpstan-baseline.neon` to hide a new finding.
+- [x] **Add the resolver to the custom-class extractor** (AC: 2, 3, 9)
+  - [x] Add one public method to `class-skwirrel-wc-sync-custom-class-extractor.php`, e.g. `resolve_numeric_feature_value( array $product, string $mapping ): ?float` (or `?string` — pick one and be consistent with what `set_stock_quantity()` accepts). It must be **pure**: no `get_option()`, no WC calls, so `tests/Unit/` can drive it directly on the stub bootstrap.
+  - [x] Reuse `collect_custom_classes( $product, false )` — the `false` is AC 2's product-level-only guarantee, and it is already the default.
+  - [x] Match the mapping string against **both** `custom_feature_id` / `custom_class_feature_id` (numeric) and `custom_feature_code` (string, case-insensitive). `get_custom_feature_values_for_ids()` (`:302`) matches by ID and `filter_custom_classes()` (`:75`) matches by code — follow those two shapes, do not invent a third.
+  - [x] Skip `not_applicable` features, exactly as every other extractor method does.
+  - [x] Return the **raw numeric** value, not the display string. `format_custom_feature_value()` appends the unit for type `N` ("500 st"), which is right for an attribute and wrong for a stock quantity. Read `numeric_value` for type `N`; accept a numeric `text_value` for `T`/`A` only if it passes `is_numeric()`. Anything else → `null`.
+  - [x] Delegate from `Skwirrel_WC_Sync_Product_Mapper` alongside the existing custom-class passthroughs (`class-skwirrel-wc-sync-product-mapper.php:981-1050`) so the upserter calls the mapper, consistent with every other field.
+- [x] **Add the setting** (AC: 1, 4, 5)
+  - [x] Sanitize in `class-skwirrel-wc-sync-admin-settings.php` next to the other custom-class keys (`:420-430`). A single `sanitize_text_field()` + `trim()` is enough; empty string is the default and the off switch.
+  - [x] Render in `class-skwirrel-wc-sync-admin-dashboard.php` as a new `.skw-fieldgroup` titled **Field mapping**, placed after *Product status handling* (`:1141`) and before *Advanced* (`:1195`). Copy the `deprecated_remove_after_syncs` field markup (`:1188`) for structure: `.skw-field` > `.skw-label` > input > `.skw-field-hint`.
+  - [x] Hint copy must say what "empty" means (mapping off) and that a missing value never clears existing stock — that is the NFR-9 promise the store owner is trusting.
+  - [x] All strings translatable with the literal domain `'skwirrel-pim-sync'`. **No** `.pot`/`.po`/`.mo` regeneration in this story — that is release-time, via `/release`.
+  - [x] Add the key to the upserter's `get_options()` defaults (`class-skwirrel-wc-sync-product-upserter.php:3178`), mirroring how `prices_managed_outside_skwirrel` is defaulted there.
+  - [x] Do **not** add the key to `compute_sync_signature()`'s `$ignore` denylist (`class-skwirrel-wc-sync-service.php:2376-2392`) — AC 5 depends on it being hashed.
+- [x] **Request the payload the mapping needs** (AC: 6)
+  - [x] In `begin_run()` (`class-skwirrel-wc-sync-service.php:274-310`), extend the condition that sets `include_custom_classes` + `include_custom_collection_id` to also fire when the stock mapping is non-empty. The grouped-products branch at `:305-309` is the precedent — copy that shape.
+  - [x] Mirror it in the two other request builders that set the same flags: `:1814-1824` and `:2090-2098`.
+  - [x] The hard-fail on a missing `custom_collection_id` (`:244-249`) is gated on `sync_custom_classes` / `sync_trade_item_custom_classes` / `sync_grouped_products`. **Do not extend that hard-fail** to the stock mapping — a store owner configuring a stock field must not be able to lock themselves out of syncing. Warn and run with mapping inert (AC 6).
+- [x] **Write the stock in both simple-product paths** (AC: 2, 3, 7, 8)
+  - [x] Add one private helper on the upserter, e.g. `apply_stock_mapping( WC_Product $wc_product, array $product ): void`, that resolves and writes, and does nothing when the setting is empty or the value is `null`.
+  - [x] Call it from `create_or_update_product()` (`:1662`) immediately after the price block and before `$wc_product->save()` (`:1822`) — the queued catalogue path, which is what every normal run uses.
+  - [x] Call it from the legacy `upsert_product()` (`:239`) at the equivalent point after its price block (`~:388`). This path is still live: `Skwirrel_WC_Sync_Service::upsert_product()` (`:1775`) and the single-product edit-screen resync (`:1898`) both go through it. Missing it means "sync this product" from the product editor silently does not update stock.
+  - [x] Never call `set_stock_status()` from this story. WooCommerce derives status from managed quantity; forcing it here would fight `wc_update_product_stock_status()` and the variable-parent aggregation in 6.2.
+  - [x] Leave `class-skwirrel-wc-sync-product-upserter.php:620-660`, `:1440-1460` and `:1940-1970` (variation + parent stock) untouched (AC 8).
+- [x] **Tests** (AC: 9)
+  - [x] New `tests/Unit/StockMappingTest.php` driving the extractor resolver directly across the four cases in AC 9, plus: value present under a *trade-item* class only → `null` (proves AC 2's product-level scope), and `not_applicable` → `null`.
+  - [x] Extend the settings-default coverage the way `tests/Unit/ProductUpserterPriceTest.php` does — it reflects into the private `get_options()` and asserts the default. Follow that file's `beforeEach()` construction of the upserter verbatim; it is the only working recipe for instantiating it under the stub bootstrap.
+  - [x] Do not weaken an existing assertion, and do not regenerate `phpstan-baseline.neon` to hide a new finding.
 
 ## Dev Notes
 
@@ -205,10 +205,37 @@ Do not extend the `custom_collection_id` **hard-fail** at `:244-249` to cover th
 
 ### Agent Model Used
 
+claude-opus-5 (in-session, via story-automator orchestration `orchestration-6-20260826-143018`)
+
 ### Debug Log References
+
+- `vendor/bin/pest` — 549 passed (1168 assertions), including 13 new in `tests/Unit/StockMappingTest.php`
+- `vendor/bin/phpstan analyse --memory-limit=2G` — no errors (level 6, baseline unchanged)
+- `vendor/bin/phpcs` — 34/34 clean
 
 ### Completion Notes List
 
+- **Resolver is pure, as required.** `resolve_numeric_feature_value( array $product, string $mapping ): ?float` on `Skwirrel_WC_Sync_Custom_Class_Extractor` takes no options and calls no WC APIs, so `tests/Unit/` drives it directly on the stub bootstrap. It matches on numeric feature ID **or** case-insensitive feature code in one pass, mirroring `get_custom_feature_values_for_ids()` and `filter_custom_classes()` rather than inventing a third shape. A private `raw_numeric_feature_value()` reads `numeric_value` for type `N` and a numeric `text_value` for `T`/`A`; `format_custom_feature_value()` is deliberately not used because it appends the unit ("500 st").
+- **NFR-9 is enforced by returning `null`, never `0`.** `apply_stock_mapping()` on the upserter returns early — writing nothing at all — when the mapping is empty or the value does not resolve. No `set_stock_*` call is made in that branch, so `manage_stock` and `stock_quantity` survive untouched. The skip logs at verbose level only, matching the `prices_managed_outside_skwirrel` register.
+- **AC 5 was verification, not construction — with one honest caveat.** `_custom_classes` is part of the hashed payload (`payload_signature()` strips only `product_updated_on`), so a changed upstream stock value already changes the content hash; nothing was built for that. `stock_quantity_feature` is deliberately **not** added to `compute_sync_signature()`'s `$ignore` denylist, so changing or clearing the mapping busts the gate automatically. **Caveat, stated rather than worked around:** in the default `content_hash_mode = 'observe'`, the authoritative gate is still the timestamp, so a custom-class value changed without advancing `product_updated_on` is skipped before the hash is consulted. That is a pre-existing property of the gate design, identical for every other mapped field, and out of scope here.
+- **AC 6 warns instead of hard-failing.** A new `Skwirrel_WC_Sync_Service::has_field_mapping()` gates `include_custom_classes` + `include_custom_collection_id` in all three request builders (`begin_run()`, single-product resync, grouped-product fetch), so the mapping resolves even with both custom-class toggles off. The `custom_collection_id` hard-fail at `begin_run()` was **not** extended: a missing collection ID logs an actionable warning naming the setting and the run proceeds with the mapping inert, rather than turning a field-mapping typo into a total sync outage.
+- **Both simple-product paths share one helper (AC 7).** `create_or_update_product()` (queued catalogue run) and the legacy `upsert_product()` (product-editor resync) both call `apply_stock_mapping()` immediately after their price block — one implementation, no duplicated logic.
+- **Variations and variable parents untouched (AC 8).** The diff adds exactly one `set_manage_stock()`, inside the new simple-product helper. The hardcoded `set_manage_stock( false )` / `set_stock_status( 'instock' )` calls in the variation and parent paths are unchanged; lifting them is Story 6.2.
+- **Stale story assumption, resolved in favour of the shipped code.** The story says "Story 5.1's tab registration does not exist yet — do not build a tab". 5.1 has since shipped, so the settings screen is now tabbed. The **Field mapping** group is therefore rendered as an ordinary `.skw-fieldgroup` (as the AC requires) inside the existing **What to sync** panel, after *Product status handling*. `stock_quantity_feature` was added to that tab's `fields` list so Story 5.2's inline-error targeting resolves the field to the right tab. No new tab was created.
+- **Version deliberately not bumped.** Per the story's "do not bump the version" instruction and the user's explicit direction, everything stays on **3.14.0**; no CHANGELOG.md / readme.txt version section was added and no `.pot`/`.po`/`.mo` was regenerated. The new UI strings use the literal `'skwirrel-pim-sync'` domain and will be picked up at release time by `/release`.
+
 ### File List
 
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-custom-class-extractor.php` (modified) — `resolve_numeric_feature_value()` + private `raw_numeric_feature_value()`
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-mapper.php` (modified) — `get_stock_quantity()` delegation
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php` (modified) — `apply_stock_mapping()`, `stock_quantity_feature` default, both call sites
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php` (modified) — `has_field_mapping()` + include flags in three request builders + missing-collection warning
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-settings.php` (modified) — `stock_quantity_feature` sanitization
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-dashboard.php` (modified) — `render_fieldgroup_field_mapping()`, panel wiring, tab field registration
+- `tests/Unit/StockMappingTest.php` (new) — 13 tests covering AC 2, 3, 4, 9
+
 ## Change Log
+
+| Date | Change |
+|------|--------|
+| 2026-08-26 | Implemented Story 6.1: stock quantity from a product-level custom class for simple products. Adds the Field mapping settings group, a pure numeric resolver on the custom-class extractor, and a shared non-destructive `apply_stock_mapping()` used by both simple-product upsert paths. No version bump (stays on 3.14.0). |

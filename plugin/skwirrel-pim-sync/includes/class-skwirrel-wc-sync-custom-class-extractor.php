@@ -117,6 +117,95 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	}
 
 	/**
+	 * Resolve a single product-level custom feature to a raw number.
+	 *
+	 * Backs the FR-18 field mappings (stock quantity, and any future numeric mapping).
+	 * The mapping string holds one feature identifier: either a numeric feature ID or a
+	 * string feature code, matched case-insensitively — the same "ID or code" shape
+	 * {@see self::filter_custom_classes()} already accepts for class filters.
+	 *
+	 * Deliberately pure: no `get_option()`, no WooCommerce calls, so it can be driven
+	 * directly from `tests/Unit/` on the stub bootstrap.
+	 *
+	 * Scope is **product-level `_custom_classes` only** — trade-item custom classes are
+	 * explicitly out of scope for FR-18, so `collect_custom_classes()` keeps its default
+	 * `$include_trade_items = false`.
+	 *
+	 * Returns the raw number rather than {@see self::format_custom_feature_value()}'s
+	 * display string: for type `N` that method appends the unit ("500 st"), which is
+	 * right for an attribute and wrong for a stock quantity.
+	 *
+	 * `null` is the contract for "the PIM has nothing to say" (NFR-9): unconfigured
+	 * mapping, absent feature, `not_applicable`, empty, or non-numeric. Callers must
+	 * then leave the existing WooCommerce value exactly as it is.
+	 *
+	 * @param array<string, mixed> $product Raw API product.
+	 * @param string               $mapping Feature ID or code; empty disables the mapping.
+	 * @return float|null Raw numeric value, or null when nothing resolves.
+	 */
+	public function resolve_numeric_feature_value( array $product, string $mapping ): ?float {
+		$mapping = trim( $mapping );
+		if ( '' === $mapping ) {
+			return null;
+		}
+
+		$want_id   = is_numeric( $mapping ) ? (int) $mapping : null;
+		$want_code = strtolower( $mapping );
+
+		foreach ( $this->collect_custom_classes( $product ) as $cc ) {
+			foreach ( $cc['_custom_features'] ?? [] as $feat ) {
+				if ( ! is_array( $feat ) ) {
+					continue;
+				}
+				$feat_id   = (int) ( $feat['custom_feature_id'] ?? $feat['custom_class_feature_id'] ?? 0 );
+				$feat_code = strtolower( (string) ( $feat['custom_feature_code'] ?? '' ) );
+
+				$matches = ( null !== $want_id && 0 !== $feat_id && $feat_id === $want_id )
+					|| ( '' !== $feat_code && $feat_code === $want_code );
+				if ( ! $matches ) {
+					continue;
+				}
+				if ( ! empty( $feat['not_applicable'] ) ) {
+					continue;
+				}
+
+				$value = $this->raw_numeric_feature_value( $feat );
+				if ( null !== $value ) {
+					return $value;
+				}
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Read the bare number out of a custom feature, without unit or formatting.
+	 *
+	 * Type `N` carries it in `numeric_value`. Types `T`/`A` are free text, so their
+	 * value counts only when it is actually numeric. Everything else — logical, range,
+	 * multi-value, blob — has no single number and yields null.
+	 *
+	 * @param array<string, mixed> $feat Custom feature payload.
+	 * @return float|null Raw value, or null when the feature holds no usable number.
+	 */
+	private function raw_numeric_feature_value( array $feat ): ?float {
+		$type = (string) ( $feat['custom_feature_type'] ?? '' );
+
+		if ( 'N' === $type ) {
+			$numeric = $feat['numeric_value'] ?? null;
+			return ( null !== $numeric && '' !== $numeric && is_numeric( $numeric ) ) ? (float) $numeric : null;
+		}
+
+		if ( 'T' === $type || 'A' === $type ) {
+			$text = $feat['text_value'] ?? null;
+			return ( null !== $text && is_numeric( $text ) ) ? (float) $text : null;
+		}
+
+		return null;
+	}
+
+	/**
 	 * Get custom class features as WC product attributes.
 	 * Returns attribute-type features (A, M, L, N, R, D, I) as label => value.
 	 * Skips T, B (long text) and not_applicable features.

@@ -532,6 +532,12 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$vis_parts                             = preg_split( '/[\s,]+/', is_string( $raw_vis ) ? $raw_vis : '', -1, PREG_SPLIT_NO_EMPTY );
 		$out['custom_class_visibility_ids']    = implode( ', ', array_map( 'sanitize_text_field', array_map( 'trim', $vis_parts ) ) );
 
+		// Field mapping (FR-18). One custom feature ID or code per mapped WooCommerce field.
+		// Empty is the default and the off switch: no mapping, no read, no write.
+		$out['stock_quantity_feature'] = isset( $input['stock_quantity_feature'] ) && is_scalar( $input['stock_quantity_feature'] )
+			? sanitize_text_field( trim( (string) $input['stock_quantity_feature'] ) )
+			: '';
+
 		$out['show_gtin_attribute']             = ! empty( $input['show_gtin_attribute'] );
 		$out['show_variant_attribute']          = ! empty( $input['show_variant_attribute'] );
 		$out['sync_manufacturers']              = ! empty( $input['sync_manufacturers'] );

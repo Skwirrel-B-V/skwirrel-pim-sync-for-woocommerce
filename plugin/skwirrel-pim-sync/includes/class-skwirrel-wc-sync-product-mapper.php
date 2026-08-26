@@ -1018,6 +1018,20 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	}
 
 	/**
+	 * Get the mapped stock quantity for a product (FR-18).
+	 *
+	 * Null means the PIM has nothing to say — the caller must leave the existing
+	 * WooCommerce stock exactly as it is (NFR-9), never writing 0.
+	 *
+	 * @param array<string,mixed> $product Raw API product data.
+	 * @param string              $mapping Custom feature ID or code; empty disables the mapping.
+	 * @return float|null Stock quantity, or null when nothing resolves.
+	 */
+	public function get_stock_quantity( array $product, string $mapping ): ?float {
+		return $this->custom_class->resolve_numeric_feature_value( $product, $mapping );
+	}
+
+	/**
 	 * Resolve a human-readable label for a custom feature.
 	 *
 	 * @param array<string,mixed> $feat Custom feature data from API.

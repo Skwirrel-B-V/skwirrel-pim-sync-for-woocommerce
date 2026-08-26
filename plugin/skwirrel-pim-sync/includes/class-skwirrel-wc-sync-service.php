@@ -308,6 +308,23 @@ class Skwirrel_WC_Sync_Service {
 			$api_includes['include_custom_collection_id'] = [ (int) $custom_collection_id ];
 		}
 
+		// Field mappings (FR-18) read product-level custom classes, so they need the same includes even
+		// when both custom-class sync toggles are off — otherwise `_custom_classes` never arrives and the
+		// mapping silently never fires. Deliberately NOT wired into the hard-fail above: a typo in a
+		// field mapping must not turn into a total sync outage, so a missing collection ID warns and
+		// leaves the mapping inert.
+		if ( self::has_field_mapping( $options ) ) {
+			if ( empty( $custom_collection_id ) ) {
+				$this->logger->warning(
+					'A field mapping is configured but no custom class collection ID is set, so custom classes cannot be fetched. Field mappings are inactive this run; set the custom class collection ID under "What to sync" to activate them.',
+					[ 'stock_quantity_feature' => $options['stock_quantity_feature'] ?? '' ]
+				);
+			} else {
+				$api_includes['include_custom_classes']       = true;
+				$api_includes['include_custom_collection_id'] = [ (int) $custom_collection_id ];
+			}
+		}
+
 		// Ensure queue table exists and sweep rows left by previous (dead) runs. Safe here:
 		// begin_run only runs at a fresh start (the caller verified no fresh run holds the
 		// mutex), so anything in the table belongs to an interrupted run and is dead.
@@ -1822,6 +1839,12 @@ class Skwirrel_WC_Sync_Service {
 			$req_options['include_trade_item_custom_classes'] = true;
 			$req_options['include_custom_collection_id']      = [ (int) $custom_collection_id ];
 		}
+		// Keep the single-product resync in step with the catalogue run (FR-18), or "sync this product"
+		// from the product editor would silently not update mapped fields.
+		if ( self::has_field_mapping( $options ) && ! empty( $custom_collection_id ) ) {
+			$req_options['include_custom_classes']       = true;
+			$req_options['include_custom_collection_id'] = [ (int) $custom_collection_id ];
+		}
 
 		$this->logger->info(
 			'Single product sync: fetching product from API',
@@ -2104,6 +2127,11 @@ class Skwirrel_WC_Sync_Service {
 			$req_options['include_trade_item_custom_classes'] = true;
 			$req_options['include_custom_collection_id']      = [ (int) $custom_collection_id ];
 		}
+		// Grouped-product fetch: same FR-18 requirement as the catalogue run.
+		if ( self::has_field_mapping( $options ) && ! empty( $custom_collection_id ) ) {
+			$req_options['include_custom_classes']       = true;
+			$req_options['include_custom_collection_id'] = [ (int) $custom_collection_id ];
+		}
 
 		$this->logger->info(
 			'Single grouped product sync: fetching member products',
@@ -2361,6 +2389,24 @@ class Skwirrel_WC_Sync_Service {
 		];
 		$saved    = get_option( 'skwirrel_wc_sync_settings', [] );
 		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );
+	}
+
+	/**
+	 * Whether any FR-18 field mapping is configured.
+	 *
+	 * Field mappings resolve against product-level `_custom_classes`, so when one is set the
+	 * payload must include custom classes regardless of the two custom-class sync toggles.
+	 * Every future mapping key belongs in this list.
+	 *
+	 * @param array<string, mixed> $options Plugin settings.
+	 */
+	private static function has_field_mapping( array $options ): bool {
+		foreach ( [ 'stock_quantity_feature' ] as $key ) {
+			if ( '' !== trim( (string) ( $options[ $key ] ?? '' ) ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

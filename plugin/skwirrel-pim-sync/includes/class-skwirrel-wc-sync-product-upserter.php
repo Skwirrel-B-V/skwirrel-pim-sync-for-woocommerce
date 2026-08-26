@@ -384,6 +384,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$wc_product->set_price( '0' );
 		}
 
+		$this->apply_stock_mapping( $wc_product, $product );
+
 		$attrs = $this->mapper->get_attributes( $product );
 
 		// Merge custom class attributes (if enabled)
@@ -1832,6 +1834,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$wc_product->set_price( '0' );
 		}
 
+		$this->apply_stock_mapping( $wc_product, $product );
+
 		$wc_product->save();
 		$id = $wc_product->get_id();
 
@@ -3184,6 +3188,50 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	}
 
 	/**
+	 * Apply the FR-18 stock mapping to a simple product.
+	 *
+	 * Shared by both simple-product paths — the queued catalogue run
+	 * ({@see self::create_or_update_product()}) and the legacy single-product resync
+	 * ({@see self::upsert_product()}) — so "sync this product" from the product editor
+	 * behaves identically to a full run.
+	 *
+	 * Writes nothing at all unless a mapping is configured **and** it resolves to a
+	 * number. That is the NFR-9 promise: a missing, empty or non-numeric value leaves
+	 * `stock_quantity` and the `manage_stock` flag exactly as WooCommerce has them —
+	 * never zeroed, never flipped to unmanaged.
+	 *
+	 * `set_stock_status()` is deliberately not called: WooCommerce derives status from
+	 * the managed quantity, and forcing it here would fight `wc_update_product_stock_status()`
+	 * and the variable-parent aggregation.
+	 *
+	 * @param WC_Product          $wc_product Product being saved (caller saves).
+	 * @param array<string,mixed> $product    Raw API product.
+	 */
+	private function apply_stock_mapping( $wc_product, array $product ): void {
+		$mapping = trim( (string) ( $this->get_options()['stock_quantity_feature'] ?? '' ) );
+		if ( '' === $mapping ) {
+			// Mapping off — byte-for-byte the pre-FR-18 behaviour: no read, no write.
+			return;
+		}
+
+		$quantity = $this->mapper->get_stock_quantity( $product, $mapping );
+		if ( null === $quantity ) {
+			// The PIM has nothing to say about this product's stock. Leave WooCommerce alone.
+			$this->logger->verbose(
+				'Product has no mapped stock value, preserving existing stock',
+				[
+					'product_id' => $product['product_id'] ?? '?',
+					'mapping'    => $mapping,
+				]
+			);
+			return;
+		}
+
+		$wc_product->set_manage_stock( true );
+		$wc_product->set_stock_quantity( $quantity );
+	}
+
+	/**
 	 * Get plugin options with defaults.
 	 *
 	 * @return array Plugin settings merged with defaults.
@@ -3203,6 +3251,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'include_languages'               => [ 'nl-NL', 'nl' ],
 			'verbose_logging'                 => false,
 			'prices_managed_outside_skwirrel' => false,
+			'stock_quantity_feature'          => '',
 		];
 		$saved    = get_option( 'skwirrel_wc_sync_settings', [] );
 		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );

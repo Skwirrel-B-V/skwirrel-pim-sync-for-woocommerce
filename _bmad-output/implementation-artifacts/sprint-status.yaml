@@ -39,7 +39,7 @@
 #   Epic 1 is foundational; Epic 2 builds on it; Epics 3 & 4 parallelize after Epic 1 seeds the pause flag.
 
 generated: 2026-06-12
-last_updated: 2026-08-26  # story 5-4 ready for review
+last_updated: 2026-08-26  # story 6-1 to review
 project: Skwirrel PIM sync for WooCommerce
 project_key: NOKEY
 tracking_system: file-system
@@ -107,16 +107,16 @@ development_status:
   epic-4-retrospective: optional
 
   # ── Epic 5: A settings screen you can navigate, trust, and verify (Chapter 2 — client request) ──
-  epic-5: in-progress
+  epic-5: done
   5-1-tabbed-settings-navigation: done                   # supersedes 4-1; builds extensible tab registration | gh#44
   5-2-required-field-markers-and-inline-errors: done            # review auto-fixes complete 2026-08-26 | gh#45
   5-3-context-id: done                             # review auto-fixes complete 2026-08-26; getGroupedProducts context param still unverified against the API | gh#46
   5-4-test-connection-metrics: done  # review auto-fixes complete 2026-08-26 | gh#47
-  epic-5-retrospective: optional
+  epic-5-retrospective: done                       # retro 2026-08-26; 7 action items, 1 blocking (5.4 version/changelog)
 
   # ── Epic 6: Stock and product content from Skwirrel data (Chapter 2 — client request) ──
   epic-6: in-progress
-  6-1-stock-from-custom-class-simple: ready-for-dev  # establishes resolver + Field mapping settings group | gh#48
+  6-1-stock-from-custom-class-simple: review  # establishes resolver + Field mapping settings group | gh#48
   6-2-stock-on-variations: ready-for-dev           # lifts hardcoded set_manage_stock(false); consumes 6-1's apply_stock_mapping() | gh#49
   6-3-title-and-descriptions-from-custom-class: ready-for-dev  # gh#50
   6-5-document-link-names-language-aware: ready-for-dev  # FR-23 — added 2026-08-25 from Jeroen's mail; one-line defect at attachment-handler:262 | gh#52
