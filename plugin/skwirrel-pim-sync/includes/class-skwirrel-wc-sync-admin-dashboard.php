@@ -976,11 +976,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 * @return array<int, array<string, mixed>> Settings errors.
 	 */
 	private static function current_settings_errors(): array {
-		if ( ! function_exists( 'get_settings_errors' ) ) {
-			return array();
-		}
-
-		return get_settings_errors( self::OPTION_KEY );
+		return Skwirrel_WC_Sync_Admin_Settings::settings_errors_for_option();
 	}
 
 	/**
@@ -1060,6 +1056,119 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	}
 
 	/**
+	 * Required flag per field ID for the settings screen currently being rendered.
+	 *
+	 * @var array<string, bool>
+	 */
+	private array $required_fields = array();
+
+	/**
+	 * Validation messages per field ID for the settings screen currently being rendered.
+	 *
+	 * @var array<string, array<int, string>>
+	 */
+	private array $field_errors = array();
+
+	/**
+	 * Mark a `.skw-field` wrapper that holds a field whose validation failed.
+	 *
+	 * The attribute is the address a consumer needs to find the block — and, through its
+	 * `[data-skw-panel]` ancestor, the tab holding it. It pairs with the `errorFields` key in
+	 * `window.skwirrelPimSync`.
+	 *
+	 * @param string $field Field ID.
+	 */
+	private function render_field_wrapper_attr( string $field ): void {
+		if ( ! isset( $this->field_errors[ $field ] ) ) {
+			return;
+		}
+
+		echo ' data-skw-error-field="' . esc_attr( $field ) . '"';
+	}
+
+	/**
+	 * Render the required marker that belongs inside a field's `<label>`.
+	 *
+	 * The marker is always in the DOM and hidden with `hidden` when the field is not currently
+	 * required, so the inline script can follow the governing checkboxes without rebuilding
+	 * markup. The `*` is a literal character with a screen-reader name next to it — the state is
+	 * never carried by colour alone.
+	 *
+	 * @param string $field Field ID the marker belongs to.
+	 */
+	private function render_required_marker( string $field ): void {
+		$rules    = Skwirrel_WC_Sync_Admin_Settings::conditional_required_rules();
+		$required = ! empty( $this->required_fields[ $field ] );
+
+		echo '<span class="skw-req" data-skw-req="' . esc_attr( $field ) . '"';
+
+		if ( isset( $rules[ $field ] ) ) {
+			$names = array();
+			foreach ( $rules[ $field ] as $key ) {
+				$names[] = self::OPTION_KEY . '[' . $key . ']';
+			}
+			echo ' data-skw-req-when="' . esc_attr( implode( ' ', $names ) ) . '"';
+		}
+
+		echo $required ? '' : ' hidden';
+		echo '><span aria-hidden="true">*</span><span class="screen-reader-text">'
+			. esc_html__( 'required', 'skwirrel-pim-sync' ) . '</span></span>';
+	}
+
+	/**
+	 * Render the required/invalid attributes that belong on a field's input.
+	 *
+	 * @param string $field   Field ID.
+	 * @param string $hint_id ID of the `.skw-field-hint` describing the field, when it has one.
+	 */
+	private function render_field_state_attrs( string $field, string $hint_id = '' ): void {
+		if ( ! empty( $this->required_fields[ $field ] ) ) {
+			echo ' required aria-required="true"';
+		}
+
+		$described = array();
+		if ( isset( $this->field_errors[ $field ] ) ) {
+			echo ' aria-invalid="true"';
+			foreach ( array_keys( $this->field_errors[ $field ] ) as $index ) {
+				$described[] = $this->field_error_id( $field, $index );
+			}
+		}
+		if ( '' !== $hint_id ) {
+			$described[] = $hint_id;
+		}
+
+		if ( array() !== $described ) {
+			echo ' aria-describedby="' . esc_attr( implode( ' ', $described ) ) . '"';
+		}
+	}
+
+	/**
+	 * Render the validation message that belongs inside a field's block.
+	 *
+	 * @param string $field Field ID.
+	 */
+	private function render_field_error( string $field ): void {
+		if ( ! isset( $this->field_errors[ $field ] ) ) {
+			return;
+		}
+
+		foreach ( $this->field_errors[ $field ] as $index => $message ) {
+			echo '<p class="skw-field-error" id="' . esc_attr( $this->field_error_id( $field, $index ) ) . '" role="alert">'
+				. esc_html( $message ) . '</p>';
+		}
+	}
+
+	/**
+	 * Stable message ID for one inline error on a field.
+	 *
+	 * @param string $field Field ID.
+	 * @param int    $index Zero-based message index for the field.
+	 */
+	private function field_error_id( string $field, int $index ): string {
+		return $field . '-error' . ( 0 === $index ? '' : '-' . ( $index + 1 ) );
+	}
+
+	/**
 	 * Render the settings page (keeps existing form logic).
 	 *
 	 * The field groups are distributed over the tabs from {@see self::get_settings_tabs()}.
@@ -1096,16 +1205,26 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		$error_counts = self::count_errors_by_tab( $codes, $tabs );
 		$initial_tab  = self::first_settings_tab( $error_counts, $tabs );
 
+		$this->required_fields = Skwirrel_WC_Sync_Admin_Settings::required_fields( $opts );
+		$this->field_errors    = array();
+		$error_field_map       = Skwirrel_WC_Sync_Admin_Settings::error_field_map();
+		foreach ( $errors as $error ) {
+			$code  = isset( $error['code'] ) && is_string( $error['code'] ) ? $error['code'] : '';
+			$field = $error_field_map[ $code ] ?? '';
+			if ( '' === $field ) {
+				continue;
+			}
+			$this->field_errors[ $field ][] = isset( $error['message'] ) ? (string) $error['message'] : '';
+		}
+
 		?>
 		<div class="skw-section">
 			<h2 class="skw-section-title"><?php esc_html_e( 'Settings', 'skwirrel-pim-sync' ); ?></h2>
 			<p class="skw-section-desc"><?php esc_html_e( 'Configure your Skwirrel PIM API connection and synchronization options.', 'skwirrel-pim-sync' ); ?></p>
 
 			<?php if ( array() !== $errors ) : ?>
-				<div class="skw-notice skw-notice-error" id="skwirrel-settings-errors">
-					<?php foreach ( $errors as $error ) : ?>
-						<p><?php echo esc_html( isset( $error['message'] ) ? (string) $error['message'] : '' ); ?></p>
-					<?php endforeach; ?>
+				<div id="skwirrel-settings-errors">
+					<?php settings_errors( self::OPTION_KEY ); ?>
 				</div>
 			<?php endif; ?>
 
@@ -1204,13 +1323,14 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		?>
 		<div class="skw-fieldgroup">
 			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'API Connection', 'skwirrel-pim-sync' ); ?></h3>
-			<div class="skw-field">
-				<label for="skwirrel_subdomain" class="skw-label"><?php esc_html_e( 'Skwirrel subdomain', 'skwirrel-pim-sync' ); ?></label>
+			<div class="skw-field"<?php $this->render_field_wrapper_attr( 'skwirrel_subdomain' ); ?>>
+				<label for="skwirrel_subdomain" class="skw-label"><?php esc_html_e( 'Skwirrel subdomain', 'skwirrel-pim-sync' ); ?><?php $this->render_required_marker( 'skwirrel_subdomain' ); ?></label>
 				<div class="skw-input-affixed">
 					<span class="skw-input-prefix">https://</span>
-					<input type="text" id="skwirrel_subdomain" value="<?php echo esc_attr( $subdomain ); ?>" class="skw-input" placeholder="yourcompany" required />
+					<input type="text" id="skwirrel_subdomain" value="<?php echo esc_attr( $subdomain ); ?>" class="skw-input" placeholder="yourcompany"<?php $this->render_field_state_attrs( 'skwirrel_subdomain' ); ?> />
 					<span class="skw-input-suffix">.skwirrel.eu/jsonrpc</span>
 				</div>
+				<?php $this->render_field_error( 'skwirrel_subdomain' ); ?>
 				<input type="hidden" id="endpoint_url" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[endpoint_url]" value="<?php echo esc_attr( $full_url ); ?>" />
 			</div>
 			<input type="hidden" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[auth_type]" value="token" />
@@ -1373,10 +1493,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</div>
 			</div>
 			<div class="skw-field-row">
-				<div class="skw-field">
-					<label for="super_category_id" class="skw-label"><?php esc_html_e( 'Super category ID', 'skwirrel-pim-sync' ); ?></label>
-					<input type="number" id="super_category_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[super_category_id]" value="<?php echo esc_attr( $opts['super_category_id'] ?? '' ); ?>" class="skw-input" min="1" required placeholder="<?php esc_attr_e( 'e.g. 42', 'skwirrel-pim-sync' ); ?>" />
-					<p class="skw-field-hint">
+				<div class="skw-field"<?php $this->render_field_wrapper_attr( 'super_category_id' ); ?>>
+					<label for="super_category_id" class="skw-label"><?php esc_html_e( 'Super category ID', 'skwirrel-pim-sync' ); ?><?php $this->render_required_marker( 'super_category_id' ); ?></label>
+					<input type="number" id="super_category_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[super_category_id]" value="<?php echo esc_attr( $opts['super_category_id'] ?? '' ); ?>" class="skw-input" min="1" placeholder="<?php esc_attr_e( 'e.g. 42', 'skwirrel-pim-sync' ); ?>"<?php $this->render_field_state_attrs( 'super_category_id', 'super_category_id-hint' ); ?> />
+					<?php $this->render_field_error( 'super_category_id' ); ?>
+					<p class="skw-field-hint" id="super_category_id-hint">
 						<?php
 						printf(
 							/* translators: %s = link to Skwirrel categories page */
@@ -1386,10 +1507,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						?>
 					</p>
 				</div>
-				<div class="skw-field">
-					<label for="collection_ids" class="skw-label"><?php esc_html_e( 'Selection IDs', 'skwirrel-pim-sync' ); ?></label>
-					<input type="text" id="collection_ids" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[collection_ids]" value="<?php echo esc_attr( $opts['collection_ids'] ?? '' ); ?>" class="skw-input" required pattern="[1-9]\d*(\s*,\s*[1-9]\d*)*" title="<?php esc_attr_e( 'One or more IDs greater than 0, separated by commas', 'skwirrel-pim-sync' ); ?>" placeholder="<?php esc_attr_e( 'e.g. 123, 456', 'skwirrel-pim-sync' ); ?>" />
-					<p class="skw-field-hint">
+				<div class="skw-field"<?php $this->render_field_wrapper_attr( 'collection_ids' ); ?>>
+					<label for="collection_ids" class="skw-label"><?php esc_html_e( 'Selection IDs', 'skwirrel-pim-sync' ); ?><?php $this->render_required_marker( 'collection_ids' ); ?></label>
+					<input type="text" id="collection_ids" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[collection_ids]" value="<?php echo esc_attr( $opts['collection_ids'] ?? '' ); ?>" class="skw-input" pattern="[1-9]\d*(\s*,\s*[1-9]\d*)*" title="<?php esc_attr_e( 'One or more IDs greater than 0, separated by commas', 'skwirrel-pim-sync' ); ?>" placeholder="<?php esc_attr_e( 'e.g. 123, 456', 'skwirrel-pim-sync' ); ?>"<?php $this->render_field_state_attrs( 'collection_ids', 'collection_ids-hint' ); ?> />
+					<?php $this->render_field_error( 'collection_ids' ); ?>
+					<p class="skw-field-hint" id="collection_ids-hint">
 						<?php
 						printf(
 							/* translators: %s = link to Skwirrel selections page */
@@ -1399,10 +1521,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						?>
 					</p>
 				</div>
-				<div class="skw-field">
-					<label for="custom_collection_id" class="skw-label"><?php esc_html_e( 'Custom class collection ID (optional)', 'skwirrel-pim-sync' ); ?></label>
-					<input type="number" id="custom_collection_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[custom_collection_id]" value="<?php echo esc_attr( $opts['custom_collection_id'] ?? '' ); ?>" class="skw-input" min="1" placeholder="<?php esc_attr_e( 'e.g. 5', 'skwirrel-pim-sync' ); ?>" />
-					<p class="skw-field-hint">
+				<div class="skw-field"<?php $this->render_field_wrapper_attr( 'custom_collection_id' ); ?>>
+					<label for="custom_collection_id" class="skw-label"><?php esc_html_e( 'Custom class collection ID', 'skwirrel-pim-sync' ); ?><?php $this->render_required_marker( 'custom_collection_id' ); ?></label>
+					<input type="number" id="custom_collection_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[custom_collection_id]" value="<?php echo esc_attr( $opts['custom_collection_id'] ?? '' ); ?>" class="skw-input" min="1" placeholder="<?php esc_attr_e( 'e.g. 5', 'skwirrel-pim-sync' ); ?>"<?php $this->render_field_state_attrs( 'custom_collection_id', 'custom_collection_id-hint' ); ?> />
+					<?php $this->render_field_error( 'custom_collection_id' ); ?>
+					<p class="skw-field-hint" id="custom_collection_id-hint">
 						<?php esc_html_e( 'Only needed when syncing custom classes or grouped products.', 'skwirrel-pim-sync' ); ?>
 						<?php
 						printf(

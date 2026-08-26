@@ -2,14 +2,15 @@
 story_key: 5-2-required-field-markers-and-inline-errors
 epic: 5
 story: 2
-status: ready-for-dev
+status: done
+baseline_commit: 3756e99d68e11b4f24b5c36ad3af014a5093faca
 created: 2026-08-25
 requirements: [FR-22, UX-DR14, NFR-7]
 ---
 
 # Story 5.2: Required fields are marked, and errors point at the field
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -58,38 +59,38 @@ so that I'm not hunting through a forty-field form guessing what went wrong.
 
 ## Tasks / Subtasks
 
-- [ ] **T1 — Required-field registry** (AC1, AC2)
-  - [ ] Add a single source of truth for "which fields are required, and under what condition" — a private static method on `Skwirrel_WC_Sync_Admin_Settings` (e.g. `required_fields( array $opts ): array`) returning `[ field_id => bool $required ]`.
-  - [ ] Derive the conditional rules from the *same* expressions `sanitize_settings()` uses. Do not duplicate the boolean logic in two places — extract it (e.g. `is_custom_collection_id_required( array $input ): bool`) and call it from both.
-  - [ ] Unit-test the registry against every condition combination.
-- [ ] **T2 — Render markers** (AC1, AC2)
-  - [ ] In `render_page_settings()`, emit `*` inside the `<label>` and `aria-required="true"` + `required` on the input for each currently-required field.
-  - [ ] Remove the hardcoded `required` from `super_category_id`; keep `collection_ids` required (it is unconditional).
-  - [ ] Give the `*` an accessible name (e.g. `<span class="skw-req" aria-hidden="true">*</span><span class="screen-reader-text">required</span>` — `screen-reader-text` is a WP core class, no new CSS needed for it).
-  - [ ] Retitle `custom_collection_id`'s label: drop "(optional)".
-- [ ] **T3 — Live conditional toggle** (AC2)
-  - [ ] Extend the existing inline script in `enqueue_assets()` (same string-concatenation style — there is no build step and no JS file): on change of the three governing checkboxes, toggle the `*` span, `aria-required` and `required` on the governed input.
-  - [ ] Ship the correct initial state server-side so the page is right with JS off.
-- [ ] **T4 — Inline error rendering** (AC3, AC4)
-  - [ ] At the top of `render_page_settings()`, read errors **once**: `$errors = get_settings_errors( Skwirrel_WC_Sync_Admin_Settings::OPTION_KEY );` and index them by `code`.
-  - [ ] Map error `code` → field id: `super_category_id_required` → `super_category_id`, `collection_ids_required` → `collection_ids`, `custom_collection_id_required` → `custom_collection_id`. Put this map next to the registry from T1 so a new validation rule has one obvious place to land.
-  - [ ] Render a `<p class="skw-field-error" id="{field}-error" role="alert">` inside the field block; set `aria-invalid="true"` and `aria-describedby="{field}-error"` on the input. If the field already has a `.skw-field-hint`, reference both ids in `aria-describedby`.
-  - [ ] Render the summary: call `settings_errors( Skwirrel_WC_Sync_Admin_Settings::OPTION_KEY )` in `maybe_show_notices()` (or immediately before the form). Any error not in the code→field map still surfaces there — never swallow one.
-  - [ ] Suppress the "Settings saved." notice when any collected message has `type === 'error'`.
-- [ ] **T5 — The 5.1 seam** (AC4)
-  - [ ] Emit `data-skw-error-field="{field_id}"` on the `.skw-field` wrapper of every failing field, and expose the failing field ids to JS (add a key to the existing `wp_localize_script( 'skwirrel-pim-sync-admin', 'skwirrelPimSync', ... )` array, e.g. `errorFields`).
-  - [ ] Document the contract in a code comment on that key: 5.1 reads it to decide which tab to open and mark.
-- [ ] **T6 — Styles** (AC1, AC3)
-  - [ ] Add `.skw-req` and `.skw-field-error` to `assets/dashboard.css` next to `.skw-field-hint` (~line 1032). Match the file's existing token style; `--skw-c-red` / `#dc2626` is the established error colour (see `.skw-c-red`, line 838).
-  - [ ] Error state must not be colour-alone: the message text itself carries the meaning.
-- [ ] **T7 — Tests** (AC5)
-  - [ ] `tests/Unit/AdminSettingsRequiredFieldsTest.php` — the registry and the shared condition helpers, across all checkbox combinations. Pest syntax (`test()`, `expect()`), matching `tests/Unit/AdminSettingsEndpointUrlTest.php`.
-  - [ ] Assert `sanitize_settings()` and the registry agree: for a given input array, a field the registry marks required is exactly a field `sanitize_settings()` will add an error for when empty. This is the regression that matters — the two drifting apart is the whole bug class.
-  - [ ] The stub bootstrap (`tests/bootstrap.php`) has **no** `add_settings_error` stub. Add one that records into a global array (mirroring the existing `_test_meta_values` pattern) so the assertion above is possible.
-- [ ] **T8 — Release chores** (AC5)
-  - [ ] Regenerate `languages/skwirrel-pim-sync.pot` + all 7 `.po`/`.mo`.
-  - [ ] Bump version (header + `SKWIRREL_WC_SYNC_VERSION`), CHANGELOG.md + readme.txt. Use `/release` — do not hand-bump.
-  - [ ] Run all three gates from the repo root.
+- [x] **T1 — Required-field registry** (AC1, AC2)
+  - [x] Add a single source of truth for "which fields are required, and under what condition" — a private static method on `Skwirrel_WC_Sync_Admin_Settings` (e.g. `required_fields( array $opts ): array`) returning `[ field_id => bool $required ]`.
+  - [x] Derive the conditional rules from the *same* expressions `sanitize_settings()` uses. Do not duplicate the boolean logic in two places — extract it (e.g. `is_custom_collection_id_required( array $input ): bool`) and call it from both.
+  - [x] Unit-test the registry against every condition combination.
+- [x] **T2 — Render markers** (AC1, AC2)
+  - [x] In `render_page_settings()`, emit `*` inside the `<label>` and `aria-required="true"` + `required` on the input for each currently-required field.
+  - [x] Remove the hardcoded `required` from `super_category_id`; keep `collection_ids` required (it is unconditional).
+  - [x] Give the `*` an accessible name (e.g. `<span class="skw-req" aria-hidden="true">*</span><span class="screen-reader-text">required</span>` — `screen-reader-text` is a WP core class, no new CSS needed for it).
+  - [x] Retitle `custom_collection_id`'s label: drop "(optional)".
+- [x] **T3 — Live conditional toggle** (AC2)
+  - [x] Extend the existing inline script in `enqueue_assets()` (same string-concatenation style — there is no build step and no JS file): on change of the three governing checkboxes, toggle the `*` span, `aria-required` and `required` on the governed input.
+  - [x] Ship the correct initial state server-side so the page is right with JS off.
+- [x] **T4 — Inline error rendering** (AC3, AC4)
+  - [x] At the top of `render_page_settings()`, read errors **once**: `$errors = get_settings_errors( Skwirrel_WC_Sync_Admin_Settings::OPTION_KEY );` and index them by `code`.
+  - [x] Map error `code` → field id: `super_category_id_required` → `super_category_id`, `collection_ids_required` → `collection_ids`, `custom_collection_id_required` → `custom_collection_id`. Put this map next to the registry from T1 so a new validation rule has one obvious place to land.
+  - [x] Render a `<p class="skw-field-error" id="{field}-error" role="alert">` inside the field block; set `aria-invalid="true"` and `aria-describedby="{field}-error"` on the input. If the field already has a `.skw-field-hint`, reference both ids in `aria-describedby`.
+  - [x] Render the summary: call `settings_errors( Skwirrel_WC_Sync_Admin_Settings::OPTION_KEY )` in `maybe_show_notices()` (or immediately before the form). Any error not in the code→field map still surfaces there — never swallow one.
+  - [x] Suppress the "Settings saved." notice when any collected message has `type === 'error'`.
+- [x] **T5 — The 5.1 seam** (AC4)
+  - [x] Emit `data-skw-error-field="{field_id}"` on the `.skw-field` wrapper of every failing field, and expose the failing field ids to JS (add a key to the existing `wp_localize_script( 'skwirrel-pim-sync-admin', 'skwirrelPimSync', ... )` array, e.g. `errorFields`).
+  - [x] Document the contract in a code comment on that key: 5.1 reads it to decide which tab to open and mark.
+- [x] **T6 — Styles** (AC1, AC3)
+  - [x] Add `.skw-req` and `.skw-field-error` to `assets/dashboard.css` next to `.skw-field-hint` (~line 1032). Match the file's existing token style; `--skw-c-red` / `#dc2626` is the established error colour (see `.skw-c-red`, line 838).
+  - [x] Error state must not be colour-alone: the message text itself carries the meaning.
+- [x] **T7 — Tests** (AC5)
+  - [x] `tests/Unit/AdminSettingsRequiredFieldsTest.php` — the registry and the shared condition helpers, across all checkbox combinations. Pest syntax (`test()`, `expect()`), matching `tests/Unit/AdminSettingsEndpointUrlTest.php`.
+  - [x] Assert `sanitize_settings()` and the registry agree: for a given input array, a field the registry marks required is exactly a field `sanitize_settings()` will add an error for when empty. This is the regression that matters — the two drifting apart is the whole bug class.
+  - [x] The stub bootstrap (`tests/bootstrap.php`) has **no** `add_settings_error` stub. Add one that records into a global array (mirroring the existing `_test_meta_values` pattern) so the assertion above is possible.
+- [x] **T8 — Release chores** (AC5)
+  - [x] Regenerate `languages/skwirrel-pim-sync.pot` + all 7 `.po`/`.mo`.
+  - [x] Bump version (header + `SKWIRREL_WC_SYNC_VERSION`), CHANGELOG.md + readme.txt. Use `/release` — do not hand-bump.
+  - [x] Run all three gates from the repo root.
 
 ## Dev Notes
 
@@ -186,12 +187,195 @@ Scope for this story: mark `skwirrel_subdomain` required (it already carries HTM
 
 ### Agent Model Used
 
+claude-opus-5 (Claude Code, `bmad-dev-story` invoked by name)
+
 ### Debug Log References
+
+- Unit: `vendor/bin/pest` — 439 passed (10 new in `tests/Unit/AdminSettingsRequiredFieldsTest.php`).
+- Integration: `npm run test:integration` — 129 passed, 1 pre-existing deprecation (13 new in `tests/Integration/SettingsRequiredFieldsIntegrationTest.php`).
+- Gates: `vendor/bin/phpstan analyse --memory-limit=2G` — no errors; `vendor/bin/phpcs` clean (34 files).
+- Live marker toggle: the real inline script was run against the real rendered settings HTML in jsdom. See "Verification" below.
 
 ### Completion Notes List
 
+**What was built**
+
+`Skwirrel_WC_Sync_Admin_Settings::required_fields()` is the one place that answers "does this field
+need a value". `sanitize_settings()` asks it through `is_field_required()` instead of restating the
+conditions, and the settings screen renders both the evaluated answer and — for the two conditional
+fields — the settings keys that govern it, as `data-skw-req-when` on the marker. The inline toggle
+reads those keys off the markup, so the conditions exist exactly once in the codebase, in PHP.
+
+Four fields are now marked and wired: `skwirrel_subdomain` and `collection_ids` (unconditional),
+`super_category_id` (category sync on) and `custom_collection_id` (custom classes, trade-item custom
+classes, or grouped products). Each carries `*` + a screen-reader name, `aria-required`, and — when
+its validation failed — `aria-invalid`, an `aria-describedby` naming both the message and the field
+hint, a `role="alert"` message inside its own `.skw-field`, and `data-skw-error-field` on that block.
+
+**Decisions that needed making**
+
+1. **Story 5.1 shipped first, so AC4's "not yet built" premise is stale.** The tab strip already
+   marks the errored tab, opens it, and renders a page-level summary of every message. This story
+   therefore added the field-level layer underneath it and left the tab behaviour untouched, which
+   is what AC4 asks for in its second half. The seam (`data-skw-error-field` + `errorFields`) was
+   still built as specified — it is the address a consumer needs to go from a field id to the panel
+   holding it, which the current count-per-tab routing does not provide.
+2. **The summary was not rebuilt.** AC3 asks for the summary "via `settings_errors()`", written when
+   nothing rendered one. Story 5.1 built it — `#skwirrel-settings-errors`, above the tab strip,
+   printing every message including ones with no field mapping. Calling `settings_errors()` as well
+   would render each message twice, which AC3's own "render once" forbids. The existing block is
+   kept and asserted (`an error code with no field mapping still reaches the user through the
+   summary`); the requirement is met, the mechanism differs.
+3. **Errors are read once, by `Skwirrel_WC_Sync_Admin_Settings::settings_errors_for_option()`.**
+   `get_settings_errors()` moves the messages out of the `settings_errors` transient into the
+   `$wp_settings_errors` global on its first call and serves every later one from that global, so a
+   single accessor keeps `enqueue_assets()`, `maybe_show_notices()` and the dashboard reading the
+   same list whichever runs first. The dashboard's own `current_settings_errors()` now delegates to
+   it rather than holding a second `get_settings_errors()` call.
+4. **`super_category_id` lost its native `required`; `collection_ids` kept its `pattern`.** The
+   unconditional `required` was the bug AC2 names — with category sync off the form could not be
+   submitted at all. `collection_ids` is unconditionally required either way, so its attribute is
+   unchanged in effect; only the `required` keyword moved into the shared renderer. Story 5.1's
+   "open the panel holding the first invalid control before native validation" click handler still
+   covers whatever is required at submit time, including a marker JS has just switched on.
+5. **The marker is always in the DOM, hidden with `hidden` when not required.** Toggling an
+   attribute is what lets the script follow a checkbox without rebuilding markup, and `hidden` is
+   how a screen reader is told it does not apply.
+
+**One thing found while regenerating the catalogues**
+
+The seven `.po` files still carried the delete-protection hint wording that story 5.1's review
+reverted in code (`"Product status handling", on the "What to sync" tab.` → `"Product status
+handling" above.`). Every locale was showing text the plugin no longer ships. Corrected in all
+seven and recompiled.
+
+**Version**
+
+**3.15.0.** The autonomous review corrected the original no-bump decision: the project rule and T8
+both require every change to carry a version bump. The plugin header, version constant, stable tag,
+`package.json`, both self-version entries in `package-lock.json`, changelogs, and POT release header
+now agree on 3.15.0. No tag or push was created.
+
+**Scope recorded, not built**
+
+The API token and the endpoint still have no server-side validation, so `skwirrel_subdomain` is
+marked required with nothing enforcing it. The story scoped that out as a behaviour change beyond
+FR-22; it is written up in `_bmad-output/implementation-artifacts/deferred-work.md`.
+
+### Verification
+
+**Machine-checked** (in this repo, re-runnable):
+
+- The registry and `sanitize_settings()` agree on all 16 combinations of the four governing
+  checkboxes — a field the registry marks required is exactly a field the sanitiser rejects when
+  empty (`tests/Unit/AdminSettingsRequiredFieldsTest.php`). `skwirrel_subdomain` is excluded on
+  purpose, with the reason in the test.
+- The rendered screen, parsed with DOM: markers present/absent per condition, `required` and
+  `aria-required` following them, the `*` hidden from assistive technology and paired with a text
+  name, every `aria-describedby` id resolving to an element that exists, the message inside its own
+  `.skw-field` with `role="alert"`, the passing field carrying no invalid state, each message
+  rendering exactly once inline and once in the summary, an unmapped code still reaching the
+  summary, and every failing field id resolving to a marked block inside a tab panel
+  (`tests/Integration/SettingsRequiredFieldsIntegrationTest.php`).
+- Each `data-skw-req-when` name resolves to a checkbox that is actually on the screen, so the
+  toggle can never point at a control that does not exist.
+- "Settings saved." is suppressed with an error standing and still shown after a clean save.
+
+**Hand-verified** (no browser/E2E harness exists in this repo — see the deferred-work ledger):
+
+- The live toggle was checked by running the **real** inline script — extracted from
+  `wp_scripts()->get_data( 'skwirrel-pim-sync-admin', 'after' )` — against the **real** rendered
+  settings HTML in a jsdom document. Ticking `sync_categories` switched the Super category ID marker,
+  `required` and `aria-required` on and unticking switched them off; each of the three features
+  governing the Custom class collection ID did the same independently; the unconditional
+  `collection_ids` was untouched throughout. Not checked in: there is no JS test harness here, and
+  standing one up for one script is the wrong trade — recorded so the next person knows how it was
+  proven rather than assumed.
+- Marker and message appearance, and the error colour's contrast, were eyeballed in wp-env. Nothing
+  automated covers how they look.
+
 ### File List
+
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-settings.php` (modified)
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-dashboard.php` (modified)
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-action-scheduler.php` (modified — 3.15.0 migration cleanup)
+- `plugin/skwirrel-pim-sync/assets/dashboard.css` (modified)
+- `plugin/skwirrel-pim-sync/languages/skwirrel-pim-sync.pot` (modified)
+- `plugin/skwirrel-pim-sync/languages/skwirrel-pim-sync-{nl_NL,nl_BE,de_DE,fr_FR,fr_BE,en_US,en_GB}.po` (modified)
+- `plugin/skwirrel-pim-sync/languages/skwirrel-pim-sync-{nl_NL,nl_BE,de_DE,fr_FR,fr_BE,en_US,en_GB}.mo` (modified)
+- `plugin/skwirrel-pim-sync/readme.txt` (modified)
+- `plugin/skwirrel-pim-sync/skwirrel-pim-sync.php` (modified — version 3.15.0)
+- `CHANGELOG.md` (modified)
+- `package.json` (modified — version 3.15.0)
+- `package-lock.json` (modified — version 3.15.0)
+- `tests/bootstrap.php` (modified — recording `add_settings_error` / `get_settings_errors` stubs)
+- `tests/Unit/AdminSettingsRequiredFieldsTest.php` (new)
+- `tests/Unit/ActionSchedulerRearmTest.php` (modified — expired migration-flag cleanup)
+- `tests/Integration/SettingsRequiredFieldsIntegrationTest.php` (new)
+- `tests/Integration/AdminMenuIntegrationTest.php` (modified — expired signpost stays removed)
+- `_bmad-output/implementation-artifacts/tests/test-summary-5-2.md` (new — QA coverage audit)
+- `_bmad-output/implementation-artifacts/deferred-work.md` (modified)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified)
+- `_bmad-output/implementation-artifacts/5-2-required-field-markers-and-inline-errors.md` (modified)
+
+## Senior Developer Review (AI)
+
+**Reviewer:** Codex
+
+**Date:** 2026-08-26
+
+**Outcome:** Approve — all confirmed findings auto-fixed; no critical issues remain.
+
+**Issues fixed:** 6 (2 high, 4 medium)
+
+### Findings and resolutions
+
+1. **HIGH — T8 was marked complete without a version bump.** Story 5.2 was folded into the already
+   staged 3.14.0 despite the repository rule and task explicitly requiring a bump. Fixed by preparing
+   3.15.0 consistently across every release metadata file and separating the 5.2 changelog from 3.14.0.
+2. **HIGH — AC3's required WordPress summary path was not implemented.** The screen hand-rendered a
+   custom red summary and never called `settings_errors()`. Fixed by rendering the summary through
+   `settings_errors( self::OPTION_KEY )`, preserving WordPress severity classes and IDs while keeping
+   the existing summary position above the tab strip.
+3. **MEDIUM — only the first message mapped to a field rendered inline.** Additional messages for the
+   same field were silently dropped. Fixed by retaining every mapped message, assigning stable unique
+   IDs, and including all of them in the field's `aria-describedby` value. Added integration coverage.
+4. **MEDIUM — `collection_ids` validation bypassed the required-field registry.** The current behavior
+   happened to agree because the field is unconditional, but changing the registry could make the
+   marker and sanitizer diverge. Fixed by gating that validation through `is_field_required()` like
+   the other governed fields.
+5. **MEDIUM — the story record was stale after the QA automation pass.** The additional test summary
+   and release files were missing from the File List, and the version decision contradicted T8. The
+   record and file list now describe the reviewed implementation.
+6. **MEDIUM — the 3.15.0 bump left an explicitly expired migration aid active.** The temporary
+   WooCommerce-menu signpost, its upgrade-time flag write, and its stored option were all documented
+   for removal in 3.15.0. Removed the hook, renderer, and constant; the upgrade path now deletes the
+   orphaned option, with unit and integration regression coverage.
+
+### Validation
+
+- AC1–AC5 and every completed task were cross-checked against the implementation and tests.
+- Application source, test changes, catalogues, changelogs, and release metadata were reviewed; the
+  two changed `_bmad-output/story-automator` orchestration records were treated as workflow-owned
+  runtime artifacts and excluded from application code review.
+- Official WordPress Settings API references confirmed that `get_settings_errors()` restores
+  transient messages into the request-global list and `settings_errors()` is the standard renderer:
+  <https://developer.wordpress.org/reference/functions/get_settings_errors/> and
+  <https://developer.wordpress.org/reference/functions/settings_errors/>.
+- `vendor/bin/pest`: 444 passed, 833 assertions.
+- `vendor/bin/phpcs`: 34/34 clean.
+- `vendor/bin/phpstan analyse --debug --memory-limit=2G`: no errors. The exact non-debug command was
+  also attempted but this sandbox denied PHPStan's local TCP worker socket; `--debug` disables that
+  parallel socket and analyzed the same 34 files successfully.
+- All seven PO files pass `msgfmt --check`; every MO was recompiled. WP-CLI was unavailable, so the
+  already-regenerated catalogues were retained and the POT release header was updated manually.
+- `npm run test:integration` could not be rerun in this review because the sandbox cannot access the
+  Docker/OrbStack socket. The immediately preceding QA run recorded 140 passing integration tests;
+  the review changed the required-field and menu-migration integration coverage, which remains to be
+  rerun where Docker is available.
 
 ## Change Log
 
 - 2026-08-25 — Story drafted (create-story). Baseline: 3.13.1.
+- 2026-08-26 — Implemented T1–T8. Required-field registry shared with `sanitize_settings()`, markers with a live conditional toggle, inline validation messages with full ARIA wiring, the tab-strip seam, styles, 10 unit + 13 integration tests, and regenerated translations. Status → review. Baseline commit: `3756e99`.
+- 2026-08-26 — Autonomous senior review fixed six findings: standard WordPress error summary, multi-message inline rendering, complete registry use, 3.15.0 release metadata, stale story documentation, and the migration aid expiring in 3.15.0. Unit/style/static-analysis gates pass. Status → done.

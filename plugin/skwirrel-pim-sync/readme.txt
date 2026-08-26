@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 3.14.0
+Stable tag: 3.15.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,16 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.15.0 =
+
+* New: mandatory settings are marked with an asterisk, and fields that are only mandatory in certain configurations pick the marker up the moment you tick the setting that makes them so — no save needed to find out.
+* New: every validation message now appears next to the field it is about, as well as in the standard WordPress summary at the top, and screen readers announce it together with that field.
+* Fix: the Super category ID no longer has to be filled in before the form submits when category sync is switched off.
+* Fix: saving with a rejected value no longer shows a green "Settings saved." confirmation alongside the error.
+* Fix: the Custom class collection ID is no longer labelled "(optional)" while saving can reject it as missing.
+* Fix: restored the translated delete-protection hint to the wording the plugin actually displays.
+* Maintenance: the temporary WooCommerce-menu pointer used during the top-level-menu migration has now expired and been removed.
 
 = 3.14.0 =
 

@@ -538,6 +538,32 @@ if (!class_exists('WC_Product_Variable')) {
     }
 }
 
+// Settings errors. add_settings_error() records into $wp_settings_errors exactly as WordPress
+// does, so a test can call sanitize_settings() and read back which fields it rejected.
+if (!function_exists('add_settings_error')) {
+    function add_settings_error(string $setting, string $code, string $message, string $type = 'error'): void {
+        $GLOBALS['wp_settings_errors'][] = [
+            'setting' => $setting,
+            'code' => $code,
+            'message' => $message,
+            'type' => $type,
+        ];
+    }
+}
+
+if (!function_exists('get_settings_errors')) {
+    function get_settings_errors(string $setting = '', bool $sanitize = false): array {
+        $errors = $GLOBALS['wp_settings_errors'] ?? [];
+        if ($setting === '') {
+            return $errors;
+        }
+        return array_values(array_filter(
+            $errors,
+            static fn (array $error): bool => $error['setting'] === $setting
+        ));
+    }
+}
+
 // Load plugin classes (order matters — dependencies first).
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-logger.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-media-importer.php';

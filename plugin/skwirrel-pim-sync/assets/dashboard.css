@@ -1106,6 +1106,24 @@
 	margin: 6px 0 0;
 }
 
+/* Required marker. The asterisk is a literal character, so the state survives without colour. */
+.skw-req {
+	color: #dc2626;
+	margin-left: 2px;
+}
+
+.skw-req[hidden] {
+	display: none;
+}
+
+/* Inline validation message. The text carries the meaning; the colour only reinforces it. */
+.skw-field-error {
+	font-size: 12px;
+	font-weight: 500;
+	color: #dc2626;
+	margin: 6px 0 0;
+}
+
 .skw-field-hint a {
 	color: var(--skw-blue);
 	text-decoration: none;

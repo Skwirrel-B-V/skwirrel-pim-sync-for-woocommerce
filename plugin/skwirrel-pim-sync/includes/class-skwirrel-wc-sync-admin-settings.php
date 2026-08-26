@@ -14,19 +14,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	private const PAGE_SLUG  = 'skwirrel-pim-sync';
 	private const OPTION_KEY = 'skwirrel_wc_sync_settings';
 
-	/**
-	 * Flag option: show the temporary "Skwirrel" signpost under the WooCommerce menu.
-	 *
-	 * Set by Skwirrel_WC_Sync_Action_Scheduler::maybe_upgrade_reschedule() only when the site
-	 * upgraded from a version that still had the admin screen as a WooCommerce submenu. Fresh
-	 * installs never set it and never see the signpost.
-	 *
-	 * @deprecated The signpost is a migration aid only. Remove this constant, the option, the
-	 *             flag write in the upgrade routine and add_woocommerce_signpost() in 3.15.0.
-	 */
-	public const WC_SIGNPOST_OPTION = 'skwirrel_wc_sync_show_wc_signpost';
-	private const TOKEN_OPTION_KEY  = 'skwirrel_wc_sync_auth_token';
-	private const MASK              = '••••••••';
+	private const TOKEN_OPTION_KEY = 'skwirrel_wc_sync_auth_token';
+	private const MASK             = '••••••••';
 
 	private static ?self $instance = null;
 
@@ -70,9 +59,6 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 	private function __construct() {
 		add_action( 'admin_menu', [ $this, 'add_menu' ], 10 );
-		// Registered late so the signpost lands at the bottom of WooCommerce's own submenu
-		// (WC adds Settings at priority 50 and Status at 60).
-		add_action( 'admin_menu', [ $this, 'add_woocommerce_signpost' ], 99 );
 		add_filter( 'submenu_file', [ $this, 'highlight_active_tab' ], 10, 2 );
 		add_action( 'admin_head', [ $this, 'print_menu_icon_css' ] );
 		add_action( 'admin_init', [ $this, 'register_settings' ] );
@@ -229,26 +215,6 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	}
 
 	/**
-	 * Temporary signpost under WooCommerce for sites that upgraded from a version where this
-	 * screen lived there. A link only — no callback, so no second page is registered.
-	 *
-	 * @deprecated Remove this method (and WC_SIGNPOST_OPTION) in 3.15.0.
-	 */
-	public function add_woocommerce_signpost(): void {
-		if ( ! get_option( self::WC_SIGNPOST_OPTION, false ) ) {
-			return;
-		}
-
-		add_submenu_page(
-			'woocommerce',
-			'',
-			__( 'Skwirrel', 'skwirrel-pim-sync' ),
-			'manage_woocommerce',
-			'admin.php?page=' . self::PAGE_SLUG
-		);
-	}
-
-	/**
 	 * Light up the submenu entry matching the tab currently being viewed.
 	 *
 	 * Core sets no $submenu_file for this screen, so without this filter it falls back to
@@ -312,6 +278,90 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		wp_cache_delete( 'notoptions', 'options' );
 	}
 
+
+	/**
+	 * Field IDs that are always required, whatever else is configured.
+	 *
+	 * @return array<int, string>
+	 */
+	public static function unconditional_required_fields(): array {
+		return [ 'skwirrel_subdomain', 'collection_ids' ];
+	}
+
+	/**
+	 * Conditionally required fields: field ID => the settings keys that make it required.
+	 *
+	 * A field is required as soon as any listed key is truthy. The settings screen renders
+	 * this rule table alongside the evaluated state, so the live marker toggle reads the
+	 * conditions off the markup instead of keeping a second copy of them in JavaScript.
+	 *
+	 * @return array<string, array<int, string>>
+	 */
+	public static function conditional_required_rules(): array {
+		return [
+			'super_category_id'    => [ 'sync_categories' ],
+			'custom_collection_id' => [ 'sync_custom_classes', 'sync_trade_item_custom_classes', 'sync_grouped_products' ],
+		];
+	}
+
+	/**
+	 * Which settings fields currently need a value.
+	 *
+	 * The single source of truth behind both the `*` markers on the settings screen and the
+	 * rules {@see self::sanitize_settings()} enforces. The two answering differently is the
+	 * whole bug class this exists to prevent, so neither side may inline the conditions.
+	 *
+	 * @param array<string, mixed> $values Stored settings when rendering, raw submitted input when saving.
+	 * @return array<string, bool> Required flag keyed by field ID.
+	 */
+	public static function required_fields( array $values ): array {
+		$required = [];
+
+		foreach ( self::unconditional_required_fields() as $field ) {
+			$required[ $field ] = true;
+		}
+
+		foreach ( self::conditional_required_rules() as $field => $keys ) {
+			$required[ $field ] = false;
+			foreach ( $keys as $key ) {
+				if ( ! empty( $values[ $key ] ) ) {
+					$required[ $field ] = true;
+					break;
+				}
+			}
+		}
+
+		return $required;
+	}
+
+	/**
+	 * Whether one field needs a value for the given settings state.
+	 *
+	 * @param array<string, mixed> $values Stored settings or raw submitted input.
+	 * @param string               $field  Field ID.
+	 */
+	public static function is_field_required( array $values, string $field ): bool {
+		return ! empty( self::required_fields( $values )[ $field ] );
+	}
+
+	/**
+	 * Settings error code => the field the message belongs to.
+	 *
+	 * Keeps the inline placement of a validation message next to the rule that raises it: a
+	 * new `add_settings_error()` call adds its code here and the message lands at its field.
+	 * Codes missing from this map still reach the user through the summary at the top of the
+	 * screen, so forgetting an entry degrades placement, never visibility.
+	 *
+	 * @return array<string, string>
+	 */
+	public static function error_field_map(): array {
+		return [
+			'super_category_id_required'    => 'super_category_id',
+			'collection_ids_required'       => 'collection_ids',
+			'custom_collection_id_required' => 'custom_collection_id',
+		];
+	}
+
 	public function sanitize_settings( array $input ): array {
 		$out                 = [];
 		$out['endpoint_url'] = isset( $input['endpoint_url'] ) ? esc_url_raw( self::normalize_endpoint_url( (string) $input['endpoint_url'] ) ) : '';
@@ -336,7 +386,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out['batch_size']        = isset( $input['batch_size'] ) ? max( 1, min( 100, (int) $input['batch_size'] ) ) : 10;
 		$out['sync_categories']   = ! empty( $input['sync_categories'] );
 		$out['super_category_id'] = isset( $input['super_category_id'] ) ? sanitize_text_field( trim( $input['super_category_id'] ) ) : '';
-		if ( $out['sync_categories'] && ( '' === $out['super_category_id'] || 0 >= (int) $out['super_category_id'] ) ) {
+		if ( self::is_field_required( $input, 'super_category_id' ) && ( '' === $out['super_category_id'] || 0 >= (int) $out['super_category_id'] ) ) {
 			add_settings_error(
 				self::OPTION_KEY,
 				'super_category_id_required',
@@ -392,7 +442,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			static fn ( int $v ): bool => $v > 0
 		);
 		$out['collection_ids'] = implode( ', ', $collection_valid );
-		if ( empty( $collection_valid ) ) {
+		if ( self::is_field_required( $input, 'collection_ids' ) && empty( $collection_valid ) ) {
 			add_settings_error(
 				self::OPTION_KEY,
 				'collection_ids_required',
@@ -403,8 +453,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out['custom_collection_id'] = isset( $input['custom_collection_id'] ) ? sanitize_text_field( trim( $input['custom_collection_id'] ) ) : '';
 		// Only required when a feature that actually uses it is enabled: custom classes,
 		// trade-item custom classes, or grouped products (which may use custom variation axes).
-		$cc_id_required = ! empty( $input['sync_custom_classes'] ) || ! empty( $input['sync_trade_item_custom_classes'] ) || ! empty( $input['sync_grouped_products'] );
-		if ( $cc_id_required && ( '' === $out['custom_collection_id'] || 0 >= (int) $out['custom_collection_id'] ) ) {
+		// The condition lives in the required-field registry so the marker on the settings
+		// screen and this check can never disagree.
+		if ( self::is_field_required( $input, 'custom_collection_id' ) && ( '' === $out['custom_collection_id'] || 0 >= (int) $out['custom_collection_id'] ) ) {
 			add_settings_error(
 				self::OPTION_KEY,
 				'custom_collection_id_required',
@@ -1475,6 +1526,14 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'refreshStatusesLabel'   => __( 'Fetching…', 'skwirrel-pim-sync' ),
 				'refreshStatusesError'   => __( 'Could not refresh statuses.', 'skwirrel-pim-sync' ),
 				'refreshStatusesUnsaved' => __( 'Statuses updated. Save your changes to see the new rows — the page was not reloaded because this form has unsaved edits.', 'skwirrel-pim-sync' ),
+				/*
+				 * Contract with the settings tab strip: the IDs of the fields whose validation
+				 * failed on this request, in reported order. Each one also carries
+				 * `data-skw-error-field="{id}"` on its `.skw-field` wrapper, so a consumer can go
+				 * from an ID to the field block, and from there to the `[data-skw-panel]` holding
+				 * it, without knowing which tab any field lives on. Empty on a clean render.
+				 */
+				'errorFields'            => self::failing_field_ids(),
 			]
 		);
 
@@ -1615,6 +1674,43 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. ' });'
 			// The Stop-sync button is wired by the global status poller (event delegation), so it keeps
 			// working after the banner re-renders and on every admin page.
+			. '})();'
+		);
+
+		// Required-field markers that follow their condition live. The server renders the correct
+		// initial state, so with this script absent the markers are still right — they just stop
+		// reacting until the next save. Each marker carries the settings keys that govern it
+		// (`data-skw-req-when`), so the conditions are never restated here.
+		wp_add_inline_script(
+			'skwirrel-pim-sync-admin',
+			'(function() {'
+			. ' var markers = document.querySelectorAll("[data-skw-req][data-skw-req-when]");'
+			. ' if (!markers.length) return;'
+			. ' var watched = [];'
+			. ' function apply(marker) {'
+			. '  var keys = (marker.getAttribute("data-skw-req-when") || "").split(" ").filter(Boolean);'
+			. '  var required = keys.some(function(name) {'
+			. '   var box = document.querySelector(\'input[type=checkbox][name="\' + name + \'"]\');'
+			. '   return !!(box && box.checked);'
+			. '  });'
+			. '  if (required) { marker.removeAttribute("hidden"); } else { marker.setAttribute("hidden", "hidden"); }'
+			. '  var input = document.getElementById(marker.getAttribute("data-skw-req"));'
+			. '  if (!input) return;'
+			. '  if (required) { input.setAttribute("required", "required"); input.setAttribute("aria-required", "true"); }'
+			. '  else { input.removeAttribute("required"); input.removeAttribute("aria-required"); }'
+			. ' }'
+			. ' Array.prototype.forEach.call(markers, function(marker) {'
+			. '  var keys = (marker.getAttribute("data-skw-req-when") || "").split(" ").filter(Boolean);'
+			. '  keys.forEach(function(name) {'
+			. '   var box = document.querySelector(\'input[type=checkbox][name="\' + name + \'"]\');'
+			. '   if (box && watched.indexOf(box) === -1) {'
+			. '    watched.push(box);'
+			. '    box.addEventListener("change", function() {'
+			. '     Array.prototype.forEach.call(markers, apply);'
+			. '    });'
+			. '   }'
+			. '  });'
+			. ' });'
 			. '})();'
 		);
 
@@ -1950,10 +2046,64 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$dashboard->render( $active_view );
 	}
 
+	/**
+	 * Settings errors recorded for this plugin's option on the current request.
+	 *
+	 * Read through `get_settings_errors()`, which moves the messages out of the
+	 * `settings_errors` transient into the `$wp_settings_errors` global on its first call and
+	 * serves every later call from that global — so every reader on this request sees the same
+	 * list, whichever one runs first.
+	 *
+	 * @return array<int, array<string, mixed>> Settings errors.
+	 */
+	public static function settings_errors_for_option(): array {
+		if ( ! function_exists( 'get_settings_errors' ) ) {
+			return [];
+		}
+
+		return get_settings_errors( self::OPTION_KEY );
+	}
+
+	/**
+	 * Whether the current request carries at least one error-severity settings message.
+	 */
+	public static function has_settings_error(): bool {
+		foreach ( self::settings_errors_for_option() as $error ) {
+			if ( 'error' === ( $error['type'] ?? '' ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Field IDs whose validation failed on the current request, in the order reported.
+	 *
+	 * @return array<int, string>
+	 */
+	public static function failing_field_ids(): array {
+		$map    = self::error_field_map();
+		$fields = [];
+
+		foreach ( self::settings_errors_for_option() as $error ) {
+			$code  = isset( $error['code'] ) && is_string( $error['code'] ) ? $error['code'] : '';
+			$field = $map[ $code ] ?? '';
+			if ( '' !== $field && ! in_array( $field, $fields, true ) ) {
+				$fields[] = $field;
+			}
+		}
+
+		return $fields;
+	}
+
 	private function maybe_show_notices(): void {
-		// "Settings saved" after WordPress redirects back from options.php.
+		// "Settings saved" after WordPress redirects back from options.php — suppressed when the
+		// save produced a validation error, because a green confirmation over a value the
+		// sanitiser rejected is worse than no feedback at all. The messages themselves are shown
+		// as a summary above the tab strip and inline at their field by the settings screen.
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter set by WP core
-		if ( isset( $_GET['settings-updated'] ) && 'true' === $_GET['settings-updated'] ) {
+		if ( isset( $_GET['settings-updated'] ) && 'true' === $_GET['settings-updated'] && ! self::has_settings_error() ) {
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Settings saved.', 'skwirrel-pim-sync' ) . '</p></div>';
 		}
 

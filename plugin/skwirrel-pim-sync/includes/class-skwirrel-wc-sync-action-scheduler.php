@@ -110,19 +110,14 @@ class Skwirrel_WC_Sync_Action_Scheduler {
 		if ( $stored !== $current && '' !== $current ) {
 			$this->schedule();
 			update_option( self::VERSION_OPTION, $current, false );
+			// The one-release WooCommerce-menu signpost expired in 3.15.0. Remove its
+			// orphaned migration flag while this upgrade path is already running.
+			delete_option( 'skwirrel_wc_sync_show_wc_signpost' );
 			// Only an upgrade from a known prior version is a real "upgrade".
 			// The first time we stamp the version ($stored === ''), activation
 			// already armed the schedule — re-arming is harmless but it is not
 			// an upgrade, so don't emit a misleading log line.
 			if ( '' !== $stored ) {
-				// The admin screen moved from a WooCommerce submenu to its own top-level menu.
-				// Only upgraded sites get the temporary signpost under WooCommerce; a fresh
-				// install ($stored === '') never had it there and never needs the pointer.
-				// @deprecated Remove this flag write together with the signpost in 3.15.0.
-				if ( class_exists( 'Skwirrel_WC_Sync_Admin_Settings' ) ) {
-					update_option( Skwirrel_WC_Sync_Admin_Settings::WC_SIGNPOST_OPTION, true, false );
-				}
-
 				( new Skwirrel_WC_Sync_Logger() )->info(
 					'Plugin upgraded — recurring sync schedule re-armed.',
 					[

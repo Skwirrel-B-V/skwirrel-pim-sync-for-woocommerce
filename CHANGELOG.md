@@ -2,6 +2,24 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.15.0]
+
+### Added — required fields are marked, and errors point at the field (story 5.2)
+
+* **Every mandatory field carries a `*` and `aria-required="true"`.** The three fields that already had a bare HTML5 `required` attribute (`skwirrel_subdomain`, `super_category_id`, `collection_ids`) are now part of the same treatment instead of being inconsistently marked. The `*` is a literal character paired with a screen-reader name, never colour alone.
+* **A conditional requirement is marked exactly when it applies, and follows the checkbox live.** Ticking "Sync categories" marks Super category ID immediately; ticking any of custom classes, trade-item custom classes or grouped products marks the Custom class collection ID. The server renders the correct initial state, so the markers are right with JavaScript off — they just stop reacting until the next save.
+* **Validation messages render at their field.** Every message sits inside the field's own block with `role="alert"`, and the input carries `aria-invalid="true"` plus an `aria-describedby` pointing at every message and the field hint, so a screen reader announces each failure together with the field it belongs to. The standard WordPress summary above the tab strip keeps showing every message, including ones with no field mapping — a missing mapping degrades placement, never visibility.
+* **One source of truth for what is required.** `Skwirrel_WC_Sync_Admin_Settings::required_fields()` answers both the markers on the screen and the rules `sanitize_settings()` enforces, and a unit test asserts the two agree across every combination of the four governing checkboxes. The two drifting apart is what makes a form lie about what it will accept.
+* **A seam for the tab strip.** Every failing field's block carries `data-skw-error-field="{id}"` and the ids are exposed as `errorFields` on `window.skwirrelPimSync`, so a consumer can go from an id to the block and from there to the panel holding it without knowing which tab any field lives on.
+
+### Fixed
+
+* **`super_category_id` no longer blocks the whole form while category sync is off.** It carried an unconditional HTML5 `required`, so a store owner who does not sync categories could not submit the settings at all.
+* **"Settings saved." is suppressed when the save produced a validation error.** A green confirmation over a value the sanitiser rejected is worse than no feedback.
+* **The Custom class collection ID no longer reads "(optional)"** while `sanitize_settings()` may reject it as missing.
+* Restored the translations of the delete-protection hint to the source text 3.15.0 actually ships ("… \"Product status handling\" above."); the catalogues still carried the wording that was reverted during the story 5.1 review.
+* Removed the temporary WooCommerce-menu signpost and its stored migration flag on upgrade, as scheduled for 3.15.0 when the top-level Skwirrel menu shipped.
+
 ## [3.14.0]
 
 ### Added — the settings screen is grouped into four tabs (story 5.1)
