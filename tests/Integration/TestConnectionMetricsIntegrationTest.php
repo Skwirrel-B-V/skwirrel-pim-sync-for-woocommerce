@@ -536,3 +536,204 @@ test( 'a successful legacy result renders as a success notice', function (): voi
 	expect( $html )->toContain( 'Products: 4,821' );
 	expect( $html )->not->toContain( 'notice-warning' );
 } );
+
+/*
+ * ---------------------------------------------------------------------------
+ * AC 5 (denied paths) — the guards on `handle_test_connection_ajax()`
+ * ---------------------------------------------------------------------------
+ *
+ * Every test above hands the handler a valid nonce and an administrator, so the two guards it
+ * opens with have never been exercised:
+ *
+ *     check_ajax_referer( 'skwirrel_test_connection_nonce', '_nonce' );
+ *     if ( ! current_user_can( 'manage_woocommerce' ) ) { … 403 … }
+ *
+ * What they protect is larger than the settings write. `endpoint_url` is read straight from
+ * `$_POST`, autosaved, and then *requested* — so without these guards a POST from an unprivileged
+ * or unauthenticated caller would both overwrite the stored connection and make the site issue a
+ * server-side HTTP request to a URL of the caller's choosing. Each test below therefore asserts all
+ * three properties: the request is refused, nothing is written, and nothing leaves the server.
+ */
+
+/**
+ * Call the AJAX handler with a POST body given verbatim — no nonce is injected.
+ *
+ * Deliberately not built on `skwMetricsCallAjax()`, which always supplies a fresh valid nonce:
+ * these tests need the nonce to be absent, forged, or minted for a *different* user.
+ *
+ * @param array<string, string> $post The exact `$_POST` to present.
+ * @return array{raw: string, json: array<string, mixed>, halted: bool}
+ */
+function skwMetricsCallAjaxVerbatim( array $post ): array {
+	$_POST    = $post;
+	$_REQUEST = $post;
+
+	$doing_ajax_filter = static fn (): bool => true;
+	$ajax_die_filter   = static function () {
+		return function ( $message = '', $title = '', $args = array() ): void {
+			throw new Skw_Metrics_Ajax_Halt( (string) $message );
+		};
+	};
+
+	add_filter( 'wp_doing_ajax', $doing_ajax_filter );
+	add_filter( 'wp_die_ajax_handler', $ajax_die_filter );
+
+	$halted = false;
+	ob_start();
+	try {
+		Skwirrel_WC_Sync_Admin_Settings::instance()->handle_test_connection_ajax();
+	} catch ( Skw_Metrics_Ajax_Halt $halt ) {
+		$halted = true;
+		unset( $halt );
+	} finally {
+		$raw = (string) ob_get_clean();
+		remove_filter( 'wp_doing_ajax', $doing_ajax_filter );
+		remove_filter( 'wp_die_ajax_handler', $ajax_die_filter );
+		$_POST    = array();
+		$_REQUEST = array();
+	}
+
+	$decoded = json_decode( $raw, true );
+
+	return array(
+		'raw'    => $raw,
+		'json'   => is_array( $decoded ) ? $decoded : array(),
+		'halted' => $halted,
+	);
+}
+
+/**
+ * Intercept *every* outbound HTTP request, record its URL, and block it.
+ *
+ * Broader than `skwMetricsStubTransport()`, which only answers one host. A denied request must
+ * reach no host at all, so this records anything the handler tries and returns a WP_Error rather
+ * than letting a real request escape the test process.
+ *
+ * @return callable A remover to call once the assertion is done.
+ */
+function skwMetricsBlockAllRequests(): callable {
+	$GLOBALS['__skw_metrics_blocked'] = array();
+
+	$filter = static function ( $pre, $args, $url ) {
+		$GLOBALS['__skw_metrics_blocked'][] = (string) $url;
+
+		return new WP_Error( 'skw_test_blocked', 'Blocked by the test harness.' );
+	};
+
+	add_filter( 'pre_http_request', $filter, 1, 3 );
+
+	return static function () use ( $filter ): void {
+		remove_filter( 'pre_http_request', $filter, 1 );
+	};
+}
+
+/**
+ * The connection state a denied request must leave exactly as it found it.
+ *
+ * @return array<string, mixed>
+ */
+function skwMetricsConnectionState(): array {
+	return array(
+		'settings' => get_option( 'skwirrel_wc_sync_settings' ),
+		'token'    => get_option( 'skwirrel_wc_sync_auth_token' ),
+	);
+}
+
+test( 'a request carrying no nonce at all is refused, writes nothing and calls nothing', function (): void {
+	$unblock = skwMetricsBlockAllRequests();
+	$before  = skwMetricsConnectionState();
+
+	// No `_nonce` key whatsoever — the shape an off-site form post would have.
+	$response = skwMetricsCallAjaxVerbatim(
+		array(
+			'endpoint_url' => 'https://attacker.example/jsonrpc',
+			'auth_token'   => 'attacker-supplied',
+		)
+	);
+
+	$unblock();
+
+	expect( $response['halted'] )->toBeTrue();
+	expect( $response['json']['success'] ?? null )->not->toBeTrue();
+	expect( skwMetricsConnectionState() )->toBe( $before );
+	expect( $GLOBALS['__skw_metrics_blocked'] )->toBe( array() );
+} );
+
+test( 'a request carrying a forged nonce is refused, writes nothing and calls nothing', function (): void {
+	$unblock = skwMetricsBlockAllRequests();
+	$before  = skwMetricsConnectionState();
+
+	$response = skwMetricsCallAjaxVerbatim(
+		array(
+			'_nonce'       => 'not-a-real-nonce',
+			'endpoint_url' => 'https://attacker.example/jsonrpc',
+			'auth_token'   => 'attacker-supplied',
+		)
+	);
+
+	$unblock();
+
+	expect( $response['halted'] )->toBeTrue();
+	expect( $response['json']['success'] ?? null )->not->toBeTrue();
+	expect( skwMetricsConnectionState() )->toBe( $before );
+	expect( $GLOBALS['__skw_metrics_blocked'] )->toBe( array() );
+} );
+
+test( 'a signed-in subscriber holding a valid nonce is refused with 403', function (): void {
+	$subscriber = wp_insert_user(
+		array(
+			'user_login' => 'skw_metrics_subscriber',
+			'user_pass'  => wp_generate_password(),
+			'role'       => 'subscriber',
+		)
+	);
+	$subscriber_id = is_wp_error( $subscriber ) ? 0 : (int) $subscriber;
+	expect( $subscriber_id )->toBeGreaterThan( 0 );
+
+	// Become the subscriber *before* minting the nonce: a nonce is per-user, so one created as the
+	// administrator would fail `check_ajax_referer()` first and this would silently re-test the
+	// nonce guard instead of the capability guard it is named for.
+	wp_set_current_user( $subscriber_id );
+	expect( current_user_can( 'manage_woocommerce' ) )->toBeFalse();
+
+	$unblock = skwMetricsBlockAllRequests();
+	$before  = skwMetricsConnectionState();
+
+	$response = skwMetricsCallAjaxVerbatim(
+		array(
+			'_nonce'       => wp_create_nonce( 'skwirrel_test_connection_nonce' ),
+			'endpoint_url' => 'https://attacker.example/jsonrpc',
+			'auth_token'   => 'attacker-supplied',
+		)
+	);
+
+	$unblock();
+	wp_set_current_user( $this->admin_id );
+	wp_delete_user( $subscriber_id );
+
+	expect( $response['halted'] )->toBeTrue();
+	expect( $response['json']['success'] ?? null )->toBeFalse();
+	expect( $response['json']['data']['message'] ?? '' )->toBe( 'Access denied.' );
+	expect( skwMetricsConnectionState() )->toBe( $before );
+	expect( $GLOBALS['__skw_metrics_blocked'] )->toBe( array() );
+} );
+
+test( 'a refused request never becomes a server-side request to the URL it supplied', function (): void {
+	$unblock = skwMetricsBlockAllRequests();
+
+	skwMetricsCallAjaxVerbatim(
+		array(
+			'_nonce'       => 'not-a-real-nonce',
+			'endpoint_url' => 'https://ssrf-target.example/internal',
+			'auth_token'   => '',
+		)
+	);
+
+	$unblock();
+
+	// The endpoint is attacker-controlled POST data that the handler autosaves and then requests.
+	// Neither may happen for a caller that failed the guards.
+	expect( $GLOBALS['__skw_metrics_blocked'] )->toBe( array() );
+	expect( get_option( 'skwirrel_wc_sync_settings' )['endpoint_url'] ?? '' )
+		->toBe( 'https://metrics.skwirrel.example/jsonrpc' );
+} );

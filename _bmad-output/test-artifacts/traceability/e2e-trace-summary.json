@@ -1,0 +1,287 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-26",
+  "scope": "epic-5",
+  "scope_title": "A settings screen you can navigate, trust, and verify",
+  "gate": {
+    "eligible": true,
+    "collection_status": "COLLECTED",
+    "decision": "CONCERNS",
+    "rationale": "P0 coverage is 100% and overall coverage is 91% (minimum: 80%), but P1 coverage is 86% (target: 90%).",
+    "criteria": {
+      "p0_coverage_required": "100%",
+      "p0_coverage_actual": "100%",
+      "p0_status": "MET",
+      "p1_coverage_target": "90%",
+      "p1_coverage_minimum": "80%",
+      "p1_coverage_actual": "86%",
+      "p1_status": "PARTIAL",
+      "overall_coverage_minimum": "80%",
+      "overall_coverage_actual": "91%",
+      "overall_status": "MET"
+    },
+    "freshness": {
+      "traced_at_commit": "c0d8c65",
+      "decision_unchanged": true,
+      "note": "Auth/authz gap closed after the run; heuristic finding only, so P0/P1/overall are unchanged. Epic 6 is untraced."
+    }
+  },
+  "oracle": {
+    "coverage_basis": "acceptance_criteria",
+    "resolution_mode": "formal_requirements",
+    "confidence": "high",
+    "synthetic": false,
+    "external_pointer_status": "not_used",
+    "sources": [
+      "_bmad-output/planning-artifacts/epics.md#epic-5",
+      "_bmad-output/implementation-artifacts/5-1-tabbed-settings-navigation.md",
+      "_bmad-output/implementation-artifacts/5-2-required-field-markers-and-inline-errors.md",
+      "_bmad-output/implementation-artifacts/5-3-context-id.md",
+      "_bmad-output/implementation-artifacts/5-4-test-connection-metrics.md"
+    ]
+  },
+  "coverage_statistics": {
+    "total_requirements": 22,
+    "fully_covered": 20,
+    "partially_covered": 2,
+    "uncovered": 0,
+    "overall_coverage_percentage": 91,
+    "priority_breakdown": {
+      "P0": {
+        "total": 5,
+        "covered": 5,
+        "percentage": 100
+      },
+      "P1": {
+        "total": 14,
+        "covered": 12,
+        "percentage": 86
+      },
+      "P2": {
+        "total": 3,
+        "covered": 3,
+        "percentage": 100
+      },
+      "P3": {
+        "total": 0,
+        "covered": 0,
+        "percentage": 100
+      }
+    }
+  },
+  "test_inventory": {
+    "summary": {
+      "files": 8,
+      "cases": 141,
+      "skipped_cases": 0,
+      "fixme_cases": 0,
+      "pending_cases": 0
+    },
+    "by_level": {
+      "unit": {
+        "tests": 87,
+        "criteria_covered": 17
+      },
+      "api": {
+        "tests": 0,
+        "criteria_covered": 0
+      },
+      "component": {
+        "tests": 0,
+        "criteria_covered": 0
+      },
+      "e2e": {
+        "tests": 0,
+        "criteria_covered": 0
+      },
+      "other": {
+        "tests": 54,
+        "criteria_covered": 20
+      }
+    },
+    "suite_runs": {
+      "unit": {
+        "command": "vendor/bin/pest",
+        "passed": 536,
+        "assertions": 1150,
+        "failed": 0
+      },
+      "integration": {
+        "command": "npm run test:integration",
+        "passed": 179,
+        "assertions": 1610,
+        "failed": 0
+      }
+    }
+  },
+  "requirements": [
+    {
+      "id": "5.1-AC1",
+      "priority": "P1",
+      "status": "FULL",
+      "title": "Four tabs; every field in exactly one; eight groups re-home per map"
+    },
+    {
+      "id": "5.1-AC2",
+      "priority": "P0",
+      "status": "FULL",
+      "title": "Single-request save; inactive tabs in DOM; other tabs unchanged"
+    },
+    {
+      "id": "5.1-AC3",
+      "priority": "P1",
+      "status": "FULL",
+      "title": "Errored tabs marked (not colour alone); first errored tab opens"
+    },
+    {
+      "id": "5.1-AC4",
+      "priority": "P1",
+      "status": "PARTIAL",
+      "title": "#tab-{slug} deep link; no collision with page-level ?tab="
+    },
+    {
+      "id": "5.1-AC5",
+      "priority": "P1",
+      "status": "FULL",
+      "title": "No-JS degradation; no field unreachable"
+    },
+    {
+      "id": "5.1-AC6",
+      "priority": "P1",
+      "status": "PARTIAL",
+      "title": "Keyboard operability, visible focus ring, ARIA tab/panel relationship"
+    },
+    {
+      "id": "5.1-AC7",
+      "priority": "P2",
+      "status": "FULL",
+      "title": "Tab registration extensible without markup changes"
+    },
+    {
+      "id": "5.2-AC1",
+      "priority": "P1",
+      "status": "FULL",
+      "title": "Unconditional required markers + aria-required; HTML5 fields harmonised"
+    },
+    {
+      "id": "5.2-AC2",
+      "priority": "P1",
+      "status": "FULL",
+      "title": "Conditional markers match sanitize_settings() exactly"
+    },
+    {
+      "id": "5.2-AC3",
+      "priority": "P1",
+      "status": "FULL",
+      "title": "Errors adjacent to field + summary; programmatically associated"
+    },
+    {
+      "id": "5.2-AC4",
+      "priority": "P1",
+      "status": "FULL",
+      "title": "Failing field on collapsed tab opens and marks that tab"
+    },
+    {
+      "id": "5.2-AC5",
+      "priority": "P2",
+      "status": "FULL",
+      "title": "New strings translatable under skwirrel-pim-sync"
+    },
+    {
+      "id": "5.3-AC1",
+      "priority": "P1",
+      "status": "FULL",
+      "title": "Optional Context ID field on Connection tab with placeholder and help text"
+    },
+    {
+      "id": "5.3-AC2",
+      "priority": "P0",
+      "status": "FULL",
+      "title": "Context sent on getProducts, getProductsByFilter and getGroupedProducts"
+    },
+    {
+      "id": "5.3-AC3",
+      "priority": "P0",
+      "status": "FULL",
+      "title": "Empty context omits the parameter; existing installs unchanged"
+    },
+    {
+      "id": "5.3-AC4",
+      "priority": "P0",
+      "status": "FULL",
+      "title": "Changed context sets force-full-sync and tells the admin"
+    },
+    {
+      "id": "5.3-AC5",
+      "priority": "P1",
+      "status": "FULL",
+      "title": "Non-numeric/negative rejected with an inline error"
+    },
+    {
+      "id": "5.4-AC1",
+      "priority": "P1",
+      "status": "FULL",
+      "title": "Success reports round-trip, status and total products"
+    },
+    {
+      "id": "5.4-AC2",
+      "priority": "P1",
+      "status": "FULL",
+      "title": "Zero products reported as a warning, not a success"
+    },
+    {
+      "id": "5.4-AC3",
+      "priority": "P1",
+      "status": "FULL",
+      "title": "Failure still reports round-trip and status"
+    },
+    {
+      "id": "5.4-AC4",
+      "priority": "P0",
+      "status": "FULL",
+      "title": "No extra writes; auth token never in output (NFR-4)"
+    },
+    {
+      "id": "5.4-AC5",
+      "priority": "P2",
+      "status": "FULL",
+      "title": "Tabular figures; new strings translatable"
+    }
+  ],
+  "gaps": [
+    {
+      "id": "5.1-AC4",
+      "priority": "P1",
+      "type": "assertion_depth",
+      "summary": "Fragment deep link asserted as a source substring only; no test drives a page load with #tab-{slug}."
+    },
+    {
+      "id": "5.1-AC6",
+      "priority": "P1",
+      "type": "assertion_depth",
+      "summary": "Keyboard operation asserted as the string 'ArrowRight' in JS source; focus ring as a CSS selector's presence."
+    },
+    {
+      "id": "HEUR-AUTHZ-01",
+      "priority": "P0",
+      "type": "auth_authz_negative_path",
+      "summary": "CLOSED 2026-08-26. Was: handle_test_connection_ajax() had no denied-path test. Four integration tests added (absent nonce, forged nonce, subscriber with valid nonce, SSRF pin); each asserts refusal, unchanged connection state, and no outbound HTTP request. Does not affect the gate percentages - this was a heuristic finding, not an acceptance criterion.",
+      "location": "plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-settings.php:889",
+      "status": "closed",
+      "closed_date": "2026-08-26"
+    },
+    {
+      "id": "HEUR-CONTRACT-01",
+      "priority": "P0",
+      "type": "endpoint_contract",
+      "summary": "Context ID parameter name (include_contexts) pinned against mocks only; epics.md BLOCKED-UNTIL-CONFIRMED never cleared and sprint-status.yaml still records it as unverified.",
+      "location": "_bmad-output/implementation-artifacts/sprint-status.yaml:113"
+    }
+  ],
+  "recommendations": [
+    "Confirm the Context ID API parameter name against the Skwirrel JSON-RPC docs and clear the marker in sprint-status.yaml, or add a recorded-response contract test.",
+    "DONE 2026-08-26 - four denied-path tests added for handle_test_connection_ajax(), covering nonce and capability guards plus the SSRF vector on the POST-supplied endpoint_url.",
+    "Record the JS/CSS source-assertion ceiling for 5.1-AC4 and 5.1-AC6 as an accepted limitation, or extract the tab controller so those branches become unit-testable."
+  ],
+  "scope_note": "Epic 5 only, traced at commit c0d8c65. Epic 6 (stories 6.1-6.4) landed on this branch afterwards and is NOT covered by this gate."
+}
