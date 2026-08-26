@@ -107,6 +107,18 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 */
 	private array $refreshed_statuses = [];
 
+	/**
+	 * Content field mappings (FR-19), injected per run by {@see self::set_content_mapping()}.
+	 * Empty means the mapping is off and the getter's existing source chain is used unchanged.
+	 */
+	private string $title_feature_ref = '';
+
+	/** @see self::$title_feature_ref */
+	private string $short_description_feature_ref = '';
+
+	/** @see self::$title_feature_ref */
+	private string $long_description_feature_ref = '';
+
 	public function __construct() {
 		$this->logger         = new Skwirrel_WC_Sync_Logger();
 		$this->image_language = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
@@ -160,6 +172,10 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 * Get product name. Prefer product_erp_description, then translations.
 	 */
 	public function get_name( array $product ): string {
+		$mapped = $this->mapped_content( $product, $this->title_feature_ref );
+		if ( '' !== $mapped ) {
+			return $mapped;
+		}
 		$erp = $product['product_erp_description'] ?? '';
 		if ( ! empty( $erp ) ) {
 			return $erp;
@@ -176,6 +192,10 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 * Get short description.
 	 */
 	public function get_short_description( array $product ): string {
+		$mapped = $this->mapped_content( $product, $this->short_description_feature_ref );
+		if ( '' !== $mapped ) {
+			return $mapped;
+		}
 		$translations = $product['_product_translations'] ?? [];
 		if ( empty( $translations ) ) {
 			return '';
@@ -188,12 +208,56 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 * Get long description.
 	 */
 	public function get_long_description( array $product ): string {
+		$mapped = $this->mapped_content( $product, $this->long_description_feature_ref );
+		if ( '' !== $mapped ) {
+			// Markup in authored copy survives; unsafe markup does not (FR-19). Title and short
+			// description are deliberately left alone — over-sanitising a title would strip
+			// legitimate entities.
+			return wp_kses_post( $mapped );
+		}
 		$translations = $product['_product_translations'] ?? [];
 		if ( empty( $translations ) ) {
 			return '';
 		}
 		$t = $this->pick_translation( $translations );
 		return $t['product_long_description'] ?? $t['product_marketing_text'] ?? $t['product_web_text'] ?? '';
+	}
+
+	/**
+	 * Resolve one configured content mapping, or '' when it is unconfigured or resolves nothing.
+	 *
+	 * Returning '' rather than short-circuiting is what makes NFR-9 hold: the getter falls through
+	 * to its existing source chain, so a configured-but-unresolved mapping can never make the
+	 * outcome worse than it is today.
+	 *
+	 * @param array<string, mixed> $product Raw API product.
+	 * @param string               $ref     Configured feature ID or code.
+	 */
+	private function mapped_content( array $product, string $ref ): string {
+		if ( '' === $ref ) {
+			return '';
+		}
+		return $this->custom_class->resolve_text_feature_value( $product, $ref, $this->image_language );
+	}
+
+	/**
+	 * Inject the admin-configured content field mappings (called once per sync run).
+	 *
+	 * Mirrors {@see self::set_status_handling()}: run-scoped state is injected rather than read
+	 * from options inside the getters, which keeps them deterministic under unit test and stops a
+	 * mid-run settings save from splitting one run across two mappings.
+	 *
+	 * Each ref is independent — configuring the long description leaves title and short
+	 * description entirely to their existing chains.
+	 *
+	 * @param string $title_ref             Feature ID or code for the product title; '' disables.
+	 * @param string $short_description_ref Feature ID or code for the short description; '' disables.
+	 * @param string $long_description_ref  Feature ID or code for the long description; '' disables.
+	 */
+	public function set_content_mapping( string $title_ref, string $short_description_ref, string $long_description_ref ): void {
+		$this->title_feature_ref             = trim( $title_ref );
+		$this->short_description_feature_ref = trim( $short_description_ref );
+		$this->long_description_feature_ref  = trim( $long_description_ref );
 	}
 
 	/**

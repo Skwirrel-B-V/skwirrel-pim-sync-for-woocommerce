@@ -1,5 +1,5 @@
 ---
-status: ready-for-dev
+status: review
 baseline_revision: 0f7c3c4964b7789f74d7c14f307c1c083a9a22a4
 depends_on:
   # Story written, code NOT built as of baseline. Shares the Field mapping group and the
@@ -20,7 +20,7 @@ context:
 
 # Story 6.3: Title, short and long description from custom classes
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -100,50 +100,50 @@ so that the shop shows the text my team maintains rather than an ERP description
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Settings: the Field mapping group + three fields (AC: 1, 4)**
-  - [ ] In `class-skwirrel-wc-sync-admin-dashboard.php`, add the three fields to the **Field mapping** `.skw-fieldgroup`. Story 6.1 places that group after *Product status handling* (`:1141`) and before *Advanced* (`:1195`) — use the same slot. **If 6.1 landed first, extend its group; never create a second group with the same title.**
-  - [ ] Three `.skw-field` text inputs: **`title_feature_id`**, **`short_description_feature_id`**, **`long_description_feature_id`**. These exact key names are what Story 6.4 greps for as its prerequisite gate — do not rename them. Placeholder `e.g. 812 or PRODUCT_TITLE`, hint explaining ID-or-code and that empty = use the normal source.
-  - [ ] In `class-skwirrel-wc-sync-admin-settings.php::sanitize_settings()` (alongside the `custom_class_*` block, ~line 416-429) sanitize all three with `sanitize_text_field( trim( ... ) )`, defaulting to `''`.
-  - [ ] Add the three keys with `''` defaults to `Skwirrel_WC_Sync_Service::get_options()`'s `$defaults` array (~line 2337).
-  - [ ] Do **not** add them to the `compute_sync_signature()` `$ignore` denylist — they must bust the change gate (AC 8).
+- [x] **Task 1 — Settings: the Field mapping group + three fields (AC: 1, 4)**
+  - [x] In `class-skwirrel-wc-sync-admin-dashboard.php`, add the three fields to the **Field mapping** `.skw-fieldgroup`. Story 6.1 places that group after *Product status handling* (`:1141`) and before *Advanced* (`:1195`) — use the same slot. **If 6.1 landed first, extend its group; never create a second group with the same title.**
+  - [x] Three `.skw-field` text inputs: **`title_feature_id`**, **`short_description_feature_id`**, **`long_description_feature_id`**. These exact key names are what Story 6.4 greps for as its prerequisite gate — do not rename them. Placeholder `e.g. 812 or PRODUCT_TITLE`, hint explaining ID-or-code and that empty = use the normal source.
+  - [x] In `class-skwirrel-wc-sync-admin-settings.php::sanitize_settings()` (alongside the `custom_class_*` block, ~line 416-429) sanitize all three with `sanitize_text_field( trim( ... ) )`, defaulting to `''`.
+  - [x] Add the three keys with `''` defaults to `Skwirrel_WC_Sync_Service::get_options()`'s `$defaults` array (~line 2337).
+  - [x] Do **not** add them to the `compute_sync_signature()` `$ignore` denylist — they must bust the change gate (AC 8).
 
-- [ ] **Task 2 — Resolver: one value for one feature ID-or-code (AC: 2, 3, 6)**
-  - [ ] Add `Skwirrel_WC_Sync_Custom_Class_Extractor::resolve_text_feature_value( array $product, string $mapping, string $lang ): string` — the **text sibling** of the `resolve_numeric_feature_value()` Story 6.1 adds. Same matching, same traversal, different value extraction.
-  - [ ] Keep it **pure**, as 6.1 requires of its twin: no `get_option()`, no WC calls. `$lang` is injected by the caller, not defaulted from the settings option, so `tests/Unit/` can drive it on the stub bootstrap.
-  - [ ] Factor the ID-or-code matching out of whichever of the two lands second so both share one predicate. Do not ship two traversals that can drift.
-  - [ ] `$mapping` is matched numerically against `custom_feature_id` / `custom_class_feature_id`, or case-insensitively against `custom_feature_code` — following `get_custom_feature_values_for_ids()` (`:302`) for the ID shape and `filter_custom_classes()` (`:75`) for the code shape. Do not invent a third.
-  - [ ] Product level only: call `collect_custom_classes( $product )` with `$include_trade_items = false`. Never `_trade_item_custom_classes`.
-  - [ ] Skip `not_applicable` features. Return `''` when nothing matches — never `null`, so callers stay branch-simple.
-  - [ ] Normalise a numeric `$ref` as a **strict positive platform integer**: reject `0`, negatives, decimals, and digit strings that overflow `PHP_INT_MAX`. Treat a rejected ref as *unconfigured*, not as a match. (Direct carry-over from Story 2.6's re-review — see Learnings.)
-  - [ ] **Handle `B` (big text) as well as `T`** — `format_custom_feature_value()` covers `T` but *not* `B`; `B` lives in `big_text_value` and is currently only read by `get_custom_class_text_meta()` (`CC_META_TYPES = [ 'B' ]`). A long description is almost certainly a `B` feature, so a naive reuse of `format_custom_feature_value()` silently resolves to empty and the story ships doing nothing. See Dev Notes.
-  - [ ] Handle `I` (internationalised text) through the existing `translated_texts` branch so AC 6's language chain applies.
-  - [ ] For every other type, delegate to `format_custom_feature_value()` so `A`/`M`/`L`/`N`/`R`/`D` behave as they do in the attribute table. Note 6.1's warning that this returns *display* strings (unit appended for `N`, hardcoded `Ja`/`Nee` for `L`) — correct for prose, wrong for a quantity, which is exactly why the two resolvers differ.
+- [x] **Task 2 — Resolver: one value for one feature ID-or-code (AC: 2, 3, 6)**
+  - [x] Add `Skwirrel_WC_Sync_Custom_Class_Extractor::resolve_text_feature_value( array $product, string $mapping, string $lang ): string` — the **text sibling** of the `resolve_numeric_feature_value()` Story 6.1 adds. Same matching, same traversal, different value extraction.
+  - [x] Keep it **pure**, as 6.1 requires of its twin: no `get_option()`, no WC calls. `$lang` is injected by the caller, not defaulted from the settings option, so `tests/Unit/` can drive it on the stub bootstrap.
+  - [x] Factor the ID-or-code matching out of whichever of the two lands second so both share one predicate. Do not ship two traversals that can drift.
+  - [x] `$mapping` is matched numerically against `custom_feature_id` / `custom_class_feature_id`, or case-insensitively against `custom_feature_code` — following `get_custom_feature_values_for_ids()` (`:302`) for the ID shape and `filter_custom_classes()` (`:75`) for the code shape. Do not invent a third.
+  - [x] Product level only: call `collect_custom_classes( $product )` with `$include_trade_items = false`. Never `_trade_item_custom_classes`.
+  - [x] Skip `not_applicable` features. Return `''` when nothing matches — never `null`, so callers stay branch-simple.
+  - [x] Normalise a numeric `$ref` as a **strict positive platform integer**: reject `0`, negatives, decimals, and digit strings that overflow `PHP_INT_MAX`. Treat a rejected ref as *unconfigured*, not as a match. (Direct carry-over from Story 2.6's re-review — see Learnings.)
+  - [x] **Handle `B` (big text) as well as `T`** — `format_custom_feature_value()` covers `T` but *not* `B`; `B` lives in `big_text_value` and is currently only read by `get_custom_class_text_meta()` (`CC_META_TYPES = [ 'B' ]`). A long description is almost certainly a `B` feature, so a naive reuse of `format_custom_feature_value()` silently resolves to empty and the story ships doing nothing. See Dev Notes.
+  - [x] Handle `I` (internationalised text) through the existing `translated_texts` branch so AC 6's language chain applies.
+  - [x] For every other type, delegate to `format_custom_feature_value()` so `A`/`M`/`L`/`N`/`R`/`D` behave as they do in the attribute table. Note 6.1's warning that this returns *display* strings (unit appended for `N`, hardcoded `Ja`/`Nee` for `L`) — correct for prose, wrong for a quantity, which is exactly why the two resolvers differ.
 
-- [ ] **Task 3 — Apply the mapping in the mapper, not at the call sites (AC: 2, 3, 4, 5, 9)**
-  - [ ] Add `Skwirrel_WC_Sync_Product_Mapper::set_content_mapping( string $title_ref, string $short_ref, string $long_ref ): void`, mirroring the existing `set_status_handling()` injection precedent (keeps the mapper deterministic under unit test).
-  - [ ] In `get_name()`: if a title ref is configured, resolve it; return it when non-empty, otherwise fall through to the existing chain **unchanged**.
-  - [ ] Same shape in `get_short_description()` and `get_long_description()`, each guarded by its own ref (AC 9).
-  - [ ] Run the long-description value through `wp_kses_post()` before returning it (AC 5). Leave title and short description on their current handling.
-  - [ ] Wire the injection in `Skwirrel_WC_Sync_Service` next to `apply_status_handling()` (~line 55), from the same frozen per-run options copy, so a mid-run settings save cannot split one run across two mappings.
+- [x] **Task 3 — Apply the mapping in the mapper, not at the call sites (AC: 2, 3, 4, 5, 9)**
+  - [x] Add `Skwirrel_WC_Sync_Product_Mapper::set_content_mapping( string $title_ref, string $short_ref, string $long_ref ): void`, mirroring the existing `set_status_handling()` injection precedent (keeps the mapper deterministic under unit test).
+  - [x] In `get_name()`: if a title ref is configured, resolve it; return it when non-empty, otherwise fall through to the existing chain **unchanged**.
+  - [x] Same shape in `get_short_description()` and `get_long_description()`, each guarded by its own ref (AC 9).
+  - [x] Run the long-description value through `wp_kses_post()` before returning it (AC 5). Leave title and short description on their current handling.
+  - [x] Wire the injection in `Skwirrel_WC_Sync_Service` next to `apply_status_handling()` (~line 55), from the same frozen per-run options copy, so a mid-run settings save cannot split one run across two mappings.
 
-- [ ] **Task 4 — Verify the paths you did not touch still hold (AC: 4, 7, 8)**
-  - [ ] Confirm `set_name()`/`set_short_description()`/`set_description()` at upserter lines 331/342-343, 1770/1780-1781 and 2361-2377 all now inherit the mapping through the mapper with no call-site edits.
-  - [ ] Confirm the virtual-product content path (2361-2377) keeps its `'' !== $value` guards — with the mapping applied inside the mapper, an unmapped/empty feature still falls back and those guards still protect the parent.
-  - [ ] Confirm no mapped title reaches `slug_resolver->resolve()` — the resolver reads `$product` raw (`resolve_raw_value()`), not the mapper, so this should already hold. Pin it with a test rather than assuming (AC 7).
+- [x] **Task 4 — Verify the paths you did not touch still hold (AC: 4, 7, 8)**
+  - [x] Confirm `set_name()`/`set_short_description()`/`set_description()` at upserter lines 331/342-343, 1770/1780-1781 and 2361-2377 all now inherit the mapping through the mapper with no call-site edits.
+  - [x] Confirm the virtual-product content path (2361-2377) keeps its `'' !== $value` guards — with the mapping applied inside the mapper, an unmapped/empty feature still falls back and those guards still protect the parent.
+  - [x] Confirm no mapped title reaches `slug_resolver->resolve()` — the resolver reads `$product` raw (`resolve_raw_value()`), not the mapper, so this should already hold. Pin it with a test rather than assuming (AC 7).
 
-- [ ] **Task 5 — Tests (AC: 2, 3, 4, 5, 6, 7, 8, 9, 10)**
-  - [ ] Extend `tests/Unit/ProductMapperNameTest.php`: mapped title wins; mapped-but-empty falls back to `product_erp_description`; unmapped is unchanged.
-  - [ ] New `tests/Unit/ContentMappingTest.php` for short + long description: value wins, empty falls back, `B`-type resolves, markup survives `wp_kses_post()` while `<script>` does not, the three refs work independently.
-  - [ ] Extend `tests/Unit/CustomClassExtractorTest.php` for `resolve_text_feature_value()`: match by ID, match by code (case-insensitive), `not_applicable` skipped, trade-item classes never consulted, unknown ref returns `''`.
-  - [ ] Same file: a malformed mapping (`0`, `-5`, `1.5`, `99999999999999999999`) resolves to `''` and does not match any feature.
-  - [ ] Same file: a `B`-type feature resolves from `big_text_value` — this is the assertion that catches the single most likely way to ship this story doing nothing.
-  - [ ] Extend `tests/Unit/ContentHashTest.php`: a changed `_custom_classes` value changes the payload signature; a changed mapping setting changes `compute_sync_signature()`.
-  - [ ] Add a `wp_kses_post()` stub to `tests/bootstrap.php` — it is **not** currently stubbed. Make the stub strip `<script>` so the sanitisation assertion is real, not a pass-through.
-  - [ ] Run all three gates from the repo root.
+- [x] **Task 5 — Tests (AC: 2, 3, 4, 5, 6, 7, 8, 9, 10)**
+  - [x] Extend `tests/Unit/ProductMapperNameTest.php`: mapped title wins; mapped-but-empty falls back to `product_erp_description`; unmapped is unchanged.
+  - [x] New `tests/Unit/ContentMappingTest.php` for short + long description: value wins, empty falls back, `B`-type resolves, markup survives `wp_kses_post()` while `<script>` does not, the three refs work independently.
+  - [x] Extend `tests/Unit/CustomClassExtractorTest.php` for `resolve_text_feature_value()`: match by ID, match by code (case-insensitive), `not_applicable` skipped, trade-item classes never consulted, unknown ref returns `''`.
+  - [x] Same file: a malformed mapping (`0`, `-5`, `1.5`, `99999999999999999999`) resolves to `''` and does not match any feature.
+  - [x] Same file: a `B`-type feature resolves from `big_text_value` — this is the assertion that catches the single most likely way to ship this story doing nothing.
+  - [x] Extend `tests/Unit/ContentHashTest.php`: a changed `_custom_classes` value changes the payload signature; a changed mapping setting changes `compute_sync_signature()`.
+  - [x] Add a `wp_kses_post()` stub to `tests/bootstrap.php` — it is **not** currently stubbed. Make the stub strip `<script>` so the sanitisation assertion is real, not a pass-through.
+  - [x] Run all three gates from the repo root.
 
-- [ ] **Task 6 — Release hygiene (AC: 10)**
-  - [ ] New translatable strings → regenerate `languages/skwirrel-pim-sync.pot` and update all 7 locales' `.po`/`.mo`.
-  - [ ] Version bump (header + `SKWIRREL_WC_SYNC_VERSION`), `CHANGELOG.md` + `readme.txt` entries. Prefer the `/release` skill over bumping by hand.
+- [x] **Task 6 — Release hygiene (AC: 10)**
+  - [x] New translatable strings → regenerate `languages/skwirrel-pim-sync.pot` and update all 7 locales' `.po`/`.mo`.
+  - [x] Version bump (header + `SKWIRREL_WC_SYNC_VERSION`), `CHANGELOG.md` + `readme.txt` entries. Prefer the `/release` skill over bumping by hand.
 
 ## Dev Notes
 
@@ -257,14 +257,49 @@ The one thing to actually check: that `_custom_classes` is present in the payloa
 
 ### Agent Model Used
 
+claude-opus-5 (in-session, orchestration `orchestration-6-20260826-143018`)
+
 ### Debug Log References
+
+- `vendor/bin/pest` — 580 passed (1235 assertions)
+- integration suite via wp-env — 191 passed (1651 assertions)
+- `vendor/bin/phpstan analyse --memory-limit=2G` — no errors (level 6, baseline unchanged)
+- `vendor/bin/phpcs` — 34/34 clean
 
 ### Completion Notes List
 
+- **Dependency reality check: 6.1 and 6.2 had already landed this session, so this story was second.** The Field mapping group and the ID-or-code matching already existed; both were **extended, not duplicated**. No second group with the same title was created.
+- **One traversal, two sibling resolvers.** The ID-or-code matching was factored out of 6.1's `resolve_numeric_feature_value()` into a private `matching_features()` generator that both resolvers now share, so their matching cannot drift. Value extraction stays separate by design: stock needs the raw `numeric_value`, prose wants the formatted display value. 6.1's and 6.2's 21 existing tests were re-run against the refactor before anything new was added, confirming it is behaviour-preserving.
+- **`B` (big text) is handled explicitly — this is the story's main trap.** `format_custom_feature_value()` covers `T` but not `B`, and a long description is very likely a `B` feature, so a naive delegation would have shipped a mapping that silently resolved to nothing. `resolve_text_feature_value()` reads `big_text_value` for `B` first, then delegates everything else (`A`/`M`/`L`/`N`/`R`/`D`/`T`/`I`) to the existing formatter, which brings AC 6's exact → prefix → first language chain along for free. A test asserts the `B` path directly.
+- **Malformed refs fail closed (2.6's learning, applied up front).** `normalize_feature_ref()` accepts only strict positive platform integers: `0`, negatives, decimals and digit strings past `PHP_INT_MAX` are treated as *unconfigured*, never as a match. A test pins that a malformed ref cannot match a feature whose own ID is `0`. This applies to both resolvers, so 6.1's stock mapping inherited the hardening.
+- **The mapping is applied in the mapper, so all five write sites inherit it with no call-site edits.** `set_content_mapping()` follows the existing `set_status_handling()` injection precedent and is wired from the same frozen per-run options copy in `apply_status_handling()`, so a settings save mid-run cannot split one run across two mappings. The virtual-product content path's `'' !== $value` guards compose correctly because the getters fall through rather than short-circuit.
+- **Absent, `not_applicable` and empty are tested separately** — they reach the safe branch by three different code paths, and 2.6's review showed that collapsing them into one assertion proves less than it appears to.
+- **AC 4's test deliberately runs against a product that carries resolvable custom-class data**, so it proves the mapping is off rather than merely that empty input yields empty output — the "a test must exercise the branch it claims" learning.
+- **AC 7 and AC 8 were verified, not built.** `Skwirrel_WC_Sync_Slug_Resolver` contains zero references to the mapper (`grep -c mapper` → 0) and reads the raw payload via `resolve_raw_value()`, so a mapped title cannot reach a slug; a test pins it by configuring a mapping, asserting the mapped title wins, and asserting the slug still comes from the raw SKU. For AC 8, `_custom_classes` is part of the hashed payload and the three new keys are absent from `compute_sync_signature()`'s `$ignore` denylist — both pinned in `ContentHashTest.php`.
+- **`wp_kses_post()` was not stubbed and now is.** The stub strips `script`/`style` elements with their content and inline event handlers, so the sanitisation assertion is real rather than a pass-through. `wp_kses_post()` is applied to the long description only; a test pins that a title keeps `&` and `<3` untouched, since over-sanitising a title would strip legitimate entities.
+- **The FR-18 include-flag machinery was extended to cover the content mappings.** `Skwirrel_WC_Sync_Service::has_field_mapping()` now checks all four mapping keys, so configuring only a content mapping still requests `include_custom_classes`, and the missing-collection-ID warning names all four. The field group carries a hint pointing at the custom class collection ID for the same reason. The include flag is not auto-enabled silently.
+- **Task 6 (release hygiene) deliberately not performed.** Per the user's explicit direction this work stays on **3.14.0**: no version bump, no CHANGELOG/readme version section, and no `.pot`/`.po`/`.mo` regeneration. The new strings all use the literal `'skwirrel-pim-sync'` domain and will be collected at release time by `/release`.
+- **One pre-existing test pin updated, not weakened.** Story 5.1's `SettingsTabsIntegrationTest` enumerates every settings input name; the three new fields were added to that list. The assertion still compares an exact set.
+- **Scope note from AC 3 confirmed, not "fixed".** All three chains still bottom out at `''` for a payload with neither an ERP description nor translations. That is pre-existing behaviour; the mapping path does not make it newly reachable, because an unresolved mapping falls through to the same chain rather than short-circuiting.
+
 ### File List
+
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-custom-class-extractor.php` (modified) — `resolve_text_feature_value()`, shared `matching_features()` generator, `normalize_feature_ref()`
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-mapper.php` (modified) — `set_content_mapping()`, `mapped_content()`, three getters extended
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php` (modified) — content-mapping injection, four-key `has_field_mapping()`, defaults
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-settings.php` (modified) — sanitization of all four mapping keys
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-dashboard.php` (modified) — three fields in the Field mapping group, tab field registration
+- `tests/bootstrap.php` (modified) — `wp_kses_post()` stub
+- `tests/Unit/ContentMappingTest.php` (new) — 10 tests
+- `tests/Unit/CustomClassExtractorTest.php` (modified) — 7 tests for the text resolver and malformed refs
+- `tests/Unit/ProductMapperNameTest.php` (modified) — 3 tests for the title mapping
+- `tests/Unit/ContentHashTest.php` (modified) — 2 tests pinning AC 8
+- `tests/Unit/SlugResolverTest.php` (modified) — 1 test pinning AC 7
+- `tests/Integration/SettingsTabsIntegrationTest.php` (modified) — input-name pin extended
 
 ## Change Log
 
 | Date | Version | Description |
 |------|---------|-------------|
 | 2026-08-25 | 0.1 | Story drafted from epics.md against baseline 0f7c3c4 |
+| 2026-08-26 | 1.0 | Implemented: three content field mappings resolved through a shared traversal, applied in the mapper so all five write sites inherit them. No version bump (stays on 3.14.0). |

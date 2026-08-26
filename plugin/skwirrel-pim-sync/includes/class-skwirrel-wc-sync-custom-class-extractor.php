@@ -144,13 +144,89 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	 * @return float|null Raw numeric value, or null when nothing resolves.
 	 */
 	public function resolve_numeric_feature_value( array $product, string $mapping ): ?float {
-		$mapping = trim( $mapping );
-		if ( '' === $mapping ) {
-			return null;
+		foreach ( $this->matching_features( $product, $mapping ) as $feat ) {
+			$value = $this->raw_numeric_feature_value( $feat );
+			if ( null !== $value ) {
+				return $value;
+			}
 		}
 
-		$want_id   = is_numeric( $mapping ) ? (int) $mapping : null;
+		return null;
+	}
+
+	/**
+	 * Resolve a single product-level custom feature to display text.
+	 *
+	 * The text sibling of {@see self::resolve_numeric_feature_value()}: same matching, same
+	 * traversal, different value extraction. They are deliberately siblings rather than one
+	 * function — a stock quantity needs the raw number, while prose wants the formatted value.
+	 *
+	 * Pure, like its twin: `$lang` is injected by the caller rather than read from the settings
+	 * option, so `tests/Unit/` can drive it on the stub bootstrap.
+	 *
+	 * Returns `''` — never `null` — when nothing resolves, so callers stay branch-simple and
+	 * simply fall through to their existing source chain (NFR-9).
+	 *
+	 * @param array<string, mixed> $product Raw API product.
+	 * @param string               $mapping Feature ID or code; empty disables the mapping.
+	 * @param string               $lang    Language code for translated values.
+	 */
+	public function resolve_text_feature_value( array $product, string $mapping, string $lang ): string {
+		foreach ( $this->matching_features( $product, $mapping ) as $feat ) {
+			$type = (string) ( $feat['custom_feature_type'] ?? '' );
+
+			// B — big text. format_custom_feature_value() does not handle it, and a long
+			// description is very likely a B feature, so resolving it here is what stops this
+			// mapping from silently doing nothing.
+			if ( 'B' === $type ) {
+				$big = (string) ( $feat['big_text_value'] ?? '' );
+				if ( '' !== $big ) {
+					return $big;
+				}
+				continue;
+			}
+
+			// Everything else (A/M/L/N/R/D/T/I) formats exactly as it does in the attribute
+			// table, including I's exact → prefix → first language chain.
+			$value = $this->format_custom_feature_value( $feat, $lang );
+			if ( null !== $value && '' !== $value ) {
+				return (string) $value;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Walk the product-level custom features that match a mapping reference.
+	 *
+	 * The one traversal both resolvers share, so their matching cannot drift. A reference is
+	 * either a numeric feature ID or a case-insensitive feature code — the two shapes
+	 * {@see self::get_custom_feature_values_for_ids()} and {@see self::filter_custom_classes()}
+	 * already use; no third shape is invented here.
+	 *
+	 * Scope is product-level `_custom_classes` only (FR-18/FR-19 exclude trade-item level), and
+	 * `not_applicable` features are skipped exactly as every other extractor method does.
+	 *
+	 * @param array<string, mixed> $product Raw API product.
+	 * @param string               $mapping Feature ID or code; empty yields nothing.
+	 * @return \Generator<int, array<string, mixed>> Matching feature payloads, in payload order.
+	 */
+	private function matching_features( array $product, string $mapping ): \Generator {
+		$mapping = trim( $mapping );
+		if ( '' === $mapping ) {
+			return;
+		}
+
+		$want_id   = self::normalize_feature_ref( $mapping );
 		$want_code = strtolower( $mapping );
+
+		// A reference that looks numeric but is malformed (0, negative, decimal, or overflowing
+		// PHP_INT_MAX) is treated as unconfigured rather than as a match — fail closed, never
+		// resolve something the operator did not ask for.
+		if ( null === $want_id && is_numeric( $mapping ) ) {
+			return;
+		}
 
 		foreach ( $this->collect_custom_classes( $product ) as $cc ) {
 			foreach ( $cc['_custom_features'] ?? [] as $feat ) {
@@ -162,21 +238,33 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 
 				$matches = ( null !== $want_id && 0 !== $feat_id && $feat_id === $want_id )
 					|| ( '' !== $feat_code && $feat_code === $want_code );
-				if ( ! $matches ) {
-					continue;
-				}
-				if ( ! empty( $feat['not_applicable'] ) ) {
+				if ( ! $matches || ! empty( $feat['not_applicable'] ) ) {
 					continue;
 				}
 
-				$value = $this->raw_numeric_feature_value( $feat );
-				if ( null !== $value ) {
-					return $value;
-				}
+				yield $feat;
 			}
 		}
+	}
 
-		return null;
+	/**
+	 * Normalise a numeric mapping reference to a strict positive platform integer.
+	 *
+	 * Rejects zero, negatives, decimals and digit strings that overflow `PHP_INT_MAX`, so a
+	 * malformed reference can never accidentally match feature ID 0 or a truncated ID.
+	 *
+	 * @return int|null The ID, or null when the reference is not a usable numeric ID.
+	 */
+	private static function normalize_feature_ref( string $ref ): ?int {
+		if ( 1 !== preg_match( '/^\d+$/', $ref ) ) {
+			return null;
+		}
+		// Digit strings beyond PHP_INT_MAX silently saturate on cast; compare the round-trip.
+		$as_int = (int) $ref;
+		if ( 0 >= $as_int || ltrim( $ref, '0' ) !== (string) $as_int ) {
+			return null;
+		}
+		return $as_int;
 	}
 
 	/**

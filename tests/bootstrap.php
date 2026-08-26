@@ -146,6 +146,22 @@ if (!function_exists('sanitize_text_field')) {
     }
 }
 
+if (!function_exists('wp_kses_post')) {
+    /**
+     * Minimal stand-in for WordPress's post-content sanitiser.
+     *
+     * Real wp_kses_post() runs an allow-list; this stub only needs to be faithful enough that a
+     * sanitisation assertion is real rather than a pass-through, so it strips the script/style
+     * elements (content included) and inline event handlers while leaving formatting alone.
+     */
+    function wp_kses_post(string $content): string {
+        $content = preg_replace('#<(script|style)\b[^>]*>.*?</\1>#is', '', $content) ?? $content;
+        $content = preg_replace('#</?(script|style)\b[^>]*>#i', '', $content) ?? $content;
+        $content = preg_replace('#\son[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)#i', '', $content) ?? $content;
+        return $content;
+    }
+}
+
 if (!function_exists('sanitize_key')) {
     function sanitize_key(string $key): string {
         return preg_replace('/[^a-z0-9_\-]/', '', strtolower($key));

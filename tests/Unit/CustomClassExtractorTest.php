@@ -704,3 +704,120 @@ test('resolve_custom_feature_label falls back to feature_code when no translatio
 
 	expect( $this->extractor->resolve_custom_feature_label( $feature, 'nl' ) )->toBe( 'CF_FALLBACK' );
 });
+
+// ------------------------------------------------------------------
+// resolve_text_feature_value() — Story 6.3 (FR-19)
+// ------------------------------------------------------------------
+
+/** Build a product carrying one product-level custom feature. */
+function cc_text_product( array $feature ): array {
+	return [
+		'product_id'      => 77,
+		'_custom_classes' => [
+			[
+				'custom_class_id'  => 4,
+				'_custom_features' => [ $feature ],
+			],
+		],
+	];
+}
+
+test('resolve_text_feature_value matches a feature by numeric ID', function () {
+	$product = cc_text_product( [
+		'custom_feature_id'   => 812,
+		'custom_feature_type' => 'T',
+		'text_value'          => 'Mapped',
+	] );
+
+	expect( $this->extractor->resolve_text_feature_value( $product, '812', 'nl' ) )->toBe( 'Mapped' );
+} );
+
+test('resolve_text_feature_value matches a feature by code, case-insensitively', function () {
+	$product = cc_text_product( [
+		'custom_feature_code' => 'Product_Title',
+		'custom_feature_type' => 'T',
+		'text_value'          => 'Mapped',
+	] );
+
+	expect( $this->extractor->resolve_text_feature_value( $product, 'PRODUCT_TITLE', 'nl' ) )->toBe( 'Mapped' );
+	expect( $this->extractor->resolve_text_feature_value( $product, 'product_title', 'nl' ) )->toBe( 'Mapped' );
+} );
+
+test('resolve_text_feature_value skips not_applicable features', function () {
+	$product = cc_text_product( [
+		'custom_feature_id'   => 812,
+		'custom_feature_type' => 'T',
+		'text_value'          => 'Ignored',
+		'not_applicable'      => true,
+	] );
+
+	expect( $this->extractor->resolve_text_feature_value( $product, '812', 'nl' ) )->toBe( '' );
+} );
+
+test('resolve_text_feature_value never reads trade-item custom classes', function () {
+	$product = [
+		'product_id'      => 77,
+		'_custom_classes' => [],
+		'_trade_items'    => [
+			[
+				'_trade_item_custom_classes' => [
+					[
+						'custom_class_id'  => 4,
+						'_custom_features' => [
+							[
+								'custom_feature_id'   => 812,
+								'custom_feature_type' => 'T',
+								'text_value'          => 'Trade item value',
+							],
+						],
+					],
+				],
+			],
+		],
+	];
+
+	expect( $this->extractor->resolve_text_feature_value( $product, '812', 'nl' ) )->toBe( '' );
+} );
+
+test('resolve_text_feature_value returns an empty string for an unknown reference', function () {
+	$product = cc_text_product( [
+		'custom_feature_id'   => 812,
+		'custom_feature_type' => 'T',
+		'text_value'          => 'Mapped',
+	] );
+
+	expect( $this->extractor->resolve_text_feature_value( $product, '999', 'nl' ) )->toBe( '' );
+	expect( $this->extractor->resolve_text_feature_value( $product, '', 'nl' ) )->toBe( '' );
+} );
+
+test('resolve_text_feature_value resolves a B-type big text value', function () {
+	// format_custom_feature_value() does not handle B, so this is the assertion that catches
+	// the mapping silently resolving to nothing for a typical long description.
+	$product = cc_text_product( [
+		'custom_feature_id'   => 814,
+		'custom_feature_type' => 'B',
+		'big_text_value'      => 'Een lange tekst.',
+	] );
+
+	expect( $this->extractor->resolve_text_feature_value( $product, '814', 'nl' ) )->toBe( 'Een lange tekst.' );
+} );
+
+test('a malformed numeric reference resolves to nothing and matches no feature', function () {
+	$product = cc_text_product( [
+		'custom_feature_id'   => 812,
+		'custom_feature_type' => 'T',
+		'text_value'          => 'Mapped',
+	] );
+	// A feature whose ID would be 0 must never be matched by a malformed "0" reference.
+	$zero_id = cc_text_product( [
+		'custom_feature_id'   => 0,
+		'custom_feature_type' => 'T',
+		'text_value'          => 'Zero id',
+	] );
+
+	foreach ( [ '0', '-5', '1.5', '99999999999999999999' ] as $bad ) {
+		expect( $this->extractor->resolve_text_feature_value( $product, $bad, 'nl' ) )->toBe( '', "ref: {$bad}" );
+		expect( $this->extractor->resolve_text_feature_value( $zero_id, $bad, 'nl' ) )->toBe( '', "ref: {$bad}" );
+		expect( $this->extractor->resolve_numeric_feature_value( $product, $bad ) )->toBeNull( "ref: {$bad}" );
+	}
+} );

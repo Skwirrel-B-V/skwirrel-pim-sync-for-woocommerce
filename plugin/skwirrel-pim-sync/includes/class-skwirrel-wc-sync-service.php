@@ -57,6 +57,13 @@ class Skwirrel_WC_Sync_Service {
 			is_array( $opts['status_mapping'] ?? null ) ? $opts['status_mapping'] : [],
 			is_string( $opts['status_mapping_default'] ?? null ) ? $opts['status_mapping_default'] : 'publish'
 		);
+		// FR-19 content mappings ride the same frozen per-run options copy, so a settings save
+		// mid-run cannot split one run across two mappings.
+		$this->mapper->set_content_mapping(
+			(string) ( $opts['title_feature_id'] ?? '' ),
+			(string) ( $opts['short_description_feature_id'] ?? '' ),
+			(string) ( $opts['long_description_feature_id'] ?? '' )
+		);
 	}
 
 	/** Run-state option (autoload off): the resumable state machine's persisted context. */
@@ -317,7 +324,12 @@ class Skwirrel_WC_Sync_Service {
 			if ( empty( $custom_collection_id ) ) {
 				$this->logger->warning(
 					'A field mapping is configured but no custom class collection ID is set, so custom classes cannot be fetched. Field mappings are inactive this run; set the custom class collection ID under "What to sync" to activate them.',
-					[ 'stock_quantity_feature' => $options['stock_quantity_feature'] ?? '' ]
+					[
+						'stock_quantity_feature'       => $options['stock_quantity_feature'] ?? '',
+						'title_feature_id'             => $options['title_feature_id'] ?? '',
+						'short_description_feature_id' => $options['short_description_feature_id'] ?? '',
+						'long_description_feature_id'  => $options['long_description_feature_id'] ?? '',
+					]
 				);
 			} else {
 				$api_includes['include_custom_classes']       = true;
@@ -2386,8 +2398,13 @@ class Skwirrel_WC_Sync_Service {
 			'status_mapping'                => [],
 			'status_mapping_default'        => 'publish',
 			'deprecated_remove_after_syncs' => 3,
+			// FR-18/FR-19 field mappings. Empty is the default and the off switch.
+			'stock_quantity_feature'        => '',
+			'title_feature_id'              => '',
+			'short_description_feature_id'  => '',
+			'long_description_feature_id'   => '',
 		];
-		$saved    = get_option( 'skwirrel_wc_sync_settings', [] );
+		$saved = get_option( 'skwirrel_wc_sync_settings', [] );
 		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );
 	}
 
@@ -2401,7 +2418,13 @@ class Skwirrel_WC_Sync_Service {
 	 * @param array<string, mixed> $options Plugin settings.
 	 */
 	private static function has_field_mapping( array $options ): bool {
-		foreach ( [ 'stock_quantity_feature' ] as $key ) {
+		$keys = [
+			'stock_quantity_feature',
+			'title_feature_id',
+			'short_description_feature_id',
+			'long_description_feature_id',
+		];
+		foreach ( $keys as $key ) {
 			if ( '' !== trim( (string) ( $options[ $key ] ?? '' ) ) ) {
 				return true;
 			}
