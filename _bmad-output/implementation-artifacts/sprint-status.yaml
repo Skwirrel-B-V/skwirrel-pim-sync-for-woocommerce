@@ -119,6 +119,6 @@ development_status:
   6-1-stock-from-custom-class-simple: review  # establishes resolver + Field mapping settings group | gh#48
   6-2-stock-on-variations: review           # lifts hardcoded set_manage_stock(false); consumes 6-1's apply_stock_mapping() | gh#49
   6-3-title-and-descriptions-from-custom-class: review  # gh#50
-  6-5-document-link-names-language-aware: ready-for-dev  # FR-23 — added 2026-08-25 from Jeroen's mail; one-line defect at attachment-handler:262 | gh#52
+  6-5-document-link-names-language-aware: review  # FR-23 — added 2026-08-25 from Jeroen's mail; one-line defect at attachment-handler:262 | gh#52
   6-4-non-destructive-mapping-test-suite: review  # NFR-9 canary; extends story 1-14. BLOCKED in practice on 6-1/6-2/6-3 — story carries a prerequisite gate
   epic-6-retrospective: optional

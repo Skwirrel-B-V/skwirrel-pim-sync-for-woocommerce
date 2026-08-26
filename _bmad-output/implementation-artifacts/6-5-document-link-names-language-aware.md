@@ -1,6 +1,6 @@
 # Story 6.5: Document links show a readable name in the shop's language
 
-Status: ready-for-dev
+Status: review
 
 Epic: 6 — Stock and product content driven from Skwirrel data
 FR: FR-23 · NFR: NFR-9 (non-destructive field mapping)
@@ -25,24 +25,24 @@ so that I can tell a mounting instruction from a declaration of performance with
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Extract the shared language-matching chain** (AC2)
-  - [ ] In `class-skwirrel-wc-sync-attachment-handler.php`, pull the exact → prefix → first-entry translation-entry *selection* out of `get_attachment_meta_for_language()` (line ~40) into a new private helper, e.g. `pick_attachment_translation( array $att ): array` returning the winning `_attachment_translations` entry (or `[]`).
-  - [ ] Re-implement `get_attachment_meta_for_language()` on top of it so image behaviour is provably identical — same `title`/`description` keys, same `file_name` fallback. Do not change its signature or its callers.
-- [ ] **Task 2 — Resolve the document display name** (AC1, AC3, AC6, AC7)
-  - [ ] Add `public function resolve_document_name( array $att, string $url ): string` implementing the AC3 chain on top of `pick_attachment_translation()`. Public so it is unit-testable without the network (see Testing below).
-  - [ ] `trim()` each candidate and reject empty strings before accepting it — a translation entry that exists with an empty `product_attachment_title` must fall through, not win.
-  - [ ] In `get_document_attachments()`, replace **line 262** (`$name = (string) ( $att['file_name'] ?? $att['product_attachment_title'] ?? '' );`) and the basename block below it with a single call to the new resolver.
-  - [ ] **Keep a separate `$import_name`** holding `$att['file_name'] ?? ''` and pass *that* to `import_file()` — see the ⚠️ note in Dev Notes. The resolved human name goes only into `$docs[]['name']`.
-  - [ ] Read the language from settings the way `get_attachment_meta_for_language()` already does (`get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl'`). Do not start using the `$this->image_language` property — it is `@phpstan-ignore property.onlyWritten` today and changing that is out of scope.
-- [ ] **Task 3 — Verify the backfill needs no code** (AC4)
-  - [ ] Confirm by reading `compute_sync_signature()` that `__version` is folded into the signature, so the version bump this release carries already busts the change gate and every content hash on the first run after upgrade. Record the finding in Completion Notes. Write **no** migration, **no** upgrade routine, **no** new option.
-- [ ] **Task 4 — Unit tests** (AC8)
-  - [ ] New `tests/Unit/AttachmentHandlerDocumentNameTest.php` (Pest). Cases: exact match; prefix match (`nl-BE` configured → `nl` entry); first-entry fallback when neither matches; empty translation title falls through to attachment `product_attachment_title`; no translations → `file_name`; nothing at all → URL basename; empty URL path → `Document`; HTML in a title is returned verbatim (escaping is the consumer's job).
-  - [ ] Add one case asserting `get_attachment_meta_for_language()` output for images is unchanged by the Task 1 refactor (regression pin).
-  - [ ] Set the language per test via `$GLOBALS['_test_options']['skwirrel_wc_sync_settings']` (the bootstrap's `get_option` override, `tests/bootstrap.php:105`). Reset it in `afterEach`.
-- [ ] **Task 5 — Release hygiene**
-  - [ ] Bump the version via `/release` — never by hand. Add the CHANGELOG.md + readme.txt entries.
-  - [ ] No new translatable strings are expected. The `Document` last-resort literal is untranslated today; leave it that way so the 7 locales need no regeneration. If you do add a string, the `.pot` and all 7 `.po`/`.mo` must be regenerated.
+- [x] **Task 1 — Extract the shared language-matching chain** (AC2)
+  - [x] In `class-skwirrel-wc-sync-attachment-handler.php`, pull the exact → prefix → first-entry translation-entry *selection* out of `get_attachment_meta_for_language()` (line ~40) into a new private helper, e.g. `pick_attachment_translation( array $att ): array` returning the winning `_attachment_translations` entry (or `[]`).
+  - [x] Re-implement `get_attachment_meta_for_language()` on top of it so image behaviour is provably identical — same `title`/`description` keys, same `file_name` fallback. Do not change its signature or its callers.
+- [x] **Task 2 — Resolve the document display name** (AC1, AC3, AC6, AC7)
+  - [x] Add `public function resolve_document_name( array $att, string $url ): string` implementing the AC3 chain on top of `pick_attachment_translation()`. Public so it is unit-testable without the network (see Testing below).
+  - [x] `trim()` each candidate and reject empty strings before accepting it — a translation entry that exists with an empty `product_attachment_title` must fall through, not win.
+  - [x] In `get_document_attachments()`, replace **line 262** (`$name = (string) ( $att['file_name'] ?? $att['product_attachment_title'] ?? '' );`) and the basename block below it with a single call to the new resolver.
+  - [x] **Keep a separate `$import_name`** holding `$att['file_name'] ?? ''` and pass *that* to `import_file()` — see the ⚠️ note in Dev Notes. The resolved human name goes only into `$docs[]['name']`.
+  - [x] Read the language from settings the way `get_attachment_meta_for_language()` already does (`get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl'`). Do not start using the `$this->image_language` property — it is `@phpstan-ignore property.onlyWritten` today and changing that is out of scope.
+- [x] **Task 3 — Verify the backfill needs no code** (AC4)
+  - [x] Confirm by reading `compute_sync_signature()` that `__version` is folded into the signature, so the version bump this release carries already busts the change gate and every content hash on the first run after upgrade. Record the finding in Completion Notes. Write **no** migration, **no** upgrade routine, **no** new option.
+- [x] **Task 4 — Unit tests** (AC8)
+  - [x] New `tests/Unit/AttachmentHandlerDocumentNameTest.php` (Pest). Cases: exact match; prefix match (`nl-BE` configured → `nl` entry); first-entry fallback when neither matches; empty translation title falls through to attachment `product_attachment_title`; no translations → `file_name`; nothing at all → URL basename; empty URL path → `Document`; HTML in a title is returned verbatim (escaping is the consumer's job).
+  - [x] Add one case asserting `get_attachment_meta_for_language()` output for images is unchanged by the Task 1 refactor (regression pin).
+  - [x] Set the language per test via `$GLOBALS['_test_options']['skwirrel_wc_sync_settings']` (the bootstrap's `get_option` override, `tests/bootstrap.php:105`). Reset it in `afterEach`.
+- [x] **Task 5 — Release hygiene**
+  - [x] Bump the version via `/release` — never by hand. Add the CHANGELOG.md + readme.txt entries.
+  - [x] No new translatable strings are expected. The `Document` last-resort literal is untranslated today; leave it that way so the 7 locales need no regeneration. If you do add a string, the `.pot` and all 7 `.po`/`.mo` must be regenerated.
 
 ## Dev Notes
 
@@ -157,8 +157,33 @@ Record this in Completion Notes rather than adding defensive code.
 
 ### Agent Model Used
 
+claude-opus-5 (in-session)
+
 ### Debug Log References
+
+- `vendor/bin/pest` — 601 passed (1270 assertions), 11 new in `AttachmentHandlerDocumentNameTest.php`
+- integration suite via wp-env — 209 passed (1696 assertions), no regressions
+- `vendor/bin/phpstan analyse --memory-limit=2G` — no errors (level 6, baseline unchanged)
+- `vendor/bin/phpcs` — 34/34 clean
 
 ### Completion Notes List
 
+- **The trap was real and is avoided.** Line 262's `$name` fed both the link text *and* `import_file()`, where it is used only to derive the stored file's extension. A human title has none, so the extension regex would have failed and every document would have been stored as `.pdf`, silently corrupting `.dwg`/`.xlsx`/`.zip`. The fix keeps two separate variables: `$import_name` (`file_name` only) goes to `import_file()`, and the resolved human title goes only into `$docs[]['name']`.
+- **A latent bug was fixed as a side effect, worth knowing about.** Previously, when `file_name` was empty but `product_attachment_title` was set, the *old* code passed that human title to `import_file()` — hitting exactly the extension bug described above. Now `$import_name` is `''` in that case, and `import_file()` falls back to the URL basename itself, which yields the correct extension. So this story slightly *improves* stored filenames for attachments that lack `file_name`.
+- **One selection chain, two fallback tails (Task 1).** `pick_attachment_translation()` now owns the exact → two-letter-prefix → first-entry selection; `get_attachment_meta_for_language()` was re-implemented on top of it with its signature and callers untouched. The extraction also hardened the loops against non-array translation entries, which the original would have tripped over. A regression test pins six image cases including the deliberate asymmetry: the image path does **not** consult attachment-level `product_attachment_title` (that rung is documents-only), so the refactor cannot bleed across.
+- **Empty is unreachable by construction, and pinned.** Each candidate is `trim()`ed and rejected when blank, so a translation entry that exists with a blank title falls through rather than winning. A dedicated test throws four degenerate shapes at the resolver and asserts none yields `''`. This matters more than it looks: `get_documents_for_product()` drops any doc with an empty name, so a nameless document does not render badly — it disappears.
+- **AC4 verified, no code written.** `compute_sync_signature()` folds `__version` in (`class-skwirrel-wc-sync-service.php:2475`), and that signature is the `content_hash_sig` seed inside `payload_signature()` (`product-upserter.php:188`), so every stored `_skwirrel_content_hash` mismatches after a version change even in `enforce` mode. The last released tag is **3.13.1** and the working tree is **3.14.0**, so relative to any installed copy the version has already moved — the first run after upgrade reprocesses everything and rewrites `_skwirrel_document_attachments` wholesale. No migration, no upgrade routine, no new option. **Note this remains true only because 3.14.0 ships as a new release**; had this landed as a patch to an already-released 3.14.0, the backfill would need a forced full sync instead.
+- **AC5 honoured by omission.** No consumer file was edited. All three render sites (`product-documents.php:82`, `:125`, `templates/single-product/tabs/skwirrel-documents.php:30`) still `esc_html()` the name; a test asserts the resolver returns HTML verbatim, so escaping demonstrably remains the consumer's job.
+- **Out-of-scope items left alone**, as instructed: `get_downloadable_files()` still uses `file_name ?? 'Download'` for WooCommerce downloadable-file names (FR-23 covers the documents tab only); no `document_language` setting was added; `$this->image_language` and its `@phpstan-ignore property.onlyWritten` are untouched.
+- **Task 5 (version bump) deliberately not performed**, per the user's standing direction to stay on **3.14.0**. No CHANGELOG/readme entry was added. No new translatable strings were introduced — the last-resort `Document` literal stays untranslated exactly as before, so the seven locales need no regeneration.
+
 ### File List
+
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-attachment-handler.php` (modified) — `pick_attachment_translation()`, `resolve_document_name()`, `get_attachment_meta_for_language()` re-implemented, `get_document_attachments()` call site split into display vs import name
+- `tests/Unit/AttachmentHandlerDocumentNameTest.php` (new) — 11 tests covering AC1, AC2, every rung of AC3, AC5, and the image regression pin
+
+## Change Log
+
+| Date | Description |
+|------|-------------|
+| 2026-08-26 | Implemented Story 6.5: document links resolve a language-aware human name through the shared translation chain, with `file_name` still driving the imported file's extension. No version bump (stays on 3.14.0). |

@@ -39,38 +39,100 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 	 * Language pattern: ^[a-z]{2}(-[A-Z]{2}){0,1}$ (e.g. nl, nl-NL).
 	 */
 	private function get_attachment_meta_for_language( array $att ): array {
-		$lang         = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
-		$translations = $att['_attachment_translations'] ?? [];
-		if ( empty( $translations ) ) {
+		$t = $this->pick_attachment_translation( $att );
+		if ( [] === $t ) {
 			return [
 				'title'       => $att['file_name'] ?? '',
 				'description' => '',
 			];
 		}
-		foreach ( $translations as $t ) {
-			$tlang = (string) ( $t['language'] ?? '' );
-			if ( 0 === strcasecmp( $tlang, $lang ) ) {
-				return [
-					'title'       => (string) ( $t['product_attachment_title'] ?? $att['file_name'] ?? '' ),
-					'description' => (string) ( $t['product_attachment_description'] ?? '' ),
-				];
-			}
-		}
-		foreach ( $translations as $t ) {
-			$tlang = (string) ( $t['language'] ?? '' );
-			if ( strlen( $lang ) >= 2 && strlen( $tlang ) >= 2 && 0 === strcasecmp( substr( $tlang, 0, 2 ), substr( $lang, 0, 2 ) ) ) {
-				return [
-					'title'       => (string) ( $t['product_attachment_title'] ?? $att['file_name'] ?? '' ),
-					'description' => (string) ( $t['product_attachment_description'] ?? '' ),
-				];
-			}
-		}
-		$list  = array_values( (array) $translations );
-		$first = $list[0] ?? [];
 		return [
-			'title'       => (string) ( $first['product_attachment_title'] ?? $att['file_name'] ?? '' ),
-			'description' => (string) ( $first['product_attachment_description'] ?? '' ),
+			'title'       => (string) ( $t['product_attachment_title'] ?? $att['file_name'] ?? '' ),
+			'description' => (string) ( $t['product_attachment_description'] ?? '' ),
 		];
+	}
+
+	/**
+	 * Pick the `_attachment_translations` entry for the configured image language.
+	 *
+	 * The exact → two-letter-prefix → first-entry chain, extracted so images and documents
+	 * share one implementation rather than drifting apart. Only the *selection* lives here;
+	 * each caller layers its own fallback tail on top, because documents need attachment-level
+	 * `product_attachment_title` to sit between the translation and `file_name` while the image
+	 * path collapses straight to `file_name`.
+	 *
+	 * Language pattern: ^[a-z]{2}(-[A-Z]{2}){0,1}$ (e.g. nl, nl-NL).
+	 *
+	 * @param array<string, mixed> $att Raw API attachment.
+	 * @return array<string, mixed> The winning translation entry, or [] when there are none.
+	 */
+	private function pick_attachment_translation( array $att ): array {
+		$lang         = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
+		$translations = $att['_attachment_translations'] ?? [];
+		if ( empty( $translations ) || ! is_array( $translations ) ) {
+			return [];
+		}
+		foreach ( $translations as $t ) {
+			if ( ! is_array( $t ) ) {
+				continue;
+			}
+			$tlang = (string) ( $t['language'] ?? '' );
+			if ( 0 === strcasecmp( $tlang, (string) $lang ) ) {
+				return $t;
+			}
+		}
+		foreach ( $translations as $t ) {
+			if ( ! is_array( $t ) ) {
+				continue;
+			}
+			$tlang = (string) ( $t['language'] ?? '' );
+			if ( strlen( (string) $lang ) >= 2 && strlen( $tlang ) >= 2 && 0 === strcasecmp( substr( $tlang, 0, 2 ), substr( (string) $lang, 0, 2 ) ) ) {
+				return $t;
+			}
+		}
+		$list  = array_values( $translations );
+		$first = $list[0] ?? [];
+		return is_array( $first ) ? $first : [];
+	}
+
+	/**
+	 * Resolve the human-readable display name for a document link (FR-23).
+	 *
+	 * Fallback chain, each candidate trimmed and rejected when empty so a translation entry that
+	 * exists with a blank title falls through rather than winning:
+	 * translated `product_attachment_title` → attachment-level `product_attachment_title` →
+	 * `file_name` → URL basename → the literal `Document`.
+	 *
+	 * Never returns an empty string. That matters more than it looks: `get_documents_for_product()`
+	 * drops any document whose name is empty, so a nameless document does not render badly — it
+	 * vanishes from the tab entirely.
+	 *
+	 * Public so it is unit-testable without the network, the way
+	 * {@see Skwirrel_WC_Sync_Media_Importer::is_image_attachment_type()} is. The returned string is
+	 * raw: escaping stays the consumer's job, exactly as today.
+	 *
+	 * @param array<string, mixed> $att Raw API attachment.
+	 * @param string               $url Normalised source URL, used for the basename fallback.
+	 */
+	public function resolve_document_name( array $att, string $url ): string {
+		$translation = $this->pick_attachment_translation( $att );
+
+		$candidates = [
+			(string) ( $translation['product_attachment_title'] ?? '' ),
+			(string) ( $att['product_attachment_title'] ?? '' ),
+			(string) ( $att['file_name'] ?? '' ),
+		];
+		foreach ( $candidates as $candidate ) {
+			$candidate = trim( $candidate );
+			if ( '' !== $candidate ) {
+				return $candidate;
+			}
+		}
+
+		$path     = wp_parse_url( $url, PHP_URL_PATH );
+		$basename = is_string( $path ) && '' !== $path ? trim( basename( $path ) ) : '';
+
+		return '' !== $basename ? $basename : 'Document';
 	}
 
 	/**
@@ -259,13 +321,15 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			if ( $this->media_importer->is_image_attachment_type( $code ) && ! $this->media_importer->url_has_non_image_extension( $url ) ) {
 				continue;
 			}
-			$name = (string) ( $att['file_name'] ?? $att['product_attachment_title'] ?? '' );
-			if ( '' === $name ) {
-				$path = wp_parse_url( $url, PHP_URL_PATH );
-				$name = $path ? basename( $path ) : 'Document';
-			}
-			$api_meta = $this->build_api_meta( $att );
-			$id       = $this->media_importer->import_file( $url, $name, $product_id, $api_meta );
+			// Two different names, deliberately. The human title is for the link text only;
+			// import_file() uses its $name argument solely to derive the stored file's extension,
+			// and a title like "Montagehandleiding" has none — which would silently store every
+			// document as .pdf and corrupt .dwg/.xlsx/.zip attachments. Keep file_name flowing
+			// there; when it is empty, import_file() falls back to the URL basename itself.
+			$name        = $this->resolve_document_name( $att, $url );
+			$import_name = (string) ( $att['file_name'] ?? '' );
+			$api_meta    = $this->build_api_meta( $att );
+			$id          = $this->media_importer->import_file( $url, $import_name, $product_id, $api_meta );
 			if ( ! $id ) {
 				// Valid document URL the importer could not download/store — a real failure.
 				++$this->last_doc_failures;
