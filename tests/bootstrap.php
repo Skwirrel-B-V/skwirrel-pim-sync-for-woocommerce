@@ -559,3 +559,4 @@ if (!function_exists('wp_parse_url')) {
 }
 
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-settings.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-dashboard.php';

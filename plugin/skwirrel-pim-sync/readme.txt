@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 3.13.1
+Stable tag: 3.14.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,15 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.14.0 =
+
+* New: the settings screen is grouped into four tabs — Connection, What to sync, How it looks and Advanced — so you no longer scroll past forty settings to reach one. No setting changed, moved out of its group, or was renamed.
+* New: a tab containing a field that failed validation is marked with a warning icon and a count, and opens first. Validation messages from saving are now shown on the screen itself.
+* New: link straight to a tab with `#tab-connection`, `#tab-what-to-sync`, `#tab-how-it-looks` or `#tab-advanced`; the address bar keeps up as you switch tabs.
+* New: the tab strip is fully keyboard operable (arrow keys, Home and End) and announced correctly by screen readers.
+* Fix: saving while a required field sits on another tab now opens that tab and points at the field, instead of the browser silently refusing to submit.
+* Note: with JavaScript disabled the screen still shows every setting, exactly as before.
 
 = 3.13.1 =
 

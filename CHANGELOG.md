@@ -2,6 +2,22 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.14.0]
+
+### Added — the settings screen is grouped into four tabs (story 5.1)
+
+* **Forty-odd settings now sit in four tabs — Connection, What to sync, How it looks, Advanced.** The eight field groups were previously one long scroll; finding a setting meant scrolling past the ones you were not looking for. No field was added, removed, renamed or re-ordered within its group.
+* **The save request is unchanged.** All four panels stay in the DOM, inside the one `options.php` form, never disabled — inactive ones are only hidden. `sanitize_settings()` therefore still receives the identical `$input` array. This matters because it validates *across* groups: `super_category_id` is required when category sync is on, and `custom_collection_id` when custom classes or grouped products are on, and those pairs now sit on different tabs. A per-tab save would fire those rules against missing input and wipe stored values, and every absent checkbox would read as "off".
+* **A tab holding a failing field is marked and opens first.** The marker is a warning icon plus a count rendered server-side (never colour alone), and error codes are routed to their tab through the registry rather than a second hardcoded list. Settings errors from the sanitiser are now actually displayed on the screen — previously `add_settings_error()` messages were recorded but never rendered on this page, because it lives under its own top-level menu and core only auto-prints them for `options-general.php` children.
+* **`#tab-{slug}` deep links.** The fragment is used deliberately, not a query var: `?tab=` already selects the page-level view (`dashboard|sync|history|settings|debug`) and drives the submenu highlight. Activating a tab rewrites the fragment with `history.replaceState`, so the URL stays copyable without navigating.
+* **Keyboard and assistive technology.** The WAI-ARIA tabs pattern with automatic activation: `role="tablist"`/`tab`/`tabpanel`, `aria-selected`, `aria-controls`, `aria-labelledby`, a roving `tabindex`, and Left/Right/Home/End. The tab strip sits outside the `<form>` and its controls are `type="button"`, so a tab click cannot submit the settings.
+* **Nothing is unreachable without JavaScript.** Collapsing to a single panel is done *by* the script, so with JS off the screen reads exactly as it did before tabs existed — every panel visible, in order.
+* **Tabs are registered, not hardcoded.** `Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs()` holds slug, label, order, renderer and the field IDs used for error routing, filterable through `skwirrel_wc_sync_settings_tabs`. A new tab (Epic 6's field mapping) can be added without touching the tab strip markup or the panel loop.
+
+### Fixed
+
+* `super_category_id` and `collection_ids` carry HTML5 `required`, and a required control inside a hidden panel is not focusable — browsers refuse to submit and log "An invalid form control with name='…' is not focusable" with nothing shown to the user. Clicking Save now opens the panel holding the first invalid control before native validation runs.
+
 ## [3.13.1]
 
 ### Fixed — translated selection-safety messages

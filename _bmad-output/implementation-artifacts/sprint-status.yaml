@@ -39,7 +39,7 @@
 #   Epic 1 is foundational; Epic 2 builds on it; Epics 3 & 4 parallelize after Epic 1 seeds the pause flag.
 
 generated: 2026-06-12
-last_updated: 2026-08-25  # story 6-2 contexted (ready-for-dev)
+last_updated: 2026-08-26  # story 5-1 code-reviewed and completed
 project: Skwirrel PIM sync for WooCommerce
 project_key: NOKEY
 tracking_system: file-system
@@ -108,7 +108,7 @@ development_status:
 
   # ── Epic 5: A settings screen you can navigate, trust, and verify (Chapter 2 — client request) ──
   epic-5: in-progress
-  5-1-tabbed-settings-navigation: ready-for-dev          # supersedes 4-1; builds extensible tab registration | gh#44
+  5-1-tabbed-settings-navigation: done                   # supersedes 4-1; builds extensible tab registration | gh#44
   5-2-required-field-markers-and-inline-errors: ready-for-dev   # story file created 2026-08-25; ships field-level layer + seam, tabs stay in 5-1 | gh#45
   5-3-context-id: ready-for-dev                    # UNBLOCKED 2026-08-25: param is `include_contexts`, already hardcoded [1] at 6 sites | gh#46
   5-4-test-connection-metrics: ready-for-dev  # gh#47

@@ -1618,6 +1618,77 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '})();'
 		);
 
+		// Settings tab strip (ARIA tabs pattern). Every panel stays in the DOM and inside the
+		// one options.php form — the inactive ones are only hidden — so a submit from any tab
+		// still carries every field. With this script absent, all panels stay visible and the
+		// screen reads exactly as it did before tabs existed.
+		wp_add_inline_script(
+			'skwirrel-pim-sync-admin',
+			'(function() {'
+			. ' var strip = document.querySelector(".skw-tabs");'
+			. ' if (!strip) return;'
+			. ' var tabs = Array.prototype.slice.call(strip.querySelectorAll("[role=tab]"));'
+			. ' if (!tabs.length) return;'
+			. ' var form = document.getElementById("skwirrel-sync-settings-form");'
+			. ' function panelOf(tab) { return document.getElementById(tab.getAttribute("aria-controls")); }'
+			. ' function tabBySlug(slug) {'
+			. '  for (var i = 0; i < tabs.length; i++) { if (tabs[i].getAttribute("data-skw-tab") === slug) return tabs[i]; }'
+			. '  return null;'
+			. ' }'
+			. ' function activate(tab, opts) {'
+			. '  opts = opts || {};'
+			. '  tabs.forEach(function(t) {'
+			. '   var on = t === tab;'
+			. '   t.setAttribute("aria-selected", on ? "true" : "false");'
+			. '   t.setAttribute("tabindex", on ? "0" : "-1");'
+			. '   var p = panelOf(t);'
+			. '   if (!p) return;'
+			. '   if (on) { p.removeAttribute("hidden"); } else { p.setAttribute("hidden", "hidden"); }'
+			. '  });'
+			. '  if (opts.focus) { tab.focus(); }'
+			. '  var slug = tab.getAttribute("data-skw-tab");'
+			. '  if (opts.hash && slug && window.history && window.history.replaceState) {'
+			. '   window.history.replaceState(null, "", window.location.pathname + window.location.search + "#tab-" + slug);'
+			. '  }'
+			. ' }'
+			. ' tabs.forEach(function(tab, index) {'
+			. '  tab.addEventListener("click", function() { activate(tab, { focus: true, hash: true }); });'
+			. '  tab.addEventListener("keydown", function(e) {'
+			. '   var next = -1;'
+			. '   if (e.key === "ArrowRight") { next = (index + 1) % tabs.length; }'
+			. '   else if (e.key === "ArrowLeft") { next = (index - 1 + tabs.length) % tabs.length; }'
+			. '   else if (e.key === "Home") { next = 0; }'
+			. '   else if (e.key === "End") { next = tabs.length - 1; }'
+			. '   else { return; }'
+			. '   e.preventDefault();'
+			. '   activate(tabs[next], { focus: true, hash: true });'
+			. '  });'
+			. ' });'
+			// Which tab opens: an errored tab first (the server marks those), then a #tab- deep
+			// link, then whatever the server pre-selected, then the first tab.
+			. ' var initial = null;'
+			. ' for (var i = 0; i < tabs.length; i++) { if (tabs[i].hasAttribute("data-skw-errors")) { initial = tabs[i]; break; } }'
+			. ' if (!initial && window.location.hash.indexOf("#tab-") === 0) { initial = tabBySlug(window.location.hash.slice(5)); }'
+			. ' if (!initial) { for (var j = 0; j < tabs.length; j++) { if (tabs[j].getAttribute("aria-selected") === "true") { initial = tabs[j]; break; } } }'
+			. ' activate(initial || tabs[0], { focus: false, hash: false });'
+			// A required control inside a hidden panel is not focusable, so the browser refuses to
+			// report it ("An invalid form control ... is not focusable") and the save silently fails.
+			// Open the panel that holds the first invalid control before native validation runs.
+			. ' if (form) {'
+			. '  form.addEventListener("click", function(e) {'
+			. '   var btn = e.target.closest ? e.target.closest("button[type=submit], input[type=submit]") : null;'
+			. '   if (!btn) return;'
+			. '   var invalid = form.querySelector(":invalid");'
+			. '   if (!invalid) return;'
+			. '   var panel = invalid.closest("[data-skw-panel]");'
+			. '   if (!panel) return;'
+			. '   var tab = tabBySlug(panel.getAttribute("data-skw-panel"));'
+			. '   if (tab && tab.getAttribute("aria-selected") !== "true") { activate(tab, { focus: false, hash: true }); }'
+			. '  }, true);'
+			. ' }'
+			. '})();'
+		);
+
 		// Move WP admin notices into the dashboard notices slot.
 		wp_add_inline_script(
 			'skwirrel-pim-sync-admin',

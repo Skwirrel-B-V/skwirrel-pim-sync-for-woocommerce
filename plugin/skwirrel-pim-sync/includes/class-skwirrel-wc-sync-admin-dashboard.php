@@ -756,453 +756,407 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	}
 
 	/**
+	 * Settings tab registry.
+	 *
+	 * The settings screen renders one panel per entry, in ascending `order` (ties keep
+	 * registration order). Every entry is keyed by its slug and holds:
+	 *
+	 * - `label`  (string)          Tab label, translated.
+	 * - `order`  (int)             Sort key. Defaults to 100.
+	 * - `render` (string|callable) Panel body renderer. A string names a method on this
+	 *                              class; anything else must be callable. It is called
+	 *                              with the render context array as its only argument.
+	 * - `fields` (string[])        IDs of fields on this tab that server-side validation
+	 *                              can flag. Used to route settings errors to their tab.
+	 *
+	 * A tab can be added without editing the tab strip markup or the panel loop:
+	 *
+	 *     add_filter(
+	 *         'skwirrel_wc_sync_settings_tabs',
+	 *         function ( array $tabs ): array {
+	 *             $tabs['field-mapping'] = [
+	 *                 'label'  => __( 'Field mapping', 'skwirrel-pim-sync' ),
+	 *                 'order'  => 25,
+	 *                 'render' => 'my_plugin_render_field_mapping_panel',
+	 *                 'fields' => [],
+	 *             ];
+	 *             return $tabs;
+	 *         }
+	 *     );
+	 *
+	 * Built-in panel renderers and error-field maps are preserved after filtering so an
+	 * extension cannot accidentally remove settings from the full-form submission. A
+	 * filter may adjust their labels/orders and may register additional tabs.
+	 *
+	 * @return array<string, array<string, mixed>> Normalised, ordered tab registry.
+	 */
+	public static function get_settings_tabs(): array {
+		$default_tabs = array(
+			'connection'   => array(
+				'label'  => __( 'Connection', 'skwirrel-pim-sync' ),
+				'order'  => 10,
+				'render' => 'render_settings_panel_connection',
+				'fields' => array( 'skwirrel_subdomain', 'endpoint_url', 'auth_token' ),
+			),
+			'what-to-sync' => array(
+				'label'  => __( 'What to sync', 'skwirrel-pim-sync' ),
+				'order'  => 20,
+				'render' => 'render_settings_panel_what_to_sync',
+				'fields' => array( 'batch_size', 'super_category_id', 'collection_ids', 'custom_collection_id' ),
+			),
+			'how-it-looks' => array(
+				'label'  => __( 'How it looks', 'skwirrel-pim-sync' ),
+				'order'  => 30,
+				'render' => 'render_settings_panel_how_it_looks',
+				'fields' => array( 'image_language', 'include_languages' ),
+			),
+			'advanced'     => array(
+				'label'  => __( 'Advanced', 'skwirrel-pim-sync' ),
+				'order'  => 40,
+				'render' => 'render_settings_panel_advanced',
+				'fields' => array( 'sync_interval', 'log_retention' ),
+			),
+		);
+
+		/**
+		 * Filters the settings tabs.
+		 *
+		 * @param array<string, array<string, mixed>> $tabs Tab registry keyed by slug.
+		 */
+		$filtered_tabs = self::filter_settings_tabs( $default_tabs );
+		if ( ! is_array( $filtered_tabs ) ) {
+			$filtered_tabs = $default_tabs;
+		}
+
+		$tabs     = self::normalize_settings_tabs( $filtered_tabs );
+		$defaults = self::normalize_settings_tabs( $default_tabs );
+
+		// The extension point is additive: never let a malformed callback remove or replace
+		// a built-in panel and thereby omit its settings from the one full-form submission.
+		foreach ( $defaults as $slug => $default_tab ) {
+			if ( ! isset( $tabs[ $slug ] ) ) {
+				$tabs[ $slug ] = $default_tab;
+				continue;
+			}
+
+			$tabs[ $slug ]['render'] = $default_tab['render'];
+			$tabs[ $slug ]['fields'] = $default_tab['fields'];
+		}
+
+		return self::normalize_settings_tabs( $tabs );
+	}
+
+	/**
+	 * Apply the settings-tabs filter without assuming every third-party callback honours its contract.
+	 *
+	 * @param array<string, array<string, mixed>> $tabs Built-in tab registry.
+	 * @return mixed Filtered registry before validation.
+	 */
+	private static function filter_settings_tabs( array $tabs ): mixed {
+		return apply_filters( 'skwirrel_wc_sync_settings_tabs', $tabs );
+	}
+
+	/**
+	 * Drop malformed tabs, fill defaults and sort by `order`.
+	 *
+	 * Sorting is stable, so tabs registered with the same `order` keep their
+	 * registration order.
+	 *
+	 * @param array<array-key, mixed> $tabs Raw tab registry, as returned by the filter and
+	 *                                      therefore not to be trusted.
+	 * @return array<string, array<string, mixed>> Normalised registry.
+	 */
+	public static function normalize_settings_tabs( array $tabs ): array {
+		$normalized = array();
+
+		foreach ( $tabs as $slug => $tab ) {
+			$slug = is_string( $slug ) ? strtolower( (string) preg_replace( '/[^A-Za-z0-9_\-]/', '', $slug ) ) : '';
+			if ( '' === $slug || ! is_array( $tab ) ) {
+				continue;
+			}
+
+			$label = isset( $tab['label'] ) && is_string( $tab['label'] ) ? $tab['label'] : '';
+			if ( '' === $label ) {
+				continue;
+			}
+
+			$fields = array();
+			if ( isset( $tab['fields'] ) && is_array( $tab['fields'] ) ) {
+				foreach ( $tab['fields'] as $field ) {
+					if ( is_string( $field ) && '' !== $field ) {
+						$fields[] = $field;
+					}
+				}
+			}
+
+			$normalized[ $slug ] = array(
+				'label'  => $label,
+				'order'  => isset( $tab['order'] ) ? (int) $tab['order'] : 100,
+				'render' => $tab['render'] ?? '',
+				'fields' => $fields,
+			);
+		}
+
+		uasort(
+			$normalized,
+			static fn ( array $a, array $b ): int => $a['order'] <=> $b['order']
+		);
+
+		return $normalized;
+	}
+
+	/**
+	 * Route settings error codes to the tab that holds the failing field.
+	 *
+	 * An error code is matched against the registered field IDs directly, and with a
+	 * trailing `_required` stripped — the convention the sanitiser already follows
+	 * (`super_category_id_required` → `super_category_id`). Codes that match no field
+	 * are not attributed to any tab.
+	 *
+	 * @param array<int, string>                  $codes Settings error codes.
+	 * @param array<string, array<string, mixed>> $tabs  Normalised tab registry.
+	 * @return array<string, int> Failing-field count keyed by tab slug (tabs without errors omitted).
+	 */
+	public static function count_errors_by_tab( array $codes, array $tabs ): array {
+		$fields_with_errors = array();
+
+		foreach ( $codes as $code ) {
+			if ( '' === $code ) {
+				continue;
+			}
+
+			$candidates = array( $code );
+			if ( str_ends_with( $code, '_required' ) ) {
+				$candidates[] = substr( $code, 0, -strlen( '_required' ) );
+			}
+
+			foreach ( $tabs as $slug => $tab ) {
+				$fields          = isset( $tab['fields'] ) && is_array( $tab['fields'] ) ? $tab['fields'] : array();
+				$matching_fields = array_values( array_intersect( $candidates, $fields ) );
+				if ( array() === $matching_fields ) {
+					continue;
+				}
+				$fields_with_errors[ $slug ][ $matching_fields[0] ] = true;
+				break;
+			}
+		}
+
+		$counts = array();
+		foreach ( array_keys( $tabs ) as $slug ) {
+			if ( isset( $fields_with_errors[ $slug ] ) ) {
+				$counts[ $slug ] = count( $fields_with_errors[ $slug ] );
+			}
+		}
+
+		return $counts;
+	}
+
+	/**
+	 * Decide which tab opens first: the first tab holding an error, else the first tab.
+	 *
+	 * @param array<string, int>                  $error_counts Error count keyed by tab slug.
+	 * @param array<string, array<string, mixed>> $tabs         Normalised tab registry.
+	 * @return string Tab slug, or an empty string when there are no tabs.
+	 */
+	public static function first_settings_tab( array $error_counts, array $tabs ): string {
+		foreach ( array_keys( $tabs ) as $slug ) {
+			if ( ! empty( $error_counts[ $slug ] ) ) {
+				return (string) $slug;
+			}
+		}
+
+		$first = array_key_first( $tabs );
+
+		return null === $first ? '' : (string) $first;
+	}
+
+	/**
+	 * Settings errors recorded by the sanitiser for this plugin's option.
+	 *
+	 * @return array<int, array<string, mixed>> Settings errors.
+	 */
+	private static function current_settings_errors(): array {
+		if ( ! function_exists( 'get_settings_errors' ) ) {
+			return array();
+		}
+
+		return get_settings_errors( self::OPTION_KEY );
+	}
+
+	/**
+	 * Render one tab panel body through its registered renderer.
+	 *
+	 * @param array<string, mixed> $tab     Tab registry entry.
+	 * @param array<string, mixed> $context Render context passed to the renderer.
+	 */
+	private function render_settings_tab_panel( array $tab, array $context ): void {
+		$render = $tab['render'] ?? '';
+
+		// The built-in panels name a method on this class; anything registered from outside
+		// supplies its own callable.
+		switch ( $render ) {
+			case 'render_settings_panel_connection':
+				$this->render_settings_panel_connection( $context );
+				return;
+			case 'render_settings_panel_what_to_sync':
+				$this->render_settings_panel_what_to_sync( $context );
+				return;
+			case 'render_settings_panel_how_it_looks':
+				$this->render_settings_panel_how_it_looks( $context );
+				return;
+			case 'render_settings_panel_advanced':
+				$this->render_settings_panel_advanced( $context );
+				return;
+		}
+
+		if ( is_callable( $render ) ) {
+			call_user_func( $render, $context );
+		}
+	}
+
+	/**
+	 * Render the Connection tab panel.
+	 *
+	 * @param array<string, mixed> $context Render context.
+	 */
+	private function render_settings_panel_connection( array $context ): void {
+		$this->render_fieldgroup_api_connection(
+			(array) $context['opts'],
+			(string) $context['token_masked'],
+			(string) $context['full_url'],
+			(string) $context['subdomain']
+		);
+	}
+
+	/**
+	 * Render the "What to sync" tab panel.
+	 *
+	 * @param array<string, mixed> $context Render context.
+	 */
+	private function render_settings_panel_what_to_sync( array $context ): void {
+		$this->render_fieldgroup_sync_options( (array) $context['opts'], (string) $context['subdomain'] );
+		$this->render_fieldgroup_product_status( (array) $context['opts'] );
+	}
+
+	/**
+	 * Render the "How it looks" tab panel.
+	 *
+	 * @param array<string, mixed> $context Render context.
+	 */
+	private function render_settings_panel_how_it_looks( array $context ): void {
+		$this->render_fieldgroup_media_language( (array) $context['opts'] );
+		$this->render_fieldgroup_permalinks();
+	}
+
+	/**
+	 * Render the Advanced tab panel.
+	 *
+	 * @param array<string, mixed> $context Render context.
+	 */
+	private function render_settings_panel_advanced( array $context ): void {
+		$this->render_fieldgroup_scheduling( (array) $context['opts'] );
+		$this->render_fieldgroup_sync_logs( (array) $context['opts'] );
+		$this->render_fieldgroup_advanced( (array) $context['opts'] );
+	}
+
+	/**
 	 * Render the settings page (keeps existing form logic).
+	 *
+	 * The field groups are distributed over the tabs from {@see self::get_settings_tabs()}.
+	 * Every panel stays in the DOM, inside the one `options.php` form and never disabled,
+	 * so a single submit still carries every field to `sanitize_settings()` — which
+	 * validates across groups and would wipe stored values if fields went missing.
 	 */
 	private function render_page_settings(): void {
 		$opts         = get_option( self::OPTION_KEY, array() );
+		$opts         = is_array( $opts ) ? $opts : array();
 		$token_masked = '' !== Skwirrel_WC_Sync_Admin_Settings::get_auth_token() ? self::MASK : '';
+
+		$full_url  = Skwirrel_WC_Sync_Admin_Settings::normalize_endpoint_url( (string) ( $opts['endpoint_url'] ?? '' ) );
+		$subdomain = '';
+		if ( preg_match( '#^https?://(.+)\.skwirrel\.eu(?:/jsonrpc)?$#i', $full_url, $m ) ) {
+			$subdomain = $m[1];
+		}
+
+		$context = array(
+			'opts'         => $opts,
+			'token_masked' => $token_masked,
+			'full_url'     => $full_url,
+			'subdomain'    => $subdomain,
+		);
+
+		$tabs   = self::get_settings_tabs();
+		$errors = self::current_settings_errors();
+		$codes  = array();
+		foreach ( $errors as $error ) {
+			if ( isset( $error['code'] ) && is_string( $error['code'] ) ) {
+				$codes[] = $error['code'];
+			}
+		}
+		$error_counts = self::count_errors_by_tab( $codes, $tabs );
+		$initial_tab  = self::first_settings_tab( $error_counts, $tabs );
 
 		?>
 		<div class="skw-section">
 			<h2 class="skw-section-title"><?php esc_html_e( 'Settings', 'skwirrel-pim-sync' ); ?></h2>
 			<p class="skw-section-desc"><?php esc_html_e( 'Configure your Skwirrel PIM API connection and synchronization options.', 'skwirrel-pim-sync' ); ?></p>
 
+			<?php if ( array() !== $errors ) : ?>
+				<div class="skw-notice skw-notice-error" id="skwirrel-settings-errors">
+					<?php foreach ( $errors as $error ) : ?>
+						<p><?php echo esc_html( isset( $error['message'] ) ? (string) $error['message'] : '' ); ?></p>
+					<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
+
+			<div class="skw-tabs" role="tablist" aria-label="<?php esc_attr_e( 'Settings sections', 'skwirrel-pim-sync' ); ?>">
+				<?php
+				foreach ( $tabs as $slug => $tab ) :
+					$slug     = (string) $slug;
+					$count    = (int) ( $error_counts[ $slug ] ?? 0 );
+					$selected = $slug === $initial_tab;
+					?>
+					<button
+						type="button"
+						role="tab"
+						class="skw-tab<?php echo $count > 0 ? ' skw-tab-error' : ''; ?>"
+						id="tab-<?php echo esc_attr( $slug ); ?>"
+						data-skw-tab="<?php echo esc_attr( $slug ); ?>"
+						aria-controls="panel-<?php echo esc_attr( $slug ); ?>"
+						aria-selected="<?php echo $selected ? 'true' : 'false'; ?>"
+						tabindex="<?php echo $selected ? '0' : '-1'; ?>"
+						<?php echo $count > 0 ? ' data-skw-errors="' . esc_attr( (string) $count ) . '"' : ''; ?>
+					>
+						<span class="skw-tab-label"><?php echo esc_html( (string) $tab['label'] ); ?></span>
+						<?php if ( $count > 0 ) : ?>
+							<span class="skw-tab-badge" aria-hidden="true">&#9888; <?php echo esc_html( (string) $count ); ?></span>
+							<span class="screen-reader-text">
+								<?php
+								/* translators: %d: number of fields on this tab that need attention. */
+								echo esc_html( sprintf( _n( '%d field needs attention', '%d fields need attention', $count, 'skwirrel-pim-sync' ), $count ) );
+								?>
+							</span>
+						<?php endif; ?>
+					</button>
+				<?php endforeach; ?>
+			</div>
+
 			<form method="post" action="options.php" id="skwirrel-sync-settings-form" class="skw-settings-form">
 				<?php wp_nonce_field( 'options-options' ); ?>
 				<?php settings_fields( 'skwirrel_wc_sync' ); ?>
 
-				<?php // -- API Connection -- ?>
-				<div class="skw-fieldgroup">
-					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'API Connection', 'skwirrel-pim-sync' ); ?></h3>
-					<?php
-					$full_url  = Skwirrel_WC_Sync_Admin_Settings::normalize_endpoint_url( (string) ( $opts['endpoint_url'] ?? '' ) );
-					$subdomain = '';
-					if ( preg_match( '#^https?://(.+)\.skwirrel\.eu(?:/jsonrpc)?$#i', $full_url, $m ) ) {
-						$subdomain = $m[1];
-					}
-					?>
-					<div class="skw-field">
-						<label for="skwirrel_subdomain" class="skw-label"><?php esc_html_e( 'Skwirrel subdomain', 'skwirrel-pim-sync' ); ?></label>
-						<div class="skw-input-affixed">
-							<span class="skw-input-prefix">https://</span>
-							<input type="text" id="skwirrel_subdomain" value="<?php echo esc_attr( $subdomain ); ?>" class="skw-input" placeholder="yourcompany" required />
-							<span class="skw-input-suffix">.skwirrel.eu/jsonrpc</span>
-						</div>
-						<input type="hidden" id="endpoint_url" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[endpoint_url]" value="<?php echo esc_attr( $full_url ); ?>" />
+				<?php foreach ( $tabs as $slug => $tab ) : ?>
+					<div
+						class="skw-tabpanel"
+						role="tabpanel"
+						id="panel-<?php echo esc_attr( (string) $slug ); ?>"
+						data-skw-panel="<?php echo esc_attr( (string) $slug ); ?>"
+						aria-labelledby="tab-<?php echo esc_attr( (string) $slug ); ?>"
+						tabindex="0"
+					>
+						<?php $this->render_settings_tab_panel( $tab, $context ); ?>
 					</div>
-					<input type="hidden" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[auth_type]" value="token" />
-					<?php if ( class_exists( 'Skwirrel_WC_Sync_Connectors' ) && Skwirrel_WC_Sync_Connectors::is_registered() ) : ?>
-						<div class="skw-field">
-							<label class="skw-label"><?php esc_html_e( 'API Token', 'skwirrel-pim-sync' ); ?></label>
-							<p class="skw-field-hint">
-								<?php
-								$has_token      = '' !== Skwirrel_WC_Sync_Admin_Settings::get_auth_token();
-								$connectors_url = admin_url( 'options-connectors.php' );
-								$status_label   = $has_token
-									? esc_html__( 'Token configured.', 'skwirrel-pim-sync' )
-									: esc_html__( 'No token configured.', 'skwirrel-pim-sync' );
-								printf(
-									/* translators: 1: status label, 2: link to the WordPress Connections Screen */
-									esc_html__( '%1$s Manage your Skwirrel API token in %2$s.', 'skwirrel-pim-sync' ),
-									'<strong>' . esc_html( $status_label ) . '</strong>',
-									'<a href="' . esc_url( $connectors_url ) . '">' . esc_html__( 'Settings → Connectors', 'skwirrel-pim-sync' ) . '</a>'
-								);
-								?>
-							</p>
-						</div>
-					<?php else : ?>
-						<div class="skw-field">
-							<label for="auth_token" class="skw-label"><?php esc_html_e( 'API Token', 'skwirrel-pim-sync' ); ?></label>
-							<input type="password" id="auth_token" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[auth_token]" value="<?php echo esc_attr( $token_masked ); ?>" class="skw-input" autocomplete="off" />
-							<p class="skw-field-hint">
-								<?php
-								printf(
-									/* translators: %s = URL to Skwirrel webservice page */
-									esc_html__( 'Create a static API token at %s.', 'skwirrel-pim-sync' ),
-									'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/data/webservice" target="_blank" id="skwirrel-token-link">https://<span id="skwirrel-token-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/data/webservice</a>'
-								);
-								?>
-							</p>
-						</div>
-					<?php endif; ?>
-					<div class="skw-field-row">
-						<div class="skw-field">
-							<label for="timeout" class="skw-label"><?php esc_html_e( 'Timeout (seconds)', 'skwirrel-pim-sync' ); ?></label>
-							<input type="number" id="timeout" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[timeout]" value="<?php echo esc_attr( (string) ( $opts['timeout'] ?? 30 ) ); ?>" min="5" max="120" class="skw-input skw-input-sm" />
-						</div>
-						<div class="skw-field">
-							<label for="retries" class="skw-label"><?php esc_html_e( 'Retries', 'skwirrel-pim-sync' ); ?></label>
-							<input type="number" id="retries" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[retries]" value="<?php echo esc_attr( (string) ( $opts['retries'] ?? 2 ) ); ?>" min="0" max="5" class="skw-input skw-input-sm" />
-						</div>
-					</div>
-					<div class="skw-field-actions">
-						<button type="button" id="skwirrel-test-connection" class="skw-btn skw-btn-secondary"><?php esc_html_e( 'Test connection', 'skwirrel-pim-sync' ); ?></button>
-						<span id="skwirrel-test-result" class="skw-test-result" role="status" aria-live="polite"></span>
-					</div>
-				</div>
-
-				<?php // -- Scheduling -- ?>
-				<div class="skw-fieldgroup">
-					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Scheduling', 'skwirrel-pim-sync' ); ?></h3>
-					<div class="skw-field-row">
-						<div class="skw-field">
-							<label for="sync_interval" class="skw-label"><?php esc_html_e( 'Sync interval', 'skwirrel-pim-sync' ); ?></label>
-							<?php
-							$current_interval = (string) ( $opts['sync_interval'] ?? '' );
-							$min_seconds      = Skwirrel_WC_Sync_Action_Scheduler::get_min_interval_seconds();
-							$min_hours        = (int) round( $min_seconds / HOUR_IN_SECONDS );
-							$full_duration    = Skwirrel_WC_Sync_Action_Scheduler::get_full_sync_duration();
-							?>
-							<select id="sync_interval" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_interval]" class="skw-select">
-								<?php foreach ( Skwirrel_WC_Sync_Action_Scheduler::get_interval_options() as $k => $v ) : ?>
-									<?php
-									$secs = Skwirrel_WC_Sync_Action_Scheduler::interval_seconds( $k );
-									// Disable any recurrence shorter than the minimum rest window — but never the
-									// "Disabled" option nor the value already saved (so an existing setting still shows).
-									$too_short = ( '' !== $k && $secs > 0 && $secs < $min_seconds && $k !== $current_interval );
-									?>
-									<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $current_interval, $k ); ?> <?php disabled( $too_short ); ?>>
-										<?php echo esc_html( $v ); ?><?php echo $too_short ? esc_html__( ' — too short', 'skwirrel-pim-sync' ) : ''; ?>
-									</option>
-								<?php endforeach; ?>
-							</select>
-							<p class="skw-field-hint">
-								<?php
-								if ( $full_duration > 0 ) {
-									printf(
-										/* translators: 1: last full sync duration in minutes, 2: minimum interval in hours */
-										esc_html__( 'Your last full sync took ~%1$d min, so auto-syncs must be at least %2$d hours apart (one full hour of rest between runs).', 'skwirrel-pim-sync' ),
-										(int) round( $full_duration / 60 ),
-										(int) $min_hours
-									);
-								} else {
-									printf(
-										/* translators: %d: minimum interval in hours */
-										esc_html__( 'Auto-syncs must be at least %d hours apart until the first full sync has run to measure its duration.', 'skwirrel-pim-sync' ),
-										(int) $min_hours
-									);
-								}
-								?>
-							</p>
-						</div>
-					</div>
-				</div>
-
-				<?php // -- Sync Options -- ?>
-				<div class="skw-fieldgroup">
-					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Sync Options', 'skwirrel-pim-sync' ); ?></h3>
-					<div class="skw-checkbox-group">
-						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_categories]" value="1" <?php checked( ! empty( $opts['sync_categories'] ) ); ?> /> <?php esc_html_e( 'Sync categories', 'skwirrel-pim-sync' ); ?></label>
-						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_grouped_products]" value="1" <?php checked( ! empty( $opts['sync_grouped_products'] ) ); ?> /> <?php esc_html_e( 'Sync grouped products (variable)', 'skwirrel-pim-sync' ); ?></label>
-						<label class="skw-checkbox skw-checkbox-indent"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[use_virtual_product_content]" value="1" <?php checked( ! empty( $opts['use_virtual_product_content'] ) ); ?> /> <?php esc_html_e( 'Use virtual product content for variable products', 'skwirrel-pim-sync' ); ?></label>
-						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_related_products]" value="1" <?php checked( ! empty( $opts['sync_related_products'] ) ); ?> /> <?php esc_html_e( 'Sync related products', 'skwirrel-pim-sync' ); ?></label>
-						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_manufacturers]" value="1" <?php checked( ! empty( $opts['sync_manufacturers'] ) ); ?> /> <?php esc_html_e( 'Sync manufacturers', 'skwirrel-pim-sync' ); ?></label>
-						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_custom_classes]" value="1" <?php checked( ! empty( $opts['sync_custom_classes'] ) ); ?> /> <?php esc_html_e( 'Sync custom classes', 'skwirrel-pim-sync' ); ?></label>
-						<label class="skw-checkbox skw-checkbox-indent"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_trade_item_custom_classes]" value="1" <?php checked( ! empty( $opts['sync_trade_item_custom_classes'] ) ); ?> /> <?php esc_html_e( 'Include trade item custom classes', 'skwirrel-pim-sync' ); ?></label>
-						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_gtin_attribute]" value="1" <?php checked( ! empty( $opts['show_gtin_attribute'] ) ); ?> /> <?php esc_html_e( 'Show GTIN as product attribute', 'skwirrel-pim-sync' ); ?></label>
-						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_variant_attribute]" value="1" <?php checked( ! empty( $opts['show_variant_attribute'] ) ); ?> /> <?php esc_html_e( 'Show Variant as product attribute', 'skwirrel-pim-sync' ); ?></label>
-					</div>
-					<div class="skw-field-row">
-						<div class="skw-field">
-							<label for="batch_size" class="skw-label"><?php esc_html_e( 'Batch size', 'skwirrel-pim-sync' ); ?></label>
-							<input type="number" id="batch_size" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[batch_size]" value="<?php echo esc_attr( (string) ( $opts['batch_size'] ?? 10 ) ); ?>" min="1" max="100" class="skw-input skw-input-sm" />
-							<p class="skw-field-hint"><?php esc_html_e( 'Products per API request (1–100).', 'skwirrel-pim-sync' ); ?></p>
-						</div>
-					</div>
-					<div class="skw-field-row">
-						<div class="skw-field">
-							<?php $rpt = $opts['related_products_type'] ?? 'auto'; ?>
-							<label for="related_products_type" class="skw-label"><?php esc_html_e( 'Related products mapping', 'skwirrel-pim-sync' ); ?></label>
-							<select id="related_products_type" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[related_products_type]" class="skw-select">
-								<option value="auto" <?php selected( $rpt, 'auto' ); ?>><?php esc_html_e( 'Auto (use relation type)', 'skwirrel-pim-sync' ); ?></option>
-								<option value="cross_sells" <?php selected( $rpt, 'cross_sells' ); ?>><?php esc_html_e( 'All as cross-sells', 'skwirrel-pim-sync' ); ?></option>
-								<option value="upsells" <?php selected( $rpt, 'upsells' ); ?>><?php esc_html_e( 'All as upsells', 'skwirrel-pim-sync' ); ?></option>
-								<option value="both" <?php selected( $rpt, 'both' ); ?>><?php esc_html_e( 'All as both', 'skwirrel-pim-sync' ); ?></option>
-							</select>
-							<p class="skw-field-hint"><?php esc_html_e( 'Auto maps UPSELL/SUCCESSOR types to upsells, all others to cross-sells.', 'skwirrel-pim-sync' ); ?></p>
-						</div>
-						<div class="skw-field">
-							<?php $vlf = $opts['variant_label_field'] ?? 'internal_product_code'; ?>
-							<label for="variant_label_field" class="skw-label"><?php esc_html_e( 'Variant label', 'skwirrel-pim-sync' ); ?></label>
-							<select id="variant_label_field" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[variant_label_field]" class="skw-select">
-								<option value="internal_product_code" <?php selected( $vlf, 'internal_product_code' ); ?>><?php esc_html_e( 'SKU (internal_product_code)', 'skwirrel-pim-sync' ); ?></option>
-								<option value="product_erp_description" <?php selected( $vlf, 'product_erp_description' ); ?>><?php esc_html_e( 'ERP description', 'skwirrel-pim-sync' ); ?></option>
-								<option value="product_name" <?php selected( $vlf, 'product_name' ); ?>><?php esc_html_e( 'Product name (translated)', 'skwirrel-pim-sync' ); ?></option>
-							</select>
-							<p class="skw-field-hint"><?php esc_html_e( 'Label shown in the variant dropdown when no variation axes are available.', 'skwirrel-pim-sync' ); ?></p>
-						</div>
-					</div>
-					<div class="skw-field-row">
-						<div class="skw-field">
-							<label for="super_category_id" class="skw-label"><?php esc_html_e( 'Super category ID', 'skwirrel-pim-sync' ); ?></label>
-							<input type="number" id="super_category_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[super_category_id]" value="<?php echo esc_attr( $opts['super_category_id'] ?? '' ); ?>" class="skw-input" min="1" required placeholder="<?php esc_attr_e( 'e.g. 42', 'skwirrel-pim-sync' ); ?>" />
-							<p class="skw-field-hint">
-								<?php
-								printf(
-									/* translators: %s = link to Skwirrel categories page */
-									esc_html__( 'Find your category IDs at %s.', 'skwirrel-pim-sync' ),
-									'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/base/categories" target="_blank" id="skwirrel-categories-link">https://<span class="skwirrel-link-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/base/categories</a>'
-								);
-								?>
-							</p>
-						</div>
-						<div class="skw-field">
-							<label for="collection_ids" class="skw-label"><?php esc_html_e( 'Selection IDs', 'skwirrel-pim-sync' ); ?></label>
-							<input type="text" id="collection_ids" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[collection_ids]" value="<?php echo esc_attr( $opts['collection_ids'] ?? '' ); ?>" class="skw-input" required pattern="[1-9]\d*(\s*,\s*[1-9]\d*)*" title="<?php esc_attr_e( 'One or more IDs greater than 0, separated by commas', 'skwirrel-pim-sync' ); ?>" placeholder="<?php esc_attr_e( 'e.g. 123, 456', 'skwirrel-pim-sync' ); ?>" />
-							<p class="skw-field-hint">
-								<?php
-								printf(
-									/* translators: %s = link to Skwirrel selections page */
-									esc_html__( 'Find your selection IDs at %s.', 'skwirrel-pim-sync' ),
-									'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/data/selections" target="_blank" id="skwirrel-selections-link">https://<span class="skwirrel-link-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/data/selections</a>'
-								);
-								?>
-							</p>
-						</div>
-						<div class="skw-field">
-							<label for="custom_collection_id" class="skw-label"><?php esc_html_e( 'Custom class collection ID (optional)', 'skwirrel-pim-sync' ); ?></label>
-							<input type="number" id="custom_collection_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[custom_collection_id]" value="<?php echo esc_attr( $opts['custom_collection_id'] ?? '' ); ?>" class="skw-input" min="1" placeholder="<?php esc_attr_e( 'e.g. 5', 'skwirrel-pim-sync' ); ?>" />
-							<p class="skw-field-hint">
-								<?php esc_html_e( 'Only needed when syncing custom classes or grouped products.', 'skwirrel-pim-sync' ); ?>
-								<?php
-								printf(
-									/* translators: %s = link to Skwirrel groups page */
-									esc_html__( 'Find your collection IDs at %s.', 'skwirrel-pim-sync' ),
-									'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/base/groups" target="_blank" id="skwirrel-groups-link">https://<span class="skwirrel-link-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/base/groups</a>'
-								);
-								?>
-							</p>
-						</div>
-					</div>
-					<div class="skw-field-row">
-						<div class="skw-field">
-							<?php $cc_mode = $opts['custom_class_filter_mode'] ?? ''; ?>
-							<label for="custom_class_filter_mode" class="skw-label"><?php esc_html_e( 'Custom class filter', 'skwirrel-pim-sync' ); ?></label>
-							<select id="custom_class_filter_mode" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[custom_class_filter_mode]" class="skw-select">
-								<option value="" <?php selected( $cc_mode, '' ); ?>><?php esc_html_e( 'No filter', 'skwirrel-pim-sync' ); ?></option>
-								<option value="whitelist" <?php selected( $cc_mode, 'whitelist' ); ?>><?php esc_html_e( 'Whitelist', 'skwirrel-pim-sync' ); ?></option>
-								<option value="blacklist" <?php selected( $cc_mode, 'blacklist' ); ?>><?php esc_html_e( 'Blacklist', 'skwirrel-pim-sync' ); ?></option>
-							</select>
-						</div>
-						<div class="skw-field">
-							<label for="custom_class_filter_ids" class="skw-label"><?php esc_html_e( 'Class IDs / codes', 'skwirrel-pim-sync' ); ?></label>
-							<input type="text" id="custom_class_filter_ids" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[custom_class_filter_ids]" value="<?php echo esc_attr( $opts['custom_class_filter_ids'] ?? '' ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 12, 45, BUIS', 'skwirrel-pim-sync' ); ?>" />
-						</div>
-					</div>
-				</div>
-
-				<?php // -- Media & Language -- ?>
-				<div class="skw-fieldgroup">
-					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Media & Language', 'skwirrel-pim-sync' ); ?></h3>
-					<div class="skw-field-row">
-						<div class="skw-field">
-							<label for="sync_images" class="skw-label"><?php esc_html_e( 'Import images', 'skwirrel-pim-sync' ); ?></label>
-							<select id="sync_images" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_images]" class="skw-select">
-								<option value="yes" <?php selected( ( $opts['sync_images'] ?? true ), true ); ?>><?php esc_html_e( 'Yes', 'skwirrel-pim-sync' ); ?></option>
-								<option value="no" <?php selected( ( $opts['sync_images'] ?? true ), false ); ?>><?php esc_html_e( 'No', 'skwirrel-pim-sync' ); ?></option>
-							</select>
-						</div>
-						<div class="skw-field">
-							<label for="use_sku_field" class="skw-label"><?php esc_html_e( 'SKU field', 'skwirrel-pim-sync' ); ?></label>
-							<select id="use_sku_field" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[use_sku_field]" class="skw-select">
-								<option value="internal_product_code" <?php selected( $opts['use_sku_field'] ?? 'internal_product_code', 'internal_product_code' ); ?>>internal_product_code</option>
-								<option value="manufacturer_product_code" <?php selected( $opts['use_sku_field'] ?? '', 'manufacturer_product_code' ); ?>>manufacturer_product_code</option>
-							</select>
-						</div>
-					</div>
-					<div class="skw-field-row">
-						<div class="skw-field">
-							<?php
-							$current_lang = $opts['image_language'] ?? 'nl';
-							$is_custom    = ! isset( self::LANGUAGE_OPTIONS[ $current_lang ] );
-							?>
-							<label for="image_language_select" class="skw-label"><?php esc_html_e( 'Content language', 'skwirrel-pim-sync' ); ?></label>
-							<select id="image_language_select" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[image_language_select]" class="skw-select">
-								<?php foreach ( self::LANGUAGE_OPTIONS as $code => $label ) : ?>
-									<option value="<?php echo esc_attr( $code ); ?>" <?php selected( $current_lang, $code ); ?>><?php echo esc_html( $label ); ?></option>
-								<?php endforeach; ?>
-								<option value="_custom" <?php selected( $is_custom ); ?>><?php esc_html_e( 'Other…', 'skwirrel-pim-sync' ); ?></option>
-							</select>
-							<span id="image_language_custom_wrap" style="display:<?php echo esc_attr( $is_custom ? 'inline-block' : 'none' ); ?>; margin-top: 6px;">
-								<input type="text" id="image_language_custom" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[image_language_custom]" value="<?php echo esc_attr( $is_custom ? $current_lang : '' ); ?>" class="skw-input skw-input-sm" pattern="[a-z]{2}(-[A-Z]{2})?" placeholder="e.g. es-ES" />
-							</span>
-						</div>
-					</div>
-					<div class="skw-field">
-						<label class="skw-label"><?php esc_html_e( 'API languages (include_languages)', 'skwirrel-pim-sync' ); ?></label>
-						<?php
-						$saved_langs  = ! empty( $opts['include_languages'] ) && is_array( $opts['include_languages'] ) ? $opts['include_languages'] : array( 'nl-NL', 'nl' );
-						$known_codes  = array_keys( self::LANGUAGE_OPTIONS );
-						$custom_langs = array_diff( $saved_langs, $known_codes );
-						?>
-						<div class="skw-checkbox-group skw-checkbox-inline">
-							<?php foreach ( self::LANGUAGE_OPTIONS as $code => $label ) : ?>
-								<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[include_languages_checkboxes][]" value="<?php echo esc_attr( $code ); ?>" <?php checked( in_array( $code, $saved_langs, true ) ); ?> /> <?php echo esc_html( $code ); ?></label>
-							<?php endforeach; ?>
-						</div>
-						<input type="text" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[include_languages_custom]" value="<?php echo esc_attr( implode( ', ', $custom_langs ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'Additional: e.g. es, pt-BR', 'skwirrel-pim-sync' ); ?>" style="margin-top: 6px;" />
-					</div>
-				</div>
-
-				<?php
-				// -- Permalinks -- .
-				$permalink_opts   = Skwirrel_WC_Sync_Permalink_Settings::get_options();
-				$slug_labels      = [
-					'product_name'              => __( 'Product name', 'skwirrel-pim-sync' ),
-					'internal_product_code'     => __( 'Internal product code (SKU)', 'skwirrel-pim-sync' ),
-					'manufacturer_product_code' => __( 'Manufacturer product code', 'skwirrel-pim-sync' ),
-					'external_product_id'       => __( 'External product ID', 'skwirrel-pim-sync' ),
-					'product_id'                => __( 'Skwirrel product ID', 'skwirrel-pim-sync' ),
-				];
-				$current_source   = $slug_labels[ $permalink_opts['slug_source_field'] ] ?? $permalink_opts['slug_source_field'];
-				$current_suffix   = '' !== $permalink_opts['slug_suffix_field']
-					? ( $slug_labels[ $permalink_opts['slug_suffix_field'] ] ?? $permalink_opts['slug_suffix_field'] )
-					: __( 'None (auto-number)', 'skwirrel-pim-sync' );
-				$update_on_resync = ! empty( $permalink_opts['update_slug_on_resync'] );
-				$permalinks_url   = admin_url( 'options-permalink.php#skwirrel_slug_source_field' );
-				$resync_needed    = get_option( 'skwirrel_wc_sync_slug_resync_needed', false );
-				?>
-				<div class="skw-fieldgroup">
-					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Permalinks', 'skwirrel-pim-sync' ); ?></h3>
-
-					<?php if ( $resync_needed && $update_on_resync ) : ?>
-					<div class="skw-notice skw-notice-warning" id="skwirrel-slug-warning">
-						<strong><?php esc_html_e( 'Slug settings have changed.', 'skwirrel-pim-sync' ); ?></strong>
-						<?php esc_html_e( 'Run a full sync to update product URLs. Changing slugs may break existing links and SEO rankings.', 'skwirrel-pim-sync' ); ?>
-					</div>
-					<?php endif; ?>
-
-					<table class="skw-summary-table">
-						<tr>
-							<th><?php esc_html_e( 'Slug source', 'skwirrel-pim-sync' ); ?></th>
-							<td><?php echo esc_html( $current_source ); ?></td>
-						</tr>
-						<tr>
-							<th><?php esc_html_e( 'Suffix on duplicate', 'skwirrel-pim-sync' ); ?></th>
-							<td><?php echo esc_html( $current_suffix ); ?></td>
-						</tr>
-						<tr>
-							<th><?php esc_html_e( 'Update on re-sync', 'skwirrel-pim-sync' ); ?></th>
-							<td>
-								<select id="skwirrel-update-slug-resync" class="skw-inline-select">
-									<option value="0" <?php selected( ! $update_on_resync ); ?>><?php esc_html_e( 'No', 'skwirrel-pim-sync' ); ?></option>
-									<option value="1" <?php selected( $update_on_resync ); ?>><?php esc_html_e( 'Yes', 'skwirrel-pim-sync' ); ?></option>
-								</select>
-								<span id="skwirrel-slug-saved" class="skw-saved-indicator" style="display:none;">✓</span>
-							</td>
-						</tr>
-					</table>
-					<p class="skw-field-hint" id="skwirrel-slug-resync-hint" <?php echo $update_on_resync ? '' : 'style="display:none;"'; ?>>
-						<?php esc_html_e( 'Existing product URLs will be overwritten on the next sync. This may break existing links and SEO rankings.', 'skwirrel-pim-sync' ); ?>
-					</p>
-					<p class="skw-field-hint">
-						<a href="<?php echo esc_url( $permalinks_url ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Edit permalink settings', 'skwirrel-pim-sync' ); ?> →</a>
-					</p>
-				</div>
-
-				<?php // -- Sync Logs -- ?>
-				<div class="skw-fieldgroup">
-					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Sync Logs', 'skwirrel-pim-sync' ); ?></h3>
-					<?php
-					$log_mode_manual    = $opts['log_mode_manual'] ?? 'per_sync';
-					$log_mode_scheduled = $opts['log_mode_scheduled'] ?? 'per_day';
-					$log_retention      = $opts['log_retention'] ?? '7days';
-					?>
-					<div class="skw-field-row">
-						<div class="skw-field">
-							<label for="log_mode_manual" class="skw-label"><?php esc_html_e( 'Manual sync logs', 'skwirrel-pim-sync' ); ?></label>
-							<select id="log_mode_manual" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[log_mode_manual]" class="skw-select">
-								<option value="per_sync" <?php selected( $log_mode_manual, 'per_sync' ); ?>><?php esc_html_e( 'One file per sync', 'skwirrel-pim-sync' ); ?></option>
-								<option value="per_day" <?php selected( $log_mode_manual, 'per_day' ); ?>><?php esc_html_e( 'One file per day', 'skwirrel-pim-sync' ); ?></option>
-							</select>
-						</div>
-						<div class="skw-field">
-							<label for="log_mode_scheduled" class="skw-label"><?php esc_html_e( 'Scheduled sync logs', 'skwirrel-pim-sync' ); ?></label>
-							<select id="log_mode_scheduled" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[log_mode_scheduled]" class="skw-select">
-								<option value="per_sync" <?php selected( $log_mode_scheduled, 'per_sync' ); ?>><?php esc_html_e( 'One file per sync', 'skwirrel-pim-sync' ); ?></option>
-								<option value="per_day" <?php selected( $log_mode_scheduled, 'per_day' ); ?>><?php esc_html_e( 'One file per day', 'skwirrel-pim-sync' ); ?></option>
-							</select>
-						</div>
-					</div>
-					<div class="skw-field">
-						<label for="log_retention" class="skw-label"><?php esc_html_e( 'Log file retention', 'skwirrel-pim-sync' ); ?></label>
-						<select id="log_retention" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[log_retention]" class="skw-select" style="max-width: 200px;">
-							<option value="12hours" <?php selected( $log_retention, '12hours' ); ?>><?php esc_html_e( '12 hours', 'skwirrel-pim-sync' ); ?></option>
-							<option value="1day" <?php selected( $log_retention, '1day' ); ?>><?php esc_html_e( '1 day', 'skwirrel-pim-sync' ); ?></option>
-							<option value="2days" <?php selected( $log_retention, '2days' ); ?>><?php esc_html_e( '2 days', 'skwirrel-pim-sync' ); ?></option>
-							<option value="7days" <?php selected( $log_retention, '7days' ); ?>><?php esc_html_e( '7 days', 'skwirrel-pim-sync' ); ?></option>
-							<option value="30days" <?php selected( $log_retention, '30days' ); ?>><?php esc_html_e( '30 days', 'skwirrel-pim-sync' ); ?></option>
-							<option value="manual" <?php selected( $log_retention, 'manual' ); ?>><?php esc_html_e( 'Manual (no auto-delete)', 'skwirrel-pim-sync' ); ?></option>
-						</select>
-						<p class="skw-field-hint"><?php esc_html_e( 'How long to keep per-sync log files. Old files are cleaned up at the start of each sync.', 'skwirrel-pim-sync' ); ?></p>
-					</div>
-				</div>
-
-				<?php // -- Product status handling -- ?>
-				<div class="skw-fieldgroup">
-					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Product status handling', 'skwirrel-pim-sync' ); ?></h3>
-						<p class="skw-field-hint"><?php esc_html_e( 'Choose the WooCommerce state for each Skwirrel product status. The built-in statuses (Draft, Available, Discontinued) are always shown; any extra statuses your Skwirrel instance defines are discovered automatically during a sync — or click "Refresh statuses from Skwirrel" to fetch them now. "Keep published" leaves the product visible, "Draft" hides it, "Trash" moves it to the trash, and "Deprecated" retires it gradually.', 'skwirrel-pim-sync' ); ?></p>
-						<?php
-						$status_map     = is_array( $opts['status_mapping'] ?? null ) ? $opts['status_mapping'] : [];
-						$status_default = in_array( $opts['status_mapping_default'] ?? '', [ 'publish', 'draft', 'trash', 'deprecated' ], true ) ? $opts['status_mapping_default'] : 'publish';
-						$state_labels   = self::status_state_labels();
-						$status_rows    = self::status_mapping_rows( $status_map, $status_default );
-						?>
-						<div class="skw-field">
-							<label for="status_mapping_default" class="skw-label"><?php esc_html_e( 'Default for new statuses', 'skwirrel-pim-sync' ); ?></label>
-							<select id="status_mapping_default" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[status_mapping_default]" class="skw-select" style="max-width: 220px;">
-								<?php foreach ( $state_labels as $state_value => $state_label ) : ?>
-									<option value="<?php echo esc_attr( $state_value ); ?>" <?php selected( $status_default, $state_value ); ?>><?php echo esc_html( $state_label ); ?></option>
-								<?php endforeach; ?>
-							</select>
-							<p class="skw-field-hint"><?php esc_html_e( 'Applied to any status not mapped below, including newly discovered ones.', 'skwirrel-pim-sync' ); ?></p>
-						</div>
-						<table class="widefat skw-status-table" style="max-width: 680px;">
-							<thead>
-								<tr>
-									<th><?php esc_html_e( 'Skwirrel status', 'skwirrel-pim-sync' ); ?></th>
-									<th><?php esc_html_e( 'WooCommerce state', 'skwirrel-pim-sync' ); ?></th>
-								</tr>
-							</thead>
-							<tbody>
-								<?php foreach ( $status_rows as $status_row ) : ?>
-									<tr class="skw-status-row skw-status-row--<?php echo esc_attr( $status_row['group'] ); ?>" data-status-key="<?php echo esc_attr( $status_row['key'] ); ?>">
-										<td><?php echo wp_kses( $status_row['name_html'], self::status_name_allowed_html() ); ?></td>
-										<td>
-											<select name="<?php echo esc_attr( self::OPTION_KEY ); ?>[status_mapping][<?php echo esc_attr( $status_row['key'] ); ?>]" class="skw-select">
-												<?php foreach ( $state_labels as $state_value => $state_label ) : ?>
-													<option value="<?php echo esc_attr( $state_value ); ?>" <?php selected( $status_row['selected'], $state_value ); ?>><?php echo esc_html( $state_label ); ?></option>
-												<?php endforeach; ?>
-											</select>
-										</td>
-									</tr>
-								<?php endforeach; ?>
-							</tbody>
-						</table>
-						<p class="skw-status-refresh">
-							<button type="button" id="skwirrel-refresh-statuses" class="button button-secondary"><?php esc_html_e( 'Refresh statuses from Skwirrel', 'skwirrel-pim-sync' ); ?></button>
-							<span id="skwirrel-refresh-statuses-msg" class="skw-field-hint"></span>
-						</p>
-					<div class="skw-field" style="margin-top: 12px;">
-						<label for="deprecated_remove_after_syncs" class="skw-label"><?php esc_html_e( 'Remove deprecated products after (full syncs)', 'skwirrel-pim-sync' ); ?></label>
-						<input type="number" id="deprecated_remove_after_syncs" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[deprecated_remove_after_syncs]" value="<?php echo esc_attr( (string) ( $opts['deprecated_remove_after_syncs'] ?? 3 ) ); ?>" min="0" max="999" class="skw-input skw-input-sm" />
-						<p class="skw-field-hint"><?php esc_html_e( 'How many full syncs a product stays in the Deprecated status before it is moved to the trash. 0 = remove immediately (trashed on the same full sync it becomes deprecated — no review window). Only applies to statuses mapped to Deprecated.', 'skwirrel-pim-sync' ); ?></p>
-					</div>
-				</div>
-
-				<?php // -- Advanced -- ?>
-				<div class="skw-fieldgroup">
-					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Advanced', 'skwirrel-pim-sync' ); ?></h3>
-					<div class="skw-checkbox-group">
-						<label class="skw-checkbox"><input type="checkbox" id="verbose_logging" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[verbose_logging]" value="1" <?php checked( ! empty( $opts['verbose_logging'] ) ); ?> /> <?php esc_html_e( 'Verbose logging', 'skwirrel-pim-sync' ); ?></label>
-						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[purge_stale_products]" value="1" <?php checked( ! empty( $opts['purge_stale_products'] ) ); ?> /> <?php esc_html_e( 'Clean up deleted products after full sync', 'skwirrel-pim-sync' ); ?></label>
-						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_delete_warning]" value="1" <?php checked( $opts['show_delete_warning'] ?? true ); ?> /> <?php esc_html_e( 'Show delete warning on Skwirrel products', 'skwirrel-pim-sync' ); ?></label>
-						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[protect_from_deletion]" value="1" <?php checked( $opts['protect_from_deletion'] ?? true ); ?> /> <?php esc_html_e( 'Protect Skwirrel products from deletion', 'skwirrel-pim-sync' ); ?></label>
-						<p class="skw-field-hint"><?php esc_html_e( 'When enabled, manual deletion of Skwirrel-managed products from the product list or editor is blocked while a sync is running, to prevent conflicts. What the sync itself does with removed or discontinued products is controlled by "Product status handling" above.', 'skwirrel-pim-sync' ); ?></p>
-						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[prices_managed_outside_skwirrel]" value="1" <?php checked( ! empty( $opts['prices_managed_outside_skwirrel'] ) ); ?> /> <?php esc_html_e( 'Prices managed outside Skwirrel', 'skwirrel-pim-sync' ); ?></label>
-						<p class="skw-field-hint"><?php esc_html_e( 'Enable this when product prices are synced from a separate system (e.g. ERP). When enabled, the PIM sync will not overwrite existing variation prices when no price is present in the PIM payload.', 'skwirrel-pim-sync' ); ?></p>
-					</div>
-				</div>
+				<?php endforeach; ?>
 
 				<div class="skw-field-actions">
 					<button type="submit" class="button button-primary button-large"><?php esc_html_e( 'Save settings', 'skwirrel-pim-sync' ); ?></button>
@@ -1234,6 +1188,497 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<button type="submit" class="skw-btn skw-btn-danger" id="skwirrel-reset-settings-btn"><?php esc_html_e( 'Reset Skwirrel sync settings', 'skwirrel-pim-sync' ); ?></button>
 				</div>
 			</form>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "API Connection" field group.
+	 *
+	 * @param array<string,mixed> $opts         Stored plugin settings.
+	 * @param string              $token_masked Masked placeholder for a stored token.
+	 * @param string              $full_url     Normalised endpoint URL.
+	 * @param string              $subdomain    Skwirrel subdomain parsed from the endpoint URL.
+	 */
+	private function render_fieldgroup_api_connection( array $opts, string $token_masked, string $full_url, string $subdomain ): void {
+		?>
+		<div class="skw-fieldgroup">
+			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'API Connection', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-field">
+				<label for="skwirrel_subdomain" class="skw-label"><?php esc_html_e( 'Skwirrel subdomain', 'skwirrel-pim-sync' ); ?></label>
+				<div class="skw-input-affixed">
+					<span class="skw-input-prefix">https://</span>
+					<input type="text" id="skwirrel_subdomain" value="<?php echo esc_attr( $subdomain ); ?>" class="skw-input" placeholder="yourcompany" required />
+					<span class="skw-input-suffix">.skwirrel.eu/jsonrpc</span>
+				</div>
+				<input type="hidden" id="endpoint_url" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[endpoint_url]" value="<?php echo esc_attr( $full_url ); ?>" />
+			</div>
+			<input type="hidden" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[auth_type]" value="token" />
+			<?php if ( class_exists( 'Skwirrel_WC_Sync_Connectors' ) && Skwirrel_WC_Sync_Connectors::is_registered() ) : ?>
+				<div class="skw-field">
+					<label class="skw-label"><?php esc_html_e( 'API Token', 'skwirrel-pim-sync' ); ?></label>
+					<p class="skw-field-hint">
+						<?php
+						$has_token      = '' !== Skwirrel_WC_Sync_Admin_Settings::get_auth_token();
+						$connectors_url = admin_url( 'options-connectors.php' );
+						$status_label   = $has_token
+							? esc_html__( 'Token configured.', 'skwirrel-pim-sync' )
+							: esc_html__( 'No token configured.', 'skwirrel-pim-sync' );
+						printf(
+							/* translators: 1: status label, 2: link to the WordPress Connections Screen */
+							esc_html__( '%1$s Manage your Skwirrel API token in %2$s.', 'skwirrel-pim-sync' ),
+							'<strong>' . esc_html( $status_label ) . '</strong>',
+							'<a href="' . esc_url( $connectors_url ) . '">' . esc_html__( 'Settings → Connectors', 'skwirrel-pim-sync' ) . '</a>'
+						);
+						?>
+					</p>
+				</div>
+			<?php else : ?>
+				<div class="skw-field">
+					<label for="auth_token" class="skw-label"><?php esc_html_e( 'API Token', 'skwirrel-pim-sync' ); ?></label>
+					<input type="password" id="auth_token" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[auth_token]" value="<?php echo esc_attr( $token_masked ); ?>" class="skw-input" autocomplete="off" />
+					<p class="skw-field-hint">
+						<?php
+						printf(
+							/* translators: %s = URL to Skwirrel webservice page */
+							esc_html__( 'Create a static API token at %s.', 'skwirrel-pim-sync' ),
+							'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/data/webservice" target="_blank" id="skwirrel-token-link">https://<span id="skwirrel-token-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/data/webservice</a>'
+						);
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
+			<div class="skw-field-row">
+				<div class="skw-field">
+					<label for="timeout" class="skw-label"><?php esc_html_e( 'Timeout (seconds)', 'skwirrel-pim-sync' ); ?></label>
+					<input type="number" id="timeout" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[timeout]" value="<?php echo esc_attr( (string) ( $opts['timeout'] ?? 30 ) ); ?>" min="5" max="120" class="skw-input skw-input-sm" />
+				</div>
+				<div class="skw-field">
+					<label for="retries" class="skw-label"><?php esc_html_e( 'Retries', 'skwirrel-pim-sync' ); ?></label>
+					<input type="number" id="retries" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[retries]" value="<?php echo esc_attr( (string) ( $opts['retries'] ?? 2 ) ); ?>" min="0" max="5" class="skw-input skw-input-sm" />
+				</div>
+			</div>
+			<div class="skw-field-actions">
+				<button type="button" id="skwirrel-test-connection" class="skw-btn skw-btn-secondary"><?php esc_html_e( 'Test connection', 'skwirrel-pim-sync' ); ?></button>
+				<span id="skwirrel-test-result" class="skw-test-result" role="status" aria-live="polite"></span>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "Scheduling" field group.
+	 *
+	 * @param array<string,mixed> $opts Stored plugin settings.
+	 */
+	private function render_fieldgroup_scheduling( array $opts ): void {
+		?>
+		<div class="skw-fieldgroup">
+			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Scheduling', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-field-row">
+				<div class="skw-field">
+					<label for="sync_interval" class="skw-label"><?php esc_html_e( 'Sync interval', 'skwirrel-pim-sync' ); ?></label>
+					<?php
+					$current_interval = (string) ( $opts['sync_interval'] ?? '' );
+					$min_seconds      = Skwirrel_WC_Sync_Action_Scheduler::get_min_interval_seconds();
+					$min_hours        = (int) round( $min_seconds / HOUR_IN_SECONDS );
+					$full_duration    = Skwirrel_WC_Sync_Action_Scheduler::get_full_sync_duration();
+					?>
+					<select id="sync_interval" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_interval]" class="skw-select">
+						<?php foreach ( Skwirrel_WC_Sync_Action_Scheduler::get_interval_options() as $k => $v ) : ?>
+							<?php
+							$secs = Skwirrel_WC_Sync_Action_Scheduler::interval_seconds( $k );
+							// Disable any recurrence shorter than the minimum rest window — but never the
+							// "Disabled" option nor the value already saved (so an existing setting still shows).
+							$too_short = ( '' !== $k && $secs > 0 && $secs < $min_seconds && $k !== $current_interval );
+							?>
+							<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $current_interval, $k ); ?> <?php disabled( $too_short ); ?>>
+								<?php echo esc_html( $v ); ?><?php echo $too_short ? esc_html__( ' — too short', 'skwirrel-pim-sync' ) : ''; ?>
+							</option>
+						<?php endforeach; ?>
+					</select>
+					<p class="skw-field-hint">
+						<?php
+						if ( $full_duration > 0 ) {
+							printf(
+								/* translators: 1: last full sync duration in minutes, 2: minimum interval in hours */
+								esc_html__( 'Your last full sync took ~%1$d min, so auto-syncs must be at least %2$d hours apart (one full hour of rest between runs).', 'skwirrel-pim-sync' ),
+								(int) round( $full_duration / 60 ),
+								(int) $min_hours
+							);
+						} else {
+							printf(
+								/* translators: %d: minimum interval in hours */
+								esc_html__( 'Auto-syncs must be at least %d hours apart until the first full sync has run to measure its duration.', 'skwirrel-pim-sync' ),
+								(int) $min_hours
+							);
+						}
+						?>
+					</p>
+				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "Sync Options" field group.
+	 *
+	 * @param array<string,mixed> $opts      Stored plugin settings.
+	 * @param string              $subdomain Skwirrel subdomain parsed from the endpoint URL.
+	 */
+	private function render_fieldgroup_sync_options( array $opts, string $subdomain ): void {
+		?>
+		<div class="skw-fieldgroup">
+			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Sync Options', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-checkbox-group">
+				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_categories]" value="1" <?php checked( ! empty( $opts['sync_categories'] ) ); ?> /> <?php esc_html_e( 'Sync categories', 'skwirrel-pim-sync' ); ?></label>
+				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_grouped_products]" value="1" <?php checked( ! empty( $opts['sync_grouped_products'] ) ); ?> /> <?php esc_html_e( 'Sync grouped products (variable)', 'skwirrel-pim-sync' ); ?></label>
+				<label class="skw-checkbox skw-checkbox-indent"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[use_virtual_product_content]" value="1" <?php checked( ! empty( $opts['use_virtual_product_content'] ) ); ?> /> <?php esc_html_e( 'Use virtual product content for variable products', 'skwirrel-pim-sync' ); ?></label>
+				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_related_products]" value="1" <?php checked( ! empty( $opts['sync_related_products'] ) ); ?> /> <?php esc_html_e( 'Sync related products', 'skwirrel-pim-sync' ); ?></label>
+				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_manufacturers]" value="1" <?php checked( ! empty( $opts['sync_manufacturers'] ) ); ?> /> <?php esc_html_e( 'Sync manufacturers', 'skwirrel-pim-sync' ); ?></label>
+				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_custom_classes]" value="1" <?php checked( ! empty( $opts['sync_custom_classes'] ) ); ?> /> <?php esc_html_e( 'Sync custom classes', 'skwirrel-pim-sync' ); ?></label>
+				<label class="skw-checkbox skw-checkbox-indent"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_trade_item_custom_classes]" value="1" <?php checked( ! empty( $opts['sync_trade_item_custom_classes'] ) ); ?> /> <?php esc_html_e( 'Include trade item custom classes', 'skwirrel-pim-sync' ); ?></label>
+				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_gtin_attribute]" value="1" <?php checked( ! empty( $opts['show_gtin_attribute'] ) ); ?> /> <?php esc_html_e( 'Show GTIN as product attribute', 'skwirrel-pim-sync' ); ?></label>
+				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_variant_attribute]" value="1" <?php checked( ! empty( $opts['show_variant_attribute'] ) ); ?> /> <?php esc_html_e( 'Show Variant as product attribute', 'skwirrel-pim-sync' ); ?></label>
+			</div>
+			<div class="skw-field-row">
+				<div class="skw-field">
+					<label for="batch_size" class="skw-label"><?php esc_html_e( 'Batch size', 'skwirrel-pim-sync' ); ?></label>
+					<input type="number" id="batch_size" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[batch_size]" value="<?php echo esc_attr( (string) ( $opts['batch_size'] ?? 10 ) ); ?>" min="1" max="100" class="skw-input skw-input-sm" />
+					<p class="skw-field-hint"><?php esc_html_e( 'Products per API request (1–100).', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+			</div>
+			<div class="skw-field-row">
+				<div class="skw-field">
+					<?php $rpt = $opts['related_products_type'] ?? 'auto'; ?>
+					<label for="related_products_type" class="skw-label"><?php esc_html_e( 'Related products mapping', 'skwirrel-pim-sync' ); ?></label>
+					<select id="related_products_type" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[related_products_type]" class="skw-select">
+						<option value="auto" <?php selected( $rpt, 'auto' ); ?>><?php esc_html_e( 'Auto (use relation type)', 'skwirrel-pim-sync' ); ?></option>
+						<option value="cross_sells" <?php selected( $rpt, 'cross_sells' ); ?>><?php esc_html_e( 'All as cross-sells', 'skwirrel-pim-sync' ); ?></option>
+						<option value="upsells" <?php selected( $rpt, 'upsells' ); ?>><?php esc_html_e( 'All as upsells', 'skwirrel-pim-sync' ); ?></option>
+						<option value="both" <?php selected( $rpt, 'both' ); ?>><?php esc_html_e( 'All as both', 'skwirrel-pim-sync' ); ?></option>
+					</select>
+					<p class="skw-field-hint"><?php esc_html_e( 'Auto maps UPSELL/SUCCESSOR types to upsells, all others to cross-sells.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+				<div class="skw-field">
+					<?php $vlf = $opts['variant_label_field'] ?? 'internal_product_code'; ?>
+					<label for="variant_label_field" class="skw-label"><?php esc_html_e( 'Variant label', 'skwirrel-pim-sync' ); ?></label>
+					<select id="variant_label_field" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[variant_label_field]" class="skw-select">
+						<option value="internal_product_code" <?php selected( $vlf, 'internal_product_code' ); ?>><?php esc_html_e( 'SKU (internal_product_code)', 'skwirrel-pim-sync' ); ?></option>
+						<option value="product_erp_description" <?php selected( $vlf, 'product_erp_description' ); ?>><?php esc_html_e( 'ERP description', 'skwirrel-pim-sync' ); ?></option>
+						<option value="product_name" <?php selected( $vlf, 'product_name' ); ?>><?php esc_html_e( 'Product name (translated)', 'skwirrel-pim-sync' ); ?></option>
+					</select>
+					<p class="skw-field-hint"><?php esc_html_e( 'Label shown in the variant dropdown when no variation axes are available.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+			</div>
+			<div class="skw-field-row">
+				<div class="skw-field">
+					<label for="super_category_id" class="skw-label"><?php esc_html_e( 'Super category ID', 'skwirrel-pim-sync' ); ?></label>
+					<input type="number" id="super_category_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[super_category_id]" value="<?php echo esc_attr( $opts['super_category_id'] ?? '' ); ?>" class="skw-input" min="1" required placeholder="<?php esc_attr_e( 'e.g. 42', 'skwirrel-pim-sync' ); ?>" />
+					<p class="skw-field-hint">
+						<?php
+						printf(
+							/* translators: %s = link to Skwirrel categories page */
+							esc_html__( 'Find your category IDs at %s.', 'skwirrel-pim-sync' ),
+							'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/base/categories" target="_blank" id="skwirrel-categories-link">https://<span class="skwirrel-link-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/base/categories</a>'
+						);
+						?>
+					</p>
+				</div>
+				<div class="skw-field">
+					<label for="collection_ids" class="skw-label"><?php esc_html_e( 'Selection IDs', 'skwirrel-pim-sync' ); ?></label>
+					<input type="text" id="collection_ids" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[collection_ids]" value="<?php echo esc_attr( $opts['collection_ids'] ?? '' ); ?>" class="skw-input" required pattern="[1-9]\d*(\s*,\s*[1-9]\d*)*" title="<?php esc_attr_e( 'One or more IDs greater than 0, separated by commas', 'skwirrel-pim-sync' ); ?>" placeholder="<?php esc_attr_e( 'e.g. 123, 456', 'skwirrel-pim-sync' ); ?>" />
+					<p class="skw-field-hint">
+						<?php
+						printf(
+							/* translators: %s = link to Skwirrel selections page */
+							esc_html__( 'Find your selection IDs at %s.', 'skwirrel-pim-sync' ),
+							'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/data/selections" target="_blank" id="skwirrel-selections-link">https://<span class="skwirrel-link-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/data/selections</a>'
+						);
+						?>
+					</p>
+				</div>
+				<div class="skw-field">
+					<label for="custom_collection_id" class="skw-label"><?php esc_html_e( 'Custom class collection ID (optional)', 'skwirrel-pim-sync' ); ?></label>
+					<input type="number" id="custom_collection_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[custom_collection_id]" value="<?php echo esc_attr( $opts['custom_collection_id'] ?? '' ); ?>" class="skw-input" min="1" placeholder="<?php esc_attr_e( 'e.g. 5', 'skwirrel-pim-sync' ); ?>" />
+					<p class="skw-field-hint">
+						<?php esc_html_e( 'Only needed when syncing custom classes or grouped products.', 'skwirrel-pim-sync' ); ?>
+						<?php
+						printf(
+							/* translators: %s = link to Skwirrel groups page */
+							esc_html__( 'Find your collection IDs at %s.', 'skwirrel-pim-sync' ),
+							'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/base/groups" target="_blank" id="skwirrel-groups-link">https://<span class="skwirrel-link-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/base/groups</a>'
+						);
+						?>
+					</p>
+				</div>
+			</div>
+			<div class="skw-field-row">
+				<div class="skw-field">
+					<?php $cc_mode = $opts['custom_class_filter_mode'] ?? ''; ?>
+					<label for="custom_class_filter_mode" class="skw-label"><?php esc_html_e( 'Custom class filter', 'skwirrel-pim-sync' ); ?></label>
+					<select id="custom_class_filter_mode" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[custom_class_filter_mode]" class="skw-select">
+						<option value="" <?php selected( $cc_mode, '' ); ?>><?php esc_html_e( 'No filter', 'skwirrel-pim-sync' ); ?></option>
+						<option value="whitelist" <?php selected( $cc_mode, 'whitelist' ); ?>><?php esc_html_e( 'Whitelist', 'skwirrel-pim-sync' ); ?></option>
+						<option value="blacklist" <?php selected( $cc_mode, 'blacklist' ); ?>><?php esc_html_e( 'Blacklist', 'skwirrel-pim-sync' ); ?></option>
+					</select>
+				</div>
+				<div class="skw-field">
+					<label for="custom_class_filter_ids" class="skw-label"><?php esc_html_e( 'Class IDs / codes', 'skwirrel-pim-sync' ); ?></label>
+					<input type="text" id="custom_class_filter_ids" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[custom_class_filter_ids]" value="<?php echo esc_attr( $opts['custom_class_filter_ids'] ?? '' ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 12, 45, BUIS', 'skwirrel-pim-sync' ); ?>" />
+				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "Media & Language" field group.
+	 *
+	 * @param array<string,mixed> $opts Stored plugin settings.
+	 */
+	private function render_fieldgroup_media_language( array $opts ): void {
+		?>
+		<div class="skw-fieldgroup">
+			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Media & Language', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-field-row">
+				<div class="skw-field">
+					<label for="sync_images" class="skw-label"><?php esc_html_e( 'Import images', 'skwirrel-pim-sync' ); ?></label>
+					<select id="sync_images" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_images]" class="skw-select">
+						<option value="yes" <?php selected( ( $opts['sync_images'] ?? true ), true ); ?>><?php esc_html_e( 'Yes', 'skwirrel-pim-sync' ); ?></option>
+						<option value="no" <?php selected( ( $opts['sync_images'] ?? true ), false ); ?>><?php esc_html_e( 'No', 'skwirrel-pim-sync' ); ?></option>
+					</select>
+				</div>
+				<div class="skw-field">
+					<label for="use_sku_field" class="skw-label"><?php esc_html_e( 'SKU field', 'skwirrel-pim-sync' ); ?></label>
+					<select id="use_sku_field" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[use_sku_field]" class="skw-select">
+						<option value="internal_product_code" <?php selected( $opts['use_sku_field'] ?? 'internal_product_code', 'internal_product_code' ); ?>>internal_product_code</option>
+						<option value="manufacturer_product_code" <?php selected( $opts['use_sku_field'] ?? '', 'manufacturer_product_code' ); ?>>manufacturer_product_code</option>
+					</select>
+				</div>
+			</div>
+			<div class="skw-field-row">
+				<div class="skw-field">
+					<?php
+					$current_lang = $opts['image_language'] ?? 'nl';
+					$is_custom    = ! isset( self::LANGUAGE_OPTIONS[ $current_lang ] );
+					?>
+					<label for="image_language_select" class="skw-label"><?php esc_html_e( 'Content language', 'skwirrel-pim-sync' ); ?></label>
+					<select id="image_language_select" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[image_language_select]" class="skw-select">
+						<?php foreach ( self::LANGUAGE_OPTIONS as $code => $label ) : ?>
+							<option value="<?php echo esc_attr( $code ); ?>" <?php selected( $current_lang, $code ); ?>><?php echo esc_html( $label ); ?></option>
+						<?php endforeach; ?>
+						<option value="_custom" <?php selected( $is_custom ); ?>><?php esc_html_e( 'Other…', 'skwirrel-pim-sync' ); ?></option>
+					</select>
+					<span id="image_language_custom_wrap" style="display:<?php echo esc_attr( $is_custom ? 'inline-block' : 'none' ); ?>; margin-top: 6px;">
+						<input type="text" id="image_language_custom" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[image_language_custom]" value="<?php echo esc_attr( $is_custom ? $current_lang : '' ); ?>" class="skw-input skw-input-sm" pattern="[a-z]{2}(-[A-Z]{2})?" placeholder="e.g. es-ES" />
+					</span>
+				</div>
+			</div>
+			<div class="skw-field">
+				<label class="skw-label"><?php esc_html_e( 'API languages (include_languages)', 'skwirrel-pim-sync' ); ?></label>
+				<?php
+				$saved_langs  = ! empty( $opts['include_languages'] ) && is_array( $opts['include_languages'] ) ? $opts['include_languages'] : array( 'nl-NL', 'nl' );
+				$known_codes  = array_keys( self::LANGUAGE_OPTIONS );
+				$custom_langs = array_diff( $saved_langs, $known_codes );
+				?>
+				<div class="skw-checkbox-group skw-checkbox-inline">
+					<?php foreach ( self::LANGUAGE_OPTIONS as $code => $label ) : ?>
+						<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[include_languages_checkboxes][]" value="<?php echo esc_attr( $code ); ?>" <?php checked( in_array( $code, $saved_langs, true ) ); ?> /> <?php echo esc_html( $code ); ?></label>
+					<?php endforeach; ?>
+				</div>
+				<input type="text" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[include_languages_custom]" value="<?php echo esc_attr( implode( ', ', $custom_langs ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'Additional: e.g. es, pt-BR', 'skwirrel-pim-sync' ); ?>" style="margin-top: 6px;" />
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "Permalinks" field group.
+	 */
+	private function render_fieldgroup_permalinks(): void {
+		// -- Permalinks -- .
+		$permalink_opts   = Skwirrel_WC_Sync_Permalink_Settings::get_options();
+		$slug_labels      = [
+			'product_name'              => __( 'Product name', 'skwirrel-pim-sync' ),
+			'internal_product_code'     => __( 'Internal product code (SKU)', 'skwirrel-pim-sync' ),
+			'manufacturer_product_code' => __( 'Manufacturer product code', 'skwirrel-pim-sync' ),
+			'external_product_id'       => __( 'External product ID', 'skwirrel-pim-sync' ),
+			'product_id'                => __( 'Skwirrel product ID', 'skwirrel-pim-sync' ),
+		];
+		$current_source   = $slug_labels[ $permalink_opts['slug_source_field'] ] ?? $permalink_opts['slug_source_field'];
+		$current_suffix   = '' !== $permalink_opts['slug_suffix_field']
+			? ( $slug_labels[ $permalink_opts['slug_suffix_field'] ] ?? $permalink_opts['slug_suffix_field'] )
+			: __( 'None (auto-number)', 'skwirrel-pim-sync' );
+		$update_on_resync = ! empty( $permalink_opts['update_slug_on_resync'] );
+		$permalinks_url   = admin_url( 'options-permalink.php#skwirrel_slug_source_field' );
+		$resync_needed    = get_option( 'skwirrel_wc_sync_slug_resync_needed', false );
+		?>
+		<div class="skw-fieldgroup">
+			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Permalinks', 'skwirrel-pim-sync' ); ?></h3>
+
+			<?php if ( $resync_needed && $update_on_resync ) : ?>
+			<div class="skw-notice skw-notice-warning" id="skwirrel-slug-warning">
+				<strong><?php esc_html_e( 'Slug settings have changed.', 'skwirrel-pim-sync' ); ?></strong>
+				<?php esc_html_e( 'Run a full sync to update product URLs. Changing slugs may break existing links and SEO rankings.', 'skwirrel-pim-sync' ); ?>
+			</div>
+			<?php endif; ?>
+
+			<table class="skw-summary-table">
+				<tr>
+					<th><?php esc_html_e( 'Slug source', 'skwirrel-pim-sync' ); ?></th>
+					<td><?php echo esc_html( $current_source ); ?></td>
+				</tr>
+				<tr>
+					<th><?php esc_html_e( 'Suffix on duplicate', 'skwirrel-pim-sync' ); ?></th>
+					<td><?php echo esc_html( $current_suffix ); ?></td>
+				</tr>
+				<tr>
+					<th><?php esc_html_e( 'Update on re-sync', 'skwirrel-pim-sync' ); ?></th>
+					<td>
+						<select id="skwirrel-update-slug-resync" class="skw-inline-select">
+							<option value="0" <?php selected( ! $update_on_resync ); ?>><?php esc_html_e( 'No', 'skwirrel-pim-sync' ); ?></option>
+							<option value="1" <?php selected( $update_on_resync ); ?>><?php esc_html_e( 'Yes', 'skwirrel-pim-sync' ); ?></option>
+						</select>
+						<span id="skwirrel-slug-saved" class="skw-saved-indicator" style="display:none;">✓</span>
+					</td>
+				</tr>
+			</table>
+			<p class="skw-field-hint" id="skwirrel-slug-resync-hint" <?php echo $update_on_resync ? '' : 'style="display:none;"'; ?>>
+				<?php esc_html_e( 'Existing product URLs will be overwritten on the next sync. This may break existing links and SEO rankings.', 'skwirrel-pim-sync' ); ?>
+			</p>
+			<p class="skw-field-hint">
+				<a href="<?php echo esc_url( $permalinks_url ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Edit permalink settings', 'skwirrel-pim-sync' ); ?> →</a>
+			</p>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "Sync Logs" field group.
+	 *
+	 * @param array<string,mixed> $opts Stored plugin settings.
+	 */
+	private function render_fieldgroup_sync_logs( array $opts ): void {
+		?>
+		<div class="skw-fieldgroup">
+			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Sync Logs', 'skwirrel-pim-sync' ); ?></h3>
+			<?php
+			$log_mode_manual    = $opts['log_mode_manual'] ?? 'per_sync';
+			$log_mode_scheduled = $opts['log_mode_scheduled'] ?? 'per_day';
+			$log_retention      = $opts['log_retention'] ?? '7days';
+			?>
+			<div class="skw-field-row">
+				<div class="skw-field">
+					<label for="log_mode_manual" class="skw-label"><?php esc_html_e( 'Manual sync logs', 'skwirrel-pim-sync' ); ?></label>
+					<select id="log_mode_manual" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[log_mode_manual]" class="skw-select">
+						<option value="per_sync" <?php selected( $log_mode_manual, 'per_sync' ); ?>><?php esc_html_e( 'One file per sync', 'skwirrel-pim-sync' ); ?></option>
+						<option value="per_day" <?php selected( $log_mode_manual, 'per_day' ); ?>><?php esc_html_e( 'One file per day', 'skwirrel-pim-sync' ); ?></option>
+					</select>
+				</div>
+				<div class="skw-field">
+					<label for="log_mode_scheduled" class="skw-label"><?php esc_html_e( 'Scheduled sync logs', 'skwirrel-pim-sync' ); ?></label>
+					<select id="log_mode_scheduled" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[log_mode_scheduled]" class="skw-select">
+						<option value="per_sync" <?php selected( $log_mode_scheduled, 'per_sync' ); ?>><?php esc_html_e( 'One file per sync', 'skwirrel-pim-sync' ); ?></option>
+						<option value="per_day" <?php selected( $log_mode_scheduled, 'per_day' ); ?>><?php esc_html_e( 'One file per day', 'skwirrel-pim-sync' ); ?></option>
+					</select>
+				</div>
+			</div>
+			<div class="skw-field">
+				<label for="log_retention" class="skw-label"><?php esc_html_e( 'Log file retention', 'skwirrel-pim-sync' ); ?></label>
+				<select id="log_retention" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[log_retention]" class="skw-select" style="max-width: 200px;">
+					<option value="12hours" <?php selected( $log_retention, '12hours' ); ?>><?php esc_html_e( '12 hours', 'skwirrel-pim-sync' ); ?></option>
+					<option value="1day" <?php selected( $log_retention, '1day' ); ?>><?php esc_html_e( '1 day', 'skwirrel-pim-sync' ); ?></option>
+					<option value="2days" <?php selected( $log_retention, '2days' ); ?>><?php esc_html_e( '2 days', 'skwirrel-pim-sync' ); ?></option>
+					<option value="7days" <?php selected( $log_retention, '7days' ); ?>><?php esc_html_e( '7 days', 'skwirrel-pim-sync' ); ?></option>
+					<option value="30days" <?php selected( $log_retention, '30days' ); ?>><?php esc_html_e( '30 days', 'skwirrel-pim-sync' ); ?></option>
+					<option value="manual" <?php selected( $log_retention, 'manual' ); ?>><?php esc_html_e( 'Manual (no auto-delete)', 'skwirrel-pim-sync' ); ?></option>
+				</select>
+				<p class="skw-field-hint"><?php esc_html_e( 'How long to keep per-sync log files. Old files are cleaned up at the start of each sync.', 'skwirrel-pim-sync' ); ?></p>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "Product status handling" field group.
+	 *
+	 * @param array<string,mixed> $opts Stored plugin settings.
+	 */
+	private function render_fieldgroup_product_status( array $opts ): void {
+		?>
+		<div class="skw-fieldgroup">
+			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Product status handling', 'skwirrel-pim-sync' ); ?></h3>
+				<p class="skw-field-hint"><?php esc_html_e( 'Choose the WooCommerce state for each Skwirrel product status. The built-in statuses (Draft, Available, Discontinued) are always shown; any extra statuses your Skwirrel instance defines are discovered automatically during a sync — or click "Refresh statuses from Skwirrel" to fetch them now. "Keep published" leaves the product visible, "Draft" hides it, "Trash" moves it to the trash, and "Deprecated" retires it gradually.', 'skwirrel-pim-sync' ); ?></p>
+				<?php
+				$status_map     = is_array( $opts['status_mapping'] ?? null ) ? $opts['status_mapping'] : [];
+				$status_default = in_array( $opts['status_mapping_default'] ?? '', [ 'publish', 'draft', 'trash', 'deprecated' ], true ) ? $opts['status_mapping_default'] : 'publish';
+				$state_labels   = self::status_state_labels();
+				$status_rows    = self::status_mapping_rows( $status_map, $status_default );
+				?>
+				<div class="skw-field">
+					<label for="status_mapping_default" class="skw-label"><?php esc_html_e( 'Default for new statuses', 'skwirrel-pim-sync' ); ?></label>
+					<select id="status_mapping_default" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[status_mapping_default]" class="skw-select" style="max-width: 220px;">
+						<?php foreach ( $state_labels as $state_value => $state_label ) : ?>
+							<option value="<?php echo esc_attr( $state_value ); ?>" <?php selected( $status_default, $state_value ); ?>><?php echo esc_html( $state_label ); ?></option>
+						<?php endforeach; ?>
+					</select>
+					<p class="skw-field-hint"><?php esc_html_e( 'Applied to any status not mapped below, including newly discovered ones.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+				<table class="widefat skw-status-table" style="max-width: 680px;">
+					<thead>
+						<tr>
+							<th><?php esc_html_e( 'Skwirrel status', 'skwirrel-pim-sync' ); ?></th>
+							<th><?php esc_html_e( 'WooCommerce state', 'skwirrel-pim-sync' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php foreach ( $status_rows as $status_row ) : ?>
+							<tr class="skw-status-row skw-status-row--<?php echo esc_attr( $status_row['group'] ); ?>" data-status-key="<?php echo esc_attr( $status_row['key'] ); ?>">
+								<td><?php echo wp_kses( $status_row['name_html'], self::status_name_allowed_html() ); ?></td>
+								<td>
+									<select name="<?php echo esc_attr( self::OPTION_KEY ); ?>[status_mapping][<?php echo esc_attr( $status_row['key'] ); ?>]" class="skw-select">
+										<?php foreach ( $state_labels as $state_value => $state_label ) : ?>
+											<option value="<?php echo esc_attr( $state_value ); ?>" <?php selected( $status_row['selected'], $state_value ); ?>><?php echo esc_html( $state_label ); ?></option>
+										<?php endforeach; ?>
+									</select>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
+				<p class="skw-status-refresh">
+					<button type="button" id="skwirrel-refresh-statuses" class="button button-secondary"><?php esc_html_e( 'Refresh statuses from Skwirrel', 'skwirrel-pim-sync' ); ?></button>
+					<span id="skwirrel-refresh-statuses-msg" class="skw-field-hint"></span>
+				</p>
+			<div class="skw-field" style="margin-top: 12px;">
+				<label for="deprecated_remove_after_syncs" class="skw-label"><?php esc_html_e( 'Remove deprecated products after (full syncs)', 'skwirrel-pim-sync' ); ?></label>
+				<input type="number" id="deprecated_remove_after_syncs" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[deprecated_remove_after_syncs]" value="<?php echo esc_attr( (string) ( $opts['deprecated_remove_after_syncs'] ?? 3 ) ); ?>" min="0" max="999" class="skw-input skw-input-sm" />
+				<p class="skw-field-hint"><?php esc_html_e( 'How many full syncs a product stays in the Deprecated status before it is moved to the trash. 0 = remove immediately (trashed on the same full sync it becomes deprecated — no review window). Only applies to statuses mapped to Deprecated.', 'skwirrel-pim-sync' ); ?></p>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "Advanced" field group.
+	 *
+	 * @param array<string,mixed> $opts Stored plugin settings.
+	 */
+	private function render_fieldgroup_advanced( array $opts ): void {
+		?>
+		<div class="skw-fieldgroup">
+			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Advanced', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-checkbox-group">
+				<label class="skw-checkbox"><input type="checkbox" id="verbose_logging" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[verbose_logging]" value="1" <?php checked( ! empty( $opts['verbose_logging'] ) ); ?> /> <?php esc_html_e( 'Verbose logging', 'skwirrel-pim-sync' ); ?></label>
+				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[purge_stale_products]" value="1" <?php checked( ! empty( $opts['purge_stale_products'] ) ); ?> /> <?php esc_html_e( 'Clean up deleted products after full sync', 'skwirrel-pim-sync' ); ?></label>
+				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_delete_warning]" value="1" <?php checked( $opts['show_delete_warning'] ?? true ); ?> /> <?php esc_html_e( 'Show delete warning on Skwirrel products', 'skwirrel-pim-sync' ); ?></label>
+				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[protect_from_deletion]" value="1" <?php checked( $opts['protect_from_deletion'] ?? true ); ?> /> <?php esc_html_e( 'Protect Skwirrel products from deletion', 'skwirrel-pim-sync' ); ?></label>
+					<p class="skw-field-hint"><?php esc_html_e( 'When enabled, manual deletion of Skwirrel-managed products from the product list or editor is blocked while a sync is running, to prevent conflicts. What the sync itself does with removed or discontinued products is controlled by "Product status handling" above.', 'skwirrel-pim-sync' ); ?></p>
+				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[prices_managed_outside_skwirrel]" value="1" <?php checked( ! empty( $opts['prices_managed_outside_skwirrel'] ) ); ?> /> <?php esc_html_e( 'Prices managed outside Skwirrel', 'skwirrel-pim-sync' ); ?></label>
+				<p class="skw-field-hint"><?php esc_html_e( 'Enable this when product prices are synced from a separate system (e.g. ERP). When enabled, the PIM sync will not overwrite existing variation prices when no price is present in the PIM payload.', 'skwirrel-pim-sync' ); ?></p>
+			</div>
 		</div>
 		<?php
 	}
