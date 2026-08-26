@@ -1,5 +1,5 @@
 ---
-status: ready-for-dev
+status: review
 baseline_revision: 0f7c3c4964b7789f74d7c14f307c1c083a9a22a4
 baseline_version: 3.13.1
 context:
@@ -16,7 +16,7 @@ depends_on:
 
 # Story 6.4: The non-destructive guarantee is pinned by tests
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -107,40 +107,40 @@ grep -rn "stock_feature_id\|title_feature_id\|short_description_feature_id\|long
 
 ## Tasks / Subtasks
 
-- [ ] **Run the prerequisite gate** (see section above)
-  - [ ] `grep` for the 6.1–6.3 entry points; halt-and-report if absent
-  - [ ] If present: read the real setting keys and resolver method signatures out of the code; use those names verbatim
+- [x] **Run the prerequisite gate** (see section above)
+  - [x] `grep` for the 6.1–6.3 entry points; halt-and-report if absent
+  - [x] If present: read the real setting keys and resolver method signatures out of the code; use those names verbatim
 
-- [ ] **Place the suite correctly** (AC: 1, 2, 3, 4, 7)
-  - [ ] Create `tests/Integration/NonDestructiveMappingIntegrationTest.php` — **integration, not unit** (see Dev Notes: the unit stub cannot express "unchanged")
-  - [ ] Follow the `beforeEach`/`afterEach` shape of `tests/Integration/SyncSafetyIntegrationTest.php:23-70`: `delete_option()` the settings/last-sync/history keys, `delete_transient( Skwirrel_WC_Sync_History::SYNC_MUTEX )` and `SYNC_IN_PROGRESS`, truncate `{$wpdb->prefix}skwirrel_sync_queue`, and hard-delete leftover posts carrying `_skwirrel_external_id` / `_skwirrel_grouped_product_id` / `_skwirrel_synced_at`
-  - [ ] `afterEach`: `remove_all_filters( 'pre_http_request' )`
-  - [ ] Add a **pure unit** companion `tests/Unit/NonDestructiveMappingTest.php` only for the resolver decision — "does this payload resolve a value, yes/no" — which is genuinely stub-safe
+- [x] **Place the suite correctly** (AC: 1, 2, 3, 4, 7)
+  - [x] Create `tests/Integration/NonDestructiveMappingIntegrationTest.php` — **integration, not unit** (see Dev Notes: the unit stub cannot express "unchanged")
+  - [x] Follow the `beforeEach`/`afterEach` shape of `tests/Integration/SyncSafetyIntegrationTest.php:23-70`: `delete_option()` the settings/last-sync/history keys, `delete_transient( Skwirrel_WC_Sync_History::SYNC_MUTEX )` and `SYNC_IN_PROGRESS`, truncate `{$wpdb->prefix}skwirrel_sync_queue`, and hard-delete leftover posts carrying `_skwirrel_external_id` / `_skwirrel_grouped_product_id` / `_skwirrel_synced_at`
+  - [x] `afterEach`: `remove_all_filters( 'pre_http_request' )`
+  - [x] Add a **pure unit** companion `tests/Unit/NonDestructiveMappingTest.php` only for the resolver decision — "does this payload resolve a value, yes/no" — which is genuinely stub-safe
 
-- [ ] **Build the fixture helpers once** (AC: 1, 2, 3, 5)
-  - [ ] A `_custom_classes` builder — copy the shape from `tests/Unit/CustomClassExtractorTest.php:15-32` (`cc_feature()` / `cc_class()`); features key off `custom_feature_id` **or** `custom_class_feature_id` (`class-skwirrel-wc-sync-custom-class-extractor.php:322`)
-  - [ ] Four payload variants per mapping: **absent key**, **present-but-empty**, **present-but-malformed**, **present-and-valid** (the valid one is the control — it proves the test can detect a write at all)
-  - [ ] A `pre_http_request` filter returning a canned JSON-RPC envelope, as `SyncSafetyIntegrationTest` does
+- [x] **Build the fixture helpers once** (AC: 1, 2, 3, 5)
+  - [x] A `_custom_classes` builder — copy the shape from `tests/Unit/CustomClassExtractorTest.php:15-32` (`cc_feature()` / `cc_class()`); features key off `custom_feature_id` **or** `custom_class_feature_id` (`class-skwirrel-wc-sync-custom-class-extractor.php:322`)
+  - [x] Four payload variants per mapping: **absent key**, **present-but-empty**, **present-but-malformed**, **present-and-valid** (the valid one is the control — it proves the test can detect a write at all)
+  - [x] A `pre_http_request` filter returning a canned JSON-RPC envelope, as `SyncSafetyIntegrationTest` does
 
-- [ ] **Seed real WooCommerce state, then assert it survived** (AC: 1, 2, 3, 4)
-  - [ ] Create the product through the real WC data store, set the pre-existing value (`set_manage_stock(true)`, `set_stock_quantity(42)`, a title/excerpt/content), `save()`, and stamp `_skwirrel_external_id` + `_skwirrel_product_id` so the upsert path *finds* it
-  - [ ] Re-read via a **fresh** `wc_get_product()` after the sync — never assert against the in-memory object you seeded, it will lie
-  - [ ] Assert equality against the seeded value, not against "not empty"
+- [x] **Seed real WooCommerce state, then assert it survived** (AC: 1, 2, 3, 4)
+  - [x] Create the product through the real WC data store, set the pre-existing value (`set_manage_stock(true)`, `set_stock_quantity(42)`, a title/excerpt/content), `save()`, and stamp `_skwirrel_external_id` + `_skwirrel_product_id` so the upsert path *finds* it
+  - [x] Re-read via a **fresh** `wc_get_product()` after the sync — never assert against the in-memory object you seeded, it will lie
+  - [x] Assert equality against the seeded value, not against "not empty"
 
-- [ ] **Cover the variation axis** (AC: 2)
-  - [ ] Two-variation group; one variation's payload carries a valid value, the other's is missing. Assert: valid one written, missing one untouched, siblings independent
-  - [ ] Follow the grouped fixture pattern in `tests/Integration/PerProductAtomicIntegrationTest.php`
+- [x] **Cover the variation axis** (AC: 2)
+  - [x] Two-variation group; one variation's payload carries a valid value, the other's is missing. Assert: valid one written, missing one untouched, siblings independent
+  - [x] Follow the grouped fixture pattern in `tests/Integration/PerProductAtomicIntegrationTest.php`
 
-- [ ] **Cover the no-custom-classes run** (AC: 5) — buildable today, not gated
-  - [ ] Payload with `_custom_classes` entirely absent; assert the run result reports success and no mapped field was written
+- [x] **Cover the no-custom-classes run** (AC: 5) — buildable today, not gated
+  - [x] Payload with `_custom_classes` entirely absent; assert the run result reports success and no mapped field was written
 
-- [ ] **Add the price behaviour canary** (AC: 6) — buildable today, not gated
-  - [ ] Exercise an actual variation upsert with `prices_managed_outside_skwirrel` true and false; assert the **stored price**, not the option value
-  - [ ] Leave `tests/Unit/ProductUpserterPriceTest.php` in place
+- [x] **Add the price behaviour canary** (AC: 6) — buildable today, not gated
+  - [x] Exercise an actual variation upsert with `prices_managed_outside_skwirrel` true and false; assert the **stored price**, not the option value
+  - [x] Leave `tests/Unit/ProductUpserterPriceTest.php` in place
 
-- [ ] **Gates** (AC: 8)
-  - [ ] `vendor/bin/pest` · `vendor/bin/phpstan analyse --memory-limit=2G` · `vendor/bin/phpcs` (fix with `phpcbf`, never by weakening an assertion)
-  - [ ] `npm run test:integration` for the integration file (requires `npm run env:start`)
+- [x] **Gates** (AC: 8)
+  - [x] `vendor/bin/pest` · `vendor/bin/phpstan analyse --memory-limit=2G` · `vendor/bin/phpcs` (fix with `phpcbf`, never by weakening an assertion)
+  - [x] `npm run test:integration` for the integration file (requires `npm run env:start`)
 
 ---
 
@@ -236,8 +236,37 @@ Practical impact on fixtures: two syncs of the same product with a changed mappe
 
 ### Agent Model Used
 
+claude-opus-5 (in-session, orchestration `orchestration-6-20260826-143018`)
+
 ### Debug Log References
+
+- `vendor/bin/pest` — 590 passed (1250 assertions)
+- integration suite via wp-env — 209 passed (1696 assertions), 18 new in `NonDestructiveMappingIntegrationTest.php`
+- `vendor/bin/phpstan analyse --memory-limit=2G` — no errors
+- `vendor/bin/phpcs` — 34/34 clean
 
 ### Completion Notes List
 
+- **Prerequisite gate: PASSED, not bypassed.** 6.1, 6.2 and 6.3 were all implemented earlier in this same orchestration run, so the gate's halt condition did not apply. `grep` returned `set_stock_quantity()` at upserter `:3301` and 30 hits across the four mapping keys. The real key names were read out of the code and used verbatim: **`stock_quantity_feature`**, `title_feature_id`, `short_description_feature_id`, `long_description_feature_id`. Note the story's illustrative `stock_feature_id` is **not** the shipped name.
+- **No `stock_managed_outside_skwirrel` twin exists, by design.** 6.1 established that stock has no legacy destructive default (unlike price, whose default was `set_price('0')`), so non-destructive behaviour is unconditional and needs no opt-in flag. The tests assert that unconditional behaviour rather than a setting.
+- **The suite was proven able to fail.** All 18 tests passed on the first run, which for a suite whose whole job is detecting a regression is a reason for suspicion, not confidence. A deliberate mutation was applied to `apply_stock_mapping()` — making an unresolved value write `set_manage_stock(true)` + `set_stock_quantity(0)`, i.e. exactly the NFR-9 violation — and the suite went to **9 failed, 9 passed**. The mutation was then reverted and the file verified byte-identical to its committed state (`git diff --quiet`). This is the evidence that the pin pins something.
+- **Every AC has a control case.** AC-1, AC-3 and the unit companion each include a test proving the write path *can* write, because an "unchanged" assertion passes just as happily when the feature is simply broken. AC-1's control writes a different quantity (7) than the seeded value (42) specifically so the assertion cannot be satisfied by the seed.
+- **AC-4's test runs against a payload carrying values for all four features**, so it proves the three unconfigured mappings performed no write — rather than merely that empty input produced no change. Same reasoning applied in the unit companion.
+- **Integration, not unit — as the story requires.** Assertions re-read through a fresh `wc_get_product()` after each sync rather than trusting the seeded in-memory object. The unit companion is scoped strictly to the pure "does this payload resolve a value" decision, which is the only stub-safe question; the stub was **not** fattened with setters.
+- **The change gate did not interfere.** Fixtures do not need `product_updated_on` advanced: each test constructs a distinct payload and the seeded products carry no `_skwirrel_content_hash` or `_skwirrel_updated_on`, so `is_unchanged()` finds no stored baseline to compare against and the upsert proceeds. Verified empirically — the control cases write, which they could not do if the gate were skipping them.
+- **AC-6 closes the residual named in the Chapter 2 reconciliation.** The price canary now exercises a real variation upsert and asserts the **stored** `get_regular_price()` in both directions: preserved at 55.0 with `prices_managed_outside_skwirrel = true`, and falling to the documented `0.0` branch with it false. `tests/Unit/ProductUpserterPriceTest.php` was left in place, as instructed — it still covers option merging.
+- **The trade-item scope rule is pinned twice**, at both levels: a value present only under `_trade_items[]._trade_item_custom_classes` resolves to nothing, so it can never reach a write site.
+- **AC-7 holds: the suite stands alone.** It is two self-contained Pest files that pass on their own and are in no way blocked on Story 1.14. When 1.14 lands, they are canaries it can aggregate with no restructuring.
+- **No plugin code changed.** This is a test-only story: nothing under `plugin/skwirrel-pim-sync/` was modified, no version bump, no changelog entry, no translation regeneration — consistent with both the story's own instruction and the user's direction to stay on 3.14.0.
+- **No NFR-9 violation was found in 6.1–6.3's implementation.** Had one surfaced, it would have been reported rather than absorbed into the test's expectations.
+
 ### File List
+
+- `tests/Integration/NonDestructiveMappingIntegrationTest.php` (new) — 18 tests covering AC-1 through AC-6
+- `tests/Unit/NonDestructiveMappingTest.php` (new) — 7 tests covering the pure resolve decision
+
+## Change Log
+
+| Date | Description |
+|------|-------------|
+| 2026-08-26 | Implemented Story 6.4: NFR-9 pinned by an integration suite that was mutation-verified to detect the violation it guards against. Test-only; no plugin code and no version change. |
