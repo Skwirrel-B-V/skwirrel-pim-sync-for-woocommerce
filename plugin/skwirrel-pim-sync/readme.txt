@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 3.16.0
+Stable tag: 3.14.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -78,31 +78,28 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 == Changelog ==
 
-= 3.16.0 =
-
-* New: an optional Context ID on the API Connection settings, for Skwirrel instances that serve more than one context. Leave it empty to keep using the Skwirrel default context — that is what your shop does today.
-* New: the Context ID is applied to products, product groups and categories alike, so your catalogue can never end up a mix of two contexts.
-* New: changing the Context ID re-imports your whole catalogue on the next synchronisation, and says so when you save. Saving without changing it does not.
-* New: a Context ID that is not a whole number greater than 0 is rejected with a message at the field, stays visible so you can correct it, and is never sent to Skwirrel.
-
-= 3.15.0 =
-
-* New: mandatory settings are marked with an asterisk, and fields that are only mandatory in certain configurations pick the marker up the moment you tick the setting that makes them so — no save needed to find out.
-* New: every validation message now appears next to the field it is about, as well as in the standard WordPress summary at the top, and screen readers announce it together with that field.
-* Fix: the Super category ID no longer has to be filled in before the form submits when category sync is switched off.
-* Fix: saving with a rejected value no longer shows a green "Settings saved." confirmation alongside the error.
-* Fix: the Custom class collection ID is no longer labelled "(optional)" while saving can reject it as missing.
-* Fix: restored the translated delete-protection hint to the wording the plugin actually displays.
-* Maintenance: the temporary WooCommerce-menu pointer used during the top-level-menu migration has now expired and been removed.
-
 = 3.14.0 =
 
 * New: the settings screen is grouped into four tabs — Connection, What to sync, How it looks and Advanced — so you no longer scroll past forty settings to reach one. No setting changed, moved out of its group, or was renamed.
 * New: a tab containing a field that failed validation is marked with a warning icon and a count, and opens first. Validation messages from saving are now shown on the screen itself.
 * New: link straight to a tab with `#tab-connection`, `#tab-what-to-sync`, `#tab-how-it-looks` or `#tab-advanced`; the address bar keeps up as you switch tabs.
 * New: the tab strip is fully keyboard operable (arrow keys, Home and End) and announced correctly by screen readers.
+* New: mandatory settings are marked with an asterisk, and fields that are only mandatory in certain configurations pick the marker up the moment you tick the setting that makes them so — no save needed to find out.
+* New: every validation message now appears next to the field it is about, as well as in the standard WordPress summary at the top, and screen readers announce it together with that field.
+* New: an optional Context ID on the API Connection settings, for Skwirrel instances that serve more than one context. Leave it empty to keep using the Skwirrel default context — that is what your shop does today.
+* New: the Context ID is applied to products, product groups and categories alike, so your catalogue can never end up a mix of two contexts.
+* New: changing the Context ID re-imports your whole catalogue on the next synchronisation, and says so when you save. Saving without changing it does not.
+* New: a Context ID that is not a whole number greater than 0 is rejected with a message at the field, stays visible so you can correct it, and is never sent to Skwirrel.
+* New: "Test connection" now reports how long the round trip took, the status that came back, and how many products Skwirrel says it has — instead of only telling you it worked.
+* New: a test that connects but finds no products is shown as a warning rather than a green tick, so an empty selection is visible straight away instead of after a synchronisation that imports nothing.
+* New: a failed test now shows the timing and the status next to the error, so a timeout can be told apart from a refusal, and it says how many attempts were made when it retried.
 * Fix: saving while a required field sits on another tab now opens that tab and points at the field, instead of the browser silently refusing to submit.
-* Note: with JavaScript disabled the screen still shows every setting, exactly as before.
+* Fix: the Super category ID no longer has to be filled in before the form submits when category sync is switched off.
+* Fix: saving with a rejected value no longer shows a green "Settings saved." confirmation alongside the error.
+* Fix: the Custom class collection ID is no longer labelled "(optional)" while saving can reject it as missing.
+* Fix: restored the translated delete-protection hint to the wording the plugin actually displays.
+* Maintenance: the temporary WooCommerce-menu pointer used during the top-level-menu migration has now expired and been removed.
+* Note: with JavaScript disabled the settings screen still shows every setting, exactly as before.
 
 = 3.13.1 =
 

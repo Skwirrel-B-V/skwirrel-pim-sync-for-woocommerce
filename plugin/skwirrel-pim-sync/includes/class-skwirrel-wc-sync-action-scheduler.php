@@ -110,7 +110,7 @@ class Skwirrel_WC_Sync_Action_Scheduler {
 		if ( $stored !== $current && '' !== $current ) {
 			$this->schedule();
 			update_option( self::VERSION_OPTION, $current, false );
-			// The one-release WooCommerce-menu signpost expired in 3.15.0. Remove its
+			// The one-release WooCommerce-menu signpost expired in 3.14.0. Remove its
 			// orphaned migration flag while this upgrade path is already running.
 			delete_option( 'skwirrel_wc_sync_show_wc_signpost' );
 			// Only an upgrade from a known prior version is a real "upgrade".
