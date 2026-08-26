@@ -1386,7 +1386,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			</div>
 			<div class="skw-field-actions">
 				<button type="button" id="skwirrel-test-connection" class="skw-btn skw-btn-secondary"><?php esc_html_e( 'Test connection', 'skwirrel-pim-sync' ); ?></button>
-				<span id="skwirrel-test-result" class="skw-test-result" role="status" aria-live="polite"></span>
+				<span id="skwirrel-test-result" class="skw-test-result" role="status" aria-live="polite" aria-atomic="true"></span>
 			</div>
 		</div>
 		<?php

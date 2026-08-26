@@ -415,12 +415,6 @@ parameters:
 			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-history.php
 
 		-
-			message: '#^Method Skwirrel_WC_Sync_JsonRpc_Client\:\:test_connection\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-jsonrpc-client.php
-
-		-
 			message: '#^Method Skwirrel_WC_Sync_Logger\:\:debug\(\) has parameter \$context with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1

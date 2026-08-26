@@ -40,11 +40,16 @@ class Skwirrel_WC_Sync_JsonRpc_Client {
 	/**
 	 * Call a JSON-RPC method.
 	 *
+	 * `meta` is measurement only — it carries what the transport did (how long, which HTTP code,
+	 * how many attempts) so a caller can tell a timeout apart from a rejection. It is present on
+	 * every return path; a branch that omitted it would render blank metrics.
+	 *
 	 * @param string $method Method name (e.g. getProducts, getProductsByFilter)
 	 * @param array<string, mixed> $params Method parameters
-	 * @return array{success: bool, result?: mixed, error?: array{code: int, message: string, data?: mixed}}
+	 * @return array{success: bool, result?: mixed, error?: array{code: int, message: string, data?: mixed}, meta: array{duration_ms: int, http_code: int, attempts: int}}
 	 */
 	public function call( string $method, array $params = [] ): array {
+		$started_at = microtime( true );
 		++$this->request_id;
 		$body = [
 			'jsonrpc' => '2.0',
@@ -66,9 +71,12 @@ class Skwirrel_WC_Sync_JsonRpc_Client {
 		}
 
 		$attempt    = 0;
+		$attempts   = 0;
 		$last_error = null;
+		$last_code  = 0;
 
 		while ( $attempt <= $this->retries ) {
+			++$attempts;
 			$response = wp_remote_post(
 				$this->endpoint,
 				[
@@ -81,6 +89,10 @@ class Skwirrel_WC_Sync_JsonRpc_Client {
 
 			$code     = wp_remote_retrieve_response_code( $response );
 			$body_raw = wp_remote_retrieve_body( $response );
+
+			// A transport failure has no HTTP response, so the code above is '' — 0 after the cast.
+			// That zero is what tells the formatter to say "no response" rather than print a status.
+			$last_code = (int) $code;
 
 			if ( is_wp_error( $response ) ) {
 				$last_error = [
@@ -137,12 +149,14 @@ class Skwirrel_WC_Sync_JsonRpc_Client {
 				return [
 					'success' => false,
 					'error'   => $last_error,
+					'meta'    => $this->build_meta( $started_at, $last_code, $attempts ),
 				];
 			}
 
 			return [
 				'success' => true,
 				'result'  => $decoded['result'] ?? null,
+				'meta'    => $this->build_meta( $started_at, $last_code, $attempts ),
 			];
 		}
 
@@ -152,11 +166,34 @@ class Skwirrel_WC_Sync_JsonRpc_Client {
 				'code'    => -1,
 				'message' => 'Unknown error',
 			],
+			'meta'    => $this->build_meta( $started_at, $last_code, $attempts ),
+		];
+	}
+
+	/**
+	 * Transport measurement for one {@see self::call()}.
+	 *
+	 * @param float $started_at microtime(true) captured at the start of the call.
+	 * @param int   $http_code  Last HTTP status seen; 0 when no response was received at all.
+	 * @param int   $attempts   Number of wp_remote_post() calls actually made.
+	 * @return array{duration_ms: int, http_code: int, attempts: int}
+	 */
+	private function build_meta( float $started_at, int $http_code, int $attempts ): array {
+		return [
+			'duration_ms' => (int) round( ( microtime( true ) - $started_at ) * 1000 ),
+			'http_code'   => $http_code,
+			'attempts'    => $attempts,
 		];
 	}
 
 	/**
 	 * Test connection with a minimal getProducts call.
+	 *
+	 * `product_count` is the API's own pagination total (`result.page.number_of_items`), not the
+	 * size of the returned array — the call asks for a single product, so counting the array would
+	 * report `1` on every install. Absent or non-numeric means unknown, never a substituted number.
+	 *
+	 * @return array{success: bool, result?: mixed, error?: array{code: int, message: string, data?: mixed}, meta: array{duration_ms: int, http_code: int, attempts: int}, product_count: int|null}
 	 */
 	public function test_connection(): array {
 		$result = $this->call(
@@ -176,6 +213,26 @@ class Skwirrel_WC_Sync_JsonRpc_Client {
 			$this->logger->info( 'Connection test successful' );
 		}
 
+		$result['product_count'] = self::extract_product_count( $result['result'] ?? null );
+
 		return $result;
+	}
+
+	/**
+	 * The total the API reports for a product listing, or null when it does not report one.
+	 *
+	 * Tenants run different API builds, so the pagination block is read defensively: anything that
+	 * is not a numeric `number_of_items` yields null, which the caller renders as "unavailable".
+	 *
+	 * @param mixed $rpc_result The JSON-RPC `result` payload.
+	 */
+	private static function extract_product_count( $rpc_result ): ?int {
+		if ( ! is_array( $rpc_result ) || ! isset( $rpc_result['page']['number_of_items'] ) ) {
+			return null;
+		}
+
+		$total = $rpc_result['page']['number_of_items'];
+
+		return is_numeric( $total ) ? (int) $total : null;
 	}
 }

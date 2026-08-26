@@ -39,7 +39,7 @@
 #   Epic 1 is foundational; Epic 2 builds on it; Epics 3 & 4 parallelize after Epic 1 seeds the pause flag.
 
 generated: 2026-06-12
-last_updated: 2026-08-26  # story 5-3 review auto-fixes complete
+last_updated: 2026-08-26  # story 5-4 ready for review
 project: Skwirrel PIM sync for WooCommerce
 project_key: NOKEY
 tracking_system: file-system
@@ -111,7 +111,7 @@ development_status:
   5-1-tabbed-settings-navigation: done                   # supersedes 4-1; builds extensible tab registration | gh#44
   5-2-required-field-markers-and-inline-errors: done            # review auto-fixes complete 2026-08-26 | gh#45
   5-3-context-id: done                             # review auto-fixes complete 2026-08-26; getGroupedProducts context param still unverified against the API | gh#46
-  5-4-test-connection-metrics: ready-for-dev  # gh#47
+  5-4-test-connection-metrics: done  # review auto-fixes complete 2026-08-26 | gh#47
   epic-5-retrospective: optional
 
   # ── Epic 6: Stock and product content from Skwirrel data (Chapter 2 — client request) ──

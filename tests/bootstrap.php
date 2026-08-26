@@ -29,6 +29,18 @@ if (!function_exists('__')) {
     }
 }
 
+if (!function_exists('_n')) {
+    function _n(string $single, string $plural, int $number, string $domain = 'default'): string {
+        return 1 === $number ? $single : $plural;
+    }
+}
+
+if (!function_exists('number_format_i18n')) {
+    function number_format_i18n($number, int $decimals = 0): string {
+        return number_format((float) $number, $decimals);
+    }
+}
+
 if (!function_exists('_x')) {
     function _x(string $text, string $context, string $domain = 'default'): string {
         return $text;

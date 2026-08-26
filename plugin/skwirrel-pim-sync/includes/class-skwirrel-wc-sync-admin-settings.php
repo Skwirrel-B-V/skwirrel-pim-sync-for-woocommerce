@@ -692,6 +692,146 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		return $scheme . '://' . $host . $path . $query;
 	}
 
+	/**
+	 * Render a connection-test outcome as a headline plus a list of metric lines.
+	 *
+	 * Pure by design: every decision the two test paths make — tone, wording, how an unknown count
+	 * or a retried request reads — lives here and nowhere else, so the AJAX result and the legacy
+	 * admin notice cannot drift, and the whole thing is unit-testable on the stub bootstrap without
+	 * an HTTP layer. It receives measurement and an already-extracted message only; the shared payload
+	 * step redacts any reflected credential before calling it, and request headers are never inputs.
+	 *
+	 * @param array{duration_ms?: int, http_code?: int, attempts?: int, jsonrpc_code?: int} $meta Transport and protocol status from the client result.
+	 * @param int|null                                                  $product_count API-reported total, or null when unknown.
+	 * @param bool                                                      $success       Whether the call succeeded.
+	 * @param string                                                    $error_message Error message to show when it did not.
+	 * @return array{tone: string, message: string, details: array<int, string>}
+	 */
+	public static function format_test_result( array $meta, ?int $product_count, bool $success, string $error_message = '' ): array {
+		$duration_ms  = isset( $meta['duration_ms'] ) ? max( 0, (int) $meta['duration_ms'] ) : 0;
+		$http_code    = isset( $meta['http_code'] ) ? (int) $meta['http_code'] : 0;
+		$attempts     = isset( $meta['attempts'] ) ? max( 1, (int) $meta['attempts'] ) : 1;
+		$jsonrpc_code = isset( $meta['jsonrpc_code'] ) ? (int) $meta['jsonrpc_code'] : null;
+
+		if ( ! $success ) {
+			$tone    = 'error';
+			$message = '' !== trim( $error_message )
+				? $error_message
+				: __( 'Connection failed.', 'skwirrel-pim-sync' );
+		} elseif ( 0 === $product_count ) {
+			// The call did succeed, so this is not an error — but a green tick over an empty
+			// catalogue is exactly the false reassurance this story exists to remove.
+			$tone    = 'warning';
+			$message = __( 'Connection works, but the API returned no products.', 'skwirrel-pim-sync' );
+		} else {
+			$tone    = 'success';
+			$message = __( 'Connection successful.', 'skwirrel-pim-sync' );
+		}
+
+		$details = [
+			sprintf(
+				/* translators: %s = round-trip time in milliseconds */
+				__( 'Round-trip: %s ms', 'skwirrel-pim-sync' ),
+				number_format_i18n( $duration_ms )
+			),
+			sprintf(
+				/* translators: %s = HTTP / JSON-RPC status description */
+				__( 'Status: %s', 'skwirrel-pim-sync' ),
+				self::describe_test_status( $http_code, $success, $jsonrpc_code )
+			),
+		];
+
+		// Only a successful call can report a total; on a failure there is no pagination block to
+		// read, and an "unavailable" line there would add noise rather than information.
+		if ( $success ) {
+			$details[] = null === $product_count
+				? __( 'Products: unavailable', 'skwirrel-pim-sync' )
+				: sprintf(
+					/* translators: %s = number of products the API reports */
+					__( 'Products: %s', 'skwirrel-pim-sync' ),
+					number_format_i18n( $product_count )
+				);
+		}
+
+		// Without this, a 30-second result that was really three retried requests reads as one
+		// very slow request.
+		if ( $attempts > 1 ) {
+			$details[] = sprintf(
+				/* translators: %s = number of request attempts made */
+				__( 'Attempts: %s', 'skwirrel-pim-sync' ),
+				number_format_i18n( $attempts )
+			);
+		}
+
+		return [
+			'tone'    => $tone,
+			'message' => $message,
+			'details' => $details,
+		];
+	}
+
+	/**
+	 * Wording for the status line of a connection test.
+	 *
+	 * A zero code means no HTTP response was received at all, which must read as a transport
+	 * failure rather than as the status "0".
+	 */
+	private static function describe_test_status( int $http_code, bool $success, ?int $jsonrpc_code ): string {
+		if ( $http_code <= 0 ) {
+			return __( 'no response (transport error)', 'skwirrel-pim-sync' );
+		}
+
+		if ( $http_code >= 400 ) {
+			/* translators: %s = HTTP status code */
+			return sprintf( __( 'HTTP %s', 'skwirrel-pim-sync' ), number_format_i18n( $http_code ) );
+		}
+
+		if ( $success ) {
+			/* translators: %s = HTTP status code */
+			return sprintf( __( 'HTTP %s · JSON-RPC OK', 'skwirrel-pim-sync' ), number_format_i18n( $http_code ) );
+		}
+
+		if ( null !== $jsonrpc_code ) {
+			return sprintf(
+				/* translators: 1: HTTP status code, 2: JSON-RPC error code */
+				__( 'HTTP %1$s · JSON-RPC error %2$s', 'skwirrel-pim-sync' ),
+				number_format_i18n( $http_code ),
+				number_format_i18n( $jsonrpc_code )
+			);
+		}
+
+		/* translators: %s = HTTP status code */
+		return sprintf( __( 'HTTP %s · JSON-RPC error', 'skwirrel-pim-sync' ), number_format_i18n( $http_code ) );
+	}
+
+	/**
+	 * Turn a raw client result into the shared, secret-safe presentation payload.
+	 *
+	 * The API controls its error message and could reflect the credential it received. Redact that
+	 * message before it reaches either renderer, while keeping the public formatter credential-free.
+	 * The JSON-RPC error code is protocol status, so it is added to the formatter metadata without
+	 * changing the client's transport-measurement contract.
+	 *
+	 * @param array{success: bool, result?: mixed, error?: array{code: int, message: string, data?: mixed}, meta: array{duration_ms: int, http_code: int, attempts: int}, product_count: int|null} $result Client test result.
+	 * @param string $auth_token Credential used for the request; never returned.
+	 * @return array{tone: string, message: string, details: array<int, string>}
+	 */
+	private static function prepare_test_result_payload( array $result, string $auth_token ): array {
+		$success = ! empty( $result['success'] );
+		$meta    = $result['meta'];
+
+		if ( ! $success && isset( $result['error']['code'] ) ) {
+			$meta['jsonrpc_code'] = (int) $result['error']['code'];
+		}
+
+		$error_message = $success ? '' : (string) ( $result['error']['message'] ?? '' );
+		if ( '' !== $auth_token && false !== strpos( $error_message, $auth_token ) ) {
+			$error_message = __( 'Connection failed.', 'skwirrel-pim-sync' );
+		}
+
+		return self::format_test_result( $meta, $result['product_count'], $success, $error_message );
+	}
+
 	public function handle_test_connection(): void {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			wp_die( esc_html__( 'Access denied.', 'skwirrel-pim-sync' ) );
@@ -708,7 +848,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			(int) ( $opts['retries'] ?? 2 )
 		);
 
-		$result = $client->test_connection();
+		$result    = $client->test_connection();
+		$success   = ! empty( $result['success'] );
+		$formatted = self::prepare_test_result_payload( $result, $token );
 
 		// Stash the result in a transient instead of the URL so a subsequent
 		// settings save (which redirects through options.php and preserves the
@@ -716,8 +858,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		set_transient(
 			self::TEST_RESULT_TRANSIENT,
 			[
-				'success' => ! empty( $result['success'] ),
-				'message' => empty( $result['success'] ) ? (string) ( $result['error']['message'] ?? 'Unknown error' ) : '',
+				'success' => $success,
+				'tone'    => $formatted['tone'],
+				'message' => $formatted['message'],
+				'details' => $formatted['details'],
 			],
 			60
 		);
@@ -766,19 +910,25 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$opts['auth_token'] = '' !== self::get_auth_token() ? self::MASK : '';
 		update_option( self::OPTION_KEY, $opts, false );
 
-		$client = new Skwirrel_WC_Sync_JsonRpc_Client(
+		$client_token = self::get_auth_token();
+		$client       = new Skwirrel_WC_Sync_JsonRpc_Client(
 			$endpoint,
 			'token',
-			self::get_auth_token(),
+			$client_token,
 			(int) ( $opts['timeout'] ?? 30 ),
 			(int) ( $opts['retries'] ?? 2 )
 		);
-		$result = $client->test_connection();
+		$result       = $client->test_connection();
+		$success      = ! empty( $result['success'] );
 
-		if ( ! empty( $result['success'] ) ) {
-			wp_send_json_success( [ 'message' => __( 'Connection successful — settings saved.', 'skwirrel-pim-sync' ) ] );
+		$payload = self::prepare_test_result_payload( $result, $client_token );
+
+		// Zero products stays a success response — the call *did* succeed. The warning travels in
+		// `tone`, so flipping the success flag here would make the browser render it as a failure.
+		if ( $success ) {
+			wp_send_json_success( $payload );
 		}
-		wp_send_json_error( [ 'message' => (string) ( $result['error']['message'] ?? __( 'Connection failed.', 'skwirrel-pim-sync' ) ) ] );
+		wp_send_json_error( $payload );
 	}
 
 	/**
@@ -1718,7 +1868,30 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '  var res = document.getElementById("skwirrel-test-result");'
 			. '  var subEl = document.getElementById("skwirrel_subdomain");'
 			. '  var sub = subEl ? subEl.value.trim() : "";'
-			. '  function setRes(txt, cls){ if(res){ res.textContent = txt; res.className = "skw-test-result" + (cls ? " " + cls : ""); } }'
+			// Built with createElement/textContent rather than innerHTML: the headline can be an
+			// API-supplied error string. The whole result is written in one pass so the aria-live
+			// region announces the headline and its metrics together.
+			. '  function setRes(txt, cls, details){'
+			. '   if(!res) return;'
+			. '   res.setAttribute("aria-busy", "true");'
+			. '   var fragment = document.createDocumentFragment();'
+			. '   var head = document.createElement("span");'
+			. '   head.className = "skw-test-headline";'
+			. '   head.textContent = txt;'
+			. '   fragment.appendChild(head);'
+			. '   if (Array.isArray(details)) {'
+			. '    details.forEach(function(d){'
+			. '     var m = document.createElement("span");'
+			. '     m.className = "skw-test-metric";'
+			. '     m.textContent = String(d);'
+			. '     fragment.appendChild(m);'
+			. '    });'
+			. '   }'
+			. '   res.className = "skw-test-result" + (cls ? " " + cls : "");'
+			. '   while (res.firstChild) { res.removeChild(res.firstChild); }'
+			. '   res.appendChild(fragment);'
+			. '   res.setAttribute("aria-busy", "false");'
+			. '  }'
 			. '  if (!sub) { setRes(skwirrelPimSync.testSubdomainLabel, "skw-test-error"); if(subEl) subEl.focus(); return; }'
 			. '  var tokenEl = document.getElementById("auth_token");'
 			. '  var fd = new FormData();'
@@ -1732,8 +1905,12 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '   .then(function(r){ return r.json(); })'
 			. '   .then(function(r){'
 			. '    var ok = r && r.success;'
-			. '    var msg = (r && r.data && r.data.message) ? r.data.message : skwirrelPimSync.testFailedLabel;'
-			. '    setRes(msg, ok ? "skw-test-success" : "skw-test-error");'
+			. '    var d = (r && r.data) ? r.data : {};'
+			. '    var msg = d.message ? d.message : skwirrelPimSync.testFailedLabel;'
+			// Drive the class from the server tone when it is there; a browser holding a stale
+			// copy of this script simply falls back to the old success/error mapping.
+			. '    var toneClass = { success: "skw-test-success", warning: "skw-test-warning", error: "skw-test-error" }[d.tone];'
+			. '    setRes(msg, toneClass || (ok ? "skw-test-success" : "skw-test-error"), d.details);'
 			. '   })'
 			. '   .catch(function(){ setRes(skwirrelPimSync.testNetworkLabel, "skw-test-error"); })'
 			. '   .finally(function(){ testBtn.disabled = false; });'
@@ -2217,14 +2394,29 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$test_result = get_transient( self::TEST_RESULT_TRANSIENT );
 		if ( false !== $test_result ) {
 			delete_transient( self::TEST_RESULT_TRANSIENT );
-			if ( is_array( $test_result ) && ! empty( $test_result['success'] ) ) {
-				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Connection test successful.', 'skwirrel-pim-sync' ) . '</p></div>';
-			} else {
-				$msg = is_array( $test_result ) && ! empty( $test_result['message'] )
-					? (string) $test_result['message']
-					: __( 'Connection failed.', 'skwirrel-pim-sync' );
-				echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( $msg ) . '</p></div>';
+			$test_result = is_array( $test_result ) ? $test_result : [];
+			$tone        = isset( $test_result['tone'] ) ? (string) $test_result['tone'] : '';
+			if ( ! in_array( $tone, [ 'success', 'warning', 'error' ], true ) ) {
+				$tone = empty( $test_result['success'] ) ? 'error' : 'success';
 			}
+			$notice_class = 'error' === $tone ? 'notice-error' : ( 'warning' === $tone ? 'notice-warning' : 'notice-success' );
+			$msg          = ! empty( $test_result['message'] )
+				? (string) $test_result['message']
+				: __( 'Connection failed.', 'skwirrel-pim-sync' );
+			$details      = isset( $test_result['details'] ) && is_array( $test_result['details'] ) ? $test_result['details'] : [];
+
+			echo '<div class="notice ' . esc_attr( $notice_class ) . ' is-dismissible"><p>' . esc_html( $msg ) . '</p>';
+			if ( [] !== $details ) {
+				echo '<p class="skw-test-metrics">';
+				foreach ( $details as $index => $detail ) {
+					if ( $index > 0 ) {
+						echo ' &middot; ';
+					}
+					echo '<span class="skw-test-metric">' . esc_html( (string) $detail ) . '</span>';
+				}
+				echo '</p>';
+			}
+			echo '</div>';
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
 		if ( isset( $_GET['sync'] ) && 'queued' === $_GET['sync'] ) {

@@ -91,17 +91,27 @@ require $_tests_dir . '/includes/bootstrap.php';
  * Is this JSON-RPC call the sync run's membership sweep?
  *
  * The sweep (Story 2.6) asks `getProductsByFilter` for the complete product-id membership of a
- * selection: `filter: { dynamic_selection_id }` with `options: []` — no `updated_on`, no payload
- * includes. That is a different question from the paginated content fetch, which carries the
- * include flags, so a stub must answer it separately; otherwise the run sees an empty selection,
- * treats the sweep as incomplete, and the stub's page counter is off by one call.
+ * selection: `filter: { dynamic_selection_id }` and no payload includes — no `updated_on`, no
+ * `include_*` flags. That is a different question from the paginated content fetch, which carries
+ * the include flags, so a stub must answer it separately; otherwise the run sees an empty
+ * selection, treats the sweep as incomplete, and the stub's page counter is off by one call.
+ *
+ * What makes it a sweep is the ABSENCE of payload includes, not an empty `options` array. Story 5.3
+ * put the Context ID on every call site including this one, so a sweep on an install with a
+ * configured Context ID legitimately sends `options: { include_contexts: [...] }`. Scoping is not
+ * payload: the keys below are the ones that select WHICH context is being asked about, and they
+ * leave a sweep a sweep.
  *
  * @param array<string, mixed> $params JSON-RPC params of the call.
  */
 function skwIsSweepCall( array $params ): bool {
-	return isset( $params['filter']['dynamic_selection_id'] )
-		&& empty( $params['options'] )
-		&& ! isset( $params['filter']['code'] );
+	if ( ! isset( $params['filter']['dynamic_selection_id'] ) || isset( $params['filter']['code'] ) ) {
+		return false;
+	}
+
+	$scoping_only = array( 'include_contexts' );
+
+	return array() === array_diff( array_keys( (array) ( $params['options'] ?? array() ) ), $scoping_only );
 }
 
 /**

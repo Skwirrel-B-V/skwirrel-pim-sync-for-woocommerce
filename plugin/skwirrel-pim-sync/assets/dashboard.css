@@ -416,6 +416,28 @@
 	color: #dc2626;
 }
 
+/* The warning tone must not rely on colour alone (NFR-7): it is also the only tone that
+   carries a glyph, and it is set heavier than the others. */
+.skw-test-result.skw-test-warning {
+	color: #b45309;
+	font-weight: 600;
+}
+
+.skw-test-result.skw-test-warning .skw-test-headline::before {
+	content: "\26A0\FE0E  ";
+}
+
+.skw-test-metric {
+	margin-left: 10px;
+	font-weight: 400;
+	color: #6b7280;
+	font-variant-numeric: tabular-nums;
+}
+
+.skw-test-metrics .skw-test-metric:first-child {
+	margin-left: 0;
+}
+
 /* ==========================================================================
    Sync Toast (compact status on non-Skwirrel admin pages)
    ========================================================================== */

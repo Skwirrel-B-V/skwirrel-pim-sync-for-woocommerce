@@ -4,8 +4,9 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Skwirrel PIM sync for WooCommerce 1.7.0\n"
-"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/app\n"
-"POT-Creation-Date: 2026-08-26T11:56:16+00:00\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/skwirrel-pim-"
+"sync\n"
+"POT-Creation-Date: 2026-08-26T12:45:47+00:00\n"
 "PO-Revision-Date: 2026-02-26 12:00+0000\n"
 "Last-Translator: Skwirrel Sync <info@skwirrel.eu>\n"
 "Language-Team: English (United States)\n"
@@ -284,7 +285,7 @@ msgid "%d fetched"
 msgstr "%d fetched"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:518
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1466
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1599
 msgid "View live log"
 msgstr "View live log"
 
@@ -534,11 +535,11 @@ msgstr "Timeout (seconds)"
 msgid "Retries"
 msgstr "Retries"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1382
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1381
 msgid "Context ID"
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1385
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1384
 msgid ""
 "Optional. Leave this empty unless Skwirrel told you otherwise — an empty "
 "field uses the Skwirrel default context. Fill it in only if your Skwirrel "
@@ -1011,12 +1012,12 @@ msgid "Live sync log"
 msgstr "Live sync log"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1830
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2033
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2189
 msgid "Sync running"
 msgstr "Sync running"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1830
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2034
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2190
 msgid "Idle"
 msgstr "Idle"
 
@@ -1036,7 +1037,7 @@ msgstr ""
 "Verbose logging is disabled. Enable it in %s to see per-product detail."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1850
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2032
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2188
 msgid "Pause"
 msgstr "Pause"
 
@@ -1129,115 +1130,175 @@ msgid ""
 "classes or grouped products."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:687
-#: includes/class-skwirrel-wc-sync-admin-settings.php:737
-#: includes/class-skwirrel-wc-sync-admin-settings.php:798
-#: includes/class-skwirrel-wc-sync-admin-settings.php:969
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1047
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1114
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1184
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1381
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2122
+#: includes/class-skwirrel-wc-sync-admin-settings.php:719
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1749
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2372
+msgid "Connection failed."
+msgstr "Connection failed."
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:724
+msgid "Connection works, but the API returned no products."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:727
+msgid "Connection successful."
+msgstr ""
+
+#. translators: %s = round-trip time in milliseconds
+#: includes/class-skwirrel-wc-sync-admin-settings.php:733
+#, php-format
+msgid "Round-trip: %s ms"
+msgstr ""
+
+#. translators: %s = HTTP / JSON-RPC status description
+#: includes/class-skwirrel-wc-sync-admin-settings.php:738
+#, php-format
+msgid "Status: %s"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:747
+msgid "Products: unavailable"
+msgstr ""
+
+#. translators: %s = number of products the API reports
+#: includes/class-skwirrel-wc-sync-admin-settings.php:750
+#, php-format
+msgid "Products: %s"
+msgstr ""
+
+#. translators: %s = number of request attempts made
+#: includes/class-skwirrel-wc-sync-admin-settings.php:760
+#, php-format
+msgid "Attempts: %s"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:780
+msgid "no response (transport error)"
+msgstr ""
+
+#. translators: %s = HTTP status code
+#: includes/class-skwirrel-wc-sync-admin-settings.php:785
+#, php-format
+msgid "HTTP %s"
+msgstr ""
+
+#. translators: %s = HTTP status code
+#: includes/class-skwirrel-wc-sync-admin-settings.php:790
+#, php-format
+msgid "HTTP %s · JSON-RPC OK"
+msgstr ""
+
+#. translators: 1: HTTP status code, 2: JSON-RPC error code
+#: includes/class-skwirrel-wc-sync-admin-settings.php:797
+#, php-format
+msgid "HTTP %1$s · JSON-RPC error %2$s"
+msgstr ""
+
+#. translators: %s = HTTP status code
+#: includes/class-skwirrel-wc-sync-admin-settings.php:804
+#, php-format
+msgid "HTTP %s · JSON-RPC error"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:799
+#: includes/class-skwirrel-wc-sync-admin-settings.php:858
+#: includes/class-skwirrel-wc-sync-admin-settings.php:929
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1102
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1180
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1247
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1317
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1514
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2278
 #: includes/class-skwirrel-wc-sync-product-sync-meta-box.php:523
 #: includes/class-skwirrel-wc-sync-product-sync-meta-box.php:572
 msgid "Access denied."
 msgstr "Access denied."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:744
+#: includes/class-skwirrel-wc-sync-admin-settings.php:865
 msgid "Enter a Skwirrel subdomain first."
 msgstr "Enter a Skwirrel subdomain first."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:769
-msgid "Connection successful — settings saved."
-msgstr "Connection successful — settings saved."
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php:771
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1616
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2213
-msgid "Connection failed."
-msgstr "Connection failed."
-
 #. translators: %d: number of products inspected so far.
-#: includes/class-skwirrel-wc-sync-admin-settings.php:851
+#: includes/class-skwirrel-wc-sync-admin-settings.php:982
 #, php-format
 msgid "Scanning… %d products checked"
 msgstr ""
 
 #. translators: %d: number of newly discovered product statuses.
-#: includes/class-skwirrel-wc-sync-admin-settings.php:861
+#: includes/class-skwirrel-wc-sync-admin-settings.php:992
 #, php-format
 msgid "%d new status found — reloading…"
 msgid_plural "%d new statuses found — reloading…"
 msgstr[0] "%d new status found — reloading…"
 msgstr[1] "%d new statuses found — reloading…"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:863
+#: includes/class-skwirrel-wc-sync-admin-settings.php:994
 msgid "Status details updated — reloading…"
 msgstr "Status details updated — reloading…"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:865
+#: includes/class-skwirrel-wc-sync-admin-settings.php:996
 msgid "No new statuses found. Every status in the catalogue is already listed."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:867
+#: includes/class-skwirrel-wc-sync-admin-settings.php:998
 msgid ""
 "No new statuses found so far — the scan stopped before the end of the "
 "catalogue."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:932
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1063
 msgid ""
 "Set the Skwirrel endpoint and API token (and save) before refreshing "
 "statuses."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:960
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1093
 msgid "The request to Skwirrel failed."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1387
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1520
 msgid "Invalid filename."
 msgstr "Invalid filename."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1392
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1525
 msgid "Log file not found."
 msgstr "Log file not found."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1454
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1587
 msgid "Skwirrel sync"
 msgstr "Skwirrel sync"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1456
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1589
 msgid "Move to the other corner"
 msgstr "Move to the other corner"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1459
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1592
 msgid "Hide for this session"
 msgstr "Hide for this session"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1492
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1505
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1625
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1638
 msgid "Sync completed."
 msgstr "Sync completed."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1493
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1626
 msgid "View results"
 msgstr "View results"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1506
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1612
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1639
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1745
 msgid "Stop the running sync?"
 msgstr "Stop the running sync?"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1507
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1640
 msgid "Stopping…"
 msgstr "Stopping…"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1508
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1641
 msgid "Error"
 msgstr "Error"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1603
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1736
 msgid ""
 "WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be "
 "undone!\\n\\nAre you sure?"
@@ -1245,82 +1306,78 @@ msgstr ""
 "WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be "
 "undone!\\n\\nAre you sure?"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1604
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1737
 msgid "All Skwirrel products will be moved to the trash.\\n\\nAre you sure?"
 msgstr "All Skwirrel products will be moved to the trash.\\n\\nAre you sure?"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1605
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1738
 msgid "Delete all sync history?"
 msgstr "Delete all sync history?"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1606
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1739
 msgid ""
 "Reset all Skwirrel sync settings? Endpoint URL, API token, sync schedule and "
 "slug rules will be deleted, and all scheduled syncs will be cancelled. "
 "Products, media, categories and sync history are kept.\\n\\nAre you sure?"
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1614
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1747
 msgid "Testing…"
 msgstr "Testing…"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1615
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1748
 msgid "Enter a subdomain first."
 msgstr "Enter a subdomain first."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1617
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1750
 msgid "Network error."
 msgstr "Network error."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1619
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1752
 msgid "Fetching…"
 msgstr "Fetching…"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1620
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1753
 msgid "Could not refresh statuses."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1621
+#: includes/class-skwirrel-wc-sync-admin-settings.php:1754
 msgid ""
 "Statuses updated. Save your changes to see the new rows — the page was not "
 "reloaded because this form has unsaved edits."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1942
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2029
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2098
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2185
 msgid "lines"
 msgstr "lines"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1957
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2113
 msgid "Could not load log"
 msgstr "Could not load log"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:1963
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2030
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2119
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2186
 msgid "Network error"
 msgstr "Network error"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2031
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2187
 msgid "Resume"
 msgstr "Resume"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2035
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2191
 msgid "Waiting for sync log…"
 msgstr "Waiting for sync log…"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2092
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2248
 msgid "no log yet"
 msgstr "no log yet"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2200
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2356
 msgid "Settings saved."
 msgstr "Settings saved."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2209
-msgid "Connection test successful."
-msgstr "Connection test successful."
-
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2219
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2390
 msgid ""
 "Sync started in the background. Results will appear here once the sync is "
 "completed. Refresh the page to check the status."
@@ -1328,11 +1385,11 @@ msgstr ""
 "Sync started in the background. Results will appear here once the sync is "
 "completed. Refresh the page to check the status."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2223
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2394
 msgid "Sync history deleted."
 msgstr "Sync history deleted."
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2227
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2398
 msgid ""
 "Skwirrel sync settings reset. All configuration options were deleted, "
 "scheduled jobs cancelled, and caches flushed. Products, media, categories "
@@ -1340,7 +1397,7 @@ msgid ""
 "to continue."
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2231
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2402
 msgid ""
 "Purge started in the background. All Skwirrel products, imported media, "
 "categories and attributes will be deleted. Refresh the page to check the "
@@ -1351,18 +1408,18 @@ msgstr ""
 "status."
 
 #. translators: %1$d = created count, %2$d = updated count, %3$d = failed count
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2241
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2412
 #, php-format
 msgid "Sync completed. Created: %1$d, Updated: %2$d, Failed: %3$d"
 msgstr "Sync completed. Created: %1$d, Updated: %2$d, Failed: %3$d"
 
 #. translators: %1$d = count with attributes, %2$d = count without attributes
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2249
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2420
 #, php-format
 msgid "(with attributes: %1$d, without: %2$d)"
 msgstr "(with attributes: %1$d, without: %2$d)"
 
-#: includes/class-skwirrel-wc-sync-admin-settings.php:2256
+#: includes/class-skwirrel-wc-sync-admin-settings.php:2427
 msgid "Sync completed. Check the logs for details."
 msgstr "Sync completed. Check the logs for details."
 
@@ -1745,7 +1802,7 @@ msgid "Product synced successfully (%s)."
 msgstr "Product synced successfully (%s)."
 
 #. translators: %s = grouped product ID
-#: includes/class-skwirrel-wc-sync-product-upserter.php:1432
+#: includes/class-skwirrel-wc-sync-product-upserter.php:1437
 #, php-format
 msgid "Product %s"
 msgstr "Product %s"
@@ -1918,6 +1975,12 @@ msgstr "Skwirrel PIM sync for WooCommerce requires WooCommerce to function."
 #: skwirrel-pim-sync.php:52
 msgid "Install WooCommerce"
 msgstr "Install WooCommerce"
+
+#~ msgid "Connection successful — settings saved."
+#~ msgstr "Connection successful — settings saved."
+
+#~ msgid "Connection test successful."
+#~ msgstr "Connection test successful."
 
 #~ msgid "Custom class collection ID (optional)"
 #~ msgstr "Custom class collection ID (optional)"
