@@ -1,6 +1,6 @@
 # Story 6.2: Stock quantity on variations
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -94,46 +94,46 @@ If you are forced to build 6.2 before 6.1, build 6.1 in full first. Do not ship 
 
 ## Tasks / Subtasks
 
-- [ ] **Task 0 — Confirm 6.1's contract in the code** (AC: 1)
-  - [ ] `grep -rn "apply_stock_mapping\|resolve_numeric_feature_value" plugin/` — both must exist. If not, stop: 6.1 has not landed.
-  - [ ] Read the actual setting key out of `Product_Upserter::get_options()` `$defaults` and use that name verbatim throughout.
-  - [ ] Confirm `apply_stock_mapping()`'s parameter is typed `WC_Product` (not `WC_Product_Simple`). Widen 6.1's signature if needed; do not fork the helper.
+- [x] **Task 0 — Confirm 6.1's contract in the code** (AC: 1)
+  - [x] `grep -rn "apply_stock_mapping\|resolve_numeric_feature_value" plugin/` — both must exist. If not, stop: 6.1 has not landed.
+  - [x] Read the actual setting key out of `Product_Upserter::get_options()` `$defaults` and use that name verbatim throughout.
+  - [x] Confirm `apply_stock_mapping()`'s parameter is typed `WC_Product` (not `WC_Product_Simple`). Widen 6.1's signature if needed; do not fork the helper.
 
-- [ ] **Task 1 — A single suppression decision, shared by both paths** (AC: 3, 4, 5, 7)
-  - [ ] Add one **pure** private helper to `Product_Upserter` — no `get_option()`, no WC calls — e.g.
+- [x] **Task 1 — A single suppression decision, shared by both paths** (AC: 3, 4, 5, 7)
+  - [x] Add one **pure** private helper to `Product_Upserter` — no `get_option()`, no WC calls — e.g.
         `private static function stock_mapping_governs( bool $mapping_active ): bool`, or fold it into a small decision method returning the flag both call sites read. Keep it trivial and testable.
-  - [ ] Rule it encodes: when the mapping setting is non-empty, the legacy `set_manage_stock( false )` / `set_stock_status( 'instock' )` writes in the price branches are **suppressed** — whether or not this particular variation resolved a value. That is what makes AC 5 hold: a configured-but-unresolved variation must be left alone, not reset to today's unmanaged/instock default.
-  - [ ] When the setting is empty, the flag is false and nothing changes (AC 4).
-  - [ ] Do not duplicate the guard expression at the two call sites. 2.6's review lesson: one chokepoint, guards inside it — see Dev Notes.
+  - [x] Rule it encodes: when the mapping setting is non-empty, the legacy `set_manage_stock( false )` / `set_stock_status( 'instock' )` writes in the price branches are **suppressed** — whether or not this particular variation resolved a value. That is what makes AC 5 hold: a configured-but-unresolved variation must be left alone, not reset to today's unmanaged/instock default.
+  - [x] When the setting is empty, the flag is false and nothing changes (AC 4).
+  - [x] Do not duplicate the guard expression at the two call sites. 2.6's review lesson: one chokepoint, guards inside it — see Dev Notes.
 
-- [ ] **Task 2 — Wire `create_or_update_variation()` (`:1863`)** (AC: 1, 2, 3, 5, 7)
-  - [ ] This is the path every normal run uses (`Sync_Service:916`, `:2194`). Do it first.
-  - [ ] Read the suppression flag once before the price branch at `:1944-1968`.
-  - [ ] Guard the four legacy writes at `:1951-1952` and `:1966-1967` behind `! $suppressed`. Leave the price writes themselves untouched — including the `prices_managed_outside_skwirrel` branch (`:1957`), which must keep writing nothing.
-  - [ ] Call `$this->apply_stock_mapping( $variation, $product )` after the price branch and before `$variation->save()` (`:2096`).
-  - [ ] Re-assert `set_stock_status( 'outofstock' )` for the price-on-request case as the last stock word before save (AC 7).
-  - [ ] Do not touch the change-gate early returns at `:1919`/`:1930` — they must keep stamping `_skwirrel_synced_at`.
+- [x] **Task 2 — Wire `create_or_update_variation()` (`:1863`)** (AC: 1, 2, 3, 5, 7)
+  - [x] This is the path every normal run uses (`Sync_Service:916`, `:2194`). Do it first.
+  - [x] Read the suppression flag once before the price branch at `:1944-1968`.
+  - [x] Guard the four legacy writes at `:1951-1952` and `:1966-1967` behind `! $suppressed`. Leave the price writes themselves untouched — including the `prices_managed_outside_skwirrel` branch (`:1957`), which must keep writing nothing.
+  - [x] Call `$this->apply_stock_mapping( $variation, $product )` after the price branch and before `$variation->save()` (`:2096`).
+  - [x] Re-assert `set_stock_status( 'outofstock' )` for the price-on-request case as the last stock word before save (AC 7).
+  - [x] Do not touch the change-gate early returns at `:1919`/`:1930` — they must keep stamping `_skwirrel_synced_at`.
 
-- [ ] **Task 3 — Wire `upsert_product_as_variation()` (`:580`)** (AC: 1, 2, 3, 5, 7)
-  - [ ] Same change against the price branch at `:620-654`, helper call before `$variation->save()`.
-  - [ ] **Read this method in full first.** It is a near-duplicate of Task 2's but not identical: no change gate, no `guard_revive_from_trash()`, different return type (`string`, not `array`). A blind copy-paste between the two breaks something.
+- [x] **Task 3 — Wire `upsert_product_as_variation()` (`:580`)** (AC: 1, 2, 3, 5, 7)
+  - [x] Same change against the price branch at `:620-654`, helper call before `$variation->save()`.
+  - [x] **Read this method in full first.** It is a near-duplicate of Task 2's but not identical: no change gate, no `guard_revive_from_trash()`, different return type (`string`, not `array`). A blind copy-paste between the two breaks something.
 
-- [ ] **Task 4 — Verify, don't build** (AC: 8, 9)
-  - [ ] Confirm both paths already call `WC_Product_Variable::sync_stock_status()` after save (`:835`, `:2110`). Add nothing.
-  - [ ] Confirm the parent writes at `:1452-1453` are left as they are.
-  - [ ] Confirm `_custom_classes` reaches the *variation* payloads, not just the simple-product ones: variations are written from the ordinary product payloads queued by the catalogue fetch, so 6.1's `include_custom_classes` flag work at `Sync_Service:274-310` / `:1814` / `:2090` already covers them. Spot-check one queued variation payload with verbose logging rather than assuming.
-  - [ ] Confirm the mapping key is absent from `compute_sync_signature()`'s `$ignore` denylist (`Sync_Service:2376-2392`).
+- [x] **Task 4 — Verify, don't build** (AC: 8, 9)
+  - [x] Confirm both paths already call `WC_Product_Variable::sync_stock_status()` after save (`:835`, `:2110`). Add nothing.
+  - [x] Confirm the parent writes at `:1452-1453` are left as they are.
+  - [x] Confirm `_custom_classes` reaches the *variation* payloads, not just the simple-product ones: variations are written from the ordinary product payloads queued by the catalogue fetch, so 6.1's `include_custom_classes` flag work at `Sync_Service:274-310` / `:1814` / `:2090` already covers them. Spot-check one queued variation payload with verbose logging rather than assuming.
+  - [x] Confirm the mapping key is absent from `compute_sync_signature()`'s `$ignore` denylist (`Sync_Service:2376-2392`).
 
-- [ ] **Task 5 — Tests** (AC: 1, 5, 6, 10)
-  - [ ] `tests/Unit/VariationStockMappingTest.php` (Pest): the Task 1 decision helper across configured/unconfigured; and the resolver driven against variation-shaped payloads — value present, absent, empty, non-numeric, `not_applicable`, and present only under `_trade_item_custom_classes` (must be `null`, proving product-level scope).
-  - [ ] `tests/Integration/VariationStockIntegrationTest.php` against real WC: quantity lands on the variation; a variation with a pre-set quantity and no mapped value keeps it exactly (AC 5); a sibling with a value still resolves (AC 6); the parent's aggregate status reflects its children after `sync_stock_status()` (AC 8); a price-on-request variation ends `outofstock` (AC 7).
-  - [ ] **The unit bootstrap's `WC_Product` stub has no stock setters** (`tests/bootstrap.php:475-535`). Do not try to drive the full upsert method from a unit test — that is what the pure helper and the integration suite are for. Extend the stub only additively, and only if a test genuinely needs it.
-  - [ ] `tests/Unit/ProductUpserterPriceTest.php` is the reference recipe for constructing the upserter under the stub bootstrap (all seven collaborators in `beforeEach()`, `ReflectionMethod` for private helpers). Follow it verbatim.
-  - [ ] Do not weaken an existing assertion, and do not regenerate `phpstan-baseline.neon` to hide a new finding.
+- [x] **Task 5 — Tests** (AC: 1, 5, 6, 10)
+  - [x] `tests/Unit/VariationStockMappingTest.php` (Pest): the Task 1 decision helper across configured/unconfigured; and the resolver driven against variation-shaped payloads — value present, absent, empty, non-numeric, `not_applicable`, and present only under `_trade_item_custom_classes` (must be `null`, proving product-level scope).
+  - [x] `tests/Integration/VariationStockIntegrationTest.php` against real WC: quantity lands on the variation; a variation with a pre-set quantity and no mapped value keeps it exactly (AC 5); a sibling with a value still resolves (AC 6); the parent's aggregate status reflects its children after `sync_stock_status()` (AC 8); a price-on-request variation ends `outofstock` (AC 7).
+  - [x] **The unit bootstrap's `WC_Product` stub has no stock setters** (`tests/bootstrap.php:475-535`). Do not try to drive the full upsert method from a unit test — that is what the pure helper and the integration suite are for. Extend the stub only additively, and only if a test genuinely needs it.
+  - [x] `tests/Unit/ProductUpserterPriceTest.php` is the reference recipe for constructing the upserter under the stub bootstrap (all seven collaborators in `beforeEach()`, `ReflectionMethod` for private helpers). Follow it verbatim.
+  - [x] Do not weaken an existing assertion, and do not regenerate `phpstan-baseline.neon` to hide a new finding.
 
-- [ ] **Task 6 — Ship** (AC: 10)
-  - [ ] Run all three gates from the repo root; fix findings on sight.
-  - [ ] Version bump, `CHANGELOG.md` + `readme.txt` entries — via `/release`. This story adds no new user-facing strings (6.1 owns the settings copy), so no `.pot`/`.po`/`.mo` work unless a log string you add is translatable (log strings are not).
+- [x] **Task 6 — Ship** (AC: 10)
+  - [x] Run all three gates from the repo root; fix findings on sight.
+  - [x] Version bump, `CHANGELOG.md` + `readme.txt` entries — via `/release`. This story adds no new user-facing strings (6.1 owns the settings copy), so no `.pot`/`.po`/`.mo` work unless a log string you add is translatable (log strings are not).
 
 ## Dev Notes
 
@@ -198,8 +198,35 @@ No structural change and no settings work — 6.1 owns the Field mapping group (
 
 ### Agent Model Used
 
+claude-opus-5 (in-session, orchestration `orchestration-6-20260826-143018`)
+
 ### Debug Log References
+
+- `vendor/bin/pest` — 557 passed (1185 assertions), 8 new in `tests/Unit/VariationStockMappingTest.php`
+- `npx wp-env run tests-cli … pest -c phpunit-integration.xml.dist` — 191 passed (1648 assertions), 8 new in `tests/Integration/VariationStockIntegrationTest.php`
+- `vendor/bin/phpstan analyse --memory-limit=2G` — no errors (level 6, baseline unchanged)
+- `vendor/bin/phpcs` — 34/34 clean
 
 ### Completion Notes List
 
+- **Task 0 confirmed against the code, not the table.** `apply_stock_mapping()` and `resolve_numeric_feature_value()` both exist from 6.1; the setting key read out of `get_options()` is `stock_quantity_feature`. 6.1 landed the helper with an *untyped* first parameter, which already accepted a variation — it has been **widened explicitly to `WC_Product`** (which `WC_Product_Variation` extends) rather than forked, satisfying Task 0's intent and clearing a PHPStan `missingType.parameter`.
+- **One suppression decision, two consumers (Task 1).** `stock_mapping_governs( string $mapping ): bool` is pure — it reads no options and calls no WC — so it is unit-testable on the stub bootstrap; `stock_mapping_is_active()` is the single chokepoint both variation paths read, so the two near-duplicate methods cannot drift. A test asserts purity directly by storing a setting and showing it does not change the answer.
+- **Suppression is unconditional when the mapping is on — that is what makes AC 5 hold.** The legacy `set_manage_stock( false )` / `set_stock_status( 'instock' )` writes are suppressed whether or not *this* variation resolved a value. Had they been suppressed only on a successful resolve, a configured-but-unresolved variation would still be reset to unmanaged/instock, which is precisely the NFR-9 violation the epic exists to prevent. The integration suite pins this: a variation seeded with a hand-set quantity of 7 and then re-synced with the feature absent still reads `manage_stock = true, quantity = 7`.
+- **Deviation from Task 2/3's literal wording on price-on-request, for the reason the Dev Notes give.** The task text says to call the helper and then re-assert `set_stock_status( 'outofstock' )`. Doing that would combine an explicit status with a managed quantity, which the same story's Dev Notes forbid ("Never write `stock_status` alongside a managed quantity") because WooCommerce recomputes status from the quantity on save and would undo the rule. Price-on-request variations are therefore **excluded from `apply_stock_mapping()` entirely**, keeping their existing explicit `outofstock` as the only stock word. AC 7 holds deterministically, and the integration test proves it with a variation that carries both a price-on-request flag and a resolvable quantity of 99.
+- **The integration suite earned its keep.** The first run failed AC 7 — but the defect was in the fixture, not the code: a payload with *no* price is the "no price" branch, while price-on-request needs an explicit `price_on_request` flag on a price row (`Product_Mapper::is_price_on_request()`). The fixture was corrected and now documents that distinction for the next reader.
+- **AC 8 and AC 9 were verified, not built.** Both `WC_Product_Variable::sync_stock_status()` call sites are untouched, as are the parent's own `set_stock_status( 'instock' )` / `set_manage_stock( false )` writes; the diff adds no new call site. `stock_quantity_feature` remains absent from `compute_sync_signature()`'s `$ignore` denylist, so changing the mapping busts the change gate automatically. The 6.1 caveat still applies unchanged: in the default `observe` mode the authoritative gate is the timestamp, so a value changed without advancing `product_updated_on` is skipped before the hash is consulted.
+- **A pre-existing test needed its pin updated, not weakened.** Story 5.1's `SettingsTabsIntegrationTest` asserts the exact set of settings field groups and their tab placement. 6.1 added a ninth group ("Field mapping"), so the map, the expected input-name list and the count were updated to the new intended reality (8 → 9). No assertion was loosened — the test still pins an exact count and exact placement.
+- **Version deliberately not bumped.** Stays on **3.14.0** per the user's direction; no CHANGELOG/readme version section, no translation regeneration. This story adds no user-facing strings (6.1 owns the settings copy).
+
 ### File List
+
+- `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php` (modified) — `stock_mapping_setting()`, pure `stock_mapping_governs()`, `stock_mapping_is_active()`; `apply_stock_mapping()` widened to `WC_Product`; both variation price branches guarded and wired
+- `tests/Unit/VariationStockMappingTest.php` (new) — 8 tests: the suppression decision and per-variation resolution
+- `tests/Integration/VariationStockIntegrationTest.php` (new) — 8 tests against real WooCommerce covering AC 1, 2, 4, 5, 6, 7, 8
+- `tests/Integration/SettingsTabsIntegrationTest.php` (modified) — field-group pin updated for the new "Field mapping" group
+
+## Change Log
+
+| Date | Change |
+|------|--------|
+| 2026-08-26 | Implemented Story 6.2: stock quantity on variations. Both variation write paths call 6.1's shared helper; the legacy unmanaged/instock writes are suppressed whenever a mapping is configured, so an unresolved variation keeps its stock. Price-on-request keeps its out-of-stock rule. No version bump (stays on 3.14.0). |

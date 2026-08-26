@@ -620,16 +620,23 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$variation->set_status( 'publish' ); // Ensure variation is enabled
 		$variation->set_catalog_visibility( 'visible' ); // Make visible in catalog
 
+		// FR-18: see create_or_update_variation() — the mapping owns stock state when configured,
+		// so the legacy "priced means always available" writes are suppressed here identically.
+		$stock_governed   = $this->stock_mapping_is_active();
+		$price_on_request = $this->mapper->is_price_on_request( $product );
+
 		$price = $this->mapper->get_regular_price( $product );
-		if ( $this->mapper->is_price_on_request( $product ) ) {
+		if ( $price_on_request ) {
 			$variation->set_regular_price( '' );
 			$variation->set_price( '' );
 			$variation->set_stock_status( 'outofstock' ); // Price on request = out of stock
 		} elseif ( null !== $price && $price > 0 ) {
 			$variation->set_regular_price( (string) $price );
 			$variation->set_price( (string) $price );
-			$variation->set_stock_status( 'instock' );
-			$variation->set_manage_stock( false ); // Don't manage stock, always available
+			if ( ! $stock_governed ) {
+				$variation->set_stock_status( 'instock' );
+				$variation->set_manage_stock( false ); // Don't manage stock, always available
+			}
 		} elseif ( ! empty( $this->get_options()['prices_managed_outside_skwirrel'] ) ) {
 			// No PIM price; prices are managed by an external system (e.g. ERP).
 			// Leave price/stock fields untouched so the external sync's values survive.
@@ -652,8 +659,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			);
 			$variation->set_regular_price( '0' );
 			$variation->set_price( '0' );
-			$variation->set_stock_status( 'instock' );
-			$variation->set_manage_stock( false );
+			if ( ! $stock_governed ) {
+				$variation->set_stock_status( 'instock' );
+				$variation->set_manage_stock( false );
+			}
+		}
+
+		// Price on request keeps its explicit out-of-stock status and never a managed quantity.
+		if ( ! $price_on_request ) {
+			$this->apply_stock_mapping( $variation, $product );
 		}
 
 		$variation_attrs = [];
@@ -1957,16 +1971,25 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$variation->set_status( $this->guard_revive_from_trash( $variation, $variation_id ? (string) $variation->get_status() : '', 'publish' ) );
 		$variation->set_catalog_visibility( 'visible' );
 
+		// FR-18: when a stock mapping is configured it owns this variation's stock state, so the
+		// legacy "priced means always available" writes below are suppressed. They are suppressed
+		// even when this variation resolves no value — resetting it to unmanaged/instock would be
+		// exactly the NFR-9 violation the mapping exists to prevent.
+		$stock_governed   = $this->stock_mapping_is_active();
+		$price_on_request = $this->mapper->is_price_on_request( $product );
+
 		$price = $this->mapper->get_regular_price( $product );
-		if ( $this->mapper->is_price_on_request( $product ) ) {
+		if ( $price_on_request ) {
 			$variation->set_regular_price( '' );
 			$variation->set_price( '' );
 			$variation->set_stock_status( 'outofstock' );
 		} elseif ( null !== $price && $price > 0 ) {
 			$variation->set_regular_price( (string) $price );
 			$variation->set_price( (string) $price );
-			$variation->set_stock_status( 'instock' );
-			$variation->set_manage_stock( false );
+			if ( ! $stock_governed ) {
+				$variation->set_stock_status( 'instock' );
+				$variation->set_manage_stock( false );
+			}
 		} elseif ( ! empty( $this->get_options()['prices_managed_outside_skwirrel'] ) ) {
 			// No PIM price; prices are managed by an external system (e.g. ERP).
 			// Leave price/stock fields untouched so the external sync's values survive.
@@ -1980,8 +2003,17 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		} else {
 			$variation->set_regular_price( '0' );
 			$variation->set_price( '0' );
-			$variation->set_stock_status( 'instock' );
-			$variation->set_manage_stock( false );
+			if ( ! $stock_governed ) {
+				$variation->set_stock_status( 'instock' );
+				$variation->set_manage_stock( false );
+			}
+		}
+
+		// Price on request stays out of stock whatever quantity the mapping resolves, so it keeps
+		// an explicit status and never gets a managed quantity — the two must not be combined, or
+		// WooCommerce recomputes the status from the quantity on save and undoes the rule.
+		if ( ! $price_on_request ) {
+			$this->apply_stock_mapping( $variation, $product );
 		}
 
 		// Variation attributes (identity) — must be set before save
@@ -3188,27 +3220,65 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	}
 
 	/**
-	 * Apply the FR-18 stock mapping to a simple product.
+	 * The configured FR-18 stock mapping, or '' when the mapping is off.
 	 *
-	 * Shared by both simple-product paths — the queued catalogue run
-	 * ({@see self::create_or_update_product()}) and the legacy single-product resync
-	 * ({@see self::upsert_product()}) — so "sync this product" from the product editor
-	 * behaves identically to a full run.
-	 *
-	 * Writes nothing at all unless a mapping is configured **and** it resolves to a
-	 * number. That is the NFR-9 promise: a missing, empty or non-numeric value leaves
-	 * `stock_quantity` and the `manage_stock` flag exactly as WooCommerce has them —
-	 * never zeroed, never flipped to unmanaged.
-	 *
-	 * `set_stock_status()` is deliberately not called: WooCommerce derives status from
-	 * the managed quantity, and forcing it here would fight `wc_update_product_stock_status()`
-	 * and the variable-parent aggregation.
-	 *
-	 * @param WC_Product          $wc_product Product being saved (caller saves).
-	 * @param array<string,mixed> $product    Raw API product.
+	 * The one place the setting key is read, so call sites never spell it out.
 	 */
-	private function apply_stock_mapping( $wc_product, array $product ): void {
-		$mapping = trim( (string) ( $this->get_options()['stock_quantity_feature'] ?? '' ) );
+	private function stock_mapping_setting(): string {
+		return trim( (string) ( $this->get_options()['stock_quantity_feature'] ?? '' ) );
+	}
+
+	/**
+	 * Whether the stock mapping governs stock state, given the configured mapping.
+	 *
+	 * When it does, the legacy `set_manage_stock( false )` / `set_stock_status( 'instock' )`
+	 * writes in the variation price branches are suppressed — **whether or not this particular
+	 * product resolved a value**. That is what makes NFR-9 hold for variations: a
+	 * configured-but-unresolved variation must be left exactly as it was, not reset to the
+	 * unmanaged/instock default those branches would otherwise impose.
+	 *
+	 * Deliberately pure (no `get_option()`, no WC calls) so it is unit-testable on the stub
+	 * bootstrap — the "explicit facts, passed by whoever knows them" shape from Story 2.6.
+	 *
+	 * @param string $mapping Configured mapping; '' means the mapping is off.
+	 */
+	private static function stock_mapping_governs( string $mapping ): bool {
+		return '' !== trim( $mapping );
+	}
+
+	/**
+	 * Whether the stock mapping is active for this run.
+	 *
+	 * Single chokepoint: both variation paths read this rather than hand-writing the guard,
+	 * so the two near-duplicate methods cannot drift apart.
+	 */
+	private function stock_mapping_is_active(): bool {
+		return self::stock_mapping_governs( $this->stock_mapping_setting() );
+	}
+
+	/**
+	 * Apply the FR-18 stock mapping to a product or variation.
+	 *
+	 * Shared by all four write paths — the queued catalogue run and the legacy resync for simple
+	 * products, and `create_or_update_variation()` / `upsert_product_as_variation()` for
+	 * variations. `WC_Product_Variation extends WC_Product`, so one helper covers both without a
+	 * variation-specific copy.
+	 *
+	 * Writes nothing at all unless a mapping is configured **and** it resolves to a number. That
+	 * is the NFR-9 promise: a missing, empty or non-numeric value leaves `stock_quantity` and the
+	 * `manage_stock` flag exactly as WooCommerce has them — never zeroed, never flipped to
+	 * unmanaged.
+	 *
+	 * `set_stock_status()` is deliberately not called: WooCommerce derives status from the managed
+	 * quantity, and forcing it here would fight `wc_update_product_stock_status()` and the
+	 * variable-parent aggregation. Callers keep price-on-request out of this method entirely so
+	 * its explicit out-of-stock status is never combined with a managed quantity.
+	 *
+	 * @param WC_Product           $wc_product Product or variation being saved (caller saves).
+	 * @param array<string, mixed> $product    Raw API product.
+	 */
+	private function apply_stock_mapping( WC_Product $wc_product, array $product ): void {
+		$mapping = $this->stock_mapping_setting();
 		if ( '' === $mapping ) {
 			// Mapping off — byte-for-byte the pre-FR-18 behaviour: no read, no write.
 			return;

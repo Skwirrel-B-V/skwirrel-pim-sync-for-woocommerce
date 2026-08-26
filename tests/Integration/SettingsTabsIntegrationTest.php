@@ -193,6 +193,8 @@ test( 'every input name the pre-tabs settings form rendered is still rendered', 
 	// Added to the API Connection group after the pre-tabs baseline was captured: Story 5.3's
 	// optional Context ID. The baseline list stays a record of what the pre-tabs form rendered.
 	$expected[] = 'skwirrel_wc_sync_settings[context_id]';
+	// Added to the What to sync group by Story 6.1: the FR-18 stock quantity field mapping.
+	$expected[] = 'skwirrel_wc_sync_settings[stock_quantity_feature]';
 	$expected   = array_values( array_unique( $expected ) );
 	sort( $expected );
 
@@ -421,7 +423,7 @@ function skwSettingsXPath( ?string $html = null ): DOMXPath {
 	return new DOMXPath( $doc );
 }
 
-test( 'each of the eight field groups sits in exactly the tab the re-home map names', function (): void {
+test( 'each of the nine field groups sits in exactly the tab the re-home map names', function (): void {
 	$xpath = skwSettingsXPath();
 
 	// AC 1's table, by the group's own heading text.
@@ -429,6 +431,9 @@ test( 'each of the eight field groups sits in exactly the tab the re-home map na
 		'API Connection'           => 'connection',
 		'Sync Options'             => 'what-to-sync',
 		'Product status handling'  => 'what-to-sync',
+		// Added to "What to sync" after the pre-tabs baseline was captured: Story 6.1's FR-18
+		// field mappings, which name the Skwirrel features that drive WooCommerce fields.
+		'Field mapping'            => 'what-to-sync',
 		'Media & Language'         => 'how-it-looks',
 		'Permalinks'               => 'how-it-looks',
 		'Scheduling'               => 'advanced',
@@ -453,9 +458,9 @@ test( 'each of the eight field groups sits in exactly the tab the re-home map na
 		expect( $panel->getAttribute( 'id' ) )->toBe( 'panel-' . $slug, "field group '{$title}' landed on the wrong tab" );
 	}
 
-	// And nothing else crept into a panel as a ninth group.
+	// And nothing else crept into a panel as a tenth group.
 	$groups = $xpath->query( '//div[@role="tabpanel"]//h3[contains(concat(" ", normalize-space(@class), " "), " skw-fieldgroup-title ")]' );
-	expect( $groups->length )->toBe( 8 );
+	expect( $groups->length )->toBe( 9 );
 } );
 
 /**

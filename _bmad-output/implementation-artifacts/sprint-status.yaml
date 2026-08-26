@@ -117,7 +117,7 @@ development_status:
   # ── Epic 6: Stock and product content from Skwirrel data (Chapter 2 — client request) ──
   epic-6: in-progress
   6-1-stock-from-custom-class-simple: review  # establishes resolver + Field mapping settings group | gh#48
-  6-2-stock-on-variations: ready-for-dev           # lifts hardcoded set_manage_stock(false); consumes 6-1's apply_stock_mapping() | gh#49
+  6-2-stock-on-variations: review           # lifts hardcoded set_manage_stock(false); consumes 6-1's apply_stock_mapping() | gh#49
   6-3-title-and-descriptions-from-custom-class: ready-for-dev  # gh#50
   6-5-document-link-names-language-aware: ready-for-dev  # FR-23 — added 2026-08-25 from Jeroen's mail; one-line defect at attachment-handler:262 | gh#52
   6-4-non-destructive-mapping-test-suite: ready-for-dev  # NFR-9 canary; extends story 1-14. BLOCKED in practice on 6-1/6-2/6-3 — story carries a prerequisite gate
