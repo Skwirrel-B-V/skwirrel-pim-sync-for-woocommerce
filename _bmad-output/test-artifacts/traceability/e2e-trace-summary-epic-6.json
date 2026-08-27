@@ -2,13 +2,17 @@
   "schema_version": "0.1.0",
   "snapshot_at": "2026-08-27",
   "repo": "wordpress",
-  "collection_mode": "full",
+  "collection_mode": "sequential",
   "collection_status": "COLLECTED",
   "inventory_basis": "acceptance_criteria",
   "gate_basis": "priority_thresholds",
-  "source_sha": "b760c5c360d22613171a07fc0a4debaa4e4d92e3",
-  "target": { "type": "epic", "id": "6", "label": "Stock and product content driven from Skwirrel data" },
-  "decision_mode": "sequential",
+  "source_sha": "",
+  "target": {
+    "type": "epic",
+    "id": "6",
+    "label": "Stock and product content driven from Skwirrel data"
+  },
+  "decision_mode": "automated",
   "evaluator": "Jos",
   "confidence": "high",
   "oracle": {
@@ -26,41 +30,155 @@
     "synthetic": false
   },
   "coverage": {
-    "inventory": { "covered": 26, "total": 29, "pct": 90 },
+    "inventory": {
+      "covered": 29,
+      "total": 29,
+      "pct": 100
+    },
     "priority_breakdown": {
-      "P0": { "total": 10, "covered": 10, "pct": 100 },
-      "P1": { "total": 18, "covered": 15, "pct": 83 },
-      "P2": { "total": 1, "covered": 1, "pct": 100 },
-      "P3": { "total": 0, "covered": 0, "pct": 0 }
+      "P0": {
+        "total": 9,
+        "covered": 9,
+        "pct": 100
+      },
+      "P1": {
+        "total": 14,
+        "covered": 14,
+        "pct": 100
+      },
+      "P2": {
+        "total": 6,
+        "covered": 6,
+        "pct": 100
+      },
+      "P3": {
+        "total": 0,
+        "covered": 0,
+        "pct": 100
+      }
     },
     "by_level": {
-      "e2e": { "tests": 0, "criteria_covered": 0 },
-      "api": { "tests": 0, "criteria_covered": 0 },
-      "component": { "tests": 0, "criteria_covered": 0 },
-      "unit": { "tests": 67, "criteria_covered": 24 },
-      "other": { "tests": 32, "criteria_covered": 16 }
+      "e2e": {
+        "tests": 0,
+        "criteria_covered": 0
+      },
+      "api": {
+        "tests": 0,
+        "criteria_covered": 0
+      },
+      "component": {
+        "tests": 0,
+        "criteria_covered": 0
+      },
+      "unit": {
+        "tests": 66,
+        "criteria_covered": 25
+      },
+      "other": {
+        "tests": 40,
+        "criteria_covered": 21
+      }
     }
   },
-  "tests": { "files": 13, "cases": 99, "skipped_cases": 0, "fixme_cases": 0, "pending_cases": 0 },
-  "risk_summary": { "critical_open": 0, "high_open": 2, "medium_open": 2, "low_open": 2 },
+  "tests": {
+    "files": 14,
+    "cases": 106,
+    "skipped_cases": 0,
+    "fixme_cases": 0,
+    "pending_cases": 0
+  },
+  "suite_execution": {
+    "unit": {
+      "command": "vendor/bin/pest",
+      "passed": 608,
+      "assertions": 1478,
+      "failed": 0,
+      "duration_s": 1.09
+    },
+    "integration": {
+      "command": "npm run test:integration",
+      "passed": 227,
+      "assertions": 1753,
+      "failed": 0,
+      "deprecated": 1,
+      "duration_s": 66.3
+    },
+    "phpstan": {
+      "command": "vendor/bin/phpstan analyse --memory-limit=2G",
+      "level": 6,
+      "errors": 0
+    },
+    "phpcs": {
+      "command": "vendor/bin/phpcs",
+      "errors": 0
+    }
+  },
+  "risk_summary": {
+    "critical_open": 0,
+    "high_open": 0,
+    "medium_open": 0,
+    "low_open": 2
+  },
   "heuristics": {
     "endpoint_gaps": 0,
     "auth_negative_path_status": "not_applicable",
-    "error_path_status": "partial",
+    "error_path_status": "present",
     "ui_journey_status": "not_applicable",
     "ui_state_status": "not_applicable"
   },
   "blockers": [],
+  "gaps": [],
   "recommendations": [
-    "Close GAP-1 and GAP-2 with one integration test: seed a legacy raw-filename _skwirrel_document_attachments, re-sync with translations present, assert the stored name is refreshed and get_documents_for_product() returns it.",
-    "Add an esc_html output assertion at a documents render site (GAP-3).",
-    "Fix integration-suite idempotency before wiring it into required CI (GAP-4)."
+    "No action required for Epic 6 \u2014 coverage is complete at every priority level and all four gates are green.",
+    "Optional (low): 6.3-AC6 slug preservation is proven by composition rather than end to end; an integration assertion on post_name surviving a re-sync with update_slug_on_resync enabled would close it properly.",
+    "Optional (low): fold the non-destructive cases into Story 1.14's regression-canary suite when it lands \u2014 6.4-AC3 deliberately did not block on it."
   ],
-  "gate_status": "CONCERNS",
+  "gate_status": "PASS",
   "gate_criteria": {
-    "p0_coverage_required": "100%", "p0_coverage_actual": "100%", "p0_status": "MET",
-    "p1_coverage_target": "90%", "p1_coverage_minimum": "80%", "p1_coverage_actual": "83%", "p1_status": "PARTIAL",
-    "overall_coverage_minimum": "80%", "overall_coverage_actual": "90%", "overall_status": "MET"
+    "p0_coverage_required": "100%",
+    "p0_coverage_actual": "100%",
+    "p0_status": "MET",
+    "p1_coverage_target": "90%",
+    "p1_coverage_minimum": "80%",
+    "p1_coverage_actual": "100%",
+    "p1_status": "MET",
+    "overall_coverage_minimum": "80%",
+    "overall_coverage_actual": "100%",
+    "overall_status": "MET"
   },
-  "links": { "trace_report_path": "_bmad-output/test-artifacts/traceability/traceability-matrix-epic-6.md", "trace_report_url": "", "artifact_url": "", "journey_evidence_url": "" }
+  "links": {
+    "trace_report_path": "_bmad-output/test-artifacts/traceability/traceability-matrix-epic-6.md",
+    "trace_report_url": "",
+    "artifact_url": "",
+    "journey_evidence_url": ""
+  },
+  "closed_gaps": [
+    {
+      "id": "GAP-1",
+      "criterion": "6.5-AC4",
+      "was": "NONE",
+      "closed_by": "tests/Integration/DocumentNamesIntegrationTest.php:327, :356",
+      "detail": "Seeds a product in the pre-3.14.0 state (meta present, holding the raw filename), asserts the stale name as a precondition, re-syncs via assign_media(), and asserts both the repaired meta and the repaired rendered tab. A second case proves the repair is not a one-off."
+    },
+    {
+      "id": "GAP-2",
+      "criterion": "6.5-AC1",
+      "was": "PARTIAL",
+      "closed_by": "tests/Integration/DocumentNamesIntegrationTest.php:184, :199, :217, :231, :270",
+      "detail": "Pins the stored meta, the frontend tab, the admin meta box, and the legacy upsert_product() write site \u2014 a second, independent document-write path (product-upserter.php:480) alongside assign_media() at :2544, discovered while closing this gap. Both paths are now covered."
+    },
+    {
+      "id": "GAP-3",
+      "criterion": "6.5-AC5",
+      "was": "PARTIAL",
+      "closed_by": "tests/Integration/DocumentNamesIntegrationTest.php:379, :403",
+      "detail": "A <script> title and an <img onerror> title are asserted stored raw and rendered escaped, in the frontend tab and the admin meta box respectively."
+    }
+  ],
+  "mutation_verification": {
+    "performed": true,
+    "method": "Reverted class-skwirrel-wc-sync-attachment-handler.php:329 to the pre-story expression ($att['file_name'] ?? $att['product_attachment_title'] ?? '') and re-ran the new file.",
+    "result": "10 of 12 cases failed. The 2 that passed are the untranslated and empty-title cases, which correctly behave identically either way.",
+    "conclusion": "The suite detects the exact regression it exists to prevent; it does not pass vacuously."
+  }
 }

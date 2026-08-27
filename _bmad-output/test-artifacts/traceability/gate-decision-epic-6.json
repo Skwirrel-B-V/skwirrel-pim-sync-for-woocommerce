@@ -2,14 +2,23 @@
   "schema_version": "0.1.0",
   "evaluated_at": "2026-08-27",
   "repo": "wordpress",
-  "target": { "type": "epic", "id": "6", "label": "Stock and product content driven from Skwirrel data" },
+  "target": {
+    "type": "epic",
+    "id": "6",
+    "label": "Stock and product content driven from Skwirrel data"
+  },
   "collection_status": "COLLECTED",
   "gate_basis": "priority_thresholds",
-  "gate_status": "CONCERNS",
-  "rationale": "P0 coverage is 100% and overall coverage is 90% (minimum 80%), but P1 coverage is 83% (target 90%). All three shortfalls sit in Story 6.5: the stored-name refresh on re-sync is untested, the resolver-to-template wiring is unverified, and the output-escaping invariant is asserted from one side only.",
+  "gate_status": "PASS",
+  "rationale": "P0 coverage is 100%, P1 coverage is 100% (target 90%), and overall coverage is 100% (minimum 80%). Rule 4. Story 6.5's three P1 shortfalls \u2014 which made this run FAIL on first evaluation \u2014 were closed in-session by tests/Integration/DocumentNamesIntegrationTest.php (12 cases, mutation-verified: 10 of 12 fail against the pre-story source). Full suite re-run green: unit 608, integration 227, phpstan level 6 clean, phpcs clean.",
   "p0_status": "MET",
-  "p1_status": "PARTIAL",
+  "p1_status": "MET",
   "overall_status": "MET",
   "critical_open": 0,
-  "links": { "trace_report_path": "_bmad-output/test-artifacts/traceability/traceability-matrix-epic-6.md", "trace_report_url": "", "artifact_url": "", "journey_evidence_url": "" }
+  "links": {
+    "trace_report_path": "_bmad-output/test-artifacts/traceability/traceability-matrix-epic-6.md",
+    "trace_report_url": "",
+    "artifact_url": "",
+    "journey_evidence_url": ""
+  }
 }

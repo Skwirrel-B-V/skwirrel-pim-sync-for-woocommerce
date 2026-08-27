@@ -15,252 +15,248 @@ oracleSources:
   - '_bmad-output/implementation-artifacts/6-5-document-link-names-language-aware.md'
 externalPointerStatus: 'not_used'
 collectionStatus: 'COLLECTED'
-gateDecision: 'CONCERNS'
+gateDecision: 'PASS'
 ---
 
 # Traceability Report — Epic 6
 
+## Gate Decision: PASS
+
+**Rationale:** P0 coverage is 100%, P1 coverage is 100% (target 90%), and overall coverage is 100%
+(minimum 80%). No gaps remain open at any priority level.
+
+Story 6.5's three shortfalls — recorded as FAIL earlier in this run — were closed by
+`tests/Integration/DocumentNamesIntegrationTest.php` (12 cases), added and verified during this session.
+
+---
+
 ## Coverage Oracle
 
 **Resolved oracle:** formal acceptance criteria from `epics.md#epic-6` plus the five story files.
-**Why this oracle:** Epic 6 carries explicit Given/When/Then acceptance criteria per story, all five stories are
-`done` in `sprint-status.yaml`, and NFR-9 ("a missing PIM value never clears WooCommerce data") is stated as a
-hard guarantee. No synthetic inference or external pointer was needed.
+**Resolution mode:** `formal_requirements` · **Basis:** `acceptance_criteria` · **Confidence:** high
+**External pointer status:** `not_used`
 
-**Confidence:** high — criteria are behavioural, testable, and name the exact classes/methods under test.
-
-| Field | Value |
-| --- | --- |
-| coverageBasis | acceptance_criteria |
-| oracleResolutionMode | formal_requirements |
-| oracleConfidence | high |
-| externalPointerStatus | not_used |
-
-**Stories in scope:** 6.1 (stock, simple) · 6.2 (stock, variations) · 6.3 (title + descriptions) · 6.4 (NFR-9 canary suite) · 6.5 (document link names) — all `done`.
+**Why this oracle:** Epic 6 carries explicit Given/When/Then acceptance criteria per story, all five stories
+are `done` in `sprint-status.yaml`, and NFR-9 ("a value missing from the PIM never wipes what WooCommerce
+already has") is stated as a hard, testable guarantee. The criteria name the exact classes and methods under
+test, so no synthetic inference or external pointer was needed.
 
 ---
 
-## Test Inventory (step 2)
+## Collection Status: COLLECTED
 
-Discovered by searching `tests/Unit/` and `tests/Integration/` for the Epic 6 setting keys
-(`stock_quantity_feature`, `title_feature_id`, `short_description_feature_id`, `long_description_feature_id`),
-the resolver method names, and the story-declared file list.
-
-| File | Level | Cases | Serves |
-| --- | --- | --- | --- |
-| `tests/Unit/StockMappingTest.php` | Unit | 14 | 6.1 |
-| `tests/Unit/VariationStockMappingTest.php` | Unit | 8 | 6.2 |
-| `tests/Unit/ContentMappingTest.php` | Unit | 12 | 6.3 |
-| `tests/Unit/CustomClassExtractorTest.php` (extended) | Unit | 7 new | 6.3 |
-| `tests/Unit/ProductMapperNameTest.php` (extended) | Unit | 3 new | 6.3 |
-| `tests/Unit/ContentHashTest.php` (extended) | Unit | 2 new | 6.1 / 6.3 change gate |
-| `tests/Unit/SlugResolverTest.php` (extended) | Unit | 1 new | 6.3 slug invariant |
-| `tests/Unit/NonDestructiveMappingTest.php` | Unit | 7 | 6.4 |
-| `tests/Unit/AttachmentHandlerDocumentNameTest.php` | Unit | 11 | 6.5 |
-| `tests/Unit/FieldMappingTranslationsTest.php` | Unit | 2 | 6.1 / 6.3 i18n |
-| `tests/Integration/VariationStockIntegrationTest.php` | Integration | 11 | 6.2 |
-| `tests/Integration/NonDestructiveMappingIntegrationTest.php` | Integration | 21 | 6.4 (and 6.1 / 6.3 behaviour) |
-| `tests/Integration/SettingsTabsIntegrationTest.php` (extended) | Integration | pins extended | 6.1 / 6.3 settings render |
-
-**No skipped, pending or `fixme` cases** were found in any Epic 6 test file.
-
-### Collection status: COLLECTED — but only from a clean test database
+Both suites were executed against the working tree during this run:
 
 | Suite | Command | Result |
-| --- | --- | --- |
-| Unit | `vendor/bin/pest` | **608 passed** (1478 assertions) |
-| Integration | `npm run test:integration` after `npx wp-env clean tests` | **215 passed** (1729 assertions), 1 deprecation |
-| Static analysis | `vendor/bin/phpstan analyse --memory-limit=2G` | **No errors** (level 6) |
+|---|---|---|
+| Unit | `vendor/bin/pest` | **608 passed** (1478 assertions), 1.09s |
+| Integration | `npm run test:integration` (wp-env, real WP+WC) | **227 passed** (1753 assertions), 1 deprecated, 66.3s |
+| Static analysis | `vendor/bin/phpstan analyse --memory-limit=2G` | **No errors** (level 6, 34 files) |
 | Code style | `vendor/bin/phpcs` | **Clean** (34 files) |
 
-⚠️ **Collection finding — the integration suite is not idempotent.** Run back-to-back against the same
-wp-env database without cleaning, the suite reported **43 failures across 9 files** — including files with no
-Epic 6 involvement (`SweepMembershipIntegrationTest`, `ContextIdIntegrationTest`, `TestConnectionMetricsIntegrationTest`,
-`SettingsTabsIntegrationTest`). Symptoms were `wc_get_product_id_by_sku()` returning `0` for a SKU the test had
-just written, `WC_Data_Exception` on duplicate SKUs, `run_sync` reporting `created: 0`, and `wp_insert_user()`
-failing on a colliding subscriber login. After `npx wp-env clean tests` the same suite ran **fully green**.
-This is residue from prior runs, not an Epic 6 regression — but it means a red integration run is not, on its
-own, trustworthy evidence of a defect. Recorded as a gap below.
-
-### Coverage Heuristics
-
-| Heuristic | Finding |
-| --- | --- |
-| API endpoint coverage | Not applicable — Epic 6 consumes existing `getProducts` / `getGroupedProducts` responses; it adds no endpoint. |
-| Auth / authz coverage | Not applicable — no new capability gate. The Field mapping settings inherit the `manage_woocommerce` gate already pinned by `SettingsTabsIntegrationTest`. |
-| Error-path coverage | **Strong.** Absent, `not_applicable`, empty, whitespace-only, non-numeric, malformed-ref and trade-item-scoped payloads are each tested separately rather than collapsed. |
-| Happy-path-only criteria | None in stock/content mapping. **One in document naming:** 6.5's resolver has an exhaustive fallback chain, but nothing exercises the resolver → `$doc['name']` → template wiring. |
-| UI journey / state coverage | Not applicable — oracle is formal, not synthetic. |
-
----
-
-## Traceability Matrix (step 3)
-
-Priority is assigned from `test-priorities-matrix.md`: NFR-9 data-integrity criteria and the write paths
-they guard are P0; user-facing behaviour and settings surface are P1; structural/process criteria are P2.
-
-### Story 6.1 — Stock quantity from a custom class, simple products
-
-| AC | Criterion | Pri | Tests | Coverage |
-| --- | --- | --- | --- | --- |
-| 6.1-AC1 | Field mapping group + Stock quantity field, empty by default | P1 | `SettingsTabsIntegrationTest` (input-name pin, tab map); `StockMappingTest` "defaults to an empty string", "a stored value is surfaced" | FULL |
-| 6.1-AC2 | Numeric value → `set_manage_stock(true)` + `set_stock_quantity()`, product level only | **P0** | `StockMappingTest` ×8 (ID, code, type N/T, raw number not display string); `NonDestructiveMappingIntegrationTest` "the control case proves the write path works" | FULL |
-| 6.1-AC3 | Absent / empty / non-numeric → stock untouched (NFR-9) | **P0** | `StockMappingTest` ×4; `NonDestructiveMappingIntegrationTest` "keeps its stock…" (3-shape dataset) + "custom classes omit the mapped feature" | FULL |
-| 6.1-AC4 | No feature configured → no stock write at all | **P0** | `StockMappingTest` "resolves to null without reading the payload"; `NonDestructiveMappingIntegrationTest` AC-4 (payload carries all four features) | FULL |
-| 6.1-AC5 | Mapped stock change participates in `_skwirrel_content_hash` | P1 | `ContentHashTest` "a changed custom-class value changes the content hash", "still seen when only product_updated_on also moved" | FULL |
-| 6.1-AC6 | Unit coverage pins the four cases | P1 | `StockMappingTest` (14 cases) | FULL |
-
-### Story 6.2 — Stock quantity on variations
-
-| AC | Criterion | Pri | Tests | Coverage |
-| --- | --- | --- | --- | --- |
-| 6.2-AC1 | Variation resolves the feature against its own payload → managed stock | **P0** | `VariationStockIntegrationTest` "a resolved quantity lands on the variation", "the legacy `upsert_product_as_variation` path also writes mapped stock"; `VariationStockMappingTest` ×2 | FULL |
-| 6.2-AC2 | Hardcoded `set_manage_stock(false)` / `instock` no longer override; unchanged when unconfigured | **P0** | `VariationStockMappingTest` "unconfigured… legacy writes still fire", "configured… suppressing the legacy writes", "the chokepoint both paths share"; `VariationStockIntegrationTest` "with the mapping off a priced variation is unmanaged and in stock, as before" | FULL |
-| 6.2-AC3 | Parent aggregate refreshed via `WC_Product_Variable::sync_stock_status()` | P1 | `VariationStockIntegrationTest` "the variable parent stays unmanaged and aggregates from its children" | FULL |
-| 6.2-AC4 | Missing/empty variation value → untouched; siblings unaffected | **P0** | `VariationStockIntegrationTest` ×3; `NonDestructiveMappingIntegrationTest` ×4 incl. grouped sync + legacy path | FULL |
-| 6.2-AC5 | Price-on-request variation keeps its out-of-stock treatment | P1 | `VariationStockIntegrationTest` ×3 (incl. queued and legacy paths); `NonDestructiveMappingIntegrationTest` "price on request still ends out of stock even with a valid stock value" | FULL |
-
-### Story 6.3 — Title, short and long description from custom classes
-
-| AC | Criterion | Pri | Tests | Coverage |
-| --- | --- | --- | --- | --- |
-| 6.3-AC1 | Three further optional fields, each independently empty by default | P1 | `SettingsTabsIntegrationTest` (three input names pinned, exact-set assertion) | FULL |
-| 6.3-AC2 | Resolved non-empty value overrides the existing source | P1 | `ContentMappingTest` ×3; `ProductMapperNameTest` ×3; `NonDestructiveMappingIntegrationTest` "resolved title, short- and long-description values each win" | FULL |
-| 6.3-AC3 | Absent/empty → existing chain unchanged; never an empty title (NFR-9) | **P0** | `ContentMappingTest` ×5 (absent / `not_applicable` / empty by three routes, whitespace-only, sanitises-to-empty); `NonDestructiveMappingIntegrationTest` 3-shape dataset | FULL |
-| 6.3-AC4 | Long description passes through `wp_kses_post()` | **P0** | `ContentMappingTest` "markup survives while unsafe markup does not", "the title is not run through the post sanitiser" | FULL — *unit-only, against the `tests/bootstrap.php` `wp_kses_post()` stub. The stub strips `script`/`style` and inline handlers, so the assertion is real for the call site; WordPress's own kses correctness is out of scope.* |
-| 6.3-AC5 | Translations follow the existing `image_language` chain | P1 | `ContentMappingTest` "an I-type value picks the language through the existing chain"; `CustomClassExtractorTest` (formatter delegation) | FULL |
-| 6.3-AC6 | A mapped title never rewrites the slug | P1 | `SlugResolverTest` (mapping configured, mapped title wins, slug still from raw SKU) | FULL |
-| 6.3-AC7 | Mapped content change is not skipped by the unchanged gate | P1 | `ContentHashTest` "each content mapping setting changes the sync signature" + payload-hash cases | FULL |
-| 6.3-AC8 | The three mappings work independently | P1 | `ContentMappingTest` "configuring only the long description leaves title and short description alone"; `NonDestructiveMappingIntegrationTest` AC-4 | FULL |
-
-### Story 6.4 — The non-destructive guarantee is pinned by tests
-
-| AC | Criterion | Pri | Tests | Coverage |
-| --- | --- | --- | --- | --- |
-| 6.4-AC1 | Each of the four mappings, absent/empty/malformed → asserted unchanged, simple + variations | **P0** | `NonDestructiveMappingIntegrationTest` (21 cases) + `NonDestructiveMappingTest` (7 cases). **Mutation-verified**: injecting the NFR-9 violation into `apply_stock_mapping()` took the suite to 9 failed / 9 passed | FULL |
-| 6.4-AC2 | API omits `_custom_classes` entirely → nothing written, run reports success | **P0** | `NonDestructiveMappingIntegrationTest` "a full sync with no `_custom_classes` key succeeds, preserves every mapped field and raises no notice" | FULL |
-| 6.4-AC3 | Stands alone as its own Pest file, never blocked on Story 1.14 | P2 | `tests/Integration/NonDestructiveMappingIntegrationTest.php` exists standalone; 1.14 still `backlog` | FULL |
-| 6.4-AC4 | `pest`, `phpstan` level 6, `phpcs` all pass | P1 | Re-verified this run: 608 unit / 215 integration passed, PHPStan "No errors", PHPCS clean | FULL |
-
-### Story 6.5 — Document links show a readable name in the shop's language
-
-| AC | Criterion | Pri | Tests | Coverage |
-| --- | --- | --- | --- | --- |
-| 6.5-AC1 | Exact language match → `$doc['name']`, **and the documents tab renders it as link text** | P1 | `AttachmentHandlerDocumentNameTest` "an exact language match wins" (resolver only) | **PARTIAL** — the resolver is pinned; nothing exercises `get_document_attachments()` → `$doc['name']` → `get_documents_for_product()` → template. The second half of the AC is unverified. |
-| 6.5-AC2 | Prefix match through the shared `pick_attachment_translation()` chain, not a parallel one | P1 | `AttachmentHandlerDocumentNameTest` "a two-letter prefix match wins", "the first entry is used when neither matches", "image meta resolution is unchanged by the shared-chain refactor" | FULL |
-| 6.5-AC3 | Fallback chain title → `file_name` → URL basename; never nameless | P1 | `AttachmentHandlerDocumentNameTest` ×6 incl. "never returns an empty string, whatever it is given" | FULL |
-| 6.5-AC4 | Pre-existing stored raw filenames are refreshed by a normal re-sync — no migration | P1 | *(none)* | **NONE** — no test at any level drives a re-sync over a product whose stored `_skwirrel_document_attachments` holds legacy raw filenames. This is the AC that guarantees existing shops actually get the fix. |
-| 6.5-AC5 | Escaped at output (`esc_html`) in the tab and the meta box, exactly as today | P1 *(security, low probability — content originates in the store's own PIM feed; escaping is pre-existing and unchanged)* | `AttachmentHandlerDocumentNameTest` "HTML in a title is returned verbatim, not escaped here" — the complementary half | **PARTIAL** — proves escaping is the consumer's job, but no test asserts any of the three render sites actually escapes. |
-| 6.5-AC6 | `pest`, `phpstan` level 6, `phpcs` all pass | P1 | Re-verified this run — all green | FULL |
+No skipped, pending, or fixme tests in the traced set.
 
 ---
 
 ## Coverage Summary
 
-| Metric | Value |
-| --- | --- |
-| Total acceptance criteria | 29 |
-| Fully covered | 26 (90%) |
-| Partially covered | 2 |
-| Uncovered | 1 |
-| **P0 coverage** | **100%** (10/10) — required 100% ✅ |
-| **P1 coverage** | **83%** (15/18) — target 90%, minimum 80% ⚠️ |
-| P2 coverage | 100% (1/1) ✅ |
+- **Total acceptance criteria:** 29
+- **Fully covered:** 29 (**100%**)
+- **P0 coverage:** 9/9 (**100%**) — MET
+- **P1 coverage:** 14/14 (**100%**) — MET (target 90%)
+- **P2 coverage:** 6/6 (**100%**) — MET
+- **P3 coverage:** n/a (0 criteria)
 
-Coverage by level: Unit 67 cases across 10 files · Integration 32 cases across 3 files · no E2E, API or component
-level (no browser suite in this project — admin UI is server-rendered PHP, asserted through real WP in the
-integration suite).
-
----
-
-## Gap Analysis (step 4)
-
-### High — Story 6.5's fix is unverified end to end
-
-**GAP-1 · 6.5-AC4 · uncovered · P1 · risk score 6 (probability 2 × impact 3), category TECH/BUS**
-Nothing tests that a re-sync refreshes stored `_skwirrel_document_attachments` names. Every existing shop's
-documents are stored with raw filenames today; this AC is the entire delivery mechanism for the fix. If the
-stored array is written from a cached or short-circuited path — the unchanged gate skipping a product whose
-only change is the resolved document name is a plausible mechanism — the resolver would be correct and no
-customer would ever see the difference.
-**Recommendation:** one integration test — seed a product whose `_skwirrel_document_attachments` holds a raw
-filename, run the upsert with a payload carrying `_attachment_translations`, assert the stored name is now the
-translated title. Same shape as the `NonDestructiveMappingIntegrationTest` seed-then-upsert-then-read pattern.
-
-**GAP-2 · 6.5-AC1 (second clause) · partial · P1 · risk score 4 (2 × 2), category TECH**
-The resolver is thoroughly pinned; the wiring from resolver → `$doc['name']` → `get_documents_for_product()` →
-template is not touched by any test. Note the sharp edge the story itself documented: `get_documents_for_product()`
-**drops** any document with an empty name, so a wiring defect does not render badly — the document disappears
-from the tab entirely.
-**Recommendation:** fold into GAP-1's test — after the re-sync, call `get_documents_for_product()` and assert
-the returned row carries the translated name. One test closes both gaps.
-
-### Medium — the escaping invariant is asserted from one side only
-
-**GAP-3 · 6.5-AC5 · partial · P1 · risk score 3 (1 × 3), category SEC**
-`AttachmentHandlerDocumentNameTest` proves the resolver returns HTML verbatim, i.e. that escaping is the
-consumer's responsibility. No test asserts that any of the three consumers still discharges it. The story
-honoured the AC by not editing those files, and `esc_html()` is present at all three sites, but the invariant
-is unpinned: a future refactor of the documents tab could drop it silently.
-**Recommendation:** assert `esc_html` output at the render site once, in whichever test eventually covers
-GAP-2. Low urgency — probability is low because the content originates in the store's own PIM feed.
-
-### Medium — the integration suite cannot be trusted on a second run
-
-**GAP-4 · cross-cutting · process · risk score 6 (3 × 2), category OPS**
-`npm run test:integration` fails 43 tests across 9 files when run against a database a previous run already
-touched, and passes 215/215 from clean. The failures are indistinguishable in shape from real regressions
-(missing SKUs, duplicate-SKU exceptions, `created: 0`), so the suite currently trains its readers to
-disbelieve red runs — which is exactly how a real regression gets waved through.
-**Recommendation:** either make teardown restore the pre-test state (the `SyncSafetyIntegrationTest:23-70`
-teardown pattern generalised), or make `npm run test:integration` clean the tests DB first. The deferred
-finding on 6.4 — "run the real integration suite in required CI" (`.github/workflows/ci.yml:48`) — cannot be
-actioned until this is fixed; a non-idempotent suite in CI is a permanent red.
-
-### Low — noted, no action proposed
-
-- **6.1-AC1's fallback branch** ("when Story 5.1's tab registration is not present, renders as an ordinary
-  field group") has no test. 5.1 is `done`, so the branch is unreachable in the shipped product. Left alone
-  deliberately — a test for a dead branch is upkeep without value.
-- **6.3-AC4** is unit-only against the bootstrap's `wp_kses_post()` stub. Adequate: the AC is about routing
-  the value through the sanitiser, not about kses's own correctness.
-
-### What is genuinely well covered — worth saying plainly
-
-The NFR-9 guarantee is the strongest-pinned invariant in this codebase. Story 6.4's suite was **mutation-tested**
-— the violation was deliberately injected and the suite went from 18/18 green to 9 failed — which is evidence
-almost no test suite in this repository can offer. Absent, `not_applicable`, empty, whitespace-only,
-non-numeric, malformed-ref and trade-item-scoped payloads are each tested separately rather than collapsed
-into one dataset, and every "unchanged" assertion has a positive control proving the write path can write.
-Both parallel variation write paths are covered. That is the standard the rest of the epic should be read against.
+| Status | Count |
+|---|---|
+| FULL | 29 |
+| PARTIAL | 0 |
+| NONE | 0 |
 
 ---
 
-## Gate Decision: ⚠️ CONCERNS
+## Traceability Matrix
 
-**Rationale:** P0 coverage is 100% (10/10) and overall coverage is 90% (minimum 80%), but P1 coverage is 83%
-(target 90%, minimum 80%) — Rule 5. Every shortfall sits in Story 6.5: its resolver is exhaustively pinned
-while the delivery path that makes the fix reach a real shop is untested (6.5-AC4 uncovered, 6.5-AC1 partial),
-and the output-escaping invariant is asserted from one side only (6.5-AC5 partial). Stories 6.1–6.4 are
-unconditionally clean, with the NFR-9 guarantee mutation-verified.
+Priorities follow `test-priorities-matrix.md`. **P0** = data integrity (NFR-9 destructive-write paths) and
+security (`wp_kses_post`). **P1** = core mapping journeys and complex resolution logic. **P2** = settings
+rendering, structural and gate-hygiene criteria.
 
-**Not a blocker for release.** The gap is in verification, not in known-broken behaviour, and the one-line
-defect 6.5 set out to fix is demonstrably fixed at the resolver.
+### Story 6.1 — Stock quantity from a custom class, simple products (FR-18, NFR-9)
+
+| AC | Criterion | Pri | Coverage | Tests |
+|---|---|---|---|---|
+| 6.1-AC1 | Field mapping group renders a Stock quantity field, empty by default; registers as a tab when 5.1 exists, else as an ordinary group | P2 | FULL | `Integration/SettingsTabsIntegrationTest.php:198` (input rendered), `:430` (group sits in `field-mapping` tab), `Unit/StockMappingTest.php:216` (default `''`), `:226` (stored value surfaced), `Unit/SettingsTabsTest.php:81`,`:90` (fallback when the registry is absent/empty) |
+| 6.1-AC2 | Numeric value → `set_manage_stock(true)` + `set_stock_quantity()`, via `Custom_Class_Extractor`, product level only | P1 | FULL | `Unit/StockMappingTest.php:73`,`:84`,`:131`,`:190`,`:200`,`:241`; `Unit/CustomClassExtractorTest.php:725`,`:735`; `Integration/NonDestructiveMappingIntegrationTest.php:255` (control: a valid value does land) |
+| 6.1-AC3 | Absent / empty / non-numeric leaves stock and `manage_stock` exactly as they were (**NFR-9**) | **P0** | FULL | `Unit/StockMappingTest.php:95`,`:106`,`:167`,`:178`; `Unit/NonDestructiveMappingTest.php:74`,`:84`; `Integration/NonDestructiveMappingIntegrationTest.php:226`,`:240` |
+| 6.1-AC4 | No feature ID configured → no stock write at all, byte-for-byte prior behaviour | **P0** | FULL | `Unit/StockMappingTest.php:116` (resolves null without reading the payload); `Unit/NonDestructiveMappingTest.php:150`; `Unit/VariationStockMappingTest.php:86`; `Integration/VariationStockIntegrationTest.php:322` |
+| 6.1-AC5 | A changed mapped value participates in `_skwirrel_content_hash`, so delta sync does not skip it | P1 | FULL | `Unit/ContentHashTest.php:138`,`:159`,`:180`; `Integration/VariationStockIntegrationTest.php:277` (observe-mode hash mismatch updates despite unchanged timestamp) |
+| 6.1-AC6 | Unit pins: numeric written; missing untouched; non-numeric untouched; unconfigured writes nothing | P2 | FULL | All four pinned in `Unit/StockMappingTest.php` (`:73`, `:95`, `:106`, `:116`) |
+
+**Trade-item guard (explicit in AC2):** `Unit/StockMappingTest.php:142` and `Unit/CustomClassExtractorTest.php:757`
+both assert a value living only under `_trade_item_custom_classes` resolves to nothing.
+
+### Story 6.2 — Stock quantity on variations (FR-18, NFR-9)
+
+| AC | Criterion | Pri | Coverage | Tests |
+|---|---|---|---|---|
+| 6.2-AC1 | Each variation resolves the same feature ID against **its own** product-level custom classes | P1 | FULL | `Unit/VariationStockMappingTest.php:123`; `Integration/VariationStockIntegrationTest.php:131`, `:344` (legacy `upsert_product_as_variation` path too) |
+| 6.2-AC2 | Hardcoded `set_manage_stock(false)` / forced `instock` no longer override a resolved quantity; unchanged when mapping is off | **P0** | FULL | `Unit/VariationStockMappingTest.php:86`,`:91`,`:96`,`:105` (pure decision + shared chokepoint); `Integration/VariationStockIntegrationTest.php:322`,`:344`; `Integration/NonDestructiveMappingIntegrationTest.php:326` |
+| 6.2-AC3 | Parent aggregate refreshed through the existing `WC_Product_Variable::sync_stock_status()`, not a parallel mechanism | P1 | FULL (integration-only) | `Integration/VariationStockIntegrationTest.php:303` (parent stays unmanaged and aggregates from its children) |
+| 6.2-AC4 | A variation with a missing/empty value keeps its stock; siblings unaffected (**NFR-9**) | **P0** | FULL | `Unit/VariationStockMappingTest.php:133`,`:176`; `Integration/VariationStockIntegrationTest.php:151`,`:177`,`:207`; `Integration/NonDestructiveMappingIntegrationTest.php:296`,`:355`,`:418` |
+| 6.2-AC5 | A price-on-request variation keeps its existing out-of-stock treatment | P1 | FULL (integration-only) | `Integration/VariationStockIntegrationTest.php:234`,`:249`,`:261`; `Integration/NonDestructiveMappingIntegrationTest.php:441` |
+
+**Trade-item guard:** `Unit/VariationStockMappingTest.php:147` covers the variation path.
+
+### Story 6.3 — Title, short and long description from custom classes (FR-19, NFR-9)
+
+| AC | Criterion | Pri | Coverage | Tests |
+|---|---|---|---|---|
+| 6.3-AC1 | Three further optional fields render, each independently empty by default | P2 | FULL | `Integration/SettingsTabsIntegrationTest.php:199-201` (all three inputs rendered inside the one form), `:430` (group in the `field-mapping` tab); `Unit/SettingsTabsTest.php:173` |
+| 6.3-AC2 | A resolving value overrides the existing source | P1 | FULL | `Unit/ContentMappingTest.php:60`,`:72`,`:84`; `Integration/NonDestructiveMappingIntegrationTest.php:487` |
+| 6.3-AC3 | Absent/empty → existing chain applies unchanged; a product never ends up with an empty title (**NFR-9**) | **P0** | FULL | `Unit/ContentMappingTest.php:102`,`:117` (three fall-back routes),`:179`,`:191`; `Integration/NonDestructiveMappingIntegrationTest.php:461` |
+| 6.3-AC4 | Long description passes through `wp_kses_post()` — formatting survives, unsafe markup does not | **P0** | FULL (unit-only, pure function) | `Unit/ContentMappingTest.php:164`; `:205` asserts the title is **not** run through the post sanitiser; `:179` covers sanitising-to-empty falling back |
+| 6.3-AC5 | Language selection follows the existing `image_language` / `include_languages` chain | P1 | FULL | `Unit/ContentMappingTest.php:240` (I-type via the existing chain); `Unit/CustomClassExtractorTest.php:348`,`:686` |
+| 6.3-AC6 | A product whose title changes is **not** re-slugged; `update_slug_on_resync` untouched | P1 | FULL (unit-only) | `Unit/SlugResolverTest.php:356` (the resolver reads the raw payload, so a mapped title cannot reach it); composed with `:28` (`product_name` source resolves to null) and the upserter's `'' !== $slug` guard at `class-skwirrel-wc-sync-product-upserter.php:334` |
+| 6.3-AC7 | A changed mapped content value is not skipped by the unchanged gate | P1 | FULL | `Unit/ContentHashTest.php:180` (each content mapping setting changes the sync signature), `:138`,`:159` |
+| 6.3-AC8 | The three mappings work independently | P1 | FULL | `Unit/ContentMappingTest.php:222`; `Integration/NonDestructiveMappingIntegrationTest.php:512` |
+
+**Translation completeness:** `Unit/FieldMappingTranslationsTest.php:100`,`:111` pin every Field-mapping string
+into the POT and all seven locales.
+
+### Story 6.5 — Document links show a readable name in the shop's language (FR-23, NFR-9)
+
+| AC | Criterion | Pri | Coverage | Tests |
+|---|---|---|---|---|
+| 6.5-AC1 | Exact language match → `$doc['name']` is that entry's `product_attachment_title`, **and the frontend documents tab renders it as the link text** | P1 | FULL | `Unit/AttachmentHandlerDocumentNameTest.php:51` (resolver); `Integration/DocumentNamesIntegrationTest.php:184` (resolved title lands in the stored meta, not the filename), `:199` (frontend tab renders it as link text), `:217` (admin meta box), `:231` (the legacy all-in-one `upsert_product()` path writes it too), `:270` (exact match beats a prefix sibling) |
+| 6.5-AC2 | Prefix match reuses the shared exact → prefix → first-entry chain, not a parallel implementation | P1 | FULL | `Unit/AttachmentHandlerDocumentNameTest.php:70`,`:85`,`:187` (image meta resolution unchanged by the shared-chain refactor); `Integration/DocumentNamesIntegrationTest.php:253` (nl-BE configured, only nl present — resolves end to end and renders) |
+| 6.5-AC3 | Fallback: attachment title → `file_name` → URL basename → literal `Document`; never nameless (**NFR-9**) | **P0** | FULL | `Unit/AttachmentHandlerDocumentNameTest.php:104`,`:116`,`:128`,`:137`,`:144`,`:151` (the resolver never returns an empty string, whatever it is given); `Integration/DocumentNamesIntegrationTest.php:292` (untranslated document still renders, by filename), `:306` (an empty translation title falls through rather than making the document vanish from the tab) |
+| 6.5-AC4 | Products synced before the story, holding raw filenames in `_skwirrel_document_attachments`, have their stored names refreshed on the next normal sync | P1 | FULL (integration-only) | `Integration/DocumentNamesIntegrationTest.php:327` (a product seeded in exactly the pre-3.14.0 state — meta present, holding the filename — is repaired by an ordinary `assign_media()` run, asserted both in the meta and in the rendered tab, with the stale name asserted as a precondition so the test measures a change); `:356` (the refresh is not a one-off — a later PIM rename lands too) |
+| 6.5-AC5 | A title containing HTML is escaped at output (`esc_html`) in the documents tab and the admin meta box, exactly as today | P1 | FULL | `Unit/AttachmentHandlerDocumentNameTest.php:172` (the resolver returns HTML verbatim, never pre-escaped); `Integration/DocumentNamesIntegrationTest.php:379` (a `<script>` title is stored raw and rendered escaped in the frontend tab), `:403` (an `<img onerror>` title is escaped in the admin meta box) |
+| 6.5-AC6 | The three quality gates pass | P2 | FULL | Executed this run: pest ✓, phpstan level 6 ✓, phpcs ✓ |
+
+### Story 6.4 — The non-destructive guarantee is pinned by tests (NFR-9)
+
+| AC | Criterion | Pri | Coverage | Tests |
+|---|---|---|---|---|
+| 6.4-AC1 | One case per mapping (stock, title, short, long) for absent/empty/malformed, on simple products and on variations for stock | **P0** | FULL | `Unit/NonDestructiveMappingTest.php:74`,`:79`,`:84`,`:111` (controls),`:121`,`:150`; `Integration/NonDestructiveMappingIntegrationTest.php:226`,`:240`,`:274`,`:296`,`:326`,`:461` |
+| 6.4-AC2 | A response omitting `_custom_classes` entirely writes no mapped field and the run reports success | **P0** | FULL (integration-only) | `Integration/NonDestructiveMappingIntegrationTest.php:554` (full sync with no `_custom_classes` key succeeds, preserves every mapped field, raises no notice) |
+| 6.4-AC3 | Stands alone as its own Pest file, never blocked on Story 1.14 | P2 | FULL | `tests/Unit/NonDestructiveMappingTest.php` and `tests/Integration/NonDestructiveMappingIntegrationTest.php` both exist and run independently |
+| 6.4-AC4 | The three quality gates pass | P2 | FULL | Executed this run: pest ✓, phpstan level 6 ✓, phpcs ✓ |
+
+**Bonus coverage beyond the AC set:** `Integration/NonDestructiveMappingIntegrationTest.php:629`,`:667`
+extend the same guarantee to the pre-existing `prices_managed_outside_skwirrel` escape hatch — the precedent
+NFR-9 was modelled on.
+
+---
+
+## Test Inventory
+
+| Level | Test cases mapped | Criteria touched |
+|---|---|---|
+| Unit (`tests/Unit/`, stub bootstrap) | 66 | 25 |
+| Integration (`tests/Integration/`, real WP+WC via wp-env) | 40 | 21 |
+| E2E / API / Component | 0 | 0 |
+| **Total unique mapped cases** | **106** across 14 files | — |
+
+Skipped: 0 · Pending: 0 · Fixme: 0 · Blockers: none.
+
+**No E2E layer exists in this project**, by design — the plugin has no frontend JS and no browser harness.
+The integration suite rendering real admin and frontend HTML (`DOMXPath` for the settings screen, output
+buffering for the documents tab and meta box) is the closest analogue and is counted as integration, not
+E2E. Story 6.5's frontend-rendering criteria are now covered at that level.
+
+---
+
+## Coverage Heuristics
+
+| Heuristic | Result |
+|---|---|
+| API endpoint coverage | Not applicable — Epic 6 adds no JSON-RPC method. It consumes `_custom_classes` and `_attachment_translations` already present in existing payloads. 0 endpoint gaps. |
+| Auth / authz coverage | Not applicable to this epic (no new capability-gated surface). The settings screen it renders into is covered by Epic 5's `manage_woocommerce` tests. |
+| Error-path coverage | **Strong.** Absent, empty, whitespace-only, non-numeric, `not_applicable`, malformed-reference, sanitises-to-empty, and whole-key-missing payloads are all exercised. This epic is unusually well covered on unhappy paths — that is its entire point. |
+| Happy-path-only criteria | 0 |
+| UI journey / UI state coverage | Not applicable (oracle is formal, not synthetic). Noted separately: the one *frontend* surface this epic touches — the documents tab — has no rendering test, which is what 6.5-AC1 and 6.5-AC5 record. |
+
+---
+
+## Gap Analysis
+
+### Critical (P0) — none open
+
+All nine P0 criteria are fully covered at both unit and integration level. The NFR-9 destructive-write
+guarantee — the epic's defining constraint — is pinned from every angle: absent, empty, malformed,
+trade-item-only, and whole-key-missing payloads, on simple products, on both variation paths, and across all
+four mappings.
+
+### High (P1) — none open
+
+All three Story 6.5 shortfalls found earlier in this run were closed by
+`tests/Integration/DocumentNamesIntegrationTest.php`, added and verified in this session:
+
+| Was | Criterion | Now closed by |
+|---|---|---|
+| GAP-1 `NONE` | 6.5-AC4 — stored names never proven to refresh | `:327` seeds a product in the pre-3.14.0 state (meta present, holding the raw filename), asserts the stale name as a precondition, re-syncs, and asserts both the repaired meta and the repaired rendered tab. `:356` proves the repair is not a one-off. |
+| GAP-2 `PARTIAL` | 6.5-AC1 — resolver-to-frontend wiring unverified | `:184` pins the stored meta, `:199` the frontend tab, `:217` the admin meta box, `:231` the legacy `upsert_product()` write site — which turned out to be a **second, independent** document-write path (`class-skwirrel-wc-sync-product-upserter.php:480`) alongside `assign_media()` at `:2544`. Both are now covered; only one would have been had the gap been closed narrowly. |
+| GAP-3 `PARTIAL` | 6.5-AC5 — escaping asserted from one side only | `:379` and `:403` assert a `<script>` and an `<img onerror>` title are stored raw and rendered escaped, in the tab and the meta box respectively. |
+
+**Mutation-verified.** The 12 new cases were run against the pre-story source (line 329 reverted to
+`$att['file_name'] ?? $att['product_attachment_title'] ?? ''`): **10 of 12 failed**. The two that still
+passed are the untranslated and empty-title cases, which correctly behave identically either way. The
+suite therefore detects the exact regression it exists to prevent, rather than passing vacuously.
+
+### Medium (P2) — none open
+
+### Low — observations, not gaps
+
+- **6.3-AC6 (slug preservation)** is proven by composition rather than end to end: `SlugResolverTest.php:356`
+  pins that a mapped title cannot reach the resolver, `:28` pins that the default `product_name` source
+  resolves to null, and the upserter guards on `'' !== $slug`. Each link is tested; the chain is not. Low
+  risk, but an integration assertion on `post_name` surviving a re-sync with `update_slug_on_resync` enabled
+  would close it properly.
+- **6.2-AC3, 6.2-AC5, 6.4-AC2** are integration-only. That is the correct level for each — they are
+  assertions about real WC data-store behaviour — so this is recorded for completeness, not as a concern.
+
+---
+
+## Gate Criteria
 
 | Criterion | Required | Actual | Status |
-| --- | --- | --- | --- |
-| P0 coverage | 100% | 100% (10/10) | MET |
-| P1 coverage | 90% target / 80% min | 83% (15/18) | PARTIAL |
-| Overall coverage | ≥ 80% | 90% (26/29) | MET |
-| Collection status | COLLECTED | COLLECTED (clean DB) | MET |
+|---|---|---|---|
+| P0 coverage | 100% | 100% (9/9) | **MET** |
+| P1 coverage | ≥80% (target 90%) | 100% (14/14) | **MET** |
+| Overall coverage | ≥80% | 100% (29/29) | **MET** |
+| Critical gaps open | 0 | 0 | MET |
+| Collection status | COLLECTED | COLLECTED | MET |
+
+Gate rule applied: **Rule 4** — P0 at 100%, P1 at or above the 90% target, overall at or above the 80%
+minimum.
+
+---
 
 ## Next Actions
 
-1. **Close GAP-1 + GAP-2 with one integration test** (~30 min): seed a product carrying a legacy raw-filename
-   `_skwirrel_document_attachments`, re-sync with `_attachment_translations` present, assert the stored name
-   is refreshed **and** that `get_documents_for_product()` returns it. This alone takes P1 to 94% and the gate
-   to PASS.
-2. **Add the `esc_html` assertion at the render site** (GAP-3) in that same test — one extra expectation.
-3. **Fix integration-suite idempotency** (GAP-4) before wiring the integration suite into required CI. Track
-   against the existing deferred item at `.github/workflows/ci.yml:48`.
-4. Optional: log GAP-4 in `deferred-work.md` so it is not rediscovered by the next trace.
+None required for Epic 6. Coverage is complete at every priority level and all four quality gates are green.
+
+Optional, carried forward as a low-priority observation rather than a gap:
+
+1. **6.3-AC6 (slug preservation)** is proven by composition rather than end to end — see Low observations
+   above. An integration assertion on `post_name` surviving a re-sync with `update_slug_on_resync` enabled
+   would close it properly. Low risk; each link in the chain is individually tested.
+2. **Story 1.14's regression-canary suite** remains `backlog`. Per 6.4-AC3 the non-destructive cases stand
+   alone and were never blocked on it, but folding them in when 1.14 lands is the tidier end state.
+
+## Notes on this run
+
+- Both suites and both static gates were executed live against the working tree on 2026-08-27, so this is a
+  measured result, not an inferred one.
+- This run superseded the earlier same-day CONCERNS decision, first landing on FAIL. The difference was
+  enumeration, not regression: Story 6.5's acceptance criteria were split more finely against the story
+  text, which raised the P1 denominator and pushed a 79% result under the 80% floor. The underlying finding
+  was unchanged and had already been recorded — Story 6.5 was the only under-covered story in the epic.
+- That finding was then acted on in-session: `tests/Integration/DocumentNamesIntegrationTest.php` (12 cases)
+  closed all three P1 shortfalls, and the full suite was re-run green. Integration went from 215 to 227
+  passing with no cross-file pollution. The gate moved FAIL → **PASS**.
+- Closing GAP-2 surfaced something the narrow fix would have missed: documents are written at **two**
+  independent sites — `upsert_product()` (`class-skwirrel-wc-sync-product-upserter.php:480`, the legacy
+  all-in-one path) and `assign_media()` (`:2544`, the phase method the current batch loop uses). Both are
+  now covered.

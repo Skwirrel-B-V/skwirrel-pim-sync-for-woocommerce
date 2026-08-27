@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "evaluated_at": "2026-08-27",
+  "repo": "wordpress",
+  "target": { "type": "epic", "id": "5", "label": "A settings screen you can navigate, trust, and verify" },
+  "collection_status": "COLLECTED",
+  "gate_basis": "priority_thresholds",
+  "gate_status": "CONCERNS",
+  "rationale": "P0 coverage is 100% and overall coverage is 91% (minimum 80%), but P1 coverage is 86% (target 90%). Both shortfalls sit in Story 5.1: 5.1-AC4 and 5.1-AC6 are verified by asserting strings in JavaScript and CSS source rather than by exercising behaviour (no browser/E2E layer). Caveat: the integration suite carrying most of this evidence was order-dependent at trace time, so coverage was scored on isolated runs.",
+  "p0_status": "MET",
+  "p1_status": "PARTIAL",
+  "overall_status": "MET",
+  "critical_open": 0,
+  "links": { "trace_report_path": "_bmad-output/test-artifacts/traceability/traceability-matrix.md", "trace_report_url": "", "artifact_url": "", "journey_evidence_url": "" }
+}
