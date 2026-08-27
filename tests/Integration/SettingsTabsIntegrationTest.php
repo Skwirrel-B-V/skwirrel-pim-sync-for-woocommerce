@@ -277,9 +277,9 @@ test( 'the ARIA wiring resolves in both directions and exactly one tab is select
 	}
 
 	expect( substr_count( $html, 'aria-selected="true"' ) )->toBe( 1 );
-	expect( substr_count( $html, 'aria-selected="false"' ) )->toBe( 3 );
+	expect( substr_count( $html, 'aria-selected="false"' ) )->toBe( 4 );
 	expect( substr_count( $html, 'tabindex="0"' ) )->toBeGreaterThanOrEqual( 1 );
-	expect( substr_count( $html, 'tabindex="-1"' ) )->toBe( 3 );
+	expect( substr_count( $html, 'tabindex="-1"' ) )->toBe( 4 );
 } );
 
 test( 'the danger zone stays outside and below the settings form', function (): void {
@@ -493,7 +493,7 @@ test( 'with no JavaScript every panel is a visible sequential section', function
 	// AC 5: the collapse is applied by script. Server-side, nothing is hidden — otherwise a
 	// no-JS admin loses three quarters of the settings screen.
 	$panels = $xpath->query( '//div[@role="tabpanel"]' );
-	expect( $panels->length )->toBe( 4 );
+	expect( $panels->length )->toBe( 5 );
 
 	foreach ( $panels as $panel ) {
 		expect( $panel->hasAttribute( 'hidden' ) )->toBeFalse(
@@ -508,7 +508,7 @@ test( 'the roving tabindex belongs to the selected tab, and only to it', functio
 	$xpath = skwSettingsXPath();
 
 	$tabs = $xpath->query( '//*[@role="tab"]' );
-	expect( $tabs->length )->toBe( 4 );
+	expect( $tabs->length )->toBe( 5 );
 
 	$selected = 0;
 	foreach ( $tabs as $tab ) {
