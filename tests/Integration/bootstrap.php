@@ -87,6 +87,12 @@ tests_add_filter(
 // Start up the WP testing environment.
 require $_tests_dir . '/includes/bootstrap.php';
 
+// Central per-test teardown. Registered here rather than in tests/Pest.php: Pest evaluates that
+// file before the WordPress test framework exists, and its uses()/afterEach() registrations do not
+// apply to this suite at all. A base class bound via uses() from here does apply -- verified.
+require_once __DIR__ . '/SkwirrelIntegrationTestCase.php';
+uses( Skwirrel_Integration_TestCase::class )->in( __DIR__ );
+
 /**
  * Is this JSON-RPC call the sync run's membership sweep?
  *
@@ -142,3 +148,83 @@ function skwPurgeSkwirrelPosts(): void {
 		wp_delete_post( (int) $pid, true );
 	}
 }
+
+/**
+ * Delete every term this plugin owns, identified by its `_skwirrel_*` term meta.
+ *
+ * Matched by meta-key wildcard rather than by an enumerated list, so a term meta key added later
+ * is cleaned up without anyone remembering to extend this.
+ */
+function skwPurgeSkwirrelTerms(): void {
+	global $wpdb;
+	$rows = $wpdb->get_results(
+		"SELECT DISTINCT tt.term_id, tt.taxonomy
+		 FROM {$wpdb->term_taxonomy} tt
+		 INNER JOIN {$wpdb->termmeta} tm ON tm.term_id = tt.term_id
+		 WHERE tm.meta_key LIKE '\_skwirrel\_%'"
+	);
+	foreach ( $rows as $row ) {
+		wp_delete_term( (int) $row->term_id, (string) $row->taxonomy );
+	}
+}
+
+/**
+ * Delete every option and transient this plugin owns.
+ *
+ * Wildcard, not an enumerated list. Each test file deletes its own partial set of
+ * `skwirrel_wc_sync_*` options in beforeEach, and the variance between those lists is exactly how
+ * state leaks from one file into the next -- a file that never heard of an option cannot clear it.
+ */
+function skwPurgeSkwirrelOptions(): void {
+	global $wpdb;
+	$names = $wpdb->get_col(
+		"SELECT option_name FROM {$wpdb->options}
+		 WHERE option_name LIKE 'skwirrel\_%'
+		    OR option_name LIKE '\_transient\_skwirrel\_%'
+		    OR option_name LIKE '\_transient\_timeout\_skwirrel\_%'
+		    OR option_name LIKE '\_site\_transient\_skwirrel\_%'"
+	);
+	foreach ( $names as $name ) {
+		delete_option( (string) $name );
+	}
+
+	wp_cache_flush();
+}
+
+/**
+ * Delete every product, variation and Skwirrel-owned post left in the database.
+ *
+ * Wider than `skwPurgeSkwirrelPosts()` in two ways that matter:
+ *
+ *  1. It matches Skwirrel meta by WILDCARD, so a post carrying only `_skwirrel_source_url` or
+ *     `_skwirrel_document_attachments` -- invisible to the enumerated key list -- is still removed.
+ *  2. It removes plain WooCommerce products that carry no Skwirrel meta at all. Those are the
+ *     dangerous leftovers: harmless to a test that looks up its own fixtures by id, fatal to any
+ *     test that reasons about the SIZE of the catalogue, because the sweep diff and its
+ *     mass-removal ratio are computed over every live product in the shop.
+ */
+function skwPurgeProductCatalogue(): void {
+	global $wpdb;
+
+	$post_ids = $wpdb->get_col(
+		"SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key LIKE '\_skwirrel\_%'"
+	);
+	$product_ids = $wpdb->get_col(
+		"SELECT ID FROM {$wpdb->posts} WHERE post_type IN ( 'product', 'product_variation' )"
+	);
+
+	foreach ( array_unique( array_merge( $post_ids, $product_ids ) ) as $pid ) {
+		wp_delete_post( (int) $pid, true );
+	}
+}
+
+// Start every RUN from a known-empty catalogue, not just every test.
+//
+// Teardown runs after a test, so it cannot help the first test of a run that inherits a dirty
+// database -- and this suite has no rollback, so a database poisoned by an interrupted or failing
+// earlier run stays poisoned indefinitely. That state produces failures that mimic real regressions
+// (missing SKUs, duplicate-SKU exceptions, created: 0) across unrelated files. Purging once here
+// makes a poisoned inheritance self-healing instead of sticky.
+skwPurgeProductCatalogue();
+skwPurgeSkwirrelTerms();
+skwPurgeSkwirrelOptions();
