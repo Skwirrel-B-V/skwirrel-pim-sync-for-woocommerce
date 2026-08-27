@@ -141,9 +141,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	/**
 	 * Configure content-hash change detection for the current run.
 	 *
-	 * @param string $mode 'off', 'observe' (compute + report match/mismatch, no behavior change), or
+	 * @param string $mode 'off', 'observe' (compute + report match/mismatch; process a known mismatch), or
 	 *                     'enforce' (authoritative: skip an existing product when its stored hash equals
-	 *                     the incoming one). In enforce mode the hash supersedes the timestamp gate.
+	 *                     the incoming one). In both hash modes, a known mismatch supersedes the timestamp gate.
 	 * @param string $sig  Settings signature to fold in, so a settings/version change → all hashes differ.
 	 */
 	public function set_content_hash_context( string $mode, string $sig ): void {
@@ -624,11 +624,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		// so the legacy "priced means always available" writes are suppressed here identically.
 		$stock_governed   = $this->stock_mapping_is_active();
 		$price_on_request = $this->mapper->is_price_on_request( $product );
+		$external_prices  = ! empty( $this->get_options()['prices_managed_outside_skwirrel'] );
 
 		$price = $this->mapper->get_regular_price( $product );
 		if ( $price_on_request ) {
-			$variation->set_regular_price( '' );
-			$variation->set_price( '' );
+			if ( ! $external_prices ) {
+				$variation->set_regular_price( '' );
+				$variation->set_price( '' );
+			}
+			$variation->set_manage_stock( false );
 			$variation->set_stock_status( 'outofstock' ); // Price on request = out of stock
 		} elseif ( null !== $price && $price > 0 ) {
 			$variation->set_regular_price( (string) $price );
@@ -665,7 +669,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 		}
 
-		// Price on request keeps its explicit out-of-stock status and never a managed quantity.
+		// Price on request keeps its explicit out-of-stock status and clears stock management so a
+		// previously mapped quantity cannot later re-derive the variation as in stock.
 		if ( ! $price_on_request ) {
 			$this->apply_stock_mapping( $variation, $product );
 		}
@@ -1780,7 +1785,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					'hash_status'  => $hash_status,
 				];
 			}
-		} elseif ( $gate_allowed && $this->is_unchanged( $is_new, $stored_updated_on, $incoming_updated_on ) ) {
+		} elseif ( $gate_allowed && 'mismatch' !== $hash_status && $this->is_unchanged( $is_new, $stored_updated_on, $incoming_updated_on ) ) {
 			update_post_meta( $wc_id, $this->mapper->get_synced_at_meta_key(), time() );
 			return [
 				'wc_id'        => (int) $wc_id,
@@ -1952,7 +1957,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 						'hash_status'  => $hash_status,
 					];
 				}
-			} elseif ( $this->is_unchanged( false, $stored_updated_on, $incoming_updated_on ) ) {
+			} elseif ( 'mismatch' !== $hash_status && $this->is_unchanged( false, $stored_updated_on, $incoming_updated_on ) ) {
 				update_post_meta( $variation_id, $this->mapper->get_synced_at_meta_key(), time() );
 				return [
 					'wc_id'        => (int) $variation_id,
@@ -1977,11 +1982,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		// exactly the NFR-9 violation the mapping exists to prevent.
 		$stock_governed   = $this->stock_mapping_is_active();
 		$price_on_request = $this->mapper->is_price_on_request( $product );
+		$external_prices  = ! empty( $this->get_options()['prices_managed_outside_skwirrel'] );
 
 		$price = $this->mapper->get_regular_price( $product );
 		if ( $price_on_request ) {
-			$variation->set_regular_price( '' );
-			$variation->set_price( '' );
+			if ( ! $external_prices ) {
+				$variation->set_regular_price( '' );
+				$variation->set_price( '' );
+			}
+			$variation->set_manage_stock( false );
 			$variation->set_stock_status( 'outofstock' );
 		} elseif ( null !== $price && $price > 0 ) {
 			$variation->set_regular_price( (string) $price );
@@ -2009,9 +2018,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 		}
 
-		// Price on request stays out of stock whatever quantity the mapping resolves, so it keeps
-		// an explicit status and never gets a managed quantity — the two must not be combined, or
-		// WooCommerce recomputes the status from the quantity on save and undoes the rule.
+		// Price on request stays out of stock whatever quantity the mapping resolves, so it clears
+		// stock management before keeping its explicit status. The two must not be combined, or
+		// WooCommerce can recompute the status from a previous quantity and undo the rule.
 		if ( ! $price_on_request ) {
 			$this->apply_stock_mapping( $variation, $product );
 		}

@@ -173,7 +173,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 */
 	public function get_name( array $product ): string {
 		$mapped = $this->mapped_content( $product, $this->title_feature_ref );
-		if ( '' !== $mapped ) {
+		if ( '' !== trim( $mapped ) ) {
 			return $mapped;
 		}
 		$erp = $product['product_erp_description'] ?? '';
@@ -193,7 +193,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 */
 	public function get_short_description( array $product ): string {
 		$mapped = $this->mapped_content( $product, $this->short_description_feature_ref );
-		if ( '' !== $mapped ) {
+		if ( '' !== trim( $mapped ) ) {
 			return $mapped;
 		}
 		$translations = $product['_product_translations'] ?? [];
@@ -209,11 +209,14 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 */
 	public function get_long_description( array $product ): string {
 		$mapped = $this->mapped_content( $product, $this->long_description_feature_ref );
-		if ( '' !== $mapped ) {
+		if ( '' !== trim( $mapped ) ) {
 			// Markup in authored copy survives; unsafe markup does not (FR-19). Title and short
 			// description are deliberately left alone — over-sanitising a title would strip
 			// legitimate entities.
-			return wp_kses_post( $mapped );
+			$sanitized = wp_kses_post( $mapped );
+			if ( '' !== trim( $sanitized ) ) {
+				return $sanitized;
+			}
 		}
 		$translations = $product['_product_translations'] ?? [];
 		if ( empty( $translations ) ) {

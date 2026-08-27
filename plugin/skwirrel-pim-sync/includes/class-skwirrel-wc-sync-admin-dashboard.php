@@ -666,9 +666,14 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<tbody>
 					<?php foreach ( $entries as $entry ) : ?>
 						<?php
-						$ts            = (int) ( $entry['timestamp'] ?? 0 );
-						$entry_date    = $ts ? wp_date( 'Y-m-d', $ts ) : '';
-						$entry_time    = $ts ? wp_date( get_option( 'time_format' ), $ts ) : '-';
+						$ts         = (int) ( $entry['timestamp'] ?? 0 );
+						$entry_date = $ts ? wp_date( 'Y-m-d', $ts ) : '';
+						$entry_time = $ts ? wp_date( get_option( 'time_format' ), $ts ) : '-';
+						// Ungrouped tables (the dashboard's "Recent syncs") have no date header, so a
+						// bare time is ambiguous once a run is older than today: prefix the day-month.
+						if ( ! $group_dates && $ts && $entry_date !== $today ) {
+							$entry_time = wp_date( 'd-m', $ts ) . ' ' . $entry_time;
+						}
 						$is_success    = ! empty( $entry['success'] );
 						$entry_trigger = $entry['trigger'] ?? Skwirrel_WC_Sync_History::TRIGGER_MANUAL;
 						$is_purge      = ( Skwirrel_WC_Sync_History::TRIGGER_PURGE === $entry_trigger );
@@ -792,25 +797,31 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 */
 	public static function get_settings_tabs(): array {
 		$default_tabs = array(
-			'connection'   => array(
+			'connection'    => array(
 				'label'  => __( 'Connection', 'skwirrel-pim-sync' ),
 				'order'  => 10,
 				'render' => 'render_settings_panel_connection',
 				'fields' => array( 'skwirrel_subdomain', 'endpoint_url', 'auth_token', 'context_id' ),
 			),
-			'what-to-sync' => array(
+			'what-to-sync'  => array(
 				'label'  => __( 'What to sync', 'skwirrel-pim-sync' ),
 				'order'  => 20,
 				'render' => 'render_settings_panel_what_to_sync',
-				'fields' => array( 'batch_size', 'super_category_id', 'collection_ids', 'custom_collection_id', 'stock_quantity_feature', 'title_feature_id', 'short_description_feature_id', 'long_description_feature_id' ),
+				'fields' => array( 'batch_size', 'super_category_id', 'collection_ids', 'custom_collection_id' ),
 			),
-			'how-it-looks' => array(
+			'field-mapping' => array(
+				'label'  => __( 'Field mapping', 'skwirrel-pim-sync' ),
+				'order'  => 25,
+				'render' => 'render_settings_panel_field_mapping',
+				'fields' => array( 'stock_quantity_feature', 'title_feature_id', 'short_description_feature_id', 'long_description_feature_id' ),
+			),
+			'how-it-looks'  => array(
 				'label'  => __( 'How it looks', 'skwirrel-pim-sync' ),
 				'order'  => 30,
 				'render' => 'render_settings_panel_how_it_looks',
 				'fields' => array( 'image_language', 'include_languages' ),
 			),
-			'advanced'     => array(
+			'advanced'      => array(
 				'label'  => __( 'Advanced', 'skwirrel-pim-sync' ),
 				'order'  => 40,
 				'render' => 'render_settings_panel_advanced',
@@ -997,6 +1008,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			case 'render_settings_panel_what_to_sync':
 				$this->render_settings_panel_what_to_sync( $context );
 				return;
+			case 'render_settings_panel_field_mapping':
+				$this->render_settings_panel_field_mapping( $context );
+				return;
 			case 'render_settings_panel_how_it_looks':
 				$this->render_settings_panel_how_it_looks( $context );
 				return;
@@ -1032,6 +1046,14 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private function render_settings_panel_what_to_sync( array $context ): void {
 		$this->render_fieldgroup_sync_options( (array) $context['opts'], (string) $context['subdomain'] );
 		$this->render_fieldgroup_product_status( (array) $context['opts'] );
+	}
+
+	/**
+	 * Render the "Field mapping" tab panel.
+	 *
+	 * @param array<string, mixed> $context Render context.
+	 */
+	private function render_settings_panel_field_mapping( array $context ): void {
 		$this->render_fieldgroup_field_mapping( (array) $context['opts'] );
 	}
 

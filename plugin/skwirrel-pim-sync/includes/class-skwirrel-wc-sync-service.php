@@ -210,10 +210,10 @@ class Skwirrel_WC_Sync_Service {
 			]
 		);
 
-		// Content-hash change detection mode for this run. Default 'observe' (compute + report match
-		// rates, no behavior change) so it can be validated on staging before flipping to 'enforce'
-		// (skip on hash match). Override via the `skwirrel_wc_sync_content_hash_mode` filter or the
-		// `content_hash_mode` setting. Stable for the whole run (steps read it from ctx).
+		// Content-hash change detection mode for this run. Default 'observe' reports match rates and
+		// processes a known mismatch even when upstream did not advance `product_updated_on`; 'enforce'
+		// additionally skips a known hash match. Override via the `skwirrel_wc_sync_content_hash_mode`
+		// filter or the `content_hash_mode` setting. Stable for the whole run (steps read it from ctx).
 		$hash_mode = (string) ( $options['content_hash_mode'] ?? 'observe' );
 		$hash_mode = (string) apply_filters( 'skwirrel_wc_sync_content_hash_mode', $hash_mode );
 		if ( ! in_array( $hash_mode, [ 'off', 'observe', 'enforce' ], true ) ) {
@@ -244,14 +244,14 @@ class Skwirrel_WC_Sync_Service {
 			return $this->begin_fail( 'No selection IDs configured. A selection ID is required.', $trigger, $log_filename );
 		}
 
-		$custom_collection_id = $options['custom_collection_id'] ?? '';
+		$custom_collection_id = self::normalize_positive_id( $options['custom_collection_id'] ?? null );
 		// The custom class collection ID is only used when syncing custom classes, trade-item custom
 		// classes, or grouped products (custom variation axes). It is optional otherwise — the sync
 		// runs fine without it. Fail only when a feature that actually needs it is enabled.
 		$needs_custom_collection = ! empty( $options['sync_custom_classes'] )
 			|| ! empty( $options['sync_trade_item_custom_classes'] )
 			|| ! empty( $options['sync_grouped_products'] );
-		if ( $needs_custom_collection && empty( $custom_collection_id ) ) {
+		if ( $needs_custom_collection && null === $custom_collection_id ) {
 			return $this->begin_fail( 'Custom classes or grouped products are enabled but no custom class collection ID is configured. Set a collection ID greater than 0, or disable those options.', $trigger, $log_filename );
 		}
 		if ( ! empty( $options['sync_categories'] ) ) {
@@ -284,7 +284,7 @@ class Skwirrel_WC_Sync_Service {
 		$cc_raw         = '';
 		$cc_parsed      = [];
 		if ( $sync_cc || $sync_ti_cc ) {
-			$api_includes['include_custom_collection_id'] = [ (int) $custom_collection_id ];
+			$api_includes['include_custom_collection_id'] = [ $custom_collection_id ];
 			$cc_filter_mode                               = $options['custom_class_filter_mode'] ?? '';
 			$cc_raw                                       = $options['custom_class_filter_ids'] ?? '';
 			$cc_parsed                                    = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_raw );
@@ -312,7 +312,7 @@ class Skwirrel_WC_Sync_Service {
 			// Grouped products may use custom features as variation axes — ensure they are present even
 			// when neither custom-class sync toggle is on.
 			$api_includes['include_custom_classes']       = true;
-			$api_includes['include_custom_collection_id'] = [ (int) $custom_collection_id ];
+			$api_includes['include_custom_collection_id'] = [ $custom_collection_id ];
 		}
 
 		// Field mappings (FR-18) read product-level custom classes, so they need the same includes even
@@ -321,19 +321,14 @@ class Skwirrel_WC_Sync_Service {
 		// field mapping must not turn into a total sync outage, so a missing collection ID warns and
 		// leaves the mapping inert.
 		if ( self::has_field_mapping( $options ) ) {
-			if ( empty( $custom_collection_id ) ) {
-				$this->logger->warning(
-					'A field mapping is configured but no custom class collection ID is set, so custom classes cannot be fetched. Field mappings are inactive this run; set the custom class collection ID under "What to sync" to activate them.',
-					[
-						'stock_quantity_feature'       => $options['stock_quantity_feature'] ?? '',
-						'title_feature_id'             => $options['title_feature_id'] ?? '',
-						'short_description_feature_id' => $options['short_description_feature_id'] ?? '',
-						'long_description_feature_id'  => $options['long_description_feature_id'] ?? '',
-					]
-				);
+			if ( null === $custom_collection_id ) {
+				$this->log_inactive_field_mapping_warning( $options, 'catalogue sync' );
 			} else {
 				$api_includes['include_custom_classes']       = true;
-				$api_includes['include_custom_collection_id'] = [ (int) $custom_collection_id ];
+				$api_includes['include_custom_collection_id'] = [ $custom_collection_id ];
+				// A mapped feature may belong to a class outside the attribute whitelist. The
+				// mapping has no class selector, so it must inspect every product-level class.
+				unset( $api_includes['include_custom_class_id'] );
 			}
 		}
 
@@ -1842,20 +1837,24 @@ class Skwirrel_WC_Sync_Service {
 
 		$sync_cc              = ! empty( $options['sync_custom_classes'] );
 		$sync_ti_cc           = ! empty( $options['sync_trade_item_custom_classes'] );
-		$custom_collection_id = $options['custom_collection_id'] ?? '';
-		if ( $sync_cc ) {
+		$custom_collection_id = self::normalize_positive_id( $options['custom_collection_id'] ?? null );
+		if ( $sync_cc && null !== $custom_collection_id ) {
 			$req_options['include_custom_classes']       = true;
-			$req_options['include_custom_collection_id'] = [ (int) $custom_collection_id ];
+			$req_options['include_custom_collection_id'] = [ $custom_collection_id ];
 		}
-		if ( $sync_ti_cc ) {
+		if ( $sync_ti_cc && null !== $custom_collection_id ) {
 			$req_options['include_trade_item_custom_classes'] = true;
-			$req_options['include_custom_collection_id']      = [ (int) $custom_collection_id ];
+			$req_options['include_custom_collection_id']      = [ $custom_collection_id ];
 		}
 		// Keep the single-product resync in step with the catalogue run (FR-18), or "sync this product"
 		// from the product editor would silently not update mapped fields.
-		if ( self::has_field_mapping( $options ) && ! empty( $custom_collection_id ) ) {
-			$req_options['include_custom_classes']       = true;
-			$req_options['include_custom_collection_id'] = [ (int) $custom_collection_id ];
+		if ( self::has_field_mapping( $options ) ) {
+			if ( null === $custom_collection_id ) {
+				$this->log_inactive_field_mapping_warning( $options, 'single-product resync' );
+			} else {
+				$req_options['include_custom_classes']       = true;
+				$req_options['include_custom_collection_id'] = [ $custom_collection_id ];
+			}
 		}
 
 		$this->logger->info(
@@ -2130,19 +2129,23 @@ class Skwirrel_WC_Sync_Service {
 
 		$sync_cc              = ! empty( $options['sync_custom_classes'] );
 		$sync_ti_cc           = ! empty( $options['sync_trade_item_custom_classes'] );
-		$custom_collection_id = $options['custom_collection_id'] ?? '';
-		if ( $sync_cc ) {
+		$custom_collection_id = self::normalize_positive_id( $options['custom_collection_id'] ?? null );
+		if ( $sync_cc && null !== $custom_collection_id ) {
 			$req_options['include_custom_classes']       = true;
-			$req_options['include_custom_collection_id'] = [ (int) $custom_collection_id ];
+			$req_options['include_custom_collection_id'] = [ $custom_collection_id ];
 		}
-		if ( $sync_ti_cc ) {
+		if ( $sync_ti_cc && null !== $custom_collection_id ) {
 			$req_options['include_trade_item_custom_classes'] = true;
-			$req_options['include_custom_collection_id']      = [ (int) $custom_collection_id ];
+			$req_options['include_custom_collection_id']      = [ $custom_collection_id ];
 		}
 		// Grouped-product fetch: same FR-18 requirement as the catalogue run.
-		if ( self::has_field_mapping( $options ) && ! empty( $custom_collection_id ) ) {
-			$req_options['include_custom_classes']       = true;
-			$req_options['include_custom_collection_id'] = [ (int) $custom_collection_id ];
+		if ( self::has_field_mapping( $options ) ) {
+			if ( null === $custom_collection_id ) {
+				$this->log_inactive_field_mapping_warning( $options, 'grouped-product resync' );
+			} else {
+				$req_options['include_custom_classes']       = true;
+				$req_options['include_custom_collection_id'] = [ $custom_collection_id ];
+			}
 		}
 
 		$this->logger->info(
@@ -2430,6 +2433,25 @@ class Skwirrel_WC_Sync_Service {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Log when a field mapping cannot obtain its custom-class payload.
+	 *
+	 * @param array<string, mixed> $options      Plugin settings.
+	 * @param string               $sync_context Request path that encountered the invalid setting.
+	 */
+	private function log_inactive_field_mapping_warning( array $options, string $sync_context ): void {
+		$this->logger->warning(
+			'A field mapping is configured but the custom class collection ID is missing or invalid, so custom classes cannot be fetched. Field mappings are inactive this run; set a collection ID greater than 0 under "What to sync" to activate them.',
+			[
+				'sync_context'                 => $sync_context,
+				'stock_quantity_feature'       => $options['stock_quantity_feature'] ?? '',
+				'title_feature_id'             => $options['title_feature_id'] ?? '',
+				'short_description_feature_id' => $options['short_description_feature_id'] ?? '',
+				'long_description_feature_id'  => $options['long_description_feature_id'] ?? '',
+			]
+		);
 	}
 
 	/**

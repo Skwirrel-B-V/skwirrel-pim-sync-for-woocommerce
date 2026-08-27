@@ -233,11 +233,19 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 				if ( ! is_array( $feat ) ) {
 					continue;
 				}
-				$feat_id   = (int) ( $feat['custom_feature_id'] ?? $feat['custom_class_feature_id'] ?? 0 );
 				$feat_code = strtolower( (string) ( $feat['custom_feature_code'] ?? '' ) );
+				$id_match  = false;
+				if ( null !== $want_id ) {
+					foreach ( [ 'custom_feature_id', 'custom_class_feature_id' ] as $feature_id_key ) {
+						$candidate = $feat[ $feature_id_key ] ?? null;
+						if ( is_scalar( $candidate ) && self::normalize_feature_ref( (string) $candidate ) === $want_id ) {
+							$id_match = true;
+							break;
+						}
+					}
+				}
 
-				$matches = ( null !== $want_id && 0 !== $feat_id && $feat_id === $want_id )
-					|| ( '' !== $feat_code && $feat_code === $want_code );
+				$matches = $id_match || ( '' !== $feat_code && $feat_code === $want_code );
 				if ( ! $matches || ! empty( $feat['not_applicable'] ) ) {
 					continue;
 				}
