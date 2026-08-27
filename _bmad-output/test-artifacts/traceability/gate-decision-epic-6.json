@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "evaluated_at": "2026-08-27",
+  "repo": "wordpress",
+  "target": { "type": "epic", "id": "6", "label": "Stock and product content driven from Skwirrel data" },
+  "collection_status": "COLLECTED",
+  "gate_basis": "priority_thresholds",
+  "gate_status": "CONCERNS",
+  "rationale": "P0 coverage is 100% and overall coverage is 90% (minimum 80%), but P1 coverage is 83% (target 90%). All three shortfalls sit in Story 6.5: the stored-name refresh on re-sync is untested, the resolver-to-template wiring is unverified, and the output-escaping invariant is asserted from one side only.",
+  "p0_status": "MET",
+  "p1_status": "PARTIAL",
+  "overall_status": "MET",
+  "critical_open": 0,
+  "links": { "trace_report_path": "_bmad-output/test-artifacts/traceability/traceability-matrix-epic-6.md", "trace_report_url": "", "artifact_url": "", "journey_evidence_url": "" }
+}

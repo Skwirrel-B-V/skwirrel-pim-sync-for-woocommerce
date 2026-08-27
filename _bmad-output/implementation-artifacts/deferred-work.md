@@ -2,6 +2,18 @@
 
 Items surfaced during work but intentionally not done now. Each notes origin + why deferred.
 
+## Surfaced by Winston's architecture review of story 7.1 (2026-08-27)
+
+- **Overlapping selection IDs make the sync do duplicated work and report inflated counts.** `step_fetch()` iterates the configured selections and calls `Skwirrel_WC_Sync_Queue::insert_item()` for every product on every selection's pages (`class-skwirrel-wc-sync-service.php:707-760`). The queue table carries no unique constraint — `PRIMARY KEY (id)` plus two non-unique indexes (`class-skwirrel-wc-sync-queue.php:28-41`) — and `insert_item()` is a plain `$wpdb->insert()` (`:92-104`), so a product belonging to two configured selections is queued twice and processed twice through the full upsert phase set. **No duplicate products result** — the `_skwirrel_external_id` upsert lookup finds the existing product on the second pass — so this is not a data-corruption bug. What it costs is real work (every overlapping product is upserted twice per run, including its media and attribute passes) and honest reporting: `fetched`, `total` and the `created`/`updated`/`unchanged` counters are all inflated by the overlap, so the run summary overstates the catalogue. Note the membership *sweep* already dedupes, via `array_fill_keys()` in `load_sweep_set()` (`:1753-1765`); only the fetch loop does not. *Deferred:* surfaced while specifying story 7.1's per-selection reporting — Winston's point that "summing N per-selection totals double-counts" is true of the sync itself, not just the probe. 7.1 is an admin-surface story and deliberately does not touch the sync path, so fixing it there would be scope creep of exactly the kind the story's Out of scope list forbids. Own story: dedupe by resolved product identity as products are queued (a unique key on `(sync_run_id, external_id)` with an ignore-on-duplicate insert is the obvious shape, but it needs care — the identity is inside the JSON `product_data` blob today, and `insert_virtual_item()` has different semantics). Worth doing before any dry-run/preflight feature reports a headline product count, since that number would inherit the same double-count.
+
+## Surfaced by Henk's plugin-engineering review of story 7.1 (2026-08-27)
+
+- **`Deprecated` renders as `created` for en_GB and en_US users — a real, shipping mistranslation.** Found while verifying the review's i18n claims. `plugin/skwirrel-pim-sync/languages/skwirrel-pim-sync-en_GB.po:372-373` and `skwirrel-pim-sync-en_US.po:372-373` map `msgid "Deprecated"` (the sync-summary label at `includes/class-skwirrel-wc-sync-admin-dashboard.php:660`) to `msgstr "created"`, and the compiled `.mo` carries it, so the dashboard summary line actually reads "created" on English-locale installs. The unrelated `msgctxt "product status"` entry for the same word (`:1718`) is correct, which is probably how it slipped through — the coverage tests only assert that a msgid *exists*, never that its msgstr is sane. *Deferred:* it is a two-line `.po` fix plus `msgfmt`, but it is a translation-catalogue defect with no connection to story 7.1's scope, and folding an unrelated string fix into a feature story muddies the story's diff and its release note. Own micro-fix, or fold into whichever story next regenerates the catalogues (7.1 will, per its AC 14 — take it then if convenient). Worth a moment's thought about the class of bug: a hand-curated msgid list cannot catch a *wrong* translation, only a missing one.
+
+- **The positive-integer ID parse exists in four places and story 7.1 only unifies one of them.** `normalize_positive_id()` is privately duplicated in `class-skwirrel-wc-sync-service.php:1484`, `class-skwirrel-wc-sync-purge-handler.php:1067` and `class-skwirrel-wc-sync-product-upserter.php:1344`, and `sanitize_settings()` (`class-skwirrel-wc-sync-admin-settings.php:491-497`) carries a fourth inline variant whose behaviour differs subtly — it filters with `is_numeric()` then `intval()`, so `"12.9"` yields `12` where the stricter copies reject it. Story 7.1 authorises extracting *only* the sanitiser's variant into `Skwirrel_WC_Sync_Admin_Settings::parse_selection_ids()` with two callers, deliberately leaving the three sync-path copies alone. *Deferred:* unifying the rest is a repo-wide refactor across the sync path — service, purge handler and upserter all read IDs that decide what gets fetched, kept or trashed — and it would put an admin-surface story on the sync path for the first time. Own story, and one that needs its own regression thinking: reconciling the lenient and strict variants is a behaviour change, not a tidy-up. Note `Skwirrel_WC_Sync_Service::get_collection_ids()` (`:2504`) is `private` and non-static, so any consolidation has to decide where the canonical parse lives before it can move.
+
+- **No gate catches an empty or wrong `msgstr` — only a missing `msgid`.** The house convention is that each story ships a hand-curated POT-coverage list (`tests/Unit/AdminSettingsRequiredFieldsTest.php:244`, `TestConnectionMetricsTest.php:450`, `FieldMappingTranslationsTest.php:102`), which asserts the msgid reached the POT and that the literal text domain was used. It asserts nothing about the translation itself. *Corrected from the review:* the review reported ~60-80 untranslated strings per locale; that number is a `grep -c '^msgstr ""$'` artefact which counts the opening line of every multi-line `msgstr` plus the header. `msgattrib --untranslated` gives 4 per locale for de_DE/fr_FR/fr_BE/nl_NL/nl_BE — all four being plugin-header metadata (plugin URI, description, author, author URI) that is intentionally untranslated — and 1 genuine gap each in en_GB/en_US (`Deprecated <span class="count">(%s)</span>`). So the catalogues are in good shape and this is **not** urgent. *Deferred:* the real gap is structural, not a backlog of strings — a single repo-level check (msgid present in POT for every gettext call, plus `msgattrib --untranslated` staying at the known-metadata baseline) would replace seven hand-curated per-story lists and catch what they cannot. Worth doing when the next story would otherwise hand-write an eighth list.
+
 ## Deferred from: code review of 6-1-stock-from-custom-class-simple (2026-08-26)
 
 - **Timestamp-gated delta sync can miss upstream custom-class changes without an updated timestamp.** In the default `content_hash_mode = observe`, the timestamp gate runs before the content hash is consulted; an upstream custom-class value changed without a newer `product_updated_on` is therefore skipped. This pre-existing change-gate limitation is documented in Story 6.1 and needs a broader behaviour decision rather than a story-local workaround.
@@ -40,3 +52,42 @@ Items surfaced during work but intentionally not done now. Each notes origin + w
 ## From required-field markers and inline errors (story 5.2, 2026-08-26)
 
 - **The API token and the endpoint have no server-side validation, so they can be marked required but not enforced.** `sanitize_settings()` never checks either. `skwirrel_subdomain` is a JavaScript-only helper that writes the hidden `endpoint_url` input, and it is now marked required client-side (AC1) with nothing behind it: submit with JS off, or with a crafted POST, and an empty endpoint is stored silently. The token is worse — when the WP 7.0 Connectors API manages it (`Skwirrel_WC_Sync_Connectors::is_registered()`) the field is replaced by a status line with no input at all, so "required" has no field to attach to. *Deferred:* adding `add_settings_error()` rules for endpoint/token is a behaviour change beyond FR-22 and changes what a save does, not just what it says. The story explicitly scoped it out. Own story: decide what an unconfigured connection should do on save (reject the value, warn, or block the sync rather than the form), then mark and enforce it in one place. Note the registry (`Skwirrel_WC_Sync_Admin_Settings::required_fields()`) already has the slot — `skwirrel_subdomain` is listed there with no matching entry in `error_field_map()`, and `tests/Unit/AdminSettingsRequiredFieldsTest.php` excludes it from the registry-vs-sanitiser agreement test with a comment saying why.
+
+## CLOSED DECISION (Epic 6 retrospective, 2026-08-27) — browser/E2E coverage
+
+**Decision: source-string assertion is the accepted coverage ceiling for the admin UI. This item is closed, not deferred.**
+
+The E2E question was raised at 3.13.0, again at story 5.2, and again as Epic 5 retro action item 5 — which
+explicitly said "do not defer a third time by default", and was then deferred a third time by default. Rather
+than carry it into a fourth cycle, it is closed here.
+
+Reasoning: Epic 6's three P1 coverage gaps were all **integration-shaped** (a stored-value refresh on re-sync,
+resolver→template wiring, an escaping invariant at the render site) — a browser suite would not have caught any
+of them. The gaps a browser suite *would* close are Epic 5's two remaining P1 items (`#tab-{slug}` deep link,
+keyboard operability), which are asserted today by checking that `'#tab-'`, `'ArrowRight'` and
+`.skw-tab:focus-visible` appear in the enqueued assets. That is a real ceiling and it is now an accepted one.
+
+Consequence, stated so it is not a surprise later: any acceptance criterion that can only be verified in a
+browser will be marked partial in a traceability trace and will hold a gate at CONCERNS rather than PASS. That
+is the accepted cost. Re-open only on a deliberate decision, not by default.
+
+## Deferred from: Epic 6 retrospective (2026-08-27)
+
+- **The integration suite is not idempotent.** 215/215 from a clean DB; 43 failures across 9 files against a DB
+  a previous run touched, in shapes indistinguishable from real regressions. Fix direction decided: generalise
+  the `SyncSafetyIntegrationTest:23-70` teardown pattern so each file restores pre-test state. **Not** a
+  framework fix — see the correction below. Own story.
+
+- **CORRECTION to the 3.13.0 entry above ("The integration suite has no DB isolation").** That entry, and Epic 5
+  retro action item 4, both diagnose a `tests/Pest.php` load-path bug and prescribe fixing the load path. That
+  diagnosis is wrong. wp-env's WordPress test framework calls `PHPUnit\Util\Test::parseTestMethodAnnotations()`,
+  removed in PHPUnit 10, so `WP_UnitTestCase` **cannot be bound under Pest 3 at all**. Fixing the load path
+  would produce a fatal, not transactions. `tests/Integration/README.md` still claims isolation the suite does
+  not have and needs the same correction.
+
+- **Story 6.5's document-name backfill is conditional on 3.14.0 shipping as a NEW tag.** It carries no
+  migration: it works because `__version` folds into `compute_sync_signature()`, so every stored
+  `_skwirrel_content_hash` mismatches after a version change and the first sync rewrites
+  `_skwirrel_document_attachments` wholesale. If this work ever lands as a patch to an already-released 3.14.0,
+  existing shops keep raw filenames permanently and would need a forced full sync instead. Put this where the
+  release process reads it, not only in the story file.

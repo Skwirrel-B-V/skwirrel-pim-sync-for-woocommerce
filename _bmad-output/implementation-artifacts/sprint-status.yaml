@@ -39,7 +39,7 @@
 #   Epic 1 is foundational; Epic 2 builds on it; Epics 3 & 4 parallelize after Epic 1 seeds the pause flag.
 
 generated: 2026-06-12
-last_updated: 2026-08-27  # epic 7 opened with story 7.1 (Epic 5's deferred Test Connection follow-up)
+last_updated: 2026-08-27  # epic 6 closed + retrospective done
 project: Skwirrel PIM sync for WooCommerce
 project_key: NOKEY
 tracking_system: file-system
@@ -115,13 +115,13 @@ development_status:
   epic-5-retrospective: done                       # retro 2026-08-26; 7 action items, 1 blocking (5.4 version/changelog)
 
   # ── Epic 6: Stock and product content from Skwirrel data (Chapter 2 — client request) ──
-  epic-6: in-progress
+  epic-6: done
   6-1-stock-from-custom-class-simple: done  # establishes resolver + Field mapping settings group | gh#48
   6-2-stock-on-variations: done             # review remediation complete 2026-08-26 | gh#49
   6-3-title-and-descriptions-from-custom-class: done  # review auto-fixes complete 2026-08-26 | gh#50
   6-5-document-link-names-language-aware: done  # FR-23 — added 2026-08-25 from Jeroen's mail; one-line defect at attachment-handler:262 | gh#52
   6-4-non-destructive-mapping-test-suite: done  # NFR-9 canary; review remediation complete 2026-08-26
-  epic-6-retrospective: optional
+  epic-6-retrospective: done                       # retro 2026-08-27; 10 action items, 2 before Epic 7 (6.5 gap+review, 3.14.0 tag condition)
 
   # ── Epic 7: Know before you press — from Test Connection to a dry run ──
   # Opened 2026-08-27. Epic 5's explicit deferred follow-up (5-4 line 80) needed a home:
