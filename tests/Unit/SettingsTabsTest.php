@@ -10,12 +10,13 @@ afterEach(function () {
     $GLOBALS['_test_filters'] = [];
 });
 
-test('the registry ships the four settings tabs in a deterministic order', function () {
+test('the registry ships the five settings tabs in a deterministic order', function () {
     $tabs = Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs();
 
-    expect(array_keys($tabs))->toBe(['connection', 'what-to-sync', 'how-it-looks', 'advanced']);
+    expect(array_keys($tabs))->toBe(['connection', 'what-to-sync', 'field-mapping', 'how-it-looks', 'advanced']);
     expect($tabs['connection']['label'])->toBe('Connection');
     expect($tabs['what-to-sync']['label'])->toBe('What to sync');
+    expect($tabs['field-mapping']['label'])->toBe('Field mapping');
     expect($tabs['how-it-looks']['label'])->toBe('How it looks');
     expect($tabs['advanced']['label'])->toBe('Advanced');
 });
@@ -27,10 +28,10 @@ test('every default tab has a renderer that exists on the dashboard class', func
     }
 });
 
-test('a fifth tab registers through the filter and lands at its order position', function () {
+test('an external tab registers through the filter and lands at its order position', function () {
     add_filter('skwirrel_wc_sync_settings_tabs', function (array $tabs): array {
-        $tabs['field-mapping'] = [
-            'label'  => 'Field mapping',
+        $tabs['external-mapping'] = [
+            'label'  => 'External mapping',
             'order'  => 25,
             'render' => 'my_render_callback',
             'fields' => ['mapping_source'],
@@ -41,8 +42,8 @@ test('a fifth tab registers through the filter and lands at its order position',
 
     $tabs = Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs();
 
-    expect(array_keys($tabs))->toBe(['connection', 'what-to-sync', 'field-mapping', 'how-it-looks', 'advanced']);
-    expect($tabs['field-mapping']['fields'])->toBe(['mapping_source']);
+    expect(array_keys($tabs))->toBe(['connection', 'what-to-sync', 'field-mapping', 'external-mapping', 'how-it-looks', 'advanced']);
+    expect($tabs['external-mapping']['fields'])->toBe(['mapping_source']);
 });
 
 test('a tab registered without an order sorts last', function () {
@@ -83,7 +84,7 @@ test('a non-array filter result falls back to the built-in registry', function (
     });
 
     expect(array_keys(Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs()))
-        ->toBe(['connection', 'what-to-sync', 'how-it-looks', 'advanced']);
+        ->toBe(['connection', 'what-to-sync', 'field-mapping', 'how-it-looks', 'advanced']);
 });
 
 test('an empty filtered registry falls back to the built-in panels', function () {
@@ -92,7 +93,7 @@ test('an empty filtered registry falls back to the built-in panels', function ()
     });
 
     expect(array_keys(Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs()))
-        ->toBe(['connection', 'what-to-sync', 'how-it-looks', 'advanced']);
+        ->toBe(['connection', 'what-to-sync', 'field-mapping', 'how-it-looks', 'advanced']);
 });
 
 test('a filter cannot remove or replace a built-in panel and drop its settings from the form', function () {
@@ -100,8 +101,8 @@ test('a filter cannot remove or replace a built-in panel and drop its settings f
         unset($tabs['what-to-sync']);
         $tabs['connection']['render'] = 'missing_renderer';
         $tabs['connection']['fields'] = [];
-        $tabs['field-mapping'] = [
-            'label'  => 'Field mapping',
+        $tabs['external-mapping'] = [
+            'label'  => 'External mapping',
             'order'  => 25,
             'render' => 'my_render_callback',
         ];
@@ -112,7 +113,7 @@ test('a filter cannot remove or replace a built-in panel and drop its settings f
     $tabs = Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs();
 
     expect(array_keys($tabs))
-        ->toBe(['connection', 'what-to-sync', 'field-mapping', 'how-it-looks', 'advanced']);
+        ->toBe(['connection', 'what-to-sync', 'field-mapping', 'external-mapping', 'how-it-looks', 'advanced']);
     expect($tabs['connection']['render'])->toBe('render_settings_panel_connection');
     expect($tabs['connection']['fields'])->toContain('endpoint_url');
 });
@@ -169,6 +170,7 @@ test('representative field ids resolve to the tab that actually renders them', f
 })->with([
     ['endpoint_url', 'connection'],
     ['batch_size', 'what-to-sync'],
+    ['title_feature_id', 'field-mapping'],
     ['image_language', 'how-it-looks'],
     ['sync_interval', 'advanced'],
     ['log_retention', 'advanced'],
@@ -216,14 +218,14 @@ test('an errored slug that is not in the registry cannot steal the opening tab',
 
     // A stale slug (a tab that was unregistered between the save and the re-render) must not
     // decide the opening tab, and must not blank it either.
-    expect(Skwirrel_WC_Sync_Admin_Dashboard::first_settings_tab(['field-mapping' => 3], $tabs))
+    expect(Skwirrel_WC_Sync_Admin_Dashboard::first_settings_tab(['stale-tab' => 3], $tabs))
         ->toBe('connection');
 });
 
 test('a filter-registered tab claims its own error codes', function () {
     add_filter('skwirrel_wc_sync_settings_tabs', function (array $tabs): array {
-        $tabs['field-mapping'] = [
-            'label'  => 'Field mapping',
+        $tabs['external-mapping'] = [
+            'label'  => 'External mapping',
             'order'  => 25,
             'render' => 'cb',
             'fields' => ['mapping_source'],
@@ -235,8 +237,8 @@ test('a filter-registered tab claims its own error codes', function () {
     $tabs   = Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs();
     $counts = Skwirrel_WC_Sync_Admin_Dashboard::count_errors_by_tab(['mapping_source_required'], $tabs);
 
-    expect($counts)->toBe(['field-mapping' => 1]);
-    expect(Skwirrel_WC_Sync_Admin_Dashboard::first_settings_tab($counts, $tabs))->toBe('field-mapping');
+    expect($counts)->toBe(['external-mapping' => 1]);
+    expect(Skwirrel_WC_Sync_Admin_Dashboard::first_settings_tab($counts, $tabs))->toBe('external-mapping');
 });
 
 test('a code claimed by two tabs is counted once, on the first tab in order', function () {

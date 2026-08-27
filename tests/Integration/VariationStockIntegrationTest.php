@@ -246,6 +246,56 @@ test( 'a price-on-request variation ends up out of stock whatever quantity resol
 	expect( $variation->get_stock_status() )->toBe( 'outofstock' );
 } );
 
+test( 'a queued variation that becomes price on request is no longer stock managed', function () {
+	$parent_id = stock_variable_parent( 'PARENT-AC7-QUEUED' );
+	$group     = [ 'wc_variable_id' => $parent_id, 'sku' => 'VAR-AC7-QUEUED' ];
+
+	$this->upserter->create_or_update_variation( stock_payload( 'VAR-AC7-QUEUED', 99.0 ), $group );
+	$this->upserter->create_or_update_variation( stock_payload( 'VAR-AC7-QUEUED', 99.0, null, true ), $group );
+
+	$variation = wc_get_product( wc_get_product_id_by_sku( 'VAR-AC7-QUEUED' ) );
+	expect( $variation->get_manage_stock() )->toBeFalse();
+	expect( $variation->get_stock_status() )->toBe( 'outofstock' );
+} );
+
+test( 'a legacy variation that becomes price on request is no longer stock managed', function () {
+	$parent_id = stock_variable_parent( 'PARENT-AC7-LEGACY' );
+	$group     = [ 'wc_variable_id' => $parent_id, 'sku' => 'VAR-AC7-LEGACY' ];
+
+	$this->upserter->upsert_product_as_variation( stock_payload( 'VAR-AC7-LEGACY', 99.0 ), $group );
+	$this->upserter->upsert_product_as_variation( stock_payload( 'VAR-AC7-LEGACY', 99.0, null, true ), $group );
+
+	$variation = wc_get_product( wc_get_product_id_by_sku( 'VAR-AC7-LEGACY' ) );
+	expect( $variation->get_manage_stock() )->toBeFalse();
+	expect( $variation->get_stock_status() )->toBe( 'outofstock' );
+} );
+
+// ------------------------------------------------------------------
+// AC 9 — a payload-hash mismatch must pass the default observe-mode gate
+// ------------------------------------------------------------------
+
+test( 'an observe-mode hash mismatch updates a variation despite an unchanged timestamp', function () {
+	$this->upserter->set_change_gate_enabled( true );
+	$this->upserter->set_content_hash_context( 'observe', 'variation-stock-delta' );
+
+	$parent_id = stock_variable_parent( 'PARENT-AC9' );
+	$group     = [ 'wc_variable_id' => $parent_id, 'sku' => 'VAR-AC9' ];
+	$before    = stock_payload( 'VAR-AC9', 3.0 );
+	$before['product_updated_on'] = '2026-08-26T12:00:00Z';
+
+	$this->upserter->create_or_update_variation( $before, $group );
+	$variation_id = wc_get_product_id_by_sku( 'VAR-AC9' );
+	update_post_meta( $variation_id, Skwirrel_WC_Sync_Product_Mapper::UPDATED_ON_META, $before['product_updated_on'] );
+	update_post_meta( $variation_id, Skwirrel_WC_Sync_Product_Upserter::CONTENT_HASH_META, $this->upserter->payload_signature( $before ) );
+
+	$after = stock_payload( 'VAR-AC9', 8.0 );
+	$after['product_updated_on'] = $before['product_updated_on'];
+	$result = $this->upserter->create_or_update_variation( $after, $group );
+
+	expect( $result['outcome'] )->toBe( 'updated' );
+	expect( (float) wc_get_product( $variation_id )->get_stock_quantity() )->toBe( 8.0 );
+} );
+
 // ------------------------------------------------------------------
 // AC 8 — parent aggregation via the existing mechanism
 // ------------------------------------------------------------------

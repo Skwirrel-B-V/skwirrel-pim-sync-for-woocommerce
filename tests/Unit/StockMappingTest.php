@@ -81,6 +81,17 @@ test('a numeric value resolves for a feature matched by ID', function () {
     expect($this->extractor->resolve_numeric_feature_value($product, '1234'))->toBe(500.0);
 });
 
+test('a numeric value resolves through custom_class_feature_id when the primary alias is empty', function () {
+    $product = stock_product([
+        'custom_feature_id'       => '',
+        'custom_class_feature_id' => 1234,
+        'custom_feature_type'     => 'N',
+        'numeric_value'           => 500,
+    ]);
+
+    expect($this->extractor->resolve_numeric_feature_value($product, '1234'))->toBe(500.0);
+});
+
 test('a missing feature resolves to null', function () {
     $product = stock_product([
         'custom_feature_id'   => 999,

@@ -237,6 +237,21 @@ test( 'a simple product keeps its stock when the mapped value is absent, empty o
 	expect( (int) $after->get_stock_quantity() )->toBe( 42, "shape: {$shape}" );
 } )->with( [ 'absent', 'empty', 'malformed' ] );
 
+test( 'a simple product keeps its stock when custom classes omit the mapped feature', function () {
+	$sku = 'NDM-AC1-unrelated-feature';
+	$id  = ndm_seed_product( $sku );
+
+	// AC-1's missing-feature case is distinct from AC-5: custom classes arrived, but none matches
+	// the configured stock mapping.
+	$this->upserter->create_or_update_product(
+		ndm_payload( $sku, [ ndm_feature( 9999, 'valid' ) ] )
+	);
+
+	$after = wc_get_product( $id );
+	expect( $after->get_manage_stock() )->toBeTrue();
+	expect( (int) $after->get_stock_quantity() )->toBe( 42 );
+} );
+
 test( 'the control case proves the write path works — a valid value does land', function () {
 	$sku = 'NDM-AC1-control';
 	$id  = ndm_seed_product( $sku );
@@ -308,6 +323,98 @@ test( 'a variation keeps its stock when the mapped value is absent, empty or non
 	expect( (int) $after->get_stock_quantity() )->toBe( 42, "shape: {$shape}" );
 } )->with( [ 'absent', 'empty', 'malformed' ] );
 
+test( 'the legacy variation path keeps its stock when the mapped value is absent', function () {
+	$parent = new WC_Product_Variable();
+	$parent->set_name( 'NDM legacy parent' );
+	$parent->set_sku( 'NDM-AC2-LEGACY-P' );
+	$parent->set_status( 'publish' );
+	$parent_id = $parent->save();
+	$sku       = 'NDM-AC2-LEGACY';
+	$group     = [ 'wc_variable_id' => $parent_id, 'sku' => $sku ];
+
+	$this->upserter->upsert_product_as_variation(
+		ndm_payload( $sku, [ ndm_feature( 1234, 'valid' ) ] ),
+		$group
+	);
+	$variation_id = wc_get_product_id_by_sku( $sku );
+	$seed         = wc_get_product( $variation_id );
+	$seed->set_manage_stock( true );
+	$seed->set_stock_quantity( 42 );
+	$seed->save();
+
+	$this->upserter->upsert_product_as_variation(
+		ndm_payload( $sku, [ ndm_feature( 1234, 'absent' ) ] ),
+		$group
+	);
+
+	$after = wc_get_product( $variation_id );
+	expect( $after->get_manage_stock() )->toBeTrue();
+	expect( (int) $after->get_stock_quantity() )->toBe( 42 );
+} );
+
+test( 'a grouped-product sync preserves an unresolved variation while its sibling still resolves', function () {
+	$settings                         = get_option( 'skwirrel_wc_sync_settings', [] );
+	$settings['sync_grouped_products'] = true;
+	update_option( 'skwirrel_wc_sync_settings', $settings );
+
+	$missing_sku = 'NDM-AC2-GROUP-A';
+	$valid_sku   = 'NDM-AC2-GROUP-B';
+	$missing     = ndm_payload( $missing_sku, [ ndm_feature( 1234, 'valid' ) ] );
+	$valid       = ndm_payload( $valid_sku, [ ndm_feature( 1234, 'valid' ) ] );
+	$valid['_custom_classes'][0]['_custom_features'][0]['numeric_value'] = 9;
+	$members = [ $missing, $valid ];
+	$group   = [
+		'grouped_product_id'   => 6404,
+		'grouped_product_name' => 'NDM grouped parent',
+		'grouped_product_code' => 'NDM-AC2-GROUP-P',
+		'_products'            => [
+			[ 'product_id' => $missing['product_id'], 'internal_product_code' => $missing_sku, 'order' => 1 ],
+			[ 'product_id' => $valid['product_id'], 'internal_product_code' => $valid_sku, 'order' => 2 ],
+		],
+	];
+
+	add_filter( 'pre_http_request', static function ( $pre, $args, $url ) use ( &$members, $group ) {
+		if ( false === strpos( $url, 'test.skwirrel.example' ) ) {
+			return $pre;
+		}
+
+		$body   = json_decode( (string) ( $args['body'] ?? '' ), true );
+		$method = $body['method'] ?? '';
+		$id     = $body['id'] ?? 1;
+		$result = 'getGroupedProducts' === $method
+			? [ 'grouped_products' => [ $group ], 'page' => [ 'current_page' => 1, 'number_of_pages' => 1 ] ]
+			: ( 'getProductsByFilter' === $method ? [ 'products' => $members ] : [] );
+
+		return [
+			'headers'  => [],
+			'body'     => wp_json_encode( [ 'jsonrpc' => '2.0', 'id' => $id, 'result' => $result ] ),
+			'response' => [ 'code' => 200, 'message' => 'OK' ],
+			'cookies'  => [],
+			'filename' => null,
+		];
+	}, 10, 3 );
+
+	$service = new Skwirrel_WC_Sync_Service();
+	expect( $service->sync_single_grouped_product( 6404 )['success'] )->toBeTrue();
+
+	$missing_id = wc_get_product_id_by_sku( $missing_sku );
+	$seed       = wc_get_product( $missing_id );
+	$seed->set_manage_stock( true );
+	$seed->set_stock_quantity( 42 );
+	$seed->save();
+
+	// The same grouped route receives no stock for A and a changed valid value for B.
+	$members[0] = ndm_payload( $missing_sku, [ ndm_feature( 1234, 'absent' ) ] );
+	expect( $service->sync_single_grouped_product( 6404 )['success'] )->toBeTrue();
+
+	$after_missing = wc_get_product( $missing_id );
+	$after_valid   = wc_get_product( wc_get_product_id_by_sku( $valid_sku ) );
+	expect( $after_missing->get_manage_stock() )->toBeTrue();
+	expect( (int) $after_missing->get_stock_quantity() )->toBe( 42 );
+	expect( $after_valid->get_manage_stock() )->toBeTrue();
+	expect( (int) $after_valid->get_stock_quantity() )->toBe( 9 );
+} );
+
 test( 'one variation missing a value does not suppress its siblings', function () {
 	$parent = new WC_Product_Variable();
 	$parent->set_name( 'NDM sibling parent' );
@@ -377,23 +484,32 @@ test( 'content falls back to its chain when the mapped feature is absent or empt
 	expect( $after->get_name() )->not->toBe( '' );
 } )->with( [ 'absent', 'empty', 'malformed' ] );
 
-test( 'a resolved content value does win — the control for AC-3', function () {
+test( 'resolved title, short-description and long-description values each win — the controls for AC-3', function () {
 	$sku = 'NDM-AC3-control';
 	$id  = ndm_seed_product( $sku );
 
 	$this->upserter->create_or_update_product(
-		ndm_payload( $sku, [ ndm_feature( 812, 'valid', 'T' ) ] )
+		ndm_payload(
+			$sku,
+			[
+				ndm_feature( 812, 'valid', 'T' ),
+				ndm_feature( 813, 'valid', 'T' ),
+				ndm_feature( 814, 'valid', 'B' ),
+			]
+		)
 	);
 
 	$after = wc_get_product( $id );
 	expect( $after->get_name() )->toBe( 'Mapped value' );
+	expect( $after->get_short_description() )->toBe( 'Mapped value' );
+	expect( $after->get_description() )->toBe( 'Mapped value' );
 } );
 
 // ------------------------------------------------------------------
 // AC-4 — the mappings are independent, and an unconfigured one writes nothing
 // ------------------------------------------------------------------
 
-test( 'with only the long-description mapping configured nothing else is touched', function () {
+test( 'with only the long-description mapping configured other mapping values cannot override their fallback chains', function () {
 	$settings                                 = get_option( 'skwirrel_wc_sync_settings', [] );
 	$settings['stock_quantity_feature']       = '';
 	$settings['title_feature_id']             = '';
@@ -435,9 +551,49 @@ test( 'with only the long-description mapping configured nothing else is touched
 // AC-5 — a payload with no custom classes at all
 // ------------------------------------------------------------------
 
-test( 'a payload with no _custom_classes key writes no mapped field and raises no notice', function () {
+test( 'a full sync with no _custom_classes key succeeds, preserves every mapped field and raises no notice', function () {
 	$sku = 'NDM-AC5';
 	$id  = ndm_seed_product( $sku );
+	$payload = ndm_payload( $sku, [], true );
+	$payload['product_type']    = 'STANDARD';
+	$payload['_product_status'] = [ 'product_status_description' => 'active' ];
+
+	add_filter( 'pre_http_request', static function ( $pre, $args, $url ) use ( $payload ) {
+		if ( false === strpos( $url, 'test.skwirrel.example' ) ) {
+			return $pre;
+		}
+
+		$body   = json_decode( (string) ( $args['body'] ?? '' ), true );
+		$method = $body['method'] ?? '';
+		$params = $body['params'] ?? [];
+		$id     = $body['id'] ?? 1;
+		$result = [];
+
+		if ( 'getBrands' === $method ) {
+			$result = [ 'brands' => [] ];
+		} elseif ( 'getProductsByFilter' === $method ) {
+			if ( isset( $params['filter']['code']['type'] ) && 'product_id' === $params['filter']['code']['type'] ) {
+				$result = [ 'products' => [ $payload ] ];
+			} elseif ( skwIsSweepCall( $params ) ) {
+				$result = [
+					'products' => [ [ 'product_id' => $payload['product_id'] ] ],
+					'page'     => [ 'current_page' => 1, 'number_of_pages' => 1 ],
+				];
+			} elseif ( 1 === (int) ( $params['page'] ?? 1 ) ) {
+				$result = [ 'products' => [ $payload ] ];
+			} else {
+				$result = [ 'products' => [] ];
+			}
+		}
+
+		return [
+			'headers'  => [],
+			'body'     => wp_json_encode( [ 'jsonrpc' => '2.0', 'id' => $id, 'result' => $result ] ),
+			'response' => [ 'code' => 200, 'message' => 'OK' ],
+			'cookies'  => [],
+			'filename' => null,
+		];
+	}, 10, 3 );
 
 	$raised = [];
 	set_error_handler(
@@ -449,18 +605,21 @@ test( 'a payload with no _custom_classes key writes no mapped field and raises n
 	);
 
 	try {
-		$result = $this->upserter->create_or_update_product( ndm_payload( $sku, [], true ) );
+		$result = ( new Skwirrel_WC_Sync_Service() )->run_sync( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
 	} finally {
 		restore_error_handler();
 	}
 
-	expect( $result['outcome'] )->not->toBe( 'skipped' );
+	expect( $result['success'] )->toBeTrue();
+	expect( $result['failed'] )->toBe( 0 );
 	expect( $raised )->toBe( [] );
 
 	$after = wc_get_product( $id );
 	expect( $after->get_manage_stock() )->toBeTrue();
 	expect( (int) $after->get_stock_quantity() )->toBe( 42 );
 	expect( $after->get_name() )->toBe( 'ERP title for ' . $sku );
+	expect( $after->get_short_description() )->toBe( 'Chain short description' );
+	expect( $after->get_description() )->toBe( 'Chain long description' );
 } );
 
 // ------------------------------------------------------------------
@@ -490,6 +649,15 @@ test( 'with prices managed outside Skwirrel an existing variation price survives
 	// Now a payload with no price at all: the ERP's price must survive.
 	$upserter->create_or_update_variation(
 		ndm_payload( $sku, [], false, null ),
+		[ 'wc_variable_id' => $parent_id, 'sku' => $sku ]
+	);
+
+	expect( (float) wc_get_product( $variation_id )->get_regular_price() )->toBe( 55.0 );
+
+	// `price_on_request` is another way the PIM has no price to contribute. The external system's
+	// price survives, while the variation keeps its explicit availability semantics.
+	$upserter->create_or_update_variation(
+		ndm_payload( $sku, [], false, null, true ),
 		[ 'wc_variable_id' => $parent_id, 'sku' => $sku ]
 	);
 

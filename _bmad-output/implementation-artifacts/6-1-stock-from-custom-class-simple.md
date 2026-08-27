@@ -1,5 +1,5 @@
 ---
-status: review
+status: done
 baseline_revision: 0f7c3c4
 context:
   - _bmad-output/project-context.md
@@ -11,7 +11,7 @@ context:
 
 # Story 6.1: Stock quantity from a custom class — simple products
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -114,6 +114,15 @@ so that I stop maintaining stock levels in two systems.
   - [x] New `tests/Unit/StockMappingTest.php` driving the extractor resolver directly across the four cases in AC 9, plus: value present under a *trade-item* class only → `null` (proves AC 2's product-level scope), and `not_applicable` → `null`.
   - [x] Extend the settings-default coverage the way `tests/Unit/ProductUpserterPriceTest.php` does — it reflects into the private `get_options()` and asserts the default. Follow that file's `beforeEach()` construction of the upserter verbatim; it is the only working recipe for instantiating it under the stub bootstrap.
   - [x] Do not weaken an existing assertion, and do not regenerate `phpstan-baseline.neon` to hide a new finding.
+
+### Review Findings
+
+- [x] [Review][Patch] Field-mapping requests can be restricted by the custom-class whitelist [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:287] — when custom-class syncing is enabled with a whitelist that excludes the mapped feature's class, `include_custom_class_id` omits that class from the catalogue payload. The mapping is independently configured and should still receive its source class.
+- [x] [Review][Patch] Invalid custom collection IDs are sent as collection ID `0` [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:316] — mapping-only configurations bypass the existing required-field validation; a non-empty invalid value is cast to `0`, without the required actionable warning, and leaves stock mapping inert.
+- [x] [Review][Patch] Manual re-syncs omit the required missing-collection warning [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:1844] — both single-product and grouped-product request builders silently skip custom classes when the mapping is enabled and `custom_collection_id` is missing, contrary to AC 6's warning-and-inert behaviour.
+- [x] [Review][Patch] Resolver does not reliably support `custom_class_feature_id` [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-custom-class-extractor.php:160] — null coalescing treats an empty `custom_feature_id` as present and never falls back to `custom_class_feature_id`, violating the stated ID-alias contract.
+- [x] [Review][Patch] Settings-tab integration assertions were not updated for the new field group [tests/Integration/SettingsTabsIntegrationTest.php:49] — the exact input-name list and eight-group count reject the newly rendered `stock_quantity_feature` and Field mapping group, so the integration suite fails.
+- [x] [Review][Defer] Timestamp-gated delta sync can still miss upstream custom-class changes without an updated timestamp [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:220] — deferred, pre-existing. The story records this as a known limitation of the default `observe` content-hash mode; it predates the mapping and requires a broader change-gate decision.
 
 ## Dev Notes
 

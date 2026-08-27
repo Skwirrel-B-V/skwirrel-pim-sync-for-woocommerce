@@ -1,6 +1,6 @@
 # Story 6.2: Stock quantity on variations
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -135,6 +135,11 @@ If you are forced to build 6.2 before 6.1, build 6.1 in full first. Do not ship 
   - [x] Run all three gates from the repo root; fix findings on sight.
   - [x] Version bump, `CHANGELOG.md` + `readme.txt` entries — via `/release`. This story adds no new user-facing strings (6.1 owns the settings copy), so no `.pot`/`.po`/`.mo` work unless a log string you add is translatable (log strings are not).
 
+### Review Findings
+
+- [x] [Review][Patch] Process a payload-hash mismatch in the default change gate [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php:1945]
+- [x] [Review][Patch] Clear managed-stock state when a variation becomes price-on-request [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php:629]
+
 ## Dev Notes
 
 ### Files to touch — all in `plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php`
@@ -214,7 +219,7 @@ claude-opus-5 (in-session, orchestration `orchestration-6-20260826-143018`)
 - **Suppression is unconditional when the mapping is on — that is what makes AC 5 hold.** The legacy `set_manage_stock( false )` / `set_stock_status( 'instock' )` writes are suppressed whether or not *this* variation resolved a value. Had they been suppressed only on a successful resolve, a configured-but-unresolved variation would still be reset to unmanaged/instock, which is precisely the NFR-9 violation the epic exists to prevent. The integration suite pins this: a variation seeded with a hand-set quantity of 7 and then re-synced with the feature absent still reads `manage_stock = true, quantity = 7`.
 - **Deviation from Task 2/3's literal wording on price-on-request, for the reason the Dev Notes give.** The task text says to call the helper and then re-assert `set_stock_status( 'outofstock' )`. Doing that would combine an explicit status with a managed quantity, which the same story's Dev Notes forbid ("Never write `stock_status` alongside a managed quantity") because WooCommerce recomputes status from the quantity on save and would undo the rule. Price-on-request variations are therefore **excluded from `apply_stock_mapping()` entirely**, keeping their existing explicit `outofstock` as the only stock word. AC 7 holds deterministically, and the integration test proves it with a variation that carries both a price-on-request flag and a resolvable quantity of 99.
 - **The integration suite earned its keep.** The first run failed AC 7 — but the defect was in the fixture, not the code: a payload with *no* price is the "no price" branch, while price-on-request needs an explicit `price_on_request` flag on a price row (`Product_Mapper::is_price_on_request()`). The fixture was corrected and now documents that distinction for the next reader.
-- **AC 8 and AC 9 were verified, not built.** Both `WC_Product_Variable::sync_stock_status()` call sites are untouched, as are the parent's own `set_stock_status( 'instock' )` / `set_manage_stock( false )` writes; the diff adds no new call site. `stock_quantity_feature` remains absent from `compute_sync_signature()`'s `$ignore` denylist, so changing the mapping busts the change gate automatically. The 6.1 caveat still applies unchanged: in the default `observe` mode the authoritative gate is the timestamp, so a value changed without advancing `product_updated_on` is skipped before the hash is consulted.
+- **AC 8 and AC 9 were verified, then hardened in review.** Both `WC_Product_Variable::sync_stock_status()` call sites are untouched, as are the parent's own `set_stock_status( 'instock' )` / `set_manage_stock( false )` writes; the diff adds no new call site. `stock_quantity_feature` remains absent from `compute_sync_signature()`'s `$ignore` denylist, so changing the mapping busts the change gate automatically. The review fix makes default `observe` mode process a known payload-hash mismatch even if `product_updated_on` did not advance; products with no stored hash retain the timestamp fallback.
 - **A pre-existing test needed its pin updated, not weakened.** Story 5.1's `SettingsTabsIntegrationTest` asserts the exact set of settings field groups and their tab placement. 6.1 added a ninth group ("Field mapping"), so the map, the expected input-name list and the count were updated to the new intended reality (8 → 9). No assertion was loosened — the test still pins an exact count and exact placement.
 - **Version deliberately not bumped.** Stays on **3.14.0** per the user's direction; no CHANGELOG/readme version section, no translation regeneration. This story adds no user-facing strings (6.1 owns the settings copy).
 
@@ -230,3 +235,4 @@ claude-opus-5 (in-session, orchestration `orchestration-6-20260826-143018`)
 | Date | Change |
 |------|--------|
 | 2026-08-26 | Implemented Story 6.2: stock quantity on variations. Both variation write paths call 6.1's shared helper; the legacy unmanaged/instock writes are suppressed whenever a mapping is configured, so an unresolved variation keeps its stock. Price-on-request keeps its out-of-stock rule. No version bump (stays on 3.14.0). |
+| 2026-08-26 | Code review fixed price-on-request transitions after managed stock and made default observe-mode change detection honor known payload-hash mismatches. |

@@ -1,5 +1,5 @@
 ---
-status: review
+status: done
 baseline_revision: 0f7c3c4964b7789f74d7c14f307c1c083a9a22a4
 depends_on:
   # Story written, code NOT built as of baseline. Shares the Field mapping group and the
@@ -20,7 +20,7 @@ context:
 
 # Story 6.3: Title, short and long description from custom classes
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -144,6 +144,15 @@ so that the shop shows the text my team maintains rather than an ERP description
 - [x] **Task 6 — Release hygiene (AC: 10)**
   - [x] New translatable strings → regenerate `languages/skwirrel-pim-sync.pot` and update all 7 locales' `.po`/`.mo`.
   - [x] Version bump (header + `SKWIRREL_WC_SYNC_VERSION`), `CHANGELOG.md` + `readme.txt` entries. Prefer the `/release` skill over bumping by hand.
+
+### Review Findings
+
+- [x] [Review][Patch] Register Field mapping as its own settings tab [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-dashboard.php:800] — Story 5.1's tab registry is present, but the three FR-19 fields were added to `what-to-sync` instead of a `field-mapping` tab, violating AC 1.
+- [x] [Review][Patch] Fall back after sanitising mapped long description [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-mapper.php:210] — A mapped value containing only disallowed markup is non-empty before `wp_kses_post()` but becomes `''` afterward; the ordinary upsert paths then write that empty description, violating NFR-9.
+- [x] [Review][Patch] Do not restrict mapped features to the custom-class whitelist [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:292] — When custom-class syncing uses a whitelist, `include_custom_class_id` filters out a class holding a configured content feature. Clear that request filter whenever a field mapping is configured so the resolver can inspect every product-level class.
+- [x] [Review][Patch] Treat whitespace-only mapped text as unresolved [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-mapper.php:173] — The getters accept any string other than `''`; a value made solely of whitespace replaces a valid title or description instead of using the existing fallback chain.
+- [x] [Review][Patch] Fail safely for an invalid custom-class collection ID [plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php:323] — A content-only mapping with `abc` or a negative ID bypasses the empty check and sends `0`/a negative collection ID to the API instead of issuing the documented inactive-mapping warning.
+- [x] [Review][Patch] Pin mapping-setting changes in the sync-signature test [tests/Unit/ContentHashTest.php:137] — AC 8 requires proof that changing each mapping ref reprocesses unchanged products; the added tests cover payload hashes only, not `compute_sync_signature()`.
 
 ## Dev Notes
 

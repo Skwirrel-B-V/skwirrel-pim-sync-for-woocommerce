@@ -176,6 +176,32 @@ test('long-description markup survives while unsafe markup does not', function (
     expect($result)->not->toContain('alert(1)');
 });
 
+test('a mapped long description that sanitises to empty falls back to the normal source', function () {
+    $product = content_product([
+        'custom_feature_id'   => 814,
+        'custom_feature_type' => 'B',
+        'big_text_value'      => '<script>alert(1)</script>',
+    ]);
+
+    $this->mapper->set_content_mapping('', '', '814');
+
+    expect($this->mapper->get_long_description($product))->toBe('Lange omschrijving');
+});
+
+test('whitespace-only mapped content falls back to the normal source', function () {
+    $product = content_product([
+        'custom_feature_id'   => 812,
+        'custom_feature_type' => 'T',
+        'text_value'          => " \n\t ",
+    ]);
+
+    $this->mapper->set_content_mapping('812', '812', '812');
+
+    expect($this->mapper->get_name($product))->toBe('ERP title');
+    expect($this->mapper->get_short_description($product))->toBe('Korte omschrijving');
+    expect($this->mapper->get_long_description($product))->toBe('Lange omschrijving');
+});
+
 test('the title is not run through the post sanitiser', function () {
     // Over-sanitising a title would strip legitimate entities; the AC scopes kses to long text.
     $product = content_product([

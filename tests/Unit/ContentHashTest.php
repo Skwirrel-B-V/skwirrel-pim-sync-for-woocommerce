@@ -14,6 +14,7 @@ require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-
 require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-taxonomy-manager.php';
 require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-category-sync.php';
 require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php';
+require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php';
 
 beforeEach(function () {
     $logger           = new Skwirrel_WC_Sync_Logger();
@@ -174,4 +175,23 @@ test('a custom-class change is still seen when only product_updated_on also move
     $changed = $touched;
     $changed['_custom_classes'][0]['_custom_features'][0]['big_text_value'] = 'B';
     expect(($this->hash)($touched))->not->toBe(($this->hash)($changed));
+});
+
+test('each content mapping setting changes the sync signature', function () {
+    $service = (new ReflectionClass(Skwirrel_WC_Sync_Service::class))->newInstanceWithoutConstructor();
+    $method  = new ReflectionMethod(Skwirrel_WC_Sync_Service::class, 'compute_sync_signature');
+
+    $base = [
+        'title_feature_id'             => '',
+        'short_description_feature_id' => '',
+        'long_description_feature_id'  => '',
+    ];
+    $baseline = $method->invoke($service, $base);
+
+    foreach (['title_feature_id', 'short_description_feature_id', 'long_description_feature_id'] as $key) {
+        $changed       = $base;
+        $changed[$key] = '812';
+
+        expect($method->invoke($service, $changed))->not->toBe($baseline, "{$key} must reopen the change gate");
+    }
 });

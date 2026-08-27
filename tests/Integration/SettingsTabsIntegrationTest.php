@@ -2,7 +2,7 @@
 /**
  * Integration tests for the tabbed settings screen (Story 5.1).
  *
- * The settings screen groups eight field groups into four tabs. The refactor is only safe if the
+ * The settings screen groups nine field groups into five tabs. The refactor is only safe if the
  * rendered form is unchanged as a *payload*: every input still present, still inside the one
  * `options.php` form, never disabled, never removed from the DOM. That cannot be judged from the
  * source alone — the markup is assembled from a registry, a panel loop and eight renderers — so
@@ -17,7 +17,7 @@
  *  - every `aria-controls` resolves to a panel that exists, and back via `aria-labelledby`;
  *  - the danger zone is still outside and below the form;
  *  - the element IDs the inline admin script binds to all still exist;
- *  - a full submit round-trips through `sanitize_settings()` with values from all four tabs intact;
+ *  - a full submit round-trips through `sanitize_settings()` with values from all five tabs intact;
  *  - the AC 1 re-home map, the no-JS baseline, the error notice, and a tab registered from outside
  *    (added by the QA E2E-test pass — see the second block at the bottom of this file).
  *
@@ -220,21 +220,21 @@ test( 'every input name the pre-tabs settings form rendered is still rendered', 
 	}
 } );
 
-test( 'the four tabs each own a panel, and every panel lives inside the one settings form', function (): void {
+test( 'the five tabs each own a panel, and every panel lives inside the one settings form', function (): void {
 	$html = skwRenderSettingsScreen();
 
 	preg_match_all( '/<button\b[^>]*role="tab"[^>]*>/', $html, $tab_matches );
 	preg_match_all( '/<div\b[^>]*role="tabpanel"[^>]*>/', $html, $panel_matches );
 
-	expect( $tab_matches[0] )->toHaveCount( 4 );
-	expect( $panel_matches[0] )->toHaveCount( 4 );
+	expect( $tab_matches[0] )->toHaveCount( 5 );
+	expect( $panel_matches[0] )->toHaveCount( 5 );
 
 	$form_open  = strpos( $html, '<form method="post" action="options.php"' );
 	$form_close = strpos( $html, '</form>', (int) $form_open );
 	expect( $form_open )->not->toBeFalse();
 	expect( $form_close )->not->toBeFalse();
 
-	foreach ( [ 'connection', 'what-to-sync', 'how-it-looks', 'advanced' ] as $slug ) {
+	foreach ( [ 'connection', 'what-to-sync', 'field-mapping', 'how-it-looks', 'advanced' ] as $slug ) {
 		$panel_at = strpos( $html, 'id="panel-' . $slug . '"' );
 		expect( $panel_at )->not->toBeFalse();
 		expect( $panel_at )->toBeGreaterThan( (int) $form_open );
@@ -267,7 +267,7 @@ test( 'the ARIA wiring resolves in both directions and exactly one tab is select
 	expect( $html )->toContain( 'role="tablist"' );
 
 	preg_match_all( '/aria-controls="(panel-[^"]+)"/', $html, $controls );
-	expect( $controls[1] )->toHaveCount( 4 );
+	expect( $controls[1] )->toHaveCount( 5 );
 
 	foreach ( $controls[1] as $panel_id ) {
 		$slug = substr( $panel_id, strlen( 'panel-' ) );
@@ -435,9 +435,8 @@ test( 'each of the nine field groups sits in exactly the tab the re-home map nam
 		'API Connection'           => 'connection',
 		'Sync Options'             => 'what-to-sync',
 		'Product status handling'  => 'what-to-sync',
-		// Added to "What to sync" after the pre-tabs baseline was captured: Story 6.1's FR-18
-		// field mappings, which name the Skwirrel features that drive WooCommerce fields.
-		'Field mapping'            => 'what-to-sync',
+		// Story 6.3 promotes the Field mapping group to its own settings tab.
+		'Field mapping'            => 'field-mapping',
 		'Media & Language'         => 'how-it-looks',
 		'Permalinks'               => 'how-it-looks',
 		'Scheduling'               => 'advanced',
@@ -564,8 +563,8 @@ test( 'a clean render carries no error notice and no badge', function (): void {
 
 test( 'a tab registered with a named external renderer renders in its order position without touching the loop', function (): void {
 	$filter = static function ( array $tabs ): array {
-		$tabs['field-mapping'] = [
-			'label'  => 'Field mapping',
+		$tabs['external-mapping'] = [
+			'label'  => 'External mapping',
 			'order'  => 25,
 			'render' => 'skwRenderExternalSettingsTab',
 			'fields' => [ 'mapping_source' ],
@@ -580,7 +579,7 @@ test( 'a tab registered with a named external renderer renders in its order posi
 		$xpath = skwSettingsXPath();
 
 		$tabs = $xpath->query( '//*[@role="tab"]' );
-		expect( $tabs->length )->toBe( 5 );
+		expect( $tabs->length )->toBe( 6 );
 
 		$slugs = [];
 		foreach ( $tabs as $tab ) {
@@ -588,12 +587,12 @@ test( 'a tab registered with a named external renderer renders in its order posi
 		}
 
 		// AC 7: order comes from the registration, not from hash order.
-		expect( $slugs )->toBe( [ 'connection', 'what-to-sync', 'field-mapping', 'how-it-looks', 'advanced' ] );
+		expect( $slugs )->toBe( [ 'connection', 'what-to-sync', 'field-mapping', 'external-mapping', 'how-it-looks', 'advanced' ] );
 
 		// The panel exists, is wired to its tab, and holds what the outside renderer echoed.
-		$panel = $xpath->query( '//div[@role="tabpanel"][@id="panel-field-mapping"]' );
+		$panel = $xpath->query( '//div[@role="tabpanel"][@id="panel-external-mapping"]' );
 		expect( $panel->length )->toBe( 1 );
-		expect( $panel->item( 0 )->getAttribute( 'aria-labelledby' ) )->toBe( 'tab-field-mapping' );
+		expect( $panel->item( 0 )->getAttribute( 'aria-labelledby' ) )->toBe( 'tab-external-mapping' );
 		expect( $panel->item( 0 )->textContent )->toContain( 'Epic 6 mapping' );
 
 		// And it submits with everything else: inside the one form, not disabled.
@@ -607,8 +606,8 @@ test( 'a tab registered with a named external renderer renders in its order posi
 
 test( 'an outside tab whose errors fire opens first, ahead of the built-in tabs', function (): void {
 	$filter = static function ( array $tabs ): array {
-		$tabs['field-mapping'] = [
-			'label'  => 'Field mapping',
+		$tabs['external-mapping'] = [
+			'label'  => 'External mapping',
 			'order'  => 5,
 			'render' => static function ( array $context ): void {
 				echo '<div class="skw-fieldgroup"><p>mapping</p></div>';
@@ -627,7 +626,7 @@ test( 'an outside tab whose errors fire opens first, ahead of the built-in tabs'
 
 		$selected = $xpath->query( '//*[@role="tab"][@aria-selected="true"]' );
 		expect( $selected->length )->toBe( 1 );
-		expect( $selected->item( 0 )->getAttribute( 'data-skw-tab' ) )->toBe( 'field-mapping' );
+		expect( $selected->item( 0 )->getAttribute( 'data-skw-tab' ) )->toBe( 'external-mapping' );
 		expect( $selected->item( 0 )->getAttribute( 'data-skw-errors' ) )->toBe( '1' );
 	} finally {
 		remove_filter( 'skwirrel_wc_sync_settings_tabs', $filter );

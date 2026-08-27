@@ -2,6 +2,14 @@
 
 Items surfaced during work but intentionally not done now. Each notes origin + why deferred.
 
+## Deferred from: code review of 6-1-stock-from-custom-class-simple (2026-08-26)
+
+- **Timestamp-gated delta sync can miss upstream custom-class changes without an updated timestamp.** In the default `content_hash_mode = observe`, the timestamp gate runs before the content hash is consulted; an upstream custom-class value changed without a newer `product_updated_on` is therefore skipped. This pre-existing change-gate limitation is documented in Story 6.1 and needs a broader behaviour decision rather than a story-local workaround.
+
+## Deferred from: code review of 6-4-non-destructive-mapping-test-suite (2026-08-26)
+
+- **Run the real integration suite in required CI.** Story 6.4's NFR-9 persistence checks run only through `npm run test:integration`; `.github/workflows/ci.yml` runs `vendor/bin/pest --testsuite=Unit` and therefore cannot catch a regression in the real WooCommerce write paths. This CI architecture predates the story; add a wp-env integration job, or equivalent required job, separately from the story fixes.
+
 ## From WP 7.0 recovery review (spec-wp70-recovery, 2026-06-10)
 
 - **Multisite: scheduled-sync re-arm is per-site.** `Skwirrel_WC_Sync_Action_Scheduler::maybe_upgrade_reschedule()` hooks `admin_init` and stores `skwirrel_wc_sync_version` as a per-site option. On a network-activated plugin updated network-wide, a subsite's lost schedule is only re-armed once an admin visits *that* subsite's wp-admin; subsites whose admin is never visited keep a stale/lost schedule. *Deferred:* the target installs are single-site; a network-admin / `wp_loaded` re-arm path is a separate, broader change. Revisit if a multisite client reports it.

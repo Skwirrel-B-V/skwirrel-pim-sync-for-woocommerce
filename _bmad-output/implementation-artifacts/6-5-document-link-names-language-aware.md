@@ -1,6 +1,6 @@
 # Story 6.5: Document links show a readable name in the shop's language
 
-Status: review
+Status: done
 
 Epic: 6 — Stock and product content driven from Skwirrel data
 FR: FR-23 · NFR: NFR-9 (non-destructive field mapping)
