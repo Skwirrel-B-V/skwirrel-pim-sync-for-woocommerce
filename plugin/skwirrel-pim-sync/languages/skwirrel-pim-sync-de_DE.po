@@ -2594,3 +2594,7 @@ msgstr "WooCommerce installieren"
 #: includes/class-skwirrel-wc-sync-attachment-handler.php:150
 msgid "Document"
 msgstr "Dokument"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:441
+msgid "The context ID must be a whole number greater than 0. Synchronisation keeps using context %s until you correct this."
+msgstr "Die Kontext-ID muss eine ganze Zahl größer als 0 sein. Die Synchronisierung verwendet weiterhin Kontext %s, bis Sie dies korrigieren."

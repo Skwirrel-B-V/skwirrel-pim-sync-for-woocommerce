@@ -353,7 +353,7 @@ test('both Test Connection handlers hand a context to the probe, each from its o
     expect(substr_count($source, 'test_connection( self::get_context_ids() )'))->toBe(1);
     // The AJAX path tests what is in the form: it autosaves the posted value first, then probes
     // with that, so editing the Context ID and pressing Test connection before Save is honest.
-    expect(substr_count($source, "test_connection( self::resolve_context_ids( \$opts['context_id'] ?? '' ) )"))->toBe(1);
+    expect(substr_count($source, 'test_connection( self::context_ids_from_options( $opts ) )'))->toBe(1);
     expect(preg_match('/->test_connection\(\s*\)/', $source))->toBe(0);
 });
 
@@ -369,6 +369,12 @@ test('the AJAX test posts and validates the Context ID from the form', function 
     // ...and an absent field leaves the stored value alone, so a cached older script cannot
     // silently clear a configured context.
     expect($source)->toContain("if ( isset( \$_POST['context_id'] ) ) {");
+
+    // The handler autosaves, so a bail-out after the token write would leave a new credential
+    // stored against the old endpoint and context while reporting failure.
+    $ajax = substr($source, (int) strpos($source, 'public function handle_test_connection_ajax'));
+    $ajax = substr($ajax, 0, (int) strpos($ajax, "\n\tpublic function ", 1));
+    expect(strpos($ajax, 'wp_send_json_error'))->toBeLessThan(strpos($ajax, 'update_option( self::TOKEN_OPTION_KEY'));
 });
 
 /*
@@ -481,6 +487,80 @@ test('a rejected Context ID is rendered in a control that can actually show it',
 
 /*
  * ---------------------------------------------------------------------------
+ * A rejected value is visible, and genuinely inert
+ * ---------------------------------------------------------------------------
+ */
+
+test('a rejected value never moves the context the plugin syncs with', function (string $typed) {
+    // Configured and working on context 5.
+    $stored = skw_sanitize(['context_id' => '5']);
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = $stored;
+    expect(Skwirrel_WC_Sync_Admin_Settings::get_context_ids())->toBe([5]);
+
+    // An admin now types something invalid and saves.
+    $out = skw_sanitize(['context_id' => $typed]);
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = $out;
+
+    // Seen and correctable...
+    expect($out['context_id'])->toBe(trim($typed));
+    expect(Skwirrel_WC_Sync_Admin_Settings::failing_field_ids())->toBe(['context_id']);
+
+    // ...but the sync keeps reading context 5. Falling back to the default context here would
+    // retarget the shop, and with stale purging on, trash the catalogue it stopped matching.
+    expect(Skwirrel_WC_Sync_Admin_Settings::get_context_ids())->toBe([5]);
+})->with([
+    'non-numeric' => ['abc'],
+    'zero' => ['0'],
+    'negative' => ['-3'],
+    'decimal' => ['1.5'],
+    'larger than PHP can represent' => [(string) PHP_INT_MAX . '0'],
+]);
+
+test('a rejected value arms no full sync, because nothing it controls changed', function () {
+    $before = skw_sanitize(['context_id' => '5']);
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = $before;
+
+    $after = skw_sanitize(['context_id' => '0']);
+    Skwirrel_WC_Sync_Admin_Settings::instance()->on_settings_updated($before, $after);
+
+    expect(array_key_exists('skwirrel_wc_sync_force_full_sync', $GLOBALS['_test_options']))->toBeFalse();
+});
+
+test('the message names the context that stays in use', function () {
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = skw_sanitize(['context_id' => '5']);
+    $GLOBALS['wp_settings_errors'] = [];
+
+    skw_sanitize(['context_id' => 'abc']);
+
+    $messages = implode(' ', array_column(Skwirrel_WC_Sync_Admin_Settings::settings_errors_for_option(), 'message'));
+    expect($messages)->toContain('keeps using context 5');
+});
+
+test('clearing the field is a valid choice, not a rejection', function () {
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = skw_sanitize(['context_id' => '5']);
+
+    $out = skw_sanitize(['context_id' => '']);
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = $out;
+
+    expect(Skwirrel_WC_Sync_Admin_Settings::failing_field_ids())->toBe([]);
+    expect(Skwirrel_WC_Sync_Admin_Settings::get_context_ids())->toBeNull();
+});
+
+test('an install saved before the effective key existed keeps its stored context', function () {
+    // No context_id_effective at all — the value was written by an older version.
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = ['context_id' => '8'];
+
+    expect(Skwirrel_WC_Sync_Admin_Settings::get_context_ids())->toBe([8]);
+});
+
+test('a legacy install carrying an invalid stored value reads as the default context', function () {
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = ['context_id' => 'abc'];
+
+    expect(Skwirrel_WC_Sync_Admin_Settings::get_context_ids())->toBeNull();
+});
+
+/*
+ * ---------------------------------------------------------------------------
  * AC-4 — a changed effective context forces a full sync
  * ---------------------------------------------------------------------------
  */
@@ -539,6 +619,7 @@ test('the strings this story added are in the POT and in all seven locales', fun
 
     $strings = [
         'Context ID',
+        'The context ID must be a whole number greater than 0. Synchronisation keeps using context %s until you correct this.',
         'The context ID must be a whole number greater than 0. Leave it empty to use the Skwirrel default context.',
         'The context ID changed, so the next synchronisation imports your whole catalogue again. This makes sure every product and category comes from the new context.',
     ];

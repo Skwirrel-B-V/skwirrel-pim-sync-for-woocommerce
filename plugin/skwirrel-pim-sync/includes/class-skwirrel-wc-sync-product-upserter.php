@@ -3271,7 +3271,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		if ( null === $this->run_options ) {
 			return Skwirrel_WC_Sync_Admin_Settings::get_context_ids();
 		}
-		return Skwirrel_WC_Sync_Admin_Settings::resolve_context_ids( $this->run_options['context_id'] ?? '' );
+		return Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $this->run_options );
 	}
 
 	/**

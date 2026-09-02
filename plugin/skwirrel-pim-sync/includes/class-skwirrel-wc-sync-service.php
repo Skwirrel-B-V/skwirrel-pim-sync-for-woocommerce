@@ -284,7 +284,7 @@ class Skwirrel_WC_Sync_Service {
 			// writes — resolves it from `$options`, and a save landing between that snapshot and
 			// this line would otherwise fetch products from one context while the rest of the run
 			// reasoned about another.
-			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::resolve_context_ids( $options['context_id'] ?? '' ) ?? [ 1 ],
+			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ],
 		];
 
 		$sync_cc        = ! empty( $options['sync_custom_classes'] );
@@ -1526,8 +1526,18 @@ class Skwirrel_WC_Sync_Service {
 	 */
 	public static function start_async( bool $delta, string $trigger ): array {
 		if ( ! function_exists( 'as_enqueue_async_action' ) ) {
-			// No Action Scheduler — run synchronously in this request.
-			( new self() )->run_sync( $delta, $trigger );
+			// No Action Scheduler — run synchronously in this request. The result is reported rather
+			// than discarded: run_sync() can refuse (the concurrency mutex, or a configuration
+			// error), and a caller that treats a refusal as a start throws away whatever it was
+			// asking for — the scheduler's forced full sync, for one.
+			$result = ( new self() )->run_sync( $delta, $trigger );
+			if ( empty( $result['success'] ) ) {
+				return [
+					'started' => false,
+					'reason'  => 'sync_failed',
+					'error'   => (string) ( $result['error'] ?? '' ),
+				];
+			}
 			return [ 'started' => true ];
 		}
 

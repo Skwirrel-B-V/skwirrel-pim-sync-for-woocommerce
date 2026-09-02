@@ -83,7 +83,7 @@ class Skwirrel_WC_Sync_Category_Sync {
 		// frozen into `$ctx['api_includes']` at begin_run(), so re-reading here would let a Context
 		// ID saved before this queued step runs build the category tree from one context while the
 		// products filed under it came from another.
-		$contexts = Skwirrel_WC_Sync_Admin_Settings::resolve_context_ids( $options['context_id'] ?? '' ) ?? [ 1 ];
+		$contexts = Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ];
 
 		// Fetch all categories under this super category in one call.
 		$flat = [];

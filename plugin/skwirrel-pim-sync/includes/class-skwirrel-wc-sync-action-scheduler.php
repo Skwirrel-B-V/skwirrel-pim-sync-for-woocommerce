@@ -167,9 +167,11 @@ class Skwirrel_WC_Sync_Action_Scheduler {
 		// The flag is consumed only by a run that can actually honour it: a FRESH start, carrying
 		// this call's `$delta = false`. Clearing it up front lost the forced full sync whenever
 		// start_async() declined — a long resumable run still holding the mutex returns
-		// `already_running`, and a lapsed run is RESUMED, which continues the old delta run rather
-		// than starting the full one. In both cases the flag would have been gone and every later
-		// scheduled run would have stayed delta, so the catalogue never reconciled.
+		// `already_running`, a lapsed run is RESUMED, which continues the old delta run rather than
+		// starting the full one, and on a site without Action Scheduler the synchronous run can be
+		// refused by the same concurrency mutex. In every one of those cases the flag would have
+		// been gone and every later scheduled run would have stayed delta, so the catalogue never
+		// reconciled.
 		if ( ! $force_full ) {
 			return;
 		}

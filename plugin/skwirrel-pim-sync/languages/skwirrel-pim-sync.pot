@@ -1842,3 +1842,6 @@ msgstr ""
 msgid "Document"
 msgstr ""
 
+#: includes/class-skwirrel-wc-sync-admin-settings.php:441
+msgid "The context ID must be a whole number greater than 0. Synchronisation keeps using context %s until you correct this."
+msgstr ""

@@ -270,8 +270,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	 * @param array<string, mixed> $value     Settings after the save.
 	 */
 	private function maybe_force_full_sync_on_context_change( array $old_value, array $value ): void {
-		$old = self::resolve_context_ids( $old_value['context_id'] ?? '' );
-		$new = self::resolve_context_ids( $value['context_id'] ?? '' );
+		// Compared on the EFFECTIVE context, not the typed one: a rejected value changes nothing
+		// about what the next run fetches, so it must not arm a full re-sync either.
+		$old = self::context_ids_from_options( $old_value );
+		$new = self::context_ids_from_options( $value );
 
 		if ( $old === $new ) {
 			return;
@@ -418,11 +420,27 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out['context_id'] = isset( $input['context_id'] ) && is_scalar( $input['context_id'] )
 			? sanitize_text_field( trim( (string) $input['context_id'] ) )
 			: '';
-		if ( '' !== $out['context_id'] && null === self::resolve_context_ids( $out['context_id'] ) ) {
+		if ( '' === $out['context_id'] || null !== self::resolve_context_ids( $out['context_id'] ) ) {
+			// Valid, or deliberately cleared to mean "the Skwirrel default context". Either way it
+			// is now what the plugin syncs with.
+			$out[ self::CONTEXT_EFFECTIVE_KEY ] = $out['context_id'];
+		} else {
+			// Rejected. The typed value is still stored so it can be seen and corrected, but the
+			// context the plugin actually syncs with does not move: falling back to the Skwirrel
+			// default here would silently retarget a shop that had a valid context configured, and
+			// with stale purging on, that run would trash the whole catalogue it just stopped
+			// matching. "Reported and inert" has to mean inert.
+			$out[ self::CONTEXT_EFFECTIVE_KEY ] = self::effective_context_raw( is_array( get_option( self::OPTION_KEY, [] ) ) ? (array) get_option( self::OPTION_KEY, [] ) : [] );
 			add_settings_error(
 				self::OPTION_KEY,
 				'context_id',
-				__( 'The context ID must be a whole number greater than 0. Leave it empty to use the Skwirrel default context.', 'skwirrel-pim-sync' ),
+				'' === $out[ self::CONTEXT_EFFECTIVE_KEY ]
+					? __( 'The context ID must be a whole number greater than 0. Leave it empty to use the Skwirrel default context.', 'skwirrel-pim-sync' )
+					: sprintf(
+						/* translators: %s: the context ID that stays in use. */
+						__( 'The context ID must be a whole number greater than 0. Synchronisation keeps using context %s until you correct this.', 'skwirrel-pim-sync' ),
+						$out[ self::CONTEXT_EFFECTIVE_KEY ]
+					),
 				'error'
 			);
 		}
@@ -649,7 +667,48 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public static function get_context_ids(): ?array {
 		$opts = get_option( self::OPTION_KEY, [] );
 
-		return self::resolve_context_ids( is_array( $opts ) ? ( $opts['context_id'] ?? '' ) : '' );
+		return self::context_ids_from_options( is_array( $opts ) ? $opts : [] );
+	}
+
+	/**
+	 * Settings key holding the context the plugin actually synchronises with.
+	 *
+	 * Separate from `context_id` because the two answer different questions. `context_id` is what
+	 * the administrator typed and is redisplayed verbatim so a mistake can be seen and corrected;
+	 * this is what every API call uses. They differ only while a rejected value is on screen.
+	 */
+	public const CONTEXT_EFFECTIVE_KEY = 'context_id_effective';
+
+	/**
+	 * The raw effective context setting, as a string.
+	 *
+	 * Falls back to `context_id` for installs saved before this key existed, whose stored value is
+	 * necessarily one the sanitiser of the day accepted.
+	 *
+	 * @param array<string, mixed> $opts Plugin settings.
+	 */
+	public static function effective_context_raw( array $opts ): string {
+		if ( array_key_exists( self::CONTEXT_EFFECTIVE_KEY, $opts ) && is_scalar( $opts[ self::CONTEXT_EFFECTIVE_KEY ] ) ) {
+			return trim( (string) $opts[ self::CONTEXT_EFFECTIVE_KEY ] );
+		}
+		$legacy = $opts['context_id'] ?? '';
+
+		// A legacy value that never resolves is inert by definition, so it reads as "default".
+		return is_scalar( $legacy ) && null !== self::resolve_context_ids( $legacy ) ? trim( (string) $legacy ) : '';
+	}
+
+	/**
+	 * The `include_contexts` value a given settings array implies.
+	 *
+	 * The single entry point for every call site — the live option through {@see self::get_context_ids()},
+	 * and a sync run through its own frozen settings copy — so the request the API receives, the
+	 * decision to force a full re-sync and the value shown on screen can never disagree.
+	 *
+	 * @param array<string, mixed> $opts Plugin settings.
+	 * @return array<int, int>|null
+	 */
+	public static function context_ids_from_options( array $opts ): ?array {
+		return self::resolve_context_ids( self::effective_context_raw( $opts ) );
 	}
 
 	public static function get_auth_token(): string {
@@ -920,17 +979,16 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		if ( ! is_array( $opts ) ) {
 			$opts = [];
 		}
-		$opts['endpoint_url'] = $endpoint;
-		$opts['auth_type']    = 'token';
-		$token                = $this->sanitize_token( $token_in ); // New token, or the stored one when masked/empty.
-		update_option( self::TOKEN_OPTION_KEY, $token, false );
-		$opts['auth_token'] = '' !== self::get_auth_token() ? self::MASK : '';
-
 		// The Context ID decides which dataset the probe reads, so this path tests the one currently
 		// in the form rather than the last saved one — otherwise an administrator who edits it and
 		// presses Test connection before Save gets a green tick and a product total for the context
-		// they just moved away from. Sent only when the field is present, so an older cached copy of
+		// they just moved away from. Read only when the field is present, so an older cached copy of
 		// the inline script keeps the previous behaviour instead of clearing a stored value.
+		//
+		// Validated BEFORE anything is written. This handler autosaves, so bailing out halfway would
+		// leave the new token persisted against the old endpoint and context while telling the
+		// administrator the submission failed.
+		$context_in = null;
 		if ( isset( $_POST['context_id'] ) ) {
 			$context_in = sanitize_text_field( trim( (string) wp_unslash( $_POST['context_id'] ) ) );
 			if ( '' !== $context_in && null === self::resolve_context_ids( $context_in ) ) {
@@ -938,7 +996,16 @@ class Skwirrel_WC_Sync_Admin_Settings {
 					[ 'message' => __( 'The context ID must be a whole number greater than 0. Leave it empty to use the Skwirrel default context.', 'skwirrel-pim-sync' ) ]
 				);
 			}
-			$opts['context_id'] = $context_in;
+		}
+
+		$opts['endpoint_url'] = $endpoint;
+		$opts['auth_type']    = 'token';
+		$token                = $this->sanitize_token( $token_in ); // New token, or the stored one when masked/empty.
+		update_option( self::TOKEN_OPTION_KEY, $token, false );
+		$opts['auth_token'] = '' !== self::get_auth_token() ? self::MASK : '';
+		if ( null !== $context_in ) {
+			$opts['context_id']                  = $context_in;
+			$opts[ self::CONTEXT_EFFECTIVE_KEY ] = $context_in;
 		}
 		update_option( self::OPTION_KEY, $opts, false );
 
@@ -950,7 +1017,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			(int) ( $opts['timeout'] ?? 30 ),
 			(int) ( $opts['retries'] ?? 2 )
 		);
-		$result       = $client->test_connection( self::resolve_context_ids( $opts['context_id'] ?? '' ) );
+		$result       = $client->test_connection( self::context_ids_from_options( $opts ) );
 		$success      = ! empty( $result['success'] );
 
 		$payload = self::prepare_test_result_payload( $result, $client_token );

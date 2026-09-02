@@ -89,7 +89,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * New: an optional Context ID on the API Connection settings, for Skwirrel instances that serve more than one context. Leave it empty to keep using the Skwirrel default context — that is what your shop does today.
 * New: the Context ID is applied to products, product groups and categories alike, so your catalogue can never end up a mix of two contexts.
 * New: changing the Context ID re-imports your whole catalogue on the next synchronisation, and says so when you save. Saving without changing it does not.
-* New: a Context ID that is not a whole number greater than 0 is rejected with a message at the field, stays visible so you can correct it, and is never sent to Skwirrel.
+* New: a Context ID that is not a whole number greater than 0 is rejected with a message at the field, stays visible so you can correct it, and is never sent to Skwirrel. Your synchronisation keeps using the context that was working, so a typo cannot quietly point your shop at a different catalogue.
 * New: "Test connection" now reports how long the round trip took, the status that came back, and how many products Skwirrel says it has — instead of only telling you it worked.
 * New: a test that connects but finds no products is shown as a warning rather than a green tick, so an empty selection is visible straight away instead of after a synchronisation that imports nothing.
 * New: a failed test now shows the timing and the status next to the error, so a timeout can be told apart from a refusal, and it says how many attempts were made when it retried.
