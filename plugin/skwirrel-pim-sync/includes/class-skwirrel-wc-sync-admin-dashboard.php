@@ -804,7 +804,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				'label'  => __( 'Connection', 'skwirrel-pim-sync' ),
 				'order'  => 10,
 				'render' => 'render_settings_panel_connection',
-				'fields' => array( 'skwirrel_subdomain', 'endpoint_url', 'auth_token', 'context_id' ),
+				'fields' => array( 'skwirrel_base_url', 'endpoint_url', 'auth_token', 'context_id' ),
 			),
 			'what-to-sync'  => array(
 				'label'  => __( 'What to sync', 'skwirrel-pim-sync' ),
@@ -1037,7 +1037,8 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			(array) $context['opts'],
 			(string) $context['token_masked'],
 			(string) $context['full_url'],
-			(string) $context['subdomain']
+			(string) $context['base_url'],
+			(string) $context['base_host']
 		);
 	}
 
@@ -1047,7 +1048,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 * @param array<string, mixed> $context Render context.
 	 */
 	private function render_settings_panel_what_to_sync( array $context ): void {
-		$this->render_fieldgroup_sync_options( (array) $context['opts'], (string) $context['subdomain'] );
+		$this->render_fieldgroup_sync_options( (array) $context['opts'], (string) $context['base_url'] );
 		$this->render_fieldgroup_product_status( (array) $context['opts'] );
 	}
 
@@ -1207,17 +1208,19 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		$opts         = is_array( $opts ) ? $opts : array();
 		$token_masked = '' !== Skwirrel_WC_Sync_Admin_Settings::get_auth_token() ? self::MASK : '';
 
-		$full_url  = Skwirrel_WC_Sync_Admin_Settings::normalize_endpoint_url( (string) ( $opts['endpoint_url'] ?? '' ) );
-		$subdomain = '';
-		if ( preg_match( '#^https?://(.+)\.skwirrel\.eu(?:/jsonrpc)?$#i', $full_url, $m ) ) {
-			$subdomain = $m[1];
-		}
+		$full_url = Skwirrel_WC_Sync_Admin_Settings::normalize_endpoint_url( (string) ( $opts['endpoint_url'] ?? '' ) );
+		// The field holds the instance's base URL; `/jsonrpc` is shown as a suffix and appended on
+		// save. An instance no longer has to be a skwirrel.eu subdomain, so nothing is parsed out
+		// of the host — the whole base is what the administrator typed and what the links use.
+		$base_url  = Skwirrel_WC_Sync_Admin_Settings::endpoint_base_url( $full_url );
+		$base_host = Skwirrel_WC_Sync_Admin_Settings::endpoint_display_value( $full_url );
 
 		$context = array(
 			'opts'         => $opts,
 			'token_masked' => $token_masked,
 			'full_url'     => $full_url,
-			'subdomain'    => $subdomain,
+			'base_url'     => $base_url,
+			'base_host'    => $base_host,
 		);
 
 		$tabs   = self::get_settings_tabs();
@@ -1343,20 +1346,22 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 * @param array<string,mixed> $opts         Stored plugin settings.
 	 * @param string              $token_masked Masked placeholder for a stored token.
 	 * @param string              $full_url     Normalised endpoint URL.
-	 * @param string              $subdomain    Skwirrel subdomain parsed from the endpoint URL.
+	 * @param string              $base_url     Instance base URL (with scheme), for the help links.
+	 * @param string              $base_host    The same address without scheme — what the field shows.
 	 */
-	private function render_fieldgroup_api_connection( array $opts, string $token_masked, string $full_url, string $subdomain ): void {
+	private function render_fieldgroup_api_connection( array $opts, string $token_masked, string $full_url, string $base_url, string $base_host ): void {
 		?>
 		<div class="skw-fieldgroup">
 			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'API Connection', 'skwirrel-pim-sync' ); ?></h3>
-			<div class="skw-field"<?php $this->render_field_wrapper_attr( 'skwirrel_subdomain' ); ?>>
-				<label for="skwirrel_subdomain" class="skw-label"><?php esc_html_e( 'Skwirrel subdomain', 'skwirrel-pim-sync' ); ?><?php $this->render_required_marker( 'skwirrel_subdomain' ); ?></label>
+			<div class="skw-field"<?php $this->render_field_wrapper_attr( 'skwirrel_base_url' ); ?>>
+				<label for="skwirrel_base_url" class="skw-label"><?php esc_html_e( 'Skwirrel URL', 'skwirrel-pim-sync' ); ?><?php $this->render_required_marker( 'skwirrel_base_url' ); ?></label>
 				<div class="skw-input-affixed">
 					<span class="skw-input-prefix">https://</span>
-					<input type="text" id="skwirrel_subdomain" value="<?php echo esc_attr( $subdomain ); ?>" class="skw-input" placeholder="yourcompany"<?php $this->render_field_state_attrs( 'skwirrel_subdomain' ); ?> />
-					<span class="skw-input-suffix">.skwirrel.eu/jsonrpc</span>
+					<input type="text" id="skwirrel_base_url" value="<?php echo esc_attr( $base_host ); ?>" class="skw-input" placeholder="yourcompany.skwirrel.eu"<?php $this->render_field_state_attrs( 'skwirrel_base_url', 'skwirrel_base_url-hint' ); ?> />
+					<span class="skw-input-suffix"><?php echo esc_html( Skwirrel_WC_Sync_Admin_Settings::ENDPOINT_PATH ); ?></span>
 				</div>
-				<?php $this->render_field_error( 'skwirrel_subdomain' ); ?>
+				<?php $this->render_field_error( 'skwirrel_base_url' ); ?>
+				<p class="skw-field-hint" id="skwirrel_base_url-hint"><?php esc_html_e( 'The address of your Skwirrel instance. Any domain works — skwirrel.eu, skwirrel.dev or your own. Enter just a name, like yourcompany, and .skwirrel.eu is added for you.', 'skwirrel-pim-sync' ); ?></p>
 				<input type="hidden" id="endpoint_url" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[endpoint_url]" value="<?php echo esc_attr( $full_url ); ?>" />
 			</div>
 			<input type="hidden" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[auth_type]" value="token" />
@@ -1388,7 +1393,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						printf(
 							/* translators: %s = URL to Skwirrel webservice page */
 							esc_html__( 'Create a static API token at %s.', 'skwirrel-pim-sync' ),
-							'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/data/webservice" target="_blank" id="skwirrel-token-link">https://<span id="skwirrel-token-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/data/webservice</a>'
+							'<a href="' . esc_attr( ( '' !== $base_url ? $base_url : 'https://your-instance' ) . '/data/webservice' ) . '" target="_blank" id="skwirrel-token-link"><span id="skwirrel-token-domain">' . esc_html( '' !== $base_url ? $base_url : 'https://your-instance' ) . '</span>/data/webservice</a>'
 						);
 						?>
 					</p>
@@ -1497,9 +1502,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 * Render the "Sync Options" field group.
 	 *
 	 * @param array<string,mixed> $opts      Stored plugin settings.
-	 * @param string              $subdomain Skwirrel subdomain parsed from the endpoint URL.
+	 * @param string              $base_url Instance base URL, recovered from the endpoint URL.
 	 */
-	private function render_fieldgroup_sync_options( array $opts, string $subdomain ): void {
+	private function render_fieldgroup_sync_options( array $opts, string $base_url ): void {
 		?>
 		<div class="skw-fieldgroup">
 			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Sync Options', 'skwirrel-pim-sync' ); ?></h3>
@@ -1554,7 +1559,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						printf(
 							/* translators: %s = link to Skwirrel categories page */
 							esc_html__( 'Find your category IDs at %s.', 'skwirrel-pim-sync' ),
-							'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/base/categories" target="_blank" id="skwirrel-categories-link">https://<span class="skwirrel-link-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/base/categories</a>'
+							'<a href="' . esc_attr( ( '' !== $base_url ? $base_url : 'https://your-instance' ) . '/base/categories' ) . '" target="_blank" id="skwirrel-categories-link"><span class="skwirrel-link-domain">' . esc_html( '' !== $base_url ? $base_url : 'https://your-instance' ) . '</span>/base/categories</a>'
 						);
 						?>
 					</p>
@@ -1568,7 +1573,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						printf(
 							/* translators: %s = link to Skwirrel selections page */
 							esc_html__( 'Find your selection IDs at %s.', 'skwirrel-pim-sync' ),
-							'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/data/selections" target="_blank" id="skwirrel-selections-link">https://<span class="skwirrel-link-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/data/selections</a>'
+							'<a href="' . esc_attr( ( '' !== $base_url ? $base_url : 'https://your-instance' ) . '/data/selections' ) . '" target="_blank" id="skwirrel-selections-link"><span class="skwirrel-link-domain">' . esc_html( '' !== $base_url ? $base_url : 'https://your-instance' ) . '</span>/data/selections</a>'
 						);
 						?>
 					</p>
@@ -1583,7 +1588,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						printf(
 							/* translators: %s = link to Skwirrel groups page */
 							esc_html__( 'Find your collection IDs at %s.', 'skwirrel-pim-sync' ),
-							'<a href="https://' . esc_attr( $subdomain ? $subdomain : '<sub>' ) . '.skwirrel.eu/base/groups" target="_blank" id="skwirrel-groups-link">https://<span class="skwirrel-link-domain">' . esc_html( $subdomain ? $subdomain : '&lt;your-subdomain&gt;' ) . '</span>.skwirrel.eu/base/groups</a>'
+							'<a href="' . esc_attr( ( '' !== $base_url ? $base_url : 'https://your-instance' ) . '/base/groups' ) . '" target="_blank" id="skwirrel-groups-link"><span class="skwirrel-link-domain">' . esc_html( '' !== $base_url ? $base_url : 'https://your-instance' ) . '</span>/base/groups</a>'
 						);
 						?>
 					</p>

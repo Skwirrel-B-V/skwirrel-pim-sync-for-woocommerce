@@ -1,0 +1,811 @@
+<?php
+/**
+ * Skwirrel Custom Class Extractor.
+ *
+ * Extracts and formats custom class features from Skwirrel product data.
+ * Split from Skwirrel_WC_Sync_Product_Mapper for single-responsibility.
+ */
+
+declare(strict_types=1);
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+class Skwirrel_WC_Sync_Custom_Class_Extractor {
+
+	/** Custom feature types that are stored as product attributes. */
+	private const CC_ATTRIBUTE_TYPES = [ 'A', 'M', 'L', 'N', 'R', 'D', 'I', 'T' ];
+
+	/** Custom feature types that are stored as product meta (long text). */
+	private const CC_META_TYPES = [ 'B' ];
+
+	/** The language every value in this class is resolved in; injected, never re-read from options. */
+	private string $image_language;
+
+	public function __construct( string $image_language ) {
+		$this->image_language = $image_language;
+	}
+
+	/**
+	 * Point this instance at a language (called once per sync run).
+	 *
+	 * The constructor argument is the single source for every language decision in this class.
+	 * It used to be written and then ignored — each method re-read the live settings option — so a
+	 * caller could not actually choose a language, and a resumable run could resolve one product's
+	 * text in one language and the next product's in another after a mid-run settings save.
+	 *
+	 * @param string $image_language Language code, e.g. `nl` or `nl-NL`.
+	 */
+	public function set_image_language( string $image_language ): void {
+		$this->image_language = '' !== trim( $image_language ) ? trim( $image_language ) : 'nl';
+	}
+
+	/**
+	 * Collect custom class objects from the product, optionally including trade-item level.
+	 *
+	 * @param array $product             Raw API product
+	 * @param bool  $include_trade_items Also include _trade_item_custom_classes
+	 * @return array<int, array>         Flat list of custom class objects
+	 */
+	public function collect_custom_classes( array $product, bool $include_trade_items = false ): array {
+		$classes = [];
+		// Product-level custom classes
+		$raw = $product['_custom_classes'] ?? [];
+		if ( is_array( $raw ) ) {
+			foreach ( $raw as $cc ) {
+				if ( is_array( $cc ) && ! empty( $cc['_custom_features'] ) ) {
+					$classes[] = $cc;
+				}
+			}
+		}
+		// Trade-item level custom classes
+		if ( $include_trade_items ) {
+			$trade_items = $product['_trade_items'] ?? [];
+			foreach ( $trade_items as $ti ) {
+				$ti_classes = $ti['_trade_item_custom_classes'] ?? [];
+				if ( ! is_array( $ti_classes ) ) {
+					continue;
+				}
+				foreach ( $ti_classes as $cc ) {
+					if ( is_array( $cc ) && ! empty( $cc['_custom_features'] ) ) {
+						$classes[] = $cc;
+					}
+				}
+			}
+		}
+		return $classes;
+	}
+
+	/**
+	 * Filter custom classes by whitelist or blacklist.
+	 *
+	 * @param array  $classes     List of custom class objects
+	 * @param string $mode        'whitelist' | 'blacklist' | '' (no filter)
+	 * @param array  $filter_ids  Numeric class IDs
+	 * @param array  $filter_codes String class codes
+	 * @return array Filtered list
+	 */
+	public function filter_custom_classes( array $classes, string $mode, array $filter_ids, array $filter_codes ): array {
+		if ( '' === $mode || ( empty( $filter_ids ) && empty( $filter_codes ) ) ) {
+			return $classes;
+		}
+		return array_values(
+			array_filter(
+				$classes,
+				static function ( array $cc ) use ( $mode, $filter_ids, $filter_codes ): bool {
+					$id    = $cc['custom_class_id'] ?? null;
+					$code  = $cc['custom_class_code'] ?? null;
+					$match = ( null !== $id && in_array( (int) $id, $filter_ids, true ) )
+					|| ( null !== $code && in_array( strtolower( (string) $code ), $filter_codes, true ) );
+					return 'whitelist' === $mode ? $match : ! $match;
+				}
+			)
+		);
+	}
+
+	/**
+	 * Parse the filter IDs setting into numeric IDs and string codes.
+	 *
+	 * @return array{ids: int[], codes: string[]}
+	 */
+	public static function parse_custom_class_filter( string $raw ): array {
+		$ids   = [];
+		$codes = [];
+		$parts = preg_split( '/[\s,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY );
+		foreach ( $parts as $part ) {
+			$part = trim( $part );
+			if ( '' === $part ) {
+				continue;
+			}
+			if ( is_numeric( $part ) ) {
+				$ids[] = (int) $part;
+			} else {
+				$codes[] = strtolower( $part );
+			}
+		}
+		return [
+			'ids'   => $ids,
+			'codes' => $codes,
+		];
+	}
+
+	/**
+	 * Resolve a single product-level custom feature to a raw number.
+	 *
+	 * Backs the FR-18 field mappings (stock quantity, and any future numeric mapping).
+	 * The mapping string holds one feature identifier: either a numeric feature ID or a
+	 * string feature code, matched case-insensitively — the same "ID or code" shape
+	 * {@see self::filter_custom_classes()} already accepts for class filters.
+	 *
+	 * Deliberately pure: no `get_option()`, no WooCommerce calls, so it can be driven
+	 * directly from `tests/Unit/` on the stub bootstrap.
+	 *
+	 * Scope is **product-level `_custom_classes` only** — trade-item custom classes are
+	 * explicitly out of scope for FR-18, so `collect_custom_classes()` keeps its default
+	 * `$include_trade_items = false`.
+	 *
+	 * Returns the raw number rather than {@see self::format_custom_feature_value()}'s
+	 * display string: for type `N` that method appends the unit ("500 st"), which is
+	 * right for an attribute and wrong for a stock quantity.
+	 *
+	 * `null` is the contract for "the PIM has nothing to say" (NFR-9): unconfigured
+	 * mapping, absent feature, `not_applicable`, empty, or non-numeric. Callers must
+	 * then leave the existing WooCommerce value exactly as it is.
+	 *
+	 * @param array<string, mixed> $product Raw API product.
+	 * @param string               $mapping Feature ID or code; empty disables the mapping.
+	 * @return float|null Raw numeric value, or null when nothing resolves.
+	 */
+	public function resolve_numeric_feature_value( array $product, string $mapping ): ?float {
+		foreach ( $this->matching_features( $product, $mapping ) as $feat ) {
+			$value = $this->raw_numeric_feature_value( $feat );
+			if ( null !== $value ) {
+				return $value;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Resolve a single product-level custom feature to display text.
+	 *
+	 * The text sibling of {@see self::resolve_numeric_feature_value()}: same matching, same
+	 * traversal, different value extraction. They are deliberately siblings rather than one
+	 * function — a stock quantity needs the raw number, while prose wants the formatted value.
+	 *
+	 * Pure, like its twin: `$lang` is injected by the caller rather than read from the settings
+	 * option, so `tests/Unit/` can drive it on the stub bootstrap.
+	 *
+	 * Returns `''` — never `null` — when nothing resolves, so callers stay branch-simple and
+	 * simply fall through to their existing source chain (NFR-9).
+	 *
+	 * @param array<string, mixed> $product Raw API product.
+	 * @param string               $mapping Feature ID or code; empty disables the mapping.
+	 * @param string               $lang    Language code for translated values.
+	 */
+	public function resolve_text_feature_value( array $product, string $mapping, string $lang ): string {
+		foreach ( $this->matching_features( $product, $mapping ) as $feat ) {
+			$type = (string) ( $feat['custom_feature_type'] ?? '' );
+
+			// B — big text. format_custom_feature_value() does not handle it, and a long
+			// description is very likely a B feature, so resolving it here is what stops this
+			// mapping from silently doing nothing.
+			if ( 'B' === $type ) {
+				$big = (string) ( $feat['big_text_value'] ?? '' );
+				if ( '' !== $big ) {
+					return $big;
+				}
+				continue;
+			}
+
+			// Everything else (A/M/L/N/R/D/T/I) formats exactly as it does in the attribute
+			// table, including I's exact → prefix → first language chain.
+			$value = $this->format_custom_feature_value( $feat, $lang );
+			if ( null !== $value && '' !== $value ) {
+				return (string) $value;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Walk the product-level custom features that match a mapping reference.
+	 *
+	 * The one traversal both resolvers share, so their matching cannot drift. A reference is
+	 * either a numeric feature ID or a case-insensitive feature code — the two shapes
+	 * {@see self::get_custom_feature_values_for_ids()} and {@see self::filter_custom_classes()}
+	 * already use; no third shape is invented here.
+	 *
+	 * Scope is product-level `_custom_classes` only (FR-18/FR-19 exclude trade-item level), and
+	 * `not_applicable` features are skipped exactly as every other extractor method does.
+	 *
+	 * @param array<string, mixed> $product Raw API product.
+	 * @param string               $mapping Feature ID or code; empty yields nothing.
+	 * @return \Generator<int, array<string, mixed>> Matching feature payloads, in payload order.
+	 */
+	private function matching_features( array $product, string $mapping ): \Generator {
+		$mapping = trim( $mapping );
+		if ( '' === $mapping ) {
+			return;
+		}
+
+		$want_id   = self::normalize_feature_ref( $mapping );
+		$want_code = strtolower( $mapping );
+
+		// A reference that looks numeric but is malformed (0, negative, decimal, or overflowing
+		// PHP_INT_MAX) is treated as unconfigured rather than as a match — fail closed, never
+		// resolve something the operator did not ask for.
+		if ( null === $want_id && is_numeric( $mapping ) ) {
+			return;
+		}
+
+		foreach ( $this->collect_custom_classes( $product ) as $cc ) {
+			foreach ( $cc['_custom_features'] ?? [] as $feat ) {
+				if ( ! is_array( $feat ) ) {
+					continue;
+				}
+				$feat_code = strtolower( (string) ( $feat['custom_feature_code'] ?? '' ) );
+				$id_match  = false;
+				if ( null !== $want_id ) {
+					foreach ( [ 'custom_feature_id', 'custom_class_feature_id' ] as $feature_id_key ) {
+						$candidate = $feat[ $feature_id_key ] ?? null;
+						if ( is_scalar( $candidate ) && self::normalize_feature_ref( (string) $candidate ) === $want_id ) {
+							$id_match = true;
+							break;
+						}
+					}
+				}
+
+				$matches = $id_match || ( '' !== $feat_code && $feat_code === $want_code );
+				if ( ! $matches || ! empty( $feat['not_applicable'] ) ) {
+					continue;
+				}
+
+				yield $feat;
+			}
+		}
+	}
+
+	/**
+	 * Normalise a numeric mapping reference to a strict positive platform integer.
+	 *
+	 * Rejects zero, negatives, decimals and digit strings that overflow `PHP_INT_MAX`, so a
+	 * malformed reference can never accidentally match feature ID 0 or a truncated ID.
+	 *
+	 * @return int|null The ID, or null when the reference is not a usable numeric ID.
+	 */
+	private static function normalize_feature_ref( string $ref ): ?int {
+		if ( 1 !== preg_match( '/^\d+$/', $ref ) ) {
+			return null;
+		}
+		// Digit strings beyond PHP_INT_MAX silently saturate on cast; compare the round-trip.
+		$as_int = (int) $ref;
+		if ( 0 >= $as_int || ltrim( $ref, '0' ) !== (string) $as_int ) {
+			return null;
+		}
+		return $as_int;
+	}
+
+	/**
+	 * Read the bare number out of a custom feature, without unit or formatting.
+	 *
+	 * Type `N` carries it in `numeric_value`. Types `T`/`A` are free text, so their
+	 * value counts only when it is actually numeric. Everything else — logical, range,
+	 * multi-value, blob — has no single number and yields null.
+	 *
+	 * @param array<string, mixed> $feat Custom feature payload.
+	 * @return float|null Raw value, or null when the feature holds no usable number.
+	 */
+	private function raw_numeric_feature_value( array $feat ): ?float {
+		$type = (string) ( $feat['custom_feature_type'] ?? '' );
+
+		if ( 'N' === $type ) {
+			$numeric = $feat['numeric_value'] ?? null;
+			return ( null !== $numeric && '' !== $numeric && is_numeric( $numeric ) ) ? (float) $numeric : null;
+		}
+
+		if ( 'T' === $type || 'A' === $type ) {
+			$text = $feat['text_value'] ?? null;
+			return ( null !== $text && is_numeric( $text ) ) ? (float) $text : null;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Get custom class features as WC product attributes.
+	 * Returns attribute-type features (A, M, L, N, R, D, I) as label => value.
+	 * Skips T, B (long text) and not_applicable features.
+	 *
+	 * @param array $product             Raw API product
+	 * @param bool  $include_trade_items Include trade-item custom classes
+	 * @param string $filter_mode        'whitelist' | 'blacklist' | ''
+	 * @param array  $filter_ids         Numeric class IDs to filter
+	 * @param array  $filter_codes       String class codes to filter (lowercase)
+	 * @return array<string, string>     label => formatted value
+	 */
+	public function get_custom_class_attributes(
+		array $product,
+		bool $include_trade_items = false,
+		string $filter_mode = '',
+		array $filter_ids = [],
+		array $filter_codes = []
+	): array {
+		$lang    = $this->image_language;
+		$classes = $this->collect_custom_classes( $product, $include_trade_items );
+		$classes = $this->filter_custom_classes( $classes, $filter_mode, $filter_ids, $filter_codes );
+
+		$attrs = [];
+		$seen  = [];
+		foreach ( $classes as $cc ) {
+			foreach ( $cc['_custom_features'] ?? [] as $feat ) {
+				if ( ! is_array( $feat ) ) {
+					continue;
+				}
+				$type = $feat['custom_feature_type'] ?? '';
+				if ( ! in_array( $type, self::CC_ATTRIBUTE_TYPES, true ) ) {
+					continue;
+				}
+				if ( ! empty( $feat['not_applicable'] ) ) {
+					continue;
+				}
+				$value = $this->format_custom_feature_value( $feat, $lang );
+				if ( null === $value || '' === $value ) {
+					continue;
+				}
+				$label = $this->resolve_custom_feature_label( $feat, $lang );
+				$key   = $feat['custom_feature_code'] ?? ( 'cc_' . ( $feat['custom_class_feature_id'] ?? ( $feat['custom_feature_id'] ?? '' ) ) );
+				if ( isset( $seen[ $key ] ) ) {
+					continue;
+				}
+				$seen[ $key ]    = true;
+				$attrs[ $label ] = $value;
+			}
+		}
+		return $attrs;
+	}
+
+	/**
+	 * Get visibility map for custom class attributes.
+	 *
+	 * Returns a map of attribute label => visible (bool) based on the
+	 * visibility filter settings. Labels not present in the map default
+	 * to visible.
+	 *
+	 * @param array  $product              Raw API product.
+	 * @param bool   $include_trade_items  Include trade-item custom classes.
+	 * @param string $sync_filter_mode     Sync filter mode ('whitelist'|'blacklist'|'').
+	 * @param array  $sync_filter_ids      Sync filter numeric class IDs.
+	 * @param array  $sync_filter_codes    Sync filter string class codes (lowercase).
+	 * @param string $vis_mode             Visibility filter mode ('whitelist'|'blacklist'|'').
+	 * @param array  $vis_ids              Visibility filter numeric class IDs.
+	 * @param array  $vis_codes            Visibility filter string class codes (lowercase).
+	 * @return array<string, bool>         label => visible
+	 */
+	public function get_attribute_visibility_map(
+		array $product,
+		bool $include_trade_items,
+		string $sync_filter_mode,
+		array $sync_filter_ids,
+		array $sync_filter_codes,
+		string $vis_mode,
+		array $vis_ids,
+		array $vis_codes
+	): array {
+		if ( '' === $vis_mode ) {
+			return [];
+		}
+
+		$lang    = $this->image_language;
+		$classes = $this->collect_custom_classes( $product, $include_trade_items );
+		$classes = $this->filter_custom_classes( $classes, $sync_filter_mode, $sync_filter_ids, $sync_filter_codes );
+
+		$visibility = [];
+		$seen       = [];
+		foreach ( $classes as $cc ) {
+			$class_id   = $cc['custom_class_id'] ?? null;
+			$class_code = $cc['custom_class_code'] ?? null;
+
+			$match   = ( null !== $class_id && in_array( (int) $class_id, $vis_ids, true ) )
+					|| ( null !== $class_code && in_array( strtolower( (string) $class_code ), $vis_codes, true ) );
+			$visible = 'whitelist' === $vis_mode ? $match : ! $match;
+
+			foreach ( $cc['_custom_features'] ?? [] as $feat ) {
+				if ( ! is_array( $feat ) ) {
+					continue;
+				}
+				$type = $feat['custom_feature_type'] ?? '';
+				if ( ! in_array( $type, self::CC_ATTRIBUTE_TYPES, true ) ) {
+					continue;
+				}
+				if ( ! empty( $feat['not_applicable'] ) ) {
+					continue;
+				}
+				$value = $this->format_custom_feature_value( $feat, $lang );
+				if ( null === $value || '' === $value ) {
+					continue;
+				}
+				$label = $this->resolve_custom_feature_label( $feat, $lang );
+				$key   = $feat['custom_feature_code'] ?? ( 'cc_' . ( $feat['custom_class_feature_id'] ?? ( $feat['custom_feature_id'] ?? '' ) ) );
+				if ( isset( $seen[ $key ] ) ) {
+					continue;
+				}
+				$seen[ $key ]         = true;
+				$visibility[ $label ] = $visible;
+			}
+		}
+
+		return $visibility;
+	}
+
+	/**
+	 * Get custom class long-text features as product meta.
+	 * Returns T and B type features as meta_key => value.
+	 *
+	 * @return array<string, string>  '_skwirrel_cc_{code}' => text value
+	 */
+	public function get_custom_class_text_meta(
+		array $product,
+		bool $include_trade_items = false,
+		string $filter_mode = '',
+		array $filter_ids = [],
+		array $filter_codes = []
+	): array {
+		$lang    = $this->image_language;
+		$classes = $this->collect_custom_classes( $product, $include_trade_items );
+		$classes = $this->filter_custom_classes( $classes, $filter_mode, $filter_ids, $filter_codes );
+
+		$meta = [];
+		foreach ( $classes as $cc ) {
+			foreach ( $cc['_custom_features'] ?? [] as $feat ) {
+				if ( ! is_array( $feat ) ) {
+					continue;
+				}
+				$type = $feat['custom_feature_type'] ?? '';
+				if ( ! in_array( $type, self::CC_META_TYPES, true ) ) {
+					continue;
+				}
+				if ( ! empty( $feat['not_applicable'] ) ) {
+					continue;
+				}
+				$value = 'B' === $type // @phpstan-ignore identical.alwaysTrue
+					? ( $feat['big_text_value'] ?? '' )
+					: ( $feat['text_value'] ?? '' );
+				if ( '' === $value || null === $value ) { // @phpstan-ignore identical.alwaysFalse
+					continue;
+				}
+				$code              = $feat['custom_feature_code']
+					?? ( 'id_' . ( $feat['custom_feature_id'] ?? $feat['custom_class_feature_id'] ?? '0' ) );
+				$meta_key          = '_skwirrel_cc_' . sanitize_key( $code );
+				$meta[ $meta_key ] = (string) $value;
+			}
+		}
+		return $meta;
+	}
+
+	/**
+	 * Get custom feature values for specific feature IDs from a product.
+	 *
+	 * Searches through _custom_classes[]._custom_features[] and returns
+	 * matching feature values keyed by integer feature ID. Used for variation
+	 * attributes on grouped products where the API identifies features by ID.
+	 *
+	 * @param array<string,mixed>                        $product      Raw API product data.
+	 * @param array<int, array{id: int, order?: int}>    $custom_ids   Custom feature IDs to match.
+	 * @param string                                     $lang         Language code for translations.
+	 * @return array<int, array{label: string, value: string, slug: string}> Values keyed by feature ID.
+	 */
+	public function get_custom_feature_values_for_ids( array $product, array $custom_ids, string $lang = '' ): array {
+		if ( empty( $custom_ids ) ) {
+			return [];
+		}
+		if ( '' === $lang ) {
+			$lang = $this->image_language;
+		}
+		$id_list = [];
+		foreach ( $custom_ids as $c ) {
+			$id_list[] = (int) $c['id'];
+		}
+		$ids    = array_flip( array_filter( $id_list ) );
+		$result = [];
+
+		$classes = $this->collect_custom_classes( $product );
+		foreach ( $classes as $cc ) {
+			foreach ( $cc['_custom_features'] ?? [] as $feat ) {
+				if ( ! is_array( $feat ) ) {
+					continue;
+				}
+				$feat_id = (int) ( $feat['custom_feature_id'] ?? $feat['custom_class_feature_id'] ?? 0 );
+				if ( ! isset( $ids[ $feat_id ] ) ) {
+					continue;
+				}
+				if ( ! empty( $feat['not_applicable'] ) ) {
+					continue;
+				}
+				$value = $this->format_custom_feature_value( $feat, $lang );
+				if ( null === $value || '' === $value ) {
+					continue;
+				}
+				$label = $this->resolve_custom_feature_label( $feat, $lang );
+				$slug  = sanitize_title( $value );
+				if ( '' === $slug ) {
+					$slug = sanitize_title( (string) $value );
+				}
+				$result[ $feat_id ] = [
+					'label' => $label,
+					'value' => $value,
+					'slug'  => '' !== $slug ? $slug : 'val-' . $feat_id,
+				];
+			}
+		}
+		return $result;
+	}
+
+	/**
+	 * Get custom class features grouped by class.
+	 *
+	 * Returns features organised by their parent custom class, suitable for frontend
+	 * rendering where specs are displayed grouped under a class heading (vs. the flat
+	 * WooCommerce attribute table).
+	 *
+	 * Skips text/blob meta types (T, B), not_applicable features and empty values —
+	 * the same rules `get_custom_class_attributes()` applies. Class names are resolved
+	 * from `_custom_class_translations[]` when available, with a fallback chain to
+	 * `custom_class_name` / `custom_class_description` / `custom_class_code`.
+	 *
+	 * @param array<string, mixed> $product             Raw API product (must include `_custom_classes`).
+	 * @param bool                 $include_trade_items Also include `_trade_item_custom_classes`.
+	 * @return array<int, array{class_id: int|null, class_code: string|null, class_name: string, features: array<int, array{label: string, value: string}>}>
+	 */
+	public function get_grouped_class_features( array $product, bool $include_trade_items = true ): array {
+		$lang    = $this->image_language;
+		$classes = $this->collect_custom_classes( $product, $include_trade_items );
+
+		$result = [];
+		foreach ( $classes as $cc ) {
+			$features = [];
+			$seen     = [];
+			foreach ( $cc['_custom_features'] ?? [] as $feat ) {
+				if ( ! is_array( $feat ) ) {
+					continue;
+				}
+				$type = $feat['custom_feature_type'] ?? '';
+				if ( ! in_array( $type, self::CC_ATTRIBUTE_TYPES, true ) ) {
+					continue;
+				}
+				if ( ! empty( $feat['not_applicable'] ) ) {
+					continue;
+				}
+				$value = $this->format_custom_feature_value( $feat, $lang );
+				if ( null === $value || '' === $value ) {
+					continue;
+				}
+				$key = $feat['custom_feature_code'] ?? ( 'cc_' . ( $feat['custom_class_feature_id'] ?? ( $feat['custom_feature_id'] ?? '' ) ) );
+				if ( isset( $seen[ $key ] ) ) {
+					continue;
+				}
+				$seen[ $key ] = true;
+				$features[]   = [
+					'label' => $this->resolve_custom_feature_label( $feat, $lang ),
+					'value' => $value,
+				];
+			}
+			if ( empty( $features ) ) {
+				continue;
+			}
+			$result[] = [
+				'class_id'   => isset( $cc['custom_class_id'] ) ? (int) $cc['custom_class_id'] : null,
+				'class_code' => isset( $cc['custom_class_code'] ) ? (string) $cc['custom_class_code'] : null,
+				'class_name' => $this->resolve_custom_class_name( $cc, $lang ),
+				'features'   => $features,
+			];
+		}
+		return $result;
+	}
+
+	/**
+	 * Resolve a human-readable name for a custom class.
+	 *
+	 * Tries `_custom_class_translations[]` first (matching language with prefix
+	 * fallback), then `custom_class_name`/`custom_class_description` from the
+	 * payload root, finally falling back to `custom_class_code`.
+	 *
+	 * @param array<string,mixed> $cc   Custom class object.
+	 * @param string              $lang Language code.
+	 */
+	private function resolve_custom_class_name( array $cc, string $lang ): string {
+		$trans = $cc['_custom_class_translations'] ?? [];
+		if ( ! empty( $trans ) && is_array( $trans ) ) {
+			$name = $this->pick_custom_translation( $trans, $lang, 'custom_class_description' );
+			if ( '' !== $name ) {
+				return $name;
+			}
+			$name = $this->pick_custom_translation( $trans, $lang, 'custom_class_name' );
+			if ( '' !== $name ) {
+				return $name;
+			}
+		}
+		$name = (string) ( $cc['custom_class_name'] ?? $cc['custom_class_description'] ?? '' );
+		if ( '' !== $name ) {
+			return $name;
+		}
+		return (string) ( $cc['custom_class_code'] ?? '' );
+	}
+
+	/**
+	 * Resolve a human-readable label for a custom class feature.
+	 *
+	 * Public so it can be called from the product upserter for group-level features.
+	 *
+	 * @param array<string,mixed> $feat Custom feature data.
+	 * @param string              $lang Language code.
+	 * @return string Resolved label.
+	 */
+	public function resolve_custom_feature_label( array $feat, string $lang = '' ): string {
+		if ( '' === $lang ) {
+			$lang = $this->image_language;
+		}
+		$trans = $feat['_custom_feature_translations'] ?? [];
+		if ( ! empty( $trans ) && is_array( $trans ) ) {
+			$label = $this->pick_custom_translation( $trans, $lang, 'custom_feature_description' );
+			if ( '' !== $label ) {
+				return $label;
+			}
+		}
+		return (string) ( $feat['custom_feature_code'] ?? $feat['custom_feature_id'] ?? '' );
+	}
+
+	/**
+	 * Format a custom class feature value for display as product attribute.
+	 */
+	private function format_custom_feature_value( array $feat, string $lang ): ?string {
+		if ( ! empty( $feat['not_applicable'] ) ) {
+			return null;
+		}
+		$type = $feat['custom_feature_type'] ?? '';
+
+		// A — Alphanumeric (single value from list)
+		if ( 'A' === $type ) {
+			if ( ! empty( $feat['_custom_values'] ) && is_array( $feat['_custom_values'] ) ) {
+				foreach ( $feat['_custom_values'] as $v ) {
+					$desc = $this->pick_custom_value_translation( $v, $lang );
+					if ( '' !== $desc ) {
+						return $desc;
+					}
+				}
+			}
+			return $feat['custom_value_code'] ?? null;
+		}
+
+		// M — Multi-alphanumeric (comma-separated values)
+		if ( 'M' === $type ) {
+			$values = [];
+			if ( ! empty( $feat['_custom_values'] ) && is_array( $feat['_custom_values'] ) ) {
+				foreach ( $feat['_custom_values'] as $v ) {
+					$desc = $this->pick_custom_value_translation( $v, $lang );
+					if ( '' !== $desc ) {
+						$values[] = $desc;
+					} else {
+						$code = $v['custom_value_code'] ?? '';
+						if ( '' !== $code ) {
+							$values[] = $code;
+						}
+					}
+				}
+			}
+			return ! empty( $values ) ? implode( ', ', $values ) : null;
+		}
+
+		// L — Logical
+		if ( 'L' === $type && array_key_exists( 'logical_value', $feat ) && null !== $feat['logical_value'] ) {
+			return $feat['logical_value'] ? 'Ja' : 'Nee';
+		}
+
+		// N — Numeric
+		if ( 'N' === $type && null !== $feat['numeric_value'] && '' !== $feat['numeric_value'] ) {
+			$unit = $this->resolve_custom_unit( $feat, $lang );
+			return $feat['numeric_value'] . ( '' !== $unit ? ' ' . $unit : '' );
+		}
+
+		// R — Range
+		if ( 'R' === $type && ( null !== $feat['range_min'] || null !== $feat['range_max'] ) ) {
+			$min  = $feat['range_min'] ?? '';
+			$max  = $feat['range_max'] ?? '';
+			$unit = $this->resolve_custom_unit( $feat, $lang );
+			$s    = $min . ( '' !== $min && '' !== $max ? ' – ' : '' ) . $max;
+			return $s . ( '' !== $unit ? ' ' . $unit : '' );
+		}
+
+		// D — Date
+		if ( 'D' === $type && ! empty( $feat['date_value'] ) ) {
+			return (string) $feat['date_value'];
+		}
+
+		// T — Text (short text value)
+		if ( 'T' === $type && ! empty( $feat['text_value'] ) ) {
+			return (string) $feat['text_value'];
+		}
+
+		// I — Internationalized text (pick by language)
+		if ( 'I' === $type ) {
+			$texts = $feat['translated_texts'] ?? [];
+			if ( ! empty( $texts ) && is_array( $texts ) ) {
+				// Try exact match, then prefix match, then first
+				foreach ( $texts as $t ) {
+					if ( 0 === strcasecmp( (string) ( $t['language'] ?? '' ), $lang ) ) {
+						return (string) ( $t['text'] ?? $t['value'] ?? '' );
+					}
+				}
+				foreach ( $texts as $t ) {
+					$tl = (string) ( $t['language'] ?? '' );
+					if ( strlen( $lang ) >= 2 && strlen( $tl ) >= 2 && 0 === strcasecmp( substr( $tl, 0, 2 ), substr( $lang, 0, 2 ) ) ) {
+						return (string) ( $t['text'] ?? $t['value'] ?? '' );
+					}
+				}
+				$first = $texts[0] ?? [];
+				return (string) ( $first['text'] ?? $first['value'] ?? '' );
+			}
+			return null;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Pick a translated label from custom feature/unit/value translations.
+	 */
+	private function pick_custom_translation( array $translations, string $lang, string $field ): string {
+		// Exact match
+		foreach ( $translations as $t ) {
+			if ( ! is_array( $t ) ) {
+				continue;
+			}
+			$tl = (string) ( $t['language'] ?? '' );
+			if ( 0 === strcasecmp( $tl, $lang ) ) {
+				return (string) ( $t[ $field ] ?? '' );
+			}
+		}
+		// Prefix match (e.g. nl matches nl-NL)
+		foreach ( $translations as $t ) {
+			if ( ! is_array( $t ) ) {
+				continue;
+			}
+			$tl = (string) ( $t['language'] ?? '' );
+			if ( strlen( $lang ) >= 2 && strlen( $tl ) >= 2 && 0 === strcasecmp( substr( $tl, 0, 2 ), substr( $lang, 0, 2 ) ) ) {
+				return (string) ( $t[ $field ] ?? '' );
+			}
+		}
+		// Fallback to first
+		$first = $translations[0] ?? [];
+		return (string) ( is_array( $first ) ? ( $first[ $field ] ?? '' ) : '' );
+	}
+
+	/**
+	 * Pick translated value description from a custom value object.
+	 */
+	private function pick_custom_value_translation( array $value, string $lang ): string {
+		$trans = $value['_custom_value_translations'] ?? [];
+		if ( ! empty( $trans ) && is_array( $trans ) ) {
+			return $this->pick_custom_translation( $trans, $lang, 'custom_value_description' );
+		}
+		return (string) ( $value['custom_value_code'] ?? '' );
+	}
+
+	/**
+	 * Resolve unit abbreviation from custom feature translations.
+	 */
+	private function resolve_custom_unit( array $feat, string $lang ): string {
+		$trans = $feat['_custom_unit_translations'] ?? [];
+		if ( empty( $trans ) || ! is_array( $trans ) ) {
+			return (string) ( $feat['custom_unit_code'] ?? '' );
+		}
+		$abbr = $this->pick_custom_translation( $trans, $lang, 'custom_unit_abbreviation' );
+		if ( '' !== $abbr ) {
+			return $abbr;
+		}
+		return $this->pick_custom_translation( $trans, $lang, 'custom_unit_description' );
+	}
+}

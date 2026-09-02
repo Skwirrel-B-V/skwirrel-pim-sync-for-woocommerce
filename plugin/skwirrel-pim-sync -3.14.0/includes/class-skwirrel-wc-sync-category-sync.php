@@ -1,0 +1,635 @@
+<?php
+/**
+ * Skwirrel Category Sync.
+ *
+ * Handles WooCommerce product_cat taxonomy operations:
+ * - Full category tree sync from Skwirrel API (getCategories)
+ * - Per-product category assignment
+ * - Category term find/create with parent hierarchy
+ * - Tracks seen category IDs for stale-category purge detection
+ */
+
+declare(strict_types=1);
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+class Skwirrel_WC_Sync_Category_Sync {
+
+	private Skwirrel_WC_Sync_Logger $logger;
+
+	/** @var string[] Skwirrel category IDs seen during current sync run. */
+	private array $seen_category_ids = [];
+
+	/** @var array<int, int> Skwirrel category ID → WC term_id, populated by sync_category_tree(). */
+	private array $resolved_map = [];
+
+	/**
+	 * @param Skwirrel_WC_Sync_Logger $logger Logger instance.
+	 */
+	public function __construct( Skwirrel_WC_Sync_Logger $logger ) {
+		$this->logger = $logger;
+	}
+
+	/**
+	 * Get the Skwirrel category IDs encountered during this sync run.
+	 *
+	 * Used by the purge handler to detect stale categories.
+	 *
+	 * @return string[]
+	 */
+	public function get_seen_category_ids(): array {
+		return $this->seen_category_ids;
+	}
+
+	/**
+	 * Reset seen category IDs at the start of a new sync run.
+	 */
+	public function reset_seen_category_ids(): void {
+		$this->seen_category_ids = [];
+		$this->resolved_map      = [];
+	}
+
+	/**
+	 * Get the resolved map from the last tree sync (Skwirrel category ID → WC term_id).
+	 *
+	 * @return array<int, int>
+	 */
+	public function get_resolved_map(): array {
+		return $this->resolved_map;
+	}
+
+	/**
+	 * Sync the full category tree from a Skwirrel super category via getCategories API.
+	 *
+	 * Creates/updates WooCommerce product_cat terms for the entire tree.
+	 *
+	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client  API client.
+	 * @param array                           $options Plugin settings.
+	 * @param array                           $languages Include languages for API call.
+	 */
+	public function sync_category_tree( Skwirrel_WC_Sync_JsonRpc_Client $client, array $options, array $languages ): void {
+		$super_id = (int) ( $options['super_category_id'] ?? 0 );
+		if ( $super_id <= 0 ) {
+			return;
+		}
+
+		$this->logger->info( 'Syncing category tree', [ 'super_category_id' => $super_id ] );
+
+		$lang = $options['image_language'] ?? 'nl';
+
+		// Resolved from the run's own settings copy, not the live option. The product request is
+		// frozen into `$ctx['api_includes']` at begin_run(), so re-reading here would let a Context
+		// ID saved before this queued step runs build the category tree from one context while the
+		// products filed under it came from another.
+		$contexts = Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ];
+
+		// Fetch all categories under this super category in one call.
+		$flat = [];
+		$this->fetch_categories_for_super( $client, $super_id, $languages, $lang, $contexts, $flat );
+
+		if ( empty( $flat ) ) {
+			$this->logger->warning( 'No categories found in tree', [ 'super_category_id' => $super_id ] );
+			return;
+		}
+
+		$this->logger->info( 'Category tree fetched (all levels)', [ 'total_categories' => count( $flat ) ] );
+
+		$tax         = 'product_cat';
+		$cat_id_meta = Skwirrel_WC_Sync_Product_Mapper::CATEGORY_ID_META;
+
+		// Build lookup by Skwirrel category ID.
+		$by_id = [];
+		foreach ( $flat as $cat ) {
+			if ( null !== $cat['id'] ) {
+				$by_id[ $cat['id'] ] = $cat;
+			}
+		}
+
+		// Resolve in order: parents before children.
+		$resolved      = []; // skwirrel_id => wc_term_id
+		$created_count = 0;
+
+		foreach ( $flat as $cat ) {
+			$cat_id = $cat['id'] ?? null;
+			if ( null !== $cat_id && isset( $resolved[ $cat_id ] ) ) {
+				continue;
+			}
+
+			$parent_id = $cat['parent_id'] ?? null;
+			$wc_parent = 0;
+
+			// Resolve parent first
+			if ( null !== $parent_id && isset( $resolved[ $parent_id ] ) ) {
+				$wc_parent = $resolved[ $parent_id ];
+			} elseif ( null !== $parent_id && $parent_id !== $super_id ) {
+				// Parent not yet resolved but exists in our set — find/create it
+				if ( isset( $by_id[ $parent_id ] ) ) {
+					$wc_parent = $this->find_or_create_category_term(
+						$parent_id,
+						$by_id[ $parent_id ]['name'],
+						$tax,
+						$cat_id_meta,
+						0
+					);
+					if ( $wc_parent ) {
+						$resolved[ $parent_id ] = $wc_parent;
+					}
+				}
+			}
+
+			$wc_term_id = $this->find_or_create_category_term(
+				$cat_id,
+				$cat['name'],
+				$tax,
+				$cat_id_meta,
+				$wc_parent
+			);
+
+			if ( $wc_term_id && null !== $cat_id ) {
+				$resolved[ $cat_id ] = $wc_term_id;
+				++$created_count;
+			}
+		}
+
+		$this->resolved_map = $resolved;
+
+		$this->logger->info(
+			'Category tree synced',
+			[
+				'super_category_id' => $super_id,
+				'total_categories'  => count( $flat ),
+				'resolved'          => $created_count,
+			]
+		);
+	}
+
+	/**
+	 * Fetch all categories under a super category in one API call.
+	 *
+	 * Uses the super_category_id filter to get the full tree without recursion.
+	 *
+	 * @param Skwirrel_WC_Sync_JsonRpc_Client $client   API client.
+	 * @param int                             $super_id Super category ID.
+	 * @param array                           $languages Include languages for API call.
+	 * @param string                          $lang     Preferred language for names.
+	 * @param array<int, int>                 $contexts Resolved `include_contexts` for this run.
+	 * @param array                           &$flat    Output: flat list (mutated).
+	 */
+	private function fetch_categories_for_super(
+		Skwirrel_WC_Sync_JsonRpc_Client $client,
+		int $super_id,
+		array $languages,
+		string $lang,
+		array $contexts,
+		array &$flat
+	): void {
+		$params = [
+			'super_category_id'             => $super_id,
+			'include_category_translations' => true,
+			'include_contexts'              => $contexts,
+		];
+
+		if ( ! empty( $languages ) ) {
+			$params['include_languages'] = $languages;
+		}
+
+		$this->logger->info(
+			'getCategories request',
+			[
+				'params' => $params,
+			]
+		);
+
+		$result = $client->call( 'getCategories', $params );
+
+		if ( ! $result['success'] ) {
+			$err = $result['error'] ?? [ 'message' => 'Unknown error' ];
+			$this->logger->error(
+				'getCategories API error',
+				[
+					'super_category_id' => $super_id,
+					'error'             => $err,
+				]
+			);
+			return;
+		}
+
+		$data       = $result['result'] ?? [];
+		$categories = $data['categories'] ?? $data;
+
+		$this->logger->info(
+			'getCategories response',
+			[
+				'super_category_id' => $super_id,
+				'result_keys'       => is_array( $data ) ? array_keys( $data ) : gettype( $data ),
+				'categories_count'  => is_array( $categories ) ? count( $categories ) : 0,
+				'first_category'    => is_array( $categories ) && ! empty( $categories ) ? array_keys( reset( $categories ) ) : null,
+			]
+		);
+
+		if ( ! is_array( $categories ) || empty( $categories ) ) {
+			$this->logger->warning( 'getCategories returned no categories', [ 'raw_result' => array_slice( (array) $data, 0, 5 ) ] );
+			return;
+		}
+
+		$this->flatten_category_tree( $categories, $flat, $lang );
+	}
+
+	/**
+	 * Assign product categories to a WooCommerce product.
+	 *
+	 * Looks up Skwirrel category IDs from the product's _categories array
+	 * in the resolved map (populated by sync_category_tree), falling back
+	 * to a term meta lookup when needed.
+	 *
+	 * @param int   $wc_product_id WooCommerce product ID.
+	 * @param array $product       Skwirrel product data.
+	 */
+	public function assign_categories( int $wc_product_id, array $product ): void {
+		$raw_cats = $product['_categories'] ?? [];
+		if ( empty( $raw_cats ) || ! is_array( $raw_cats ) ) {
+			return;
+		}
+
+		$tax         = 'product_cat';
+		$cat_id_meta = Skwirrel_WC_Sync_Product_Mapper::CATEGORY_ID_META;
+		$term_ids    = [];
+
+		foreach ( $raw_cats as $cat ) {
+			$cat_id = $cat['category_id'] ?? $cat['product_category_id'] ?? $cat['id'] ?? null;
+			if ( null === $cat_id ) {
+				continue;
+			}
+			$cat_id = (int) $cat_id;
+
+			// 1. Check resolved map from tree sync.
+			$wc_term_id = $this->resolved_map[ $cat_id ] ?? 0;
+
+			// 2. Fallback: term meta lookup.
+			if ( ! $wc_term_id ) {
+				$wc_term_id = $this->find_term_by_skwirrel_id( $cat_id, $tax, $cat_id_meta );
+			}
+
+			if ( $wc_term_id ) {
+				$term_ids[] = $wc_term_id;
+				// Include ancestors so WooCommerce shows parent categories too.
+				$ancestors = get_ancestors( $wc_term_id, $tax, 'taxonomy' );
+				foreach ( $ancestors as $ancestor_id ) {
+					$term_ids[] = $ancestor_id;
+				}
+			} else {
+				$this->logger->warning(
+					'Category not found for product',
+					[
+						'wc_product_id'        => $wc_product_id,
+						'skwirrel_category_id' => $cat_id,
+					]
+				);
+			}
+		}
+
+		$term_ids = array_unique( array_map( 'intval', $term_ids ) );
+		if ( ! empty( $term_ids ) ) {
+			$result = wp_set_object_terms( $wc_product_id, $term_ids, $tax );
+			if ( is_wp_error( $result ) ) {
+				$this->logger->warning(
+					'wp_set_object_terms failed',
+					[
+						'wc_product_id' => $wc_product_id,
+						'error'         => $result->get_error_message(),
+					]
+				);
+			} else {
+				$this->logger->verbose(
+					'Categories assigned',
+					[
+						'wc_product_id' => $wc_product_id,
+						'term_ids'      => $term_ids,
+					]
+				);
+			}
+		}
+	}
+
+	/**
+	 * Find existing term by Skwirrel category ID (term meta) or name, or create new.
+	 *
+	 * @param int|null $skwirrel_id    Skwirrel category ID (null if unknown).
+	 * @param string   $name           Category name.
+	 * @param string   $taxonomy       Taxonomy slug (product_cat).
+	 * @param string   $meta_key       Term meta key for Skwirrel ID.
+	 * @param int      $parent_term_id WC parent term ID (0 for root).
+	 * @return int WC term_id or 0 on failure.
+	 */
+	public function find_or_create_category_term(
+		?int $skwirrel_id,
+		string $name,
+		string $taxonomy,
+		string $meta_key,
+		int $parent_term_id
+	): int {
+		if ( '' === $name && null === $skwirrel_id ) {
+			return 0;
+		}
+
+		// Track seen category IDs for purge logic
+		if ( null !== $skwirrel_id ) {
+			$this->seen_category_ids[] = (string) $skwirrel_id;
+		}
+
+		// 1. Match by Skwirrel category ID in term meta (reliable)
+		if ( null !== $skwirrel_id ) {
+			global $wpdb;
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- term meta lookup by value, no WP API equivalent
+			$existing_term_id = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT tm.term_id FROM {$wpdb->termmeta} tm
+                 INNER JOIN {$wpdb->term_taxonomy} tt ON tm.term_id = tt.term_id AND tt.taxonomy = %s
+                 WHERE tm.meta_key = %s AND tm.meta_value = %s
+                 LIMIT 1",
+					$taxonomy,
+					$meta_key,
+					(string) $skwirrel_id
+				)
+			);
+			// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			if ( $existing_term_id ) {
+				$term_id = (int) $existing_term_id;
+				$this->maybe_update_term( $term_id, $name, $taxonomy, $parent_term_id );
+				$this->logger->verbose(
+					'Category found by meta',
+					[
+						'skwirrel_id' => $skwirrel_id,
+						'term_id'     => $term_id,
+						'name'        => $name,
+					]
+				);
+				return $term_id;
+			}
+			$this->logger->verbose(
+				'Category meta lookup missed',
+				[
+					'skwirrel_id' => $skwirrel_id,
+					'name'        => $name,
+					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- array key for log context, not a query argument.
+					'meta_key'    => $meta_key,
+				]
+			);
+		}
+
+		// 2. Fall back to name matching
+		if ( '' !== $name ) {
+			$term = term_exists( $name, $taxonomy, $parent_term_id > 0 ? $parent_term_id : 0 );
+			if ( $term && ! is_wp_error( $term ) ) { // @phpstan-ignore function.impossibleType
+				$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
+				// Store Skwirrel ID for next sync
+				if ( null !== $skwirrel_id ) {
+					update_term_meta( $term_id, $meta_key, (string) $skwirrel_id );
+				}
+				$this->logger->verbose(
+					'Category found by name',
+					[
+						'name'           => $name,
+						'term_id'        => $term_id,
+						'parent_term_id' => $parent_term_id,
+					]
+				);
+				return $term_id;
+			}
+			$this->logger->verbose(
+				'Category name lookup missed',
+				[
+					'name'           => $name,
+					'parent_term_id' => $parent_term_id,
+					'term_exists'    => $term,
+				]
+			);
+		}
+
+		// 3. Create new term
+		if ( '' === $name ) {
+			return 0;
+		}
+		$args = [];
+		if ( $parent_term_id ) {
+			$args['parent'] = $parent_term_id;
+		}
+		$inserted = wp_insert_term( $name, $taxonomy, $args );
+		if ( is_wp_error( $inserted ) ) {
+			// Handle "term already exists" race condition
+			if ( 'term_exists' === $inserted->get_error_code() ) {
+				$term_id = (int) $inserted->get_error_data( 'term_exists' );
+				if ( null !== $skwirrel_id && $term_id ) {
+					update_term_meta( $term_id, $meta_key, (string) $skwirrel_id );
+				}
+				return $term_id;
+			}
+			$this->logger->warning(
+				'Failed to create category term',
+				[
+					'name'  => $name,
+					'error' => $inserted->get_error_message(),
+				]
+			);
+			return 0;
+		}
+
+		$term_id = (int) $inserted['term_id'];
+		if ( null !== $skwirrel_id ) {
+			update_term_meta( $term_id, $meta_key, (string) $skwirrel_id );
+		}
+		$this->logger->verbose(
+			'Category term created',
+			[
+				'term_id'     => $term_id,
+				'name'        => $name,
+				'skwirrel_id' => $skwirrel_id,
+				'parent'      => $parent_term_id,
+			]
+		);
+		return $term_id;
+	}
+
+	/**
+	 * Reconcile an existing (meta-matched) term's name/parent with the Skwirrel
+	 * values, but only when they actually differ — never clobber manual WC edits.
+	 *
+	 * @param int    $term_id        WC term ID.
+	 * @param string $name           Skwirrel category name.
+	 * @param string $taxonomy       Taxonomy slug (product_cat).
+	 * @param int    $parent_term_id Mapped WC parent term ID (0 for root/unknown).
+	 */
+	private function maybe_update_term( int $term_id, string $name, string $taxonomy, int $parent_term_id ): void {
+		$term = get_term( $term_id, $taxonomy );
+		if ( ! $term instanceof WP_Term ) {
+			return;
+		}
+
+		$update = [];
+		if ( '' !== $name && $name !== $term->name ) {
+			$update['name'] = $name;
+		}
+		if ( $parent_term_id > 0 && (int) $term->parent !== $parent_term_id ) {
+			// Guard against a cyclic move: re-parenting a term under itself or
+			// under one of its own descendants makes wp_update_term() silently
+			// root the term (parent => 0) and still return success — which would
+			// log a false "updated" and retry every sync. Skip the parent change
+			// in that case; the name update (if any) still applies.
+			if ( $parent_term_id === $term_id || term_is_ancestor_of( $term_id, $parent_term_id, $taxonomy ) ) {
+				$this->logger->warning(
+					'Skipped cyclic category re-parent',
+					[
+						'term_id'          => $term_id,
+						'requested_parent' => $parent_term_id,
+					]
+				);
+			} else {
+				$update['parent'] = $parent_term_id;
+			}
+		}
+		if ( empty( $update ) ) {
+			return;
+		}
+
+		$result = wp_update_term( $term_id, $taxonomy, $update );
+		if ( is_wp_error( $result ) ) {
+			$this->logger->warning(
+				'Failed to update category term',
+				[
+					'name'    => $name,
+					'term_id' => $term_id,
+					'error'   => $result->get_error_message(),
+				]
+			);
+			return;
+		}
+
+		$this->logger->info(
+			'Category term updated (rename/parent)',
+			array_merge( [ 'term_id' => $term_id ], $update )
+		);
+	}
+
+	/**
+	 * Find an existing WC term by its Skwirrel category ID in term meta.
+	 *
+	 * @param int    $skwirrel_id Skwirrel category ID.
+	 * @param string $taxonomy    Taxonomy slug.
+	 * @param string $meta_key    Term meta key for Skwirrel ID.
+	 * @return int WC term_id or 0 if not found.
+	 */
+	private function find_term_by_skwirrel_id( int $skwirrel_id, string $taxonomy, string $meta_key ): int {
+		global $wpdb;
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- term meta lookup by value, no WP API equivalent
+		$term_id = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT tm.term_id FROM {$wpdb->termmeta} tm
+				 INNER JOIN {$wpdb->term_taxonomy} tt ON tm.term_id = tt.term_id AND tt.taxonomy = %s
+				 WHERE tm.meta_key = %s AND tm.meta_value = %s
+				 LIMIT 1",
+				$taxonomy,
+				$meta_key,
+				(string) $skwirrel_id
+			)
+		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		return $term_id ? (int) $term_id : 0;
+	}
+
+	/**
+	 * Recursively flatten a nested category tree into a flat list.
+	 *
+	 * @param array  $categories Nested category array from API.
+	 * @param array  $flat       Output: flat list of ['id', 'name', 'parent_id'].
+	 * @param string $lang       Preferred language for category name.
+	 */
+	private function flatten_category_tree( array $categories, array &$flat, string $lang ): void {
+		foreach ( $categories as $cat ) {
+			$cat_id = $cat['category_id'] ?? $cat['product_category_id'] ?? $cat['id'] ?? null;
+			if ( null !== $cat_id ) {
+				$cat_id = (int) $cat_id;
+			}
+
+			$name = $this->pick_category_name( $cat, $lang );
+			if ( '' === $name && isset( $cat['category_name'] ) ) {
+				$name = $cat['category_name'];
+			}
+			if ( '' === $name && isset( $cat['product_category_code'] ) && '' !== $cat['product_category_code'] ) {
+				$name = $cat['product_category_code'];
+			}
+
+			$parent_id = $cat['parent_category_id'] ?? null;
+			if ( null !== $parent_id ) {
+				$parent_id = (int) $parent_id;
+			}
+
+			if ( '' !== $name ) {
+				$flat[] = [
+					'id'        => $cat_id,
+					'name'      => $name,
+					'parent_id' => $parent_id,
+				];
+			} else {
+				$this->logger->warning(
+					'Category has no name, skipping',
+					[
+						'product_category_id' => $cat_id,
+						'keys'                => array_keys( $cat ),
+						'has_translations'    => ! empty( $cat['_category_translations'] ) || ! empty( $cat['_translation'] ),
+					]
+				);
+			}
+
+			// Recurse into children
+			$children = $cat['_children'] ?? $cat['_categories'] ?? $cat['children'] ?? [];
+			if ( ! empty( $children ) && is_array( $children ) ) {
+				$this->flatten_category_tree( $children, $flat, $lang );
+			}
+		}
+	}
+
+	/**
+	 * Pick the best category name based on language preference.
+	 *
+	 * @param array  $cat  Category data from API.
+	 * @param string $lang Preferred language code.
+	 * @return string Category name, or empty string if none found.
+	 */
+	private function pick_category_name( array $cat, string $lang ): string {
+		// V2 format: _category_translations as array of {language, category_name, ...}
+		$translations = $cat['_category_translations'] ?? [];
+
+		// V1 format: _translation keyed by language code {"nl": {category_name: ...}, "en": ...}
+		if ( empty( $translations ) && ! empty( $cat['_translation'] ) && is_array( $cat['_translation'] ) ) {
+			// Convert V1 keyed format to V2 array format.
+			foreach ( $cat['_translation'] as $t_lang => $t_data ) {
+				if ( is_array( $t_data ) ) {
+					$t_data['language'] = $t_lang;
+					$translations[]     = $t_data;
+				}
+			}
+		}
+
+		if ( ! empty( $translations ) && is_array( $translations ) ) {
+			foreach ( $translations as $t ) {
+				$t_lang = $t['language'] ?? '';
+				if ( 0 === stripos( $t_lang, $lang ) || 0 === stripos( $lang, $t_lang ) ) {
+					$name = $t['category_name'] ?? $t['product_category_name'] ?? $t['name'] ?? '';
+					if ( '' !== $name ) {
+						return $name;
+					}
+				}
+			}
+			// Fallback: first translation with a name
+			foreach ( $translations as $t ) {
+				$name = $t['category_name'] ?? $t['product_category_name'] ?? $t['name'] ?? '';
+				if ( '' !== $name ) {
+					return $name;
+				}
+			}
+		}
+		return $cat['category_name'] ?? $cat['product_category_name'] ?? $cat['name'] ?? '';
+	}
+}

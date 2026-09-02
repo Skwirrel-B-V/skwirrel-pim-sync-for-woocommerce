@@ -89,7 +89,7 @@ afterEach( function (): void {
 test( 'an unconditionally required field is marked and announced as required', function (): void {
 	$xpath = skwRequiredFieldsXPath( skwRenderRequiredFieldsScreen() );
 
-	foreach ( [ 'skwirrel_subdomain', 'collection_ids' ] as $field ) {
+	foreach ( [ 'skwirrel_base_url', 'collection_ids' ] as $field ) {
 		$input = skwRequiredFieldsElementById( $xpath, $field );
 		expect( $input )->not->toBeNull( $field . ' is not rendered' );
 		expect( $input->getAttribute( 'aria-required' ) )->toBe( 'true' );

@@ -473,8 +473,8 @@ msgid "API Connection"
 msgstr "API-verbinding"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1345
-msgid "Skwirrel subdomain"
-msgstr "Skwirrel-subdomein"
+msgid "Skwirrel URL"
+msgstr "Skwirrel-URL"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1357
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1376
@@ -1170,8 +1170,8 @@ msgid "Access denied."
 msgstr "Geen toegang."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:912
-msgid "Enter a Skwirrel subdomain first."
-msgstr "Voer eerst een Skwirrel-subdomein in."
+msgid "Enter your Skwirrel address first."
+msgstr "Vul eerst uw Skwirrel-adres in."
 
 #. translators: %d: number of products inspected so far.
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1025
@@ -1270,8 +1270,8 @@ msgid "Testing…"
 msgstr "Testen…"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1791
-msgid "Enter a subdomain first."
-msgstr "Voer eerst een subdomein in."
+msgid "Enter an address first."
+msgstr "Vul eerst een adres in."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1793
 msgid "Network error."
@@ -1328,7 +1328,7 @@ msgid "Sync history deleted."
 msgstr "Synchronisatiegeschiedenis verwijderd."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:2445
-msgid "Skwirrel sync settings reset. All configuration options were deleted, scheduled jobs cancelled, and caches flushed. Products, media, categories and sync history are untouched. Re-enter your subdomain and API token below to continue."
+msgid "Skwirrel sync settings reset. All configuration options were deleted, scheduled jobs cancelled, and caches flushed. Products, media, categories and sync history are untouched. Re-enter your Skwirrel address and API token below to continue."
 msgstr "Skwirrel-sync-instellingen gereset. Alle configuratieopties zijn verwijderd, geplande taken geannuleerd en caches geleegd. Producten, media, categorieën en synchronisatiegeschiedenis blijven ongemoeid. Voer hieronder opnieuw je subdomein en API-token in om verder te gaan."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:2449
@@ -2267,3 +2267,6 @@ msgstr "Document"
 #: includes/class-skwirrel-wc-sync-admin-settings.php:441
 msgid "The context ID must be a whole number greater than 0. Synchronisation keeps using context %s until you correct this."
 msgstr "De context-ID moet een heel getal groter dan 0 zijn. De synchronisatie blijft context %s gebruiken totdat u dit corrigeert."
+
+msgid "The address of your Skwirrel instance. Any domain works — skwirrel.eu, skwirrel.dev or your own. Enter just a name, like yourcompany, and .skwirrel.eu is added for you."
+msgstr "Het adres van uw Skwirrel-omgeving. Elk domein werkt — skwirrel.eu, skwirrel.dev of uw eigen domein. Vult u alleen een naam in, zoals uwbedrijf, dan wordt .skwirrel.eu er voor u aan toegevoegd."

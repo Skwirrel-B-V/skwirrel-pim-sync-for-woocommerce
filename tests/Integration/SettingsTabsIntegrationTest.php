@@ -299,7 +299,7 @@ test( 'every element the inline admin script binds by ID still exists', function
 
 	$ids = [
 		'skwirrel-sync-settings-form',
-		'skwirrel_subdomain',
+		'skwirrel_base_url',
 		'endpoint_url',
 		'skwirrel-test-connection',
 		'skwirrel-test-result',

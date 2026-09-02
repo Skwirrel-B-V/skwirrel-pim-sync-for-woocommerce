@@ -325,7 +325,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	 * @return array<int, string>
 	 */
 	public static function unconditional_required_fields(): array {
-		return [ 'skwirrel_subdomain', 'collection_ids' ];
+		return [ 'skwirrel_base_url', 'collection_ids' ];
 	}
 
 	/**
@@ -727,12 +727,16 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	/**
 	 * Normalize a Skwirrel JSON-RPC endpoint URL.
 	 *
-	 * Heals values produced when a user pastes a full hostname (e.g. "lixero-tmp.z06.skwirrel.eu")
-	 * into the subdomain field — the inline JS would otherwise append a second ".skwirrel.eu/jsonrpc",
-	 * yielding "https://lixero-tmp.z06.skwirrel.eu.skwirrel.eu/jsonrpc". Once stored, the doubled value
-	 * round-trips through the field on every page load, so the bad URL persists across saves until the
-	 * user manually clears it. Collapsing any duplicated trailing ".skwirrel.eu" segments here breaks
-	 * that loop both on save and on display.
+	 * The field holds the **full base URL** of the Skwirrel instance; this appends the one path the
+	 * JSON-RPC API lives at. Any host is accepted — an instance does not have to be a `skwirrel.eu`
+	 * subdomain — so the only rule applied to the path is that it ends in `/jsonrpc`.
+	 *
+	 * Still heals the damage the old subdomain field could do. Pasting a full hostname into it made
+	 * the inline JS append a second ".skwirrel.eu/jsonrpc", yielding
+	 * "https://lixero-tmp.z06.skwirrel.eu.skwirrel.eu/jsonrpc"; once stored, that round-tripped
+	 * through the field on every page load and persisted across saves. Collapsing duplicated
+	 * trailing ".skwirrel.eu" segments and repeated schemes keeps those stored values recoverable
+	 * without the user having to notice and retype them.
 	 */
 	public static function normalize_endpoint_url( string $url ): string {
 		$url = trim( $url );
@@ -755,17 +759,69 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		while ( (bool) preg_match( '/\.skwirrel\.eu\.skwirrel\.eu$/i', $host ) ) {
 			$host = (string) preg_replace( '/\.skwirrel\.eu$/i', '', $host );
 		}
+		// A bare label with no domain at all — "yourcompany" — is the shorthand the old subdomain
+		// field accepted, so it still resolves to a skwirrel.eu instance. Anything carrying its own
+		// domain is taken at face value: skwirrel.dev, clientname.nl and self-hosted instances are
+		// all valid, and guessing a suffix for them would break them.
+		if ( '' !== $host && false === strpos( $host, '.' ) ) {
+			$host .= '.skwirrel.eu';
+		}
 		$scheme = $parts['scheme'] ?? 'https';
-		$path   = (string) ( $parts['path'] ?? '' );
-		// For Skwirrel hosts the only valid path is /jsonrpc — discard any garbage the user
-		// may have pasted (e.g. "/jsonrpc.skwirrel.eu/jsonrpc" from a double-paste mishap).
+		$path   = rtrim( (string) ( $parts['path'] ?? '' ), '/' );
+		// A Skwirrel host serves the API at /jsonrpc and nothing else, so anything pasted into the
+		// path there is discarded (e.g. "/jsonrpc.skwirrel.eu/jsonrpc" from a double-paste mishap).
+		// Other hosts may sit under a prefix, so their path is kept and /jsonrpc appended once.
 		if ( (bool) preg_match( '/\.skwirrel\.eu$/i', $host ) ) {
-			$path = '/jsonrpc';
+			$path = self::ENDPOINT_PATH;
+		} elseif ( self::path_ends_with_endpoint( $path ) ) {
+			// Present but typed in another case. The API serves one canonical path, and a URL path
+			// is case-sensitive to the server, so "/JSONRPC" would 404 if left as entered.
+			$path = substr( $path, 0, -strlen( self::ENDPOINT_PATH ) ) . self::ENDPOINT_PATH;
 		} else {
-			$path = rtrim( $path, '/' );
+			$path .= self::ENDPOINT_PATH;
 		}
 		$query = isset( $parts['query'] ) ? '?' . $parts['query'] : '';
 		return $scheme . '://' . $host . $path . $query;
+	}
+
+	/** The one path the JSON-RPC API is served at, appended to whatever base URL is configured. */
+	public const ENDPOINT_PATH = '/jsonrpc';
+
+	/** Whether a URL path already ends in the endpoint path, case-insensitively. */
+	private static function path_ends_with_endpoint( string $path ): bool {
+		return 0 !== strlen( $path )
+			&& 0 === substr_compare( $path, self::ENDPOINT_PATH, -strlen( self::ENDPOINT_PATH ), null, true );
+	}
+
+	/**
+	 * The base URL an administrator typed, recovered from the stored endpoint.
+	 *
+	 * The screen shows the base and appends `/jsonrpc` visually; the option stores the whole
+	 * endpoint. This is the one place that conversion happens, so the field, the deep links beside
+	 * it and the request all agree.
+	 */
+	public static function endpoint_base_url( string $endpoint ): string {
+		$endpoint = self::normalize_endpoint_url( $endpoint );
+		if ( '' === $endpoint ) {
+			return '';
+		}
+		if ( self::path_ends_with_endpoint( $endpoint ) ) {
+			$endpoint = substr( $endpoint, 0, -strlen( self::ENDPOINT_PATH ) );
+		}
+		return rtrim( $endpoint, '/' );
+	}
+
+	/**
+	 * What the settings field shows: the instance address, without scheme and without `/jsonrpc`.
+	 *
+	 * The screen renders `https://` and `/jsonrpc` as fixed affixes around the input, so the value
+	 * inside it is only the part an administrator actually chooses. Storage is unaffected — the
+	 * option always holds the whole endpoint URL.
+	 */
+	public static function endpoint_display_value( string $endpoint ): string {
+		$base = self::endpoint_base_url( $endpoint );
+
+		return '' === $base ? '' : (string) preg_replace( '#^https?://#i', '', $base );
 	}
 
 	/**
@@ -971,7 +1027,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$token_in = isset( $_POST['auth_token'] ) ? trim( (string) wp_unslash( $_POST['auth_token'] ) ) : '';
 
 		if ( '' === $endpoint ) {
-			wp_send_json_error( [ 'message' => __( 'Enter a Skwirrel subdomain first.', 'skwirrel-pim-sync' ) ] );
+			wp_send_json_error( [ 'message' => __( 'Enter your Skwirrel address first.', 'skwirrel-pim-sync' ) ] );
 		}
 
 		// Autosave the environment/connection settings so the saved config matches what is tested.
@@ -1873,7 +1929,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'abortSyncConfirm'       => __( 'Stop the running sync?', 'skwirrel-pim-sync' ),
 				'testConnectionNonce'    => wp_create_nonce( 'skwirrel_test_connection_nonce' ),
 				'testingLabel'           => __( 'Testing…', 'skwirrel-pim-sync' ),
-				'testSubdomainLabel'     => __( 'Enter a subdomain first.', 'skwirrel-pim-sync' ),
+				'testSubdomainLabel'     => __( 'Enter an address first.', 'skwirrel-pim-sync' ),
 				'testFailedLabel'        => __( 'Connection failed.', 'skwirrel-pim-sync' ),
 				'testNetworkLabel'       => __( 'Network error.', 'skwirrel-pim-sync' ),
 				'refreshStatusesNonce'   => wp_create_nonce( 'skwirrel_refresh_statuses_nonce' ),
@@ -1916,42 +1972,50 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '   if (this.value !== "_custom") { document.getElementById("image_language_custom").value = ""; }'
 			. '  });'
 			. ' }'
-			. ' var subInput = document.getElementById("skwirrel_subdomain");'
+			. ' var hostInput = document.getElementById("skwirrel_base_url");'
 			. ' var urlField = document.getElementById("endpoint_url");'
-			. ' function skwNormalizeSubdomain(raw) {'
+			// Mirrors Admin_Settings::normalize_endpoint_url(): strip what the affixes already show,
+			// then expand a bare label to a skwirrel.eu subdomain. A value carrying its own domain
+			// is left exactly as typed, so skwirrel.dev, clientname.nl and self-hosted instances
+			// all work. The server normalises again on save, so this is convenience, not trust.
+			. ' function skwNormalizeHost(raw) {'
 			. '  var s = (raw || "").trim().toLowerCase();'
-			. '  s = s.replace(/^https?:\\/\\//, "");'
-			. '  s = s.replace(/\\/.*$/, "");'
-			. '  while (/\\.skwirrel\\.eu$/.test(s)) { s = s.replace(/\\.skwirrel\\.eu$/, ""); }'
-			. '  return s.replace(/^\\.+|\\.+$/g, "");'
+			. '  while (/^https?:\\/\\//.test(s)) { s = s.replace(/^https?:\\/\\//, ""); }'
+			. '  s = s.replace(/\\/+$/, "");'
+			. '  s = s.replace(/\\/jsonrpc$/, "");'
+			. '  s = s.replace(/^\\.+|\\.+$/g, "");'
+			. '  if (s && s.indexOf("/") === -1 && s.indexOf(".") === -1) { s += ".skwirrel.eu"; }'
+			. '  return s;'
 			. ' }'
-			. ' function skwApplySubdomain(v) {'
-			. '  var clean = skwNormalizeSubdomain(v);'
-			. '  if (urlField) urlField.value = clean ? "https://" + clean + ".skwirrel.eu/jsonrpc" : "";'
-			. '  var label = clean || "<your-subdomain>";'
+			. ' function skwApplyHost(v) {'
+			. '  var clean = skwNormalizeHost(v);'
+			. '  var base = clean ? "https://" + clean : "";'
+			. '  if (urlField) urlField.value = base ? base + "/jsonrpc" : "";'
+			. '  var label = base || "https://your-instance";'
 			. '  var tokenDomain = document.getElementById("skwirrel-token-domain");'
-			. '  var tokenLink = document.getElementById("skwirrel-token-link");'
 			. '  if (tokenDomain) tokenDomain.textContent = label;'
-			. '  if (tokenLink && clean) tokenLink.href = "https://" + clean + ".skwirrel.eu/data/webservice";'
-			. '  var catLink = document.getElementById("skwirrel-categories-link");'
 			. '  document.querySelectorAll(".skwirrel-link-domain").forEach(function(el) { el.textContent = label; });'
-			. '  if (catLink && clean) catLink.href = "https://" + clean + ".skwirrel.eu/base/categories";'
-			. '  var selLink = document.getElementById("skwirrel-selections-link");'
-			. '  if (selLink && clean) selLink.href = "https://" + clean + ".skwirrel.eu/data/selections";'
-			. ' }'
-			. ' if (subInput && urlField) {'
-			. '  subInput.addEventListener("input", function() { skwApplySubdomain(this.value); });'
-			. '  subInput.addEventListener("blur", function() {'
-			. '   var clean = skwNormalizeSubdomain(this.value);'
-			. '   if (clean !== this.value) { this.value = clean; }'
-			. '   skwApplySubdomain(clean);'
+			. '  [["skwirrel-token-link", "/data/webservice"],'
+			. '   ["skwirrel-categories-link", "/base/categories"],'
+			. '   ["skwirrel-selections-link", "/data/selections"],'
+			. '   ["skwirrel-groups-link", "/base/groups"]].forEach(function(pair) {'
+			. '   var el = document.getElementById(pair[0]);'
+			. '   if (el && base) { el.href = base + pair[1]; }'
 			. '  });'
-			. '  subInput.addEventListener("paste", function(e) {'
+			. ' }'
+			. ' if (hostInput && urlField) {'
+			. '  hostInput.addEventListener("input", function() { skwApplyHost(this.value); });'
+			. '  hostInput.addEventListener("blur", function() {'
+			. '   var clean = skwNormalizeHost(this.value);'
+			. '   if (clean !== this.value) { this.value = clean; }'
+			. '   skwApplyHost(clean);'
+			. '  });'
+			. '  hostInput.addEventListener("paste", function(e) {'
 			. '   var pasted = (e.clipboardData || window.clipboardData).getData("text");'
-			. '   var clean = skwNormalizeSubdomain(pasted);'
+			. '   var clean = skwNormalizeHost(pasted);'
 			. '   e.preventDefault();'
 			. '   this.value = clean;'
-			. '   skwApplySubdomain(clean);'
+			. '   skwApplyHost(clean);'
 			. '  });'
 			. ' }'
 			. ' var historyBtn = document.getElementById("skwirrel-clear-history-btn");'
@@ -1965,8 +2029,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. ' var testBtn = document.getElementById("skwirrel-test-connection");'
 			. ' if (testBtn) testBtn.addEventListener("click", function(){'
 			. '  var res = document.getElementById("skwirrel-test-result");'
-			. '  var subEl = document.getElementById("skwirrel_subdomain");'
-			. '  var sub = subEl ? subEl.value.trim() : "";'
+			. '  var subEl = document.getElementById("skwirrel_base_url");'
+			. '  var sub = skwNormalizeHost(subEl ? subEl.value : "");'
 			// Built with createElement/textContent rather than innerHTML: the headline can be an
 			// API-supplied error string. The whole result is written in one pass so the aria-live
 			// region announces the headline and its metrics together.
@@ -1996,7 +2060,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '  var fd = new FormData();'
 			. '  fd.append("action", "skwirrel_wc_sync_test_connection");'
 			. '  fd.append("_nonce", skwirrelPimSync.testConnectionNonce);'
-			. '  fd.append("endpoint_url", "https://" + sub + ".skwirrel.eu/jsonrpc");'
+			. '  fd.append("endpoint_url", "https://" + sub + "/jsonrpc");'
 			. '  if (tokenEl) fd.append("auth_token", tokenEl.value);'
 			. '  var ctxEl = document.getElementById("context_id");'
 			. '  if (ctxEl) fd.append("context_id", ctxEl.value);'
@@ -2529,7 +2593,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
 		if ( isset( $_GET['reset'] ) && 'done' === $_GET['reset'] ) {
-			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Skwirrel sync settings reset. All configuration options were deleted, scheduled jobs cancelled, and caches flushed. Products, media, categories and sync history are untouched. Re-enter your subdomain and API token below to continue.', 'skwirrel-pim-sync' ) . '</p></div>';
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Skwirrel sync settings reset. All configuration options were deleted, scheduled jobs cancelled, and caches flushed. Products, media, categories and sync history are untouched. Re-enter your Skwirrel address and API token below to continue.', 'skwirrel-pim-sync' ) . '</p></div>';
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
 		if ( isset( $_GET['purge'] ) && 'queued' === $_GET['purge'] ) {

@@ -45,7 +45,7 @@ test('the unconditionally required fields are always required', function () {
     foreach (skw_checkbox_combinations() as $values) {
         $required = Skwirrel_WC_Sync_Admin_Settings::required_fields($values);
 
-        expect($required['skwirrel_subdomain'])->toBeTrue();
+        expect($required['skwirrel_base_url'])->toBeTrue();
         expect($required['collection_ids'])->toBeTrue();
     }
 });
@@ -72,7 +72,7 @@ test('custom_collection_id is required exactly when any consuming feature is on'
 
 test('an empty settings array requires only the unconditional fields', function () {
     expect(Skwirrel_WC_Sync_Admin_Settings::required_fields([]))->toBe([
-        'skwirrel_subdomain' => true,
+        'skwirrel_base_url' => true,
         'collection_ids' => true,
         'super_category_id' => false,
         'custom_collection_id' => false,
@@ -110,7 +110,7 @@ test('every error code maps to a field the settings screen knows about', functio
  * sanitize_settings() rejects when it is empty. If these two ever drift the form starts
  * lying about what it will accept.
  *
- * skwirrel_subdomain is excluded on purpose — it is a JavaScript-only helper that writes the
+ * skwirrel_base_url is excluded on purpose — it is a JavaScript-only helper that writes the
  * hidden endpoint_url input and has no server-side rule. That gap is recorded in the story's
  * open question, not closed here.
  */

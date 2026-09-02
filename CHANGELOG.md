@@ -44,6 +44,12 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 
 ### Changed
 
+* **The connection field takes an address, not a subdomain.** It used to accept only the label in front of a fixed `.skwirrel.eu`, so an instance on any other domain could not be configured through the screen at all. The field now holds the whole address — `https://` and `/jsonrpc` are shown as fixed affixes around it, so what you type is only the part you choose — and any domain works: `skwirrel.eu`, `skwirrel.dev`, a customer's own, or a self-hosted instance under a path prefix.
+* **A bare name still means a skwirrel.eu instance.** Typing `yourcompany` still resolves to `https://yourcompany.skwirrel.eu/jsonrpc`, so existing installs re-saving their settings keep the endpoint they had. Anything carrying its own domain is taken at face value rather than having a suffix guessed for it.
+* **The four help links follow the same address.** "Create a static API token at…", and the category, selection and group links, were built from a parsed subdomain and silently produced nonsense for any host that was not a `skwirrel.eu` subdomain. They now hang off the configured base URL.
+* **`/jsonrpc` is appended exactly once**, whatever arrives — with or without a scheme, with or without a trailing slash, already present, or typed in another case (a URL path is case-sensitive to the server, so `/JSONRPC` is canonicalised rather than left to 404).
+
+
 * **"Prices managed outside Skwirrel" now means exactly what it says (code review).** The setting used to prevent only one write — the zero applied when the PIM had no price — while a PIM price, and the blank applied to a price-on-request product, still went through. On a shop whose ERP owns prices, that is the plugin overwriting the owning system's field and showing customers a price the shop does not charge. When the setting is on, the plugin now writes **no** price field at all: not a Skwirrel price, not the price-on-request blank, not the missing-price zero, on any of the four write paths. Availability is unaffected — a price-on-request variation is still set out of stock, because availability is not a price. The field help text states the full contract, and a test asserts that no price setter sits outside the gate.
 
 ### Fixed
