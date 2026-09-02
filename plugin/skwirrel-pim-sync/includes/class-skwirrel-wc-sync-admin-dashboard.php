@@ -1407,14 +1407,25 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<label for="context_id" class="skw-label"><?php esc_html_e( 'Context ID', 'skwirrel-pim-sync' ); ?></label>
 					<?php
 					/*
-					 * Deliberately a text control with numeric hints rather than type="number".
-					 * The sanitiser keeps a rejected value verbatim so the administrator can see
-					 * and correct what they typed, but a number input applies its own
-					 * value-sanitization algorithm and reports a non-numeric value as the empty
-					 * string — so "abc" would come back as a blank box with an error beside it.
+					 * Deliberately a text control with a numeric keyboard hint and NO constraint
+					 * validation, because both of those would defeat the same flow.
+					 *
+					 * type="number" applies its own value-sanitization algorithm and reports a
+					 * non-numeric value as the empty string, so "abc" would come back as a blank
+					 * box beside an error about a value the administrator can no longer see.
+					 *
+					 * pattern="[0-9]*" fails the other way: the browser refuses to submit at all,
+					 * so sanitize_settings() never runs, nothing is stored, no inline error is
+					 * produced, and the administrator gets a generic browser tooltip instead of
+					 * the message naming the context that stays in use. A pattern mismatch on a
+					 * field sitting in a hidden tab panel is also exactly the unfocusable-control
+					 * failure story 5.1 had to work around.
+					 *
+					 * The rule lives in sanitize_settings(), which is the only place that can
+					 * enforce it, report it and keep the value visible for correction.
 					 */
 					?>
-					<input type="text" inputmode="numeric" pattern="[0-9]*" id="context_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[context_id]" value="<?php echo esc_attr( (string) ( $opts['context_id'] ?? '' ) ); ?>" placeholder="1" class="skw-input skw-input-sm"<?php $this->render_field_state_attrs( 'context_id', 'context_id-hint' ); ?> />
+					<input type="text" inputmode="numeric" id="context_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[context_id]" value="<?php echo esc_attr( (string) ( $opts['context_id'] ?? '' ) ); ?>" placeholder="1" class="skw-input skw-input-sm"<?php $this->render_field_state_attrs( 'context_id', 'context_id-hint' ); ?> />
 					<?php $this->render_field_error( 'context_id' ); ?>
 					<p class="skw-field-hint" id="context_id-hint"><?php esc_html_e( 'Optional. Leave this empty unless Skwirrel told you otherwise — an empty field uses the Skwirrel default context. Fill it in only if your Skwirrel instance serves several shops and you need the content of one specific context. Changing it re-imports your whole catalogue on the next synchronisation.', 'skwirrel-pim-sync' ); ?></p>
 				</div>

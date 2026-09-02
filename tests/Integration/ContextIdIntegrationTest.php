@@ -284,7 +284,9 @@ test(
 		// keeps verbatim so it can be corrected. Numeric hints give the keypad without the loss.
 		expect( $input->getAttribute( 'type' ) )->toBe( 'text' );
 		expect( $input->getAttribute( 'inputmode' ) )->toBe( 'numeric' );
-		expect( $input->getAttribute( 'pattern' ) )->toBe( '[0-9]*' );
+		// No pattern: native constraint validation would refuse the submit, so the server-side
+		// preserve-and-correct flow would never get to run.
+		expect( $input->hasAttribute( 'pattern' ) )->toBeFalse();
 		expect( $input->getAttribute( 'placeholder' ) )->toBe( '1' );
 		expect( $input->getAttribute( 'name' ) )->toBe( 'skwirrel_wc_sync_settings[context_id]' );
 		expect( $input->getAttribute( 'value' ) )->toBe( '7' );

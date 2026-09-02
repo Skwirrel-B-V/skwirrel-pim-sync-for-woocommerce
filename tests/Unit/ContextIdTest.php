@@ -483,6 +483,11 @@ test('a rejected Context ID is rendered in a control that can actually show it',
     expect($field)->toContain('type="text"');
     expect($field)->toContain('inputmode="numeric"');
     expect($field)->not->toContain('type="number" id="context_id"');
+    // No constraint validation either: a pattern would stop the browser submitting at all, so the
+    // sanitiser never runs and the administrator gets a generic tooltip instead of the message
+    // naming the context that stays in use.
+    expect($field)->not->toContain('pattern=');
+    expect($field)->not->toContain('required');
 });
 
 /*
