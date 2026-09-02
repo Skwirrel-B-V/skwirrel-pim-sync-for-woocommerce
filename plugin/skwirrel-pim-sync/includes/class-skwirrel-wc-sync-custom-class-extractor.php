@@ -20,11 +20,25 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	/** Custom feature types that are stored as product meta (long text). */
 	private const CC_META_TYPES = [ 'B' ];
 
-	/** @phpstan-ignore property.onlyWritten */
+	/** The language every value in this class is resolved in; injected, never re-read from options. */
 	private string $image_language;
 
 	public function __construct( string $image_language ) {
 		$this->image_language = $image_language;
+	}
+
+	/**
+	 * Point this instance at a language (called once per sync run).
+	 *
+	 * The constructor argument is the single source for every language decision in this class.
+	 * It used to be written and then ignored — each method re-read the live settings option — so a
+	 * caller could not actually choose a language, and a resumable run could resolve one product's
+	 * text in one language and the next product's in another after a mid-run settings save.
+	 *
+	 * @param string $image_language Language code, e.g. `nl` or `nl-NL`.
+	 */
+	public function set_image_language( string $image_language ): void {
+		$this->image_language = '' !== trim( $image_language ) ? trim( $image_language ) : 'nl';
 	}
 
 	/**
@@ -320,7 +334,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 		array $filter_ids = [],
 		array $filter_codes = []
 	): array {
-		$lang    = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
+		$lang    = $this->image_language;
 		$classes = $this->collect_custom_classes( $product, $include_trade_items );
 		$classes = $this->filter_custom_classes( $classes, $filter_mode, $filter_ids, $filter_codes );
 
@@ -385,7 +399,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 			return [];
 		}
 
-		$lang    = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
+		$lang    = $this->image_language;
 		$classes = $this->collect_custom_classes( $product, $include_trade_items );
 		$classes = $this->filter_custom_classes( $classes, $sync_filter_mode, $sync_filter_ids, $sync_filter_codes );
 
@@ -440,7 +454,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 		array $filter_ids = [],
 		array $filter_codes = []
 	): array {
-		$lang    = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
+		$lang    = $this->image_language;
 		$classes = $this->collect_custom_classes( $product, $include_trade_items );
 		$classes = $this->filter_custom_classes( $classes, $filter_mode, $filter_ids, $filter_codes );
 
@@ -489,7 +503,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 			return [];
 		}
 		if ( '' === $lang ) {
-			$lang = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
+			$lang = $this->image_language;
 		}
 		$id_list = [];
 		foreach ( $custom_ids as $c ) {
@@ -547,7 +561,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	 * @return array<int, array{class_id: int|null, class_code: string|null, class_name: string, features: array<int, array{label: string, value: string}>}>
 	 */
 	public function get_grouped_class_features( array $product, bool $include_trade_items = true ): array {
-		$lang    = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
+		$lang    = $this->image_language;
 		$classes = $this->collect_custom_classes( $product, $include_trade_items );
 
 		$result = [];
@@ -632,7 +646,7 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	 */
 	public function resolve_custom_feature_label( array $feat, string $lang = '' ): string {
 		if ( '' === $lang ) {
-			$lang = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
+			$lang = $this->image_language;
 		}
 		$trans = $feat['_custom_feature_translations'] ?? [];
 		if ( ! empty( $trans ) && is_array( $trans ) ) {

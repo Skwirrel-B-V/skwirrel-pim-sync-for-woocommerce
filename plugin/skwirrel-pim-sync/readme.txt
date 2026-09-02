@@ -80,9 +80,9 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 = 3.14.0 =
 
-* New: the settings screen is grouped into four tabs — Connection, What to sync, How it looks and Advanced — so you no longer scroll past forty settings to reach one. No setting changed, moved out of its group, or was renamed.
+* New: the settings screen is grouped into tabs — Connection, What to sync, How it looks, Advanced and Field mapping — so you no longer scroll past forty settings to reach one. No setting changed, moved out of its group, or was renamed.
 * New: a tab containing a field that failed validation is marked with a warning icon and a count, and opens first. Validation messages from saving are now shown on the screen itself.
-* New: link straight to a tab with `#tab-connection`, `#tab-what-to-sync`, `#tab-how-it-looks` or `#tab-advanced`; the address bar keeps up as you switch tabs.
+* New: link straight to a tab with `#tab-connection`, `#tab-what-to-sync`, `#tab-how-it-looks`, `#tab-advanced` or `#tab-field-mapping`; the address bar keeps up as you switch tabs.
 * New: the tab strip is fully keyboard operable (arrow keys, Home and End) and announced correctly by screen readers.
 * New: mandatory settings are marked with an asterisk, and fields that are only mandatory in certain configurations pick the marker up the moment you tick the setting that makes them so — no save needed to find out.
 * New: every validation message now appears next to the field it is about, as well as in the standard WordPress summary at the top, and screen readers announce it together with that field.
@@ -96,7 +96,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * New: a "Field mapping" tab where you can point four WooCommerce fields at your own Skwirrel custom fields — stock quantity, product title, short description and long description. Leave one empty and that field keeps working exactly as it does today.
 * New: stock levels can now come straight from Skwirrel, for simple products and for each variation of a variable product separately, so you stop keeping stock in two systems.
 * New: a product with no value for the mapped stock field is left completely alone — its stock is never set to 0 and never switched to unmanaged. The same holds for the title and description mappings: an empty field falls back to the text you get today instead of blanking your product.
-* New: products priced on request stay out of stock whatever the stock field says.
+* New: variations priced on request stay out of stock whatever the stock field says.
 * New: document links on a product now show the document's real name in your shop's language instead of the file name, so you can tell a mounting instruction from a declaration of performance without opening both.
 * Fix: a synchronisation now finishes under the settings it started with. Changing the Context ID or a field mapping while a synchronisation is running no longer applies to only half of your catalogue, and can no longer cause valid products to be removed.
 * Fix: with a Context ID set, "Test connection" now reports the number of products in *that* context instead of the default one.

@@ -1837,3 +1837,8 @@ msgstr ""
 #: skwirrel-pim-sync.php:52
 msgid "Install WooCommerce"
 msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attachment-handler.php:150
+msgid "Document"
+msgstr ""
+

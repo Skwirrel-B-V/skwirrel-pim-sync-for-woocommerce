@@ -2637,3 +2637,7 @@ msgstr "Installer WooCommerce"
 #~ "prochaine synchronisation.\n"
 #~ "\n"
 #~ "Êtes-vous sûr de vouloir supprimer cette catégorie ?"
+
+#: includes/class-skwirrel-wc-sync-attachment-handler.php:150
+msgid "Document"
+msgstr "Document"

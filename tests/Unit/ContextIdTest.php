@@ -94,19 +94,14 @@ function skw_set_context_setting(?string $value): void
     $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = $settings;
 }
 
+
 /**
- * Drive the private getCategories fetch far enough to observe the params it builds.
+ * Drive the public entry point, which is where the run's frozen settings copy is read.
  */
-function skw_fetch_categories(Skw_Recording_Rpc_Client $client): void
+function skw_sync_category_tree(Skw_Recording_Rpc_Client $client, array $options): void
 {
     $sync = new Skwirrel_WC_Sync_Category_Sync(new Skwirrel_WC_Sync_Logger(), new Skwirrel_WC_Sync_Product_Mapper());
-    $method = new ReflectionMethod(Skwirrel_WC_Sync_Category_Sync::class, 'fetch_categories_for_super');
-
-    $flat = [];
-    $args = [$client, 12, [], 'nl'];
-    $args[4] = &$flat;
-
-    $method->invokeArgs($sync, $args);
+    $sync->sync_category_tree($client, $options + ['super_category_id' => 12], []);
 }
 
 /**
@@ -245,7 +240,7 @@ test('getCategories carries the configured context', function () {
     skw_set_context_setting('9');
     $client = new Skw_Recording_Rpc_Client();
 
-    skw_fetch_categories($client);
+    skw_sync_category_tree($client, ['context_id' => '9', 'image_language' => 'nl']);
 
     expect($client->params_for('getCategories')['include_contexts'])->toBe([9]);
 });
@@ -254,7 +249,28 @@ test('getCategories keeps sending the default context when none is configured', 
     skw_set_context_setting(null);
     $client = new Skw_Recording_Rpc_Client();
 
-    skw_fetch_categories($client);
+    skw_sync_category_tree($client, ['image_language' => 'nl']);
+
+    expect($client->params_for('getCategories')['include_contexts'])->toBe([1]);
+});
+
+test('the category tree follows the run\'s frozen context, not a mid-run change', function () {
+    skw_set_context_setting('9');
+    $client = new Skw_Recording_Rpc_Client();
+
+    // The run started on context 9; an admin saves 4 before this queued step executes.
+    skw_set_context_setting('4');
+    skw_sync_category_tree($client, ['context_id' => '9', 'image_language' => 'nl']);
+
+    // Products and their category IDs come from 9, so the tree must too.
+    expect($client->params_for('getCategories')['include_contexts'])->toBe([9]);
+});
+
+test('a run with no context configured still asks for the default category context', function () {
+    skw_set_context_setting('9');
+    $client = new Skw_Recording_Rpc_Client();
+
+    skw_sync_category_tree($client, ['context_id' => '', 'image_language' => 'nl']);
 
     expect($client->params_for('getCategories')['include_contexts'])->toBe([1]);
 });
@@ -424,8 +440,24 @@ test('no call site is left on a hardcoded context literal', function () {
         );
     }
 
-    // The five sites that default to context 1 today; the two grouped sites are covered above.
-    expect($wired)->toBe(5);
+    // The four remaining sites that default to context 1 inline; the two grouped sites are covered
+    // above, and getCategories now takes its contexts from the run instead of resolving its own.
+    expect($wired)->toBe(4);
+});
+
+test('a rejected Context ID is rendered in a control that can actually show it', function () {
+    // The sanitiser keeps "abc" verbatim so it can be seen and corrected. A type="number" input
+    // applies its own value-sanitization algorithm and reports a non-numeric value as empty, which
+    // would hand the administrator a blank box with an error beside it.
+    $source = (string) file_get_contents(
+        dirname(__DIR__, 2) . '/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-dashboard.php'
+    );
+
+    $field = substr($source, (int) strpos($source, 'id="context_id"') - 200, 400);
+
+    expect($field)->toContain('type="text"');
+    expect($field)->toContain('inputmode="numeric"');
+    expect($field)->not->toContain('type="number" id="context_id"');
 });
 
 /*

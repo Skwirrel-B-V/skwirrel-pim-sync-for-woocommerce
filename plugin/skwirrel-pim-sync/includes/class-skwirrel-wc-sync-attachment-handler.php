@@ -16,7 +16,7 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 
 	private Skwirrel_WC_Sync_Logger $logger;
 	private Skwirrel_WC_Sync_Media_Importer $media_importer;
-	/** @phpstan-ignore property.onlyWritten */
+	/** The language document and image titles are resolved in; injected, never re-read from options. */
 	private string $image_language;
 
 	/** Number of image attachments with a valid URL that failed to import on the last call. */
@@ -32,6 +32,20 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 		$this->logger         = new Skwirrel_WC_Sync_Logger();
 		$this->media_importer = new Skwirrel_WC_Sync_Media_Importer();
 		$this->image_language = $image_language;
+	}
+
+	/**
+	 * Point this instance at a language (called once per sync run).
+	 *
+	 * The constructor argument is the single source for every language decision in this class.
+	 * It used to be written and then ignored — each method re-read the live settings option — so a
+	 * caller could not actually choose a language, and a resumable run could resolve one product's
+	 * text in one language and the next product's in another after a mid-run settings save.
+	 *
+	 * @param string $image_language Language code, e.g. `nl` or `nl-NL`.
+	 */
+	public function set_image_language( string $image_language ): void {
+		$this->image_language = '' !== trim( $image_language ) ? trim( $image_language ) : 'nl';
 	}
 
 	/**
@@ -67,7 +81,7 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 	 * @return array<string, mixed> The winning translation entry, or [] when there are none.
 	 */
 	private function pick_attachment_translation( array $att ): array {
-		$lang         = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
+		$lang         = $this->image_language;
 		$translations = $att['_attachment_translations'] ?? [];
 		if ( empty( $translations ) || ! is_array( $translations ) ) {
 			return [];
@@ -101,7 +115,7 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 	 * Fallback chain, each candidate trimmed and rejected when empty so a translation entry that
 	 * exists with a blank title falls through rather than winning:
 	 * translated `product_attachment_title` → attachment-level `product_attachment_title` →
-	 * `file_name` → URL basename → the literal `Document`.
+	 * `file_name` → URL basename → the translated fallback "Document".
 	 *
 	 * Never returns an empty string. That matters more than it looks: `get_documents_for_product()`
 	 * drops any document whose name is empty, so a nameless document does not render badly — it
@@ -132,7 +146,8 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 		$path     = wp_parse_url( $url, PHP_URL_PATH );
 		$basename = is_string( $path ) && '' !== $path ? trim( basename( $path ) ) : '';
 
-		return '' !== $basename ? $basename : 'Document';
+		// Customer-visible link text, so it ships translated like every other front-end string.
+		return '' !== $basename ? $basename : __( 'Document', 'skwirrel-pim-sync' );
 	}
 
 	/**

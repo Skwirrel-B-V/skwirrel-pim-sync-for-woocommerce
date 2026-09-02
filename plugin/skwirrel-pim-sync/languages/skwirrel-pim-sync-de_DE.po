@@ -2590,3 +2590,7 @@ msgstr "WooCommerce installieren"
 #~ msgstr ""
 #~ "Die Seite wird automatisch aktualisiert, wenn die Synchronisierung "
 #~ "abgeschlossen ist."
+
+#: includes/class-skwirrel-wc-sync-attachment-handler.php:150
+msgid "Document"
+msgstr "Dokument"

@@ -24,9 +24,11 @@ afterEach(function () {
 });
 
 /** Point the plugin at a language for one test. */
-function doc_language(string $lang): void
+function doc_language(Skwirrel_WC_Sync_Attachment_Handler $handler, string $lang): void
 {
-    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [ 'image_language' => $lang ];
+    // The language is injected, not read back out of the settings option: the handler resolves
+    // every title in the language its owner hands it, which is what lets a sync run freeze one.
+    $handler->set_image_language($lang);
 }
 
 /**
@@ -49,7 +51,7 @@ function doc_attachment(array $translations = [], array $overrides = []): array
 // ------------------------------------------------------------------
 
 test('an exact language match wins', function () {
-    doc_language('nl');
+    doc_language($this->handler, 'nl');
 
     $att = doc_attachment(
         [
@@ -68,7 +70,7 @@ test('an exact language match wins', function () {
 // ------------------------------------------------------------------
 
 test('a two-letter prefix match wins when there is no exact match', function () {
-    doc_language('nl-BE');
+    doc_language($this->handler, 'nl-BE');
 
     $att = doc_attachment(
         [
@@ -83,7 +85,7 @@ test('a two-letter prefix match wins when there is no exact match', function () 
 });
 
 test('the first entry is used when neither exact nor prefix matches', function () {
-    doc_language('es');
+    doc_language($this->handler, 'es');
 
     $att = doc_attachment(
         [
@@ -102,7 +104,7 @@ test('the first entry is used when neither exact nor prefix matches', function (
 // ------------------------------------------------------------------
 
 test('an empty translation title falls through to the attachment-level title', function () {
-    doc_language('nl');
+    doc_language($this->handler, 'nl');
 
     $att = doc_attachment(
         [ [ 'language' => 'nl', 'product_attachment_title' => '' ] ],
@@ -114,7 +116,7 @@ test('an empty translation title falls through to the attachment-level title', f
 });
 
 test('a whitespace-only translation title falls through too', function () {
-    doc_language('nl');
+    doc_language($this->handler, 'nl');
 
     $att = doc_attachment(
         [ [ 'language' => 'nl', 'product_attachment_title' => '   ' ] ],
@@ -126,7 +128,7 @@ test('a whitespace-only translation title falls through too', function () {
 });
 
 test('no translations at all falls back to file_name', function () {
-    doc_language('nl');
+    doc_language($this->handler, 'nl');
 
     $att = doc_attachment([], [ 'file_name' => 'DOP-1.pdf' ]);
 
@@ -135,21 +137,21 @@ test('no translations at all falls back to file_name', function () {
 });
 
 test('nothing at all falls back to the URL basename', function () {
-    doc_language('nl');
+    doc_language($this->handler, 'nl');
 
     expect($this->handler->resolve_document_name([], 'https://cdn.example/files/DOP-9.pdf'))
         ->toBe('DOP-9.pdf');
 });
 
 test('a URL with no usable path falls back to the literal Document', function () {
-    doc_language('nl');
+    doc_language($this->handler, 'nl');
 
     expect($this->handler->resolve_document_name([], ''))->toBe('Document');
     expect($this->handler->resolve_document_name([], 'https://cdn.example'))->toBe('Document');
 });
 
 test('the resolver never returns an empty string, whatever it is given', function () {
-    doc_language('nl');
+    doc_language($this->handler, 'nl');
 
     // A nameless document is dropped by get_documents_for_product(), so "" is the one
     // outcome that must be unreachable.
@@ -170,7 +172,7 @@ test('the resolver never returns an empty string, whatever it is given', functio
 // ------------------------------------------------------------------
 
 test('HTML in a title is returned verbatim, not escaped here', function () {
-    doc_language('nl');
+    doc_language($this->handler, 'nl');
 
     $att = doc_attachment(
         [ [ 'language' => 'nl', 'product_attachment_title' => 'Handleiding <b>NL</b>' ] ]
@@ -190,7 +192,7 @@ test('image meta resolution is unchanged by the shared-chain refactor', function
         return $ref->invoke($this->handler, $att);
     };
 
-    doc_language('nl');
+    doc_language($this->handler, 'nl');
 
     // Exact match.
     expect($invoke(doc_attachment(
@@ -202,14 +204,14 @@ test('image meta resolution is unchanged by the shared-chain refactor', function
     )))->toBe([ 'title' => 'NL', 'description' => 'NL desc' ]);
 
     // Prefix match.
-    doc_language('nl-BE');
+    doc_language($this->handler, 'nl-BE');
     expect($invoke(doc_attachment(
         [ [ 'language' => 'nl', 'product_attachment_title' => 'NL', 'product_attachment_description' => 'NL desc' ] ],
         [ 'file_name' => 'img.jpg' ]
     )))->toBe([ 'title' => 'NL', 'description' => 'NL desc' ]);
 
     // First-entry fallback.
-    doc_language('es');
+    doc_language($this->handler, 'es');
     expect($invoke(doc_attachment(
         [ [ 'language' => 'de', 'product_attachment_title' => 'DE', 'product_attachment_description' => 'DE desc' ] ],
         [ 'file_name' => 'img.jpg' ]
@@ -220,7 +222,7 @@ test('image meta resolution is unchanged by the shared-chain refactor', function
         ->toBe([ 'title' => 'img.jpg', 'description' => '' ]);
 
     // Translation present but title key absent: file_name, per the baked-in image fallback.
-    doc_language('nl');
+    doc_language($this->handler, 'nl');
     expect($invoke(doc_attachment(
         [ [ 'language' => 'nl', 'product_attachment_description' => 'NL desc' ] ],
         [ 'file_name' => 'img.jpg' ]
@@ -232,4 +234,45 @@ test('image meta resolution is unchanged by the shared-chain refactor', function
         [],
         [ 'file_name' => 'img.jpg', 'product_attachment_title' => 'Should not win' ]
     )))->toBe([ 'title' => 'img.jpg', 'description' => '' ]);
+});
+
+// ------------------------------------------------------------------
+// The last rung is customer-visible, so it ships translated
+// ------------------------------------------------------------------
+
+test('the nameless-document fallback is translatable and present in every catalogue', function () {
+    $plugin = dirname(__DIR__, 2) . '/plugin/skwirrel-pim-sync';
+
+    $source = (string) file_get_contents($plugin . '/includes/class-skwirrel-wc-sync-attachment-handler.php');
+    expect($source)->toContain("__( 'Document', 'skwirrel-pim-sync' )");
+
+    $catalogues = array_merge(
+        [$plugin . '/languages/skwirrel-pim-sync.pot'],
+        glob($plugin . '/languages/skwirrel-pim-sync-*.po') ?: []
+    );
+    expect($catalogues)->toHaveCount(8);
+
+    foreach ($catalogues as $catalogue) {
+        expect(str_contains((string) file_get_contents($catalogue), 'msgid "Document"'))
+            ->toBeTrue(basename($catalogue) . ' is missing the Document fallback');
+    }
+});
+
+test('the resolver reads the language it was given, never the live option', function () {
+    // The constructor argument used to be written and then ignored; a run freezes a language and
+    // must get it, whatever an administrator saves halfway through.
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [ 'image_language' => 'fr' ];
+
+    $handler = new Skwirrel_WC_Sync_Attachment_Handler('de');
+
+    $att = doc_attachment(
+        [
+            [ 'language' => 'fr', 'product_attachment_title' => 'Notice de montage' ],
+            [ 'language' => 'de', 'product_attachment_title' => 'Montageanleitung' ],
+        ],
+        [ 'file_name' => 'MAN-123.pdf' ]
+    );
+
+    expect($handler->resolve_document_name($att, 'https://cdn.example/MAN-123.pdf'))
+        ->toBe('Montageanleitung');
 });

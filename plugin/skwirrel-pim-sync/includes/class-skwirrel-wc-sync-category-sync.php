@@ -79,9 +79,15 @@ class Skwirrel_WC_Sync_Category_Sync {
 
 		$lang = $options['image_language'] ?? 'nl';
 
+		// Resolved from the run's own settings copy, not the live option. The product request is
+		// frozen into `$ctx['api_includes']` at begin_run(), so re-reading here would let a Context
+		// ID saved before this queued step runs build the category tree from one context while the
+		// products filed under it came from another.
+		$contexts = Skwirrel_WC_Sync_Admin_Settings::resolve_context_ids( $options['context_id'] ?? '' ) ?? [ 1 ];
+
 		// Fetch all categories under this super category in one call.
 		$flat = [];
-		$this->fetch_categories_for_super( $client, $super_id, $languages, $lang, $flat );
+		$this->fetch_categories_for_super( $client, $super_id, $languages, $lang, $contexts, $flat );
 
 		if ( empty( $flat ) ) {
 			$this->logger->warning( 'No categories found in tree', [ 'super_category_id' => $super_id ] );
@@ -168,6 +174,7 @@ class Skwirrel_WC_Sync_Category_Sync {
 	 * @param int                             $super_id Super category ID.
 	 * @param array                           $languages Include languages for API call.
 	 * @param string                          $lang     Preferred language for names.
+	 * @param array<int, int>                 $contexts Resolved `include_contexts` for this run.
 	 * @param array                           &$flat    Output: flat list (mutated).
 	 */
 	private function fetch_categories_for_super(
@@ -175,12 +182,13 @@ class Skwirrel_WC_Sync_Category_Sync {
 		int $super_id,
 		array $languages,
 		string $lang,
+		array $contexts,
 		array &$flat
 	): void {
 		$params = [
 			'super_category_id'             => $super_id,
 			'include_category_translations' => true,
-			'include_contexts'              => Skwirrel_WC_Sync_Admin_Settings::get_context_ids() ?? [ 1 ],
+			'include_contexts'              => $contexts,
 		];
 
 		if ( ! empty( $languages ) ) {

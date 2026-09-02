@@ -670,9 +670,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						$entry_date = $ts ? wp_date( 'Y-m-d', $ts ) : '';
 						$entry_time = $ts ? wp_date( get_option( 'time_format' ), $ts ) : '-';
 						// Ungrouped tables (the dashboard's "Recent syncs") have no date header, so a
-						// bare time is ambiguous once a run is older than today: prefix the day-month.
+						// bare time is ambiguous once a run is older than today: prefix the date. It
+						// follows the site's own date format rather than a hardcoded `d-m`, which
+						// read as day-month to some admins and month-day to others, and dropped the
+						// year entirely on anything older than twelve months.
 						if ( ! $group_dates && $ts && $entry_date !== $today ) {
-							$entry_time = wp_date( 'd-m', $ts ) . ' ' . $entry_time;
+							$entry_time = wp_date( (string) get_option( 'date_format', 'Y-m-d' ), $ts ) . ' ' . $entry_time;
 						}
 						$is_success    = ! empty( $entry['success'] );
 						$entry_trigger = $entry['trigger'] ?? Skwirrel_WC_Sync_History::TRIGGER_MANUAL;
@@ -1402,7 +1405,16 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</div>
 				<div class="skw-field"<?php $this->render_field_wrapper_attr( 'context_id' ); ?>>
 					<label for="context_id" class="skw-label"><?php esc_html_e( 'Context ID', 'skwirrel-pim-sync' ); ?></label>
-					<input type="number" id="context_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[context_id]" value="<?php echo esc_attr( (string) ( $opts['context_id'] ?? '' ) ); ?>" min="1" step="1" placeholder="1" class="skw-input skw-input-sm"<?php $this->render_field_state_attrs( 'context_id', 'context_id-hint' ); ?> />
+					<?php
+					/*
+					 * Deliberately a text control with numeric hints rather than type="number".
+					 * The sanitiser keeps a rejected value verbatim so the administrator can see
+					 * and correct what they typed, but a number input applies its own
+					 * value-sanitization algorithm and reports a non-numeric value as the empty
+					 * string — so "abc" would come back as a blank box with an error beside it.
+					 */
+					?>
+					<input type="text" inputmode="numeric" pattern="[0-9]*" id="context_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[context_id]" value="<?php echo esc_attr( (string) ( $opts['context_id'] ?? '' ) ); ?>" placeholder="1" class="skw-input skw-input-sm"<?php $this->render_field_state_attrs( 'context_id', 'context_id-hint' ); ?> />
 					<?php $this->render_field_error( 'context_id' ); ?>
 					<p class="skw-field-hint" id="context_id-hint"><?php esc_html_e( 'Optional. Leave this empty unless Skwirrel told you otherwise — an empty field uses the Skwirrel default context. Fill it in only if your Skwirrel instance serves several shops and you need the content of one specific context. Changing it re-imports your whole catalogue on the next synchronisation.', 'skwirrel-pim-sync' ); ?></p>
 				</div>

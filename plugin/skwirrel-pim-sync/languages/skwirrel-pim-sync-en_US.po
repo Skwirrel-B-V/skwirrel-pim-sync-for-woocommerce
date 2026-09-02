@@ -2489,3 +2489,7 @@ msgstr "Install WooCommerce"
 
 #~ msgid "Static token (X-Skwirrel-Api-Token)"
 #~ msgstr "Static token (X-Skwirrel-Api-Token)"
+
+#: includes/class-skwirrel-wc-sync-attachment-handler.php:150
+msgid "Document"
+msgstr "Document"

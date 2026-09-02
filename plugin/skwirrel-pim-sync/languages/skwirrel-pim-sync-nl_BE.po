@@ -2600,3 +2600,7 @@ msgstr "WooCommerce installeren"
 #~ "aangemaakt bij de volgende sync.\n"
 #~ "\n"
 #~ "Weet u zeker dat u deze categorie wilt verwijderen?"
+
+#: includes/class-skwirrel-wc-sync-attachment-handler.php:150
+msgid "Document"
+msgstr "Document"

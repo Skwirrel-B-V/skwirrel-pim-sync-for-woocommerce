@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Skwirrel_WC_Sync_Etim_Extractor {
 
-	/** @phpstan-ignore property.onlyWritten */
+	/** The language every value in this class is resolved in; injected, never re-read from options. */
 	private string $image_language;
 	private Skwirrel_WC_Sync_Logger $logger;
 
@@ -24,12 +24,26 @@ class Skwirrel_WC_Sync_Etim_Extractor {
 	}
 
 	/**
+	 * Point this instance at a language (called once per sync run).
+	 *
+	 * The constructor argument is the single source for every language decision in this class.
+	 * It used to be written and then ignored — each method re-read the live settings option — so a
+	 * caller could not actually choose a language, and a resumable run could resolve one product's
+	 * text in one language and the next product's in another after a mid-run settings save.
+	 *
+	 * @param string $image_language Language code, e.g. `nl` or `nl-NL`.
+	 */
+	public function set_image_language( string $image_language ): void {
+		$this->image_language = '' !== trim( $image_language ) ? trim( $image_language ) : 'nl';
+	}
+
+	/**
 	 * Get ETIM features as attributes from product._etim or _product_groups[]._etim.
 	 * Uses content language for labels/values.
 	 * Feature types: A=alphanumeric, L=logical, N=numeric, R=range, C=class, M=modelling.
 	 */
 	public function get_etim_attributes( array $product ): array {
-		$lang       = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
+		$lang       = $this->image_language;
 		$attrs      = [];
 		$seen       = [];
 		$etim_items = $this->collect_etim_items( $product );
@@ -247,7 +261,7 @@ class Skwirrel_WC_Sync_Etim_Extractor {
 	 */
 	public function resolve_etim_feature_label( array $feature, string $lang = '' ): string {
 		if ( '' === $lang ) {
-			$lang = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
+			$lang = $this->image_language;
 		}
 		$trans = $this->normalize_etim_translations( $feature['_etim_feature_translations'] ?? [] );
 		$label = $this->pick_etim_translation( $trans, $lang, 'etim_feature_description' );
@@ -324,7 +338,7 @@ class Skwirrel_WC_Sync_Etim_Extractor {
 			return [];
 		}
 		if ( '' === $lang ) {
-			$lang = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
+			$lang = $this->image_language;
 		}
 		$code_list = [];
 		foreach ( $etim_codes as $c ) {

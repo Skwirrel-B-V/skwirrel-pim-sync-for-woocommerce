@@ -260,6 +260,24 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 * @param string $short_description_ref Feature ID or code for the short description; '' disables.
 	 * @param string $long_description_ref  Feature ID or code for the long description; '' disables.
 	 */
+	/**
+	 * Point the mapper and its three collaborators at one language (called once per sync run).
+	 *
+	 * Rides the same frozen per-run options copy as {@see self::set_content_mapping()}. Without it
+	 * the language would be the one hole left in the freeze: every Action Scheduler step builds a
+	 * fresh mapper from the live option, so an `image_language` saved mid-run would resolve the
+	 * first half of a catalogue's titles, ETIM values and document names in one language and the
+	 * second half in another.
+	 *
+	 * @param string $image_language Language code, e.g. `nl` or `nl-NL`; empty keeps `nl`.
+	 */
+	public function set_image_language( string $image_language ): void {
+		$this->image_language = '' !== trim( $image_language ) ? trim( $image_language ) : 'nl';
+		$this->etim->set_image_language( $this->image_language );
+		$this->custom_class->set_image_language( $this->image_language );
+		$this->attachment->set_image_language( $this->image_language );
+	}
+
 	public function set_content_mapping( string $title_ref, string $short_description_ref, string $long_description_ref ): void {
 		$this->title_feature_ref             = trim( $title_ref );
 		$this->short_description_feature_ref = trim( $short_description_ref );
