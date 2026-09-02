@@ -14,19 +14,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	private const PAGE_SLUG  = 'skwirrel-pim-sync';
 	private const OPTION_KEY = 'skwirrel_wc_sync_settings';
 
-	/**
-	 * Flag option: show the temporary "Skwirrel" signpost under the WooCommerce menu.
-	 *
-	 * Set by Skwirrel_WC_Sync_Action_Scheduler::maybe_upgrade_reschedule() only when the site
-	 * upgraded from a version that still had the admin screen as a WooCommerce submenu. Fresh
-	 * installs never set it and never see the signpost.
-	 *
-	 * @deprecated The signpost is a migration aid only. Remove this constant, the option, the
-	 *             flag write in the upgrade routine and add_woocommerce_signpost() in 3.15.0.
-	 */
-	public const WC_SIGNPOST_OPTION = 'skwirrel_wc_sync_show_wc_signpost';
-	private const TOKEN_OPTION_KEY  = 'skwirrel_wc_sync_auth_token';
-	private const MASK              = '••••••••';
+	private const TOKEN_OPTION_KEY = 'skwirrel_wc_sync_auth_token';
+	private const MASK             = '••••••••';
 
 	private static ?self $instance = null;
 
@@ -70,9 +59,6 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 	private function __construct() {
 		add_action( 'admin_menu', [ $this, 'add_menu' ], 10 );
-		// Registered late so the signpost lands at the bottom of WooCommerce's own submenu
-		// (WC adds Settings at priority 50 and Status at 60).
-		add_action( 'admin_menu', [ $this, 'add_woocommerce_signpost' ], 99 );
 		add_filter( 'submenu_file', [ $this, 'highlight_active_tab' ], 10, 2 );
 		add_action( 'admin_head', [ $this, 'print_menu_icon_css' ] );
 		add_action( 'admin_init', [ $this, 'register_settings' ] );
@@ -229,26 +215,6 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	}
 
 	/**
-	 * Temporary signpost under WooCommerce for sites that upgraded from a version where this
-	 * screen lived there. A link only — no callback, so no second page is registered.
-	 *
-	 * @deprecated Remove this method (and WC_SIGNPOST_OPTION) in 3.15.0.
-	 */
-	public function add_woocommerce_signpost(): void {
-		if ( ! get_option( self::WC_SIGNPOST_OPTION, false ) ) {
-			return;
-		}
-
-		add_submenu_page(
-			'woocommerce',
-			'',
-			__( 'Skwirrel', 'skwirrel-pim-sync' ),
-			'manage_woocommerce',
-			'admin.php?page=' . self::PAGE_SLUG
-		);
-	}
-
-	/**
 	 * Light up the submenu entry matching the tab currently being viewed.
 	 *
 	 * Core sets no $submenu_file for this screen, so without this filter it falls back to
@@ -288,7 +254,47 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			delete_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
 			Skwirrel_WC_Sync_Action_Scheduler::instance()->schedule();
 			$this->bust_settings_cache();
+			$this->maybe_force_full_sync_on_context_change( is_array( $old_value ) ? $old_value : [], $value );
 		}
+	}
+
+	/**
+	 * Force the next sync to run as a full sync when the effective context changed.
+	 *
+	 * Products already in the catalogue came from the old context; a delta sync would only touch
+	 * what changed upstream and leave the rest behind, producing a catalogue mixed from two
+	 * contexts. Comparing the *resolved* context — not the raw string — means a re-save, or one
+	 * invalid value replaced by another, never schedules a full re-sync it does not need.
+	 *
+	 * @param array<string, mixed> $old_value Settings before the save.
+	 * @param array<string, mixed> $value     Settings after the save.
+	 */
+	private function maybe_force_full_sync_on_context_change( array $old_value, array $value ): void {
+		// Compared on the EFFECTIVE context, not the typed one: a rejected value changes nothing
+		// about what the next run fetches, so it must not arm a full re-sync either.
+		$old = self::context_ids_from_options( $old_value );
+		$new = self::context_ids_from_options( $value );
+
+		if ( $old === $new ) {
+			return;
+		}
+
+		update_option( 'skwirrel_wc_sync_force_full_sync', true, false );
+
+		( new Skwirrel_WC_Sync_Logger() )->info(
+			'force_full_sync flag set: the Skwirrel context ID changed — the next sync will run as full so the catalogue cannot mix two contexts.',
+			[
+				'old_context' => null === $old ? 'default' : $old[0],
+				'new_context' => null === $new ? 'default' : $new[0],
+			]
+		);
+
+		add_settings_error(
+			self::OPTION_KEY,
+			'context_id_changed',
+			__( 'The context ID changed, so the next synchronisation imports your whole catalogue again. This makes sure every product and category comes from the new context.', 'skwirrel-pim-sync' ),
+			'info'
+		);
 	}
 
 	/**
@@ -312,6 +318,91 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		wp_cache_delete( 'notoptions', 'options' );
 	}
 
+
+	/**
+	 * Field IDs that are always required, whatever else is configured.
+	 *
+	 * @return array<int, string>
+	 */
+	public static function unconditional_required_fields(): array {
+		return [ 'skwirrel_base_url', 'collection_ids' ];
+	}
+
+	/**
+	 * Conditionally required fields: field ID => the settings keys that make it required.
+	 *
+	 * A field is required as soon as any listed key is truthy. The settings screen renders
+	 * this rule table alongside the evaluated state, so the live marker toggle reads the
+	 * conditions off the markup instead of keeping a second copy of them in JavaScript.
+	 *
+	 * @return array<string, array<int, string>>
+	 */
+	public static function conditional_required_rules(): array {
+		return [
+			'super_category_id'    => [ 'sync_categories' ],
+			'custom_collection_id' => [ 'sync_custom_classes', 'sync_trade_item_custom_classes', 'sync_grouped_products' ],
+		];
+	}
+
+	/**
+	 * Which settings fields currently need a value.
+	 *
+	 * The single source of truth behind both the `*` markers on the settings screen and the
+	 * rules {@see self::sanitize_settings()} enforces. The two answering differently is the
+	 * whole bug class this exists to prevent, so neither side may inline the conditions.
+	 *
+	 * @param array<string, mixed> $values Stored settings when rendering, raw submitted input when saving.
+	 * @return array<string, bool> Required flag keyed by field ID.
+	 */
+	public static function required_fields( array $values ): array {
+		$required = [];
+
+		foreach ( self::unconditional_required_fields() as $field ) {
+			$required[ $field ] = true;
+		}
+
+		foreach ( self::conditional_required_rules() as $field => $keys ) {
+			$required[ $field ] = false;
+			foreach ( $keys as $key ) {
+				if ( ! empty( $values[ $key ] ) ) {
+					$required[ $field ] = true;
+					break;
+				}
+			}
+		}
+
+		return $required;
+	}
+
+	/**
+	 * Whether one field needs a value for the given settings state.
+	 *
+	 * @param array<string, mixed> $values Stored settings or raw submitted input.
+	 * @param string               $field  Field ID.
+	 */
+	public static function is_field_required( array $values, string $field ): bool {
+		return ! empty( self::required_fields( $values )[ $field ] );
+	}
+
+	/**
+	 * Settings error code => the field the message belongs to.
+	 *
+	 * Keeps the inline placement of a validation message next to the rule that raises it: a
+	 * new `add_settings_error()` call adds its code here and the message lands at its field.
+	 * Codes missing from this map still reach the user through the summary at the top of the
+	 * screen, so forgetting an entry degrades placement, never visibility.
+	 *
+	 * @return array<string, string>
+	 */
+	public static function error_field_map(): array {
+		return [
+			'super_category_id_required'    => 'super_category_id',
+			'collection_ids_required'       => 'collection_ids',
+			'custom_collection_id_required' => 'custom_collection_id',
+			'context_id'                    => 'context_id',
+		];
+	}
+
 	public function sanitize_settings( array $input ): array {
 		$out                 = [];
 		$out['endpoint_url'] = isset( $input['endpoint_url'] ) ? esc_url_raw( self::normalize_endpoint_url( (string) $input['endpoint_url'] ) ) : '';
@@ -323,6 +414,36 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out['auth_token'] = ! empty( $token ) ? self::MASK : '';
 		$out['timeout']    = isset( $input['timeout'] ) ? max( 5, min( 120, (int) $input['timeout'] ) ) : 30;
 		$out['retries']    = isset( $input['retries'] ) ? max( 0, min( 5, (int) $input['retries'] ) ) : 2;
+		// Context ID: optional. Empty means "use the Skwirrel default context". An invalid value is
+		// reported and stored verbatim so the user sees what they typed, but get_context_ids() refuses
+		// to resolve it, so it never reaches the API.
+		$out['context_id'] = isset( $input['context_id'] ) && is_scalar( $input['context_id'] )
+			? sanitize_text_field( trim( (string) $input['context_id'] ) )
+			: '';
+		if ( '' === $out['context_id'] || null !== self::resolve_context_ids( $out['context_id'] ) ) {
+			// Valid, or deliberately cleared to mean "the Skwirrel default context". Either way it
+			// is now what the plugin syncs with.
+			$out[ self::CONTEXT_EFFECTIVE_KEY ] = $out['context_id'];
+		} else {
+			// Rejected. The typed value is still stored so it can be seen and corrected, but the
+			// context the plugin actually syncs with does not move: falling back to the Skwirrel
+			// default here would silently retarget a shop that had a valid context configured, and
+			// with stale purging on, that run would trash the whole catalogue it just stopped
+			// matching. "Reported and inert" has to mean inert.
+			$out[ self::CONTEXT_EFFECTIVE_KEY ] = self::effective_context_raw( is_array( get_option( self::OPTION_KEY, [] ) ) ? (array) get_option( self::OPTION_KEY, [] ) : [] );
+			add_settings_error(
+				self::OPTION_KEY,
+				'context_id',
+				'' === $out[ self::CONTEXT_EFFECTIVE_KEY ]
+					? __( 'The context ID must be a whole number greater than 0. Leave it empty to use the Skwirrel default context.', 'skwirrel-pim-sync' )
+					: sprintf(
+						/* translators: %s: the context ID that stays in use. */
+						__( 'The context ID must be a whole number greater than 0. Synchronisation keeps using context %s until you correct this.', 'skwirrel-pim-sync' ),
+						$out[ self::CONTEXT_EFFECTIVE_KEY ]
+					),
+				'error'
+			);
+		}
 		// Enforce the dynamic minimum rest window server-side: a too-short interval (e.g. forced via a
 		// crafted POST) is bumped up to the smallest recurrence that still leaves a full hour of rest.
 		$interval = (string) ( $input['sync_interval'] ?? '' );
@@ -336,7 +457,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out['batch_size']        = isset( $input['batch_size'] ) ? max( 1, min( 100, (int) $input['batch_size'] ) ) : 10;
 		$out['sync_categories']   = ! empty( $input['sync_categories'] );
 		$out['super_category_id'] = isset( $input['super_category_id'] ) ? sanitize_text_field( trim( $input['super_category_id'] ) ) : '';
-		if ( $out['sync_categories'] && ( '' === $out['super_category_id'] || 0 >= (int) $out['super_category_id'] ) ) {
+		if ( self::is_field_required( $input, 'super_category_id' ) && ( '' === $out['super_category_id'] || 0 >= (int) $out['super_category_id'] ) ) {
 			add_settings_error(
 				self::OPTION_KEY,
 				'super_category_id_required',
@@ -392,7 +513,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			static fn ( int $v ): bool => $v > 0
 		);
 		$out['collection_ids'] = implode( ', ', $collection_valid );
-		if ( empty( $collection_valid ) ) {
+		if ( self::is_field_required( $input, 'collection_ids' ) && empty( $collection_valid ) ) {
 			add_settings_error(
 				self::OPTION_KEY,
 				'collection_ids_required',
@@ -403,8 +524,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out['custom_collection_id'] = isset( $input['custom_collection_id'] ) ? sanitize_text_field( trim( $input['custom_collection_id'] ) ) : '';
 		// Only required when a feature that actually uses it is enabled: custom classes,
 		// trade-item custom classes, or grouped products (which may use custom variation axes).
-		$cc_id_required = ! empty( $input['sync_custom_classes'] ) || ! empty( $input['sync_trade_item_custom_classes'] ) || ! empty( $input['sync_grouped_products'] );
-		if ( $cc_id_required && ( '' === $out['custom_collection_id'] || 0 >= (int) $out['custom_collection_id'] ) ) {
+		// The condition lives in the required-field registry so the marker on the settings
+		// screen and this check can never disagree.
+		if ( self::is_field_required( $input, 'custom_collection_id' ) && ( '' === $out['custom_collection_id'] || 0 >= (int) $out['custom_collection_id'] ) ) {
 			add_settings_error(
 				self::OPTION_KEY,
 				'custom_collection_id_required',
@@ -427,6 +549,20 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$raw_vis                               = $input['custom_class_visibility_ids'] ?? '';
 		$vis_parts                             = preg_split( '/[\s,]+/', is_string( $raw_vis ) ? $raw_vis : '', -1, PREG_SPLIT_NO_EMPTY );
 		$out['custom_class_visibility_ids']    = implode( ', ', array_map( 'sanitize_text_field', array_map( 'trim', $vis_parts ) ) );
+
+		// Field mapping (FR-18/FR-19). One custom feature ID or code per mapped WooCommerce field.
+		// Empty is the default and the off switch: no mapping, no read, no write.
+		$mapping_keys = [
+			'stock_quantity_feature',
+			'title_feature_id',
+			'short_description_feature_id',
+			'long_description_feature_id',
+		];
+		foreach ( $mapping_keys as $mapping_key ) {
+			$out[ $mapping_key ] = isset( $input[ $mapping_key ] ) && is_scalar( $input[ $mapping_key ] )
+				? sanitize_text_field( trim( (string) $input[ $mapping_key ] ) )
+				: '';
+		}
 
 		$out['show_gtin_attribute']             = ! empty( $input['show_gtin_attribute'] );
 		$out['show_variant_attribute']          = ! empty( $input['show_variant_attribute'] );
@@ -481,6 +617,100 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		return $token;
 	}
 
+	/**
+	 * Resolve a raw Context ID setting to the `include_contexts` value the API expects.
+	 *
+	 * One rule, one place: the sanitiser's validation, {@see self::get_context_ids()} and the
+	 * force-full-sync comparison in {@see self::on_settings_updated()} all read this, so the message
+	 * shown to the user, the value sent to the API and the decision to re-sync can never disagree.
+	 *
+	 * Public so a sync run can resolve the Context ID out of its own frozen settings copy instead of
+	 * re-reading the live option between resumable steps.
+	 *
+	 * @param mixed $raw Stored setting value.
+	 * @return array<int, int>|null Single-element context list, or null when unset/invalid.
+	 */
+	public static function resolve_context_ids( $raw ): ?array {
+		if ( ! is_scalar( $raw ) ) {
+			return null;
+		}
+
+		$value = trim( (string) $raw );
+		if ( '' === $value || 1 !== preg_match( '/^[0-9]+$/', $value ) ) {
+			return null;
+		}
+
+		// Casting an out-of-range digit string saturates at PHP_INT_MAX, which would silently send a
+		// different context than the administrator entered. Compare the normalized decimal string
+		// before casting so an oversized ID stays invalid and inert.
+		$normalized = ltrim( $value, '0' );
+		$max_int    = (string) PHP_INT_MAX;
+		if ( '' === $normalized
+			|| strlen( $normalized ) > strlen( $max_int )
+			|| ( strlen( $normalized ) === strlen( $max_int ) && strcmp( $normalized, $max_int ) > 0 )
+		) {
+			return null;
+		}
+
+		return [ (int) $normalized ];
+	}
+
+	/**
+	 * The configured Skwirrel context, in the shape every context-aware JSON-RPC call site passes as
+	 * `include_contexts`.
+	 *
+	 * Null means "not configured" — every call site then keeps the behaviour it has today, which is
+	 * what makes the Context ID a no-op for installs that never set it.
+	 *
+	 * @return array<int, int>|null
+	 */
+	public static function get_context_ids(): ?array {
+		$opts = get_option( self::OPTION_KEY, [] );
+
+		return self::context_ids_from_options( is_array( $opts ) ? $opts : [] );
+	}
+
+	/**
+	 * Settings key holding the context the plugin actually synchronises with.
+	 *
+	 * Separate from `context_id` because the two answer different questions. `context_id` is what
+	 * the administrator typed and is redisplayed verbatim so a mistake can be seen and corrected;
+	 * this is what every API call uses. They differ only while a rejected value is on screen.
+	 */
+	public const CONTEXT_EFFECTIVE_KEY = 'context_id_effective';
+
+	/**
+	 * The raw effective context setting, as a string.
+	 *
+	 * Falls back to `context_id` for installs saved before this key existed, whose stored value is
+	 * necessarily one the sanitiser of the day accepted.
+	 *
+	 * @param array<string, mixed> $opts Plugin settings.
+	 */
+	public static function effective_context_raw( array $opts ): string {
+		if ( array_key_exists( self::CONTEXT_EFFECTIVE_KEY, $opts ) && is_scalar( $opts[ self::CONTEXT_EFFECTIVE_KEY ] ) ) {
+			return trim( (string) $opts[ self::CONTEXT_EFFECTIVE_KEY ] );
+		}
+		$legacy = $opts['context_id'] ?? '';
+
+		// A legacy value that never resolves is inert by definition, so it reads as "default".
+		return is_scalar( $legacy ) && null !== self::resolve_context_ids( $legacy ) ? trim( (string) $legacy ) : '';
+	}
+
+	/**
+	 * The `include_contexts` value a given settings array implies.
+	 *
+	 * The single entry point for every call site — the live option through {@see self::get_context_ids()},
+	 * and a sync run through its own frozen settings copy — so the request the API receives, the
+	 * decision to force a full re-sync and the value shown on screen can never disagree.
+	 *
+	 * @param array<string, mixed> $opts Plugin settings.
+	 * @return array<int, int>|null
+	 */
+	public static function context_ids_from_options( array $opts ): ?array {
+		return self::resolve_context_ids( self::effective_context_raw( $opts ) );
+	}
+
 	public static function get_auth_token(): string {
 		// Prefer the WP 7.0+ Connectors API store. Falls back to the legacy
 		// `skwirrel_wc_sync_auth_token` option for sub-7.0 sites and for the
@@ -497,12 +727,16 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	/**
 	 * Normalize a Skwirrel JSON-RPC endpoint URL.
 	 *
-	 * Heals values produced when a user pastes a full hostname (e.g. "lixero-tmp.z06.skwirrel.eu")
-	 * into the subdomain field — the inline JS would otherwise append a second ".skwirrel.eu/jsonrpc",
-	 * yielding "https://lixero-tmp.z06.skwirrel.eu.skwirrel.eu/jsonrpc". Once stored, the doubled value
-	 * round-trips through the field on every page load, so the bad URL persists across saves until the
-	 * user manually clears it. Collapsing any duplicated trailing ".skwirrel.eu" segments here breaks
-	 * that loop both on save and on display.
+	 * The field holds the **full base URL** of the Skwirrel instance; this appends the one path the
+	 * JSON-RPC API lives at. Any host is accepted — an instance does not have to be a `skwirrel.eu`
+	 * subdomain — so the only rule applied to the path is that it ends in `/jsonrpc`.
+	 *
+	 * Still heals the damage the old subdomain field could do. Pasting a full hostname into it made
+	 * the inline JS append a second ".skwirrel.eu/jsonrpc", yielding
+	 * "https://lixero-tmp.z06.skwirrel.eu.skwirrel.eu/jsonrpc"; once stored, that round-tripped
+	 * through the field on every page load and persisted across saves. Collapsing duplicated
+	 * trailing ".skwirrel.eu" segments and repeated schemes keeps those stored values recoverable
+	 * without the user having to notice and retype them.
 	 */
 	public static function normalize_endpoint_url( string $url ): string {
 		$url = trim( $url );
@@ -525,17 +759,209 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		while ( (bool) preg_match( '/\.skwirrel\.eu\.skwirrel\.eu$/i', $host ) ) {
 			$host = (string) preg_replace( '/\.skwirrel\.eu$/i', '', $host );
 		}
+		// A bare label with no domain at all — "yourcompany" — is the shorthand the old subdomain
+		// field accepted, so it still resolves to a skwirrel.eu instance. Anything carrying its own
+		// domain is taken at face value: skwirrel.dev, clientname.nl and self-hosted instances are
+		// all valid, and guessing a suffix for them would break them.
+		if ( '' !== $host && false === strpos( $host, '.' ) ) {
+			$host .= '.skwirrel.eu';
+		}
 		$scheme = $parts['scheme'] ?? 'https';
-		$path   = (string) ( $parts['path'] ?? '' );
-		// For Skwirrel hosts the only valid path is /jsonrpc — discard any garbage the user
-		// may have pasted (e.g. "/jsonrpc.skwirrel.eu/jsonrpc" from a double-paste mishap).
+		$path   = rtrim( (string) ( $parts['path'] ?? '' ), '/' );
+		// A Skwirrel host serves the API at /jsonrpc and nothing else, so anything pasted into the
+		// path there is discarded (e.g. "/jsonrpc.skwirrel.eu/jsonrpc" from a double-paste mishap).
+		// Other hosts may sit under a prefix, so their path is kept and /jsonrpc appended once.
 		if ( (bool) preg_match( '/\.skwirrel\.eu$/i', $host ) ) {
-			$path = '/jsonrpc';
+			$path = self::ENDPOINT_PATH;
+		} elseif ( self::path_ends_with_endpoint( $path ) ) {
+			// Present but typed in another case. The API serves one canonical path, and a URL path
+			// is case-sensitive to the server, so "/JSONRPC" would 404 if left as entered.
+			$path = substr( $path, 0, -strlen( self::ENDPOINT_PATH ) ) . self::ENDPOINT_PATH;
 		} else {
-			$path = rtrim( $path, '/' );
+			$path .= self::ENDPOINT_PATH;
 		}
 		$query = isset( $parts['query'] ) ? '?' . $parts['query'] : '';
 		return $scheme . '://' . $host . $path . $query;
+	}
+
+	/** The one path the JSON-RPC API is served at, appended to whatever base URL is configured. */
+	public const ENDPOINT_PATH = '/jsonrpc';
+
+	/** Whether a URL path already ends in the endpoint path, case-insensitively. */
+	private static function path_ends_with_endpoint( string $path ): bool {
+		return 0 !== strlen( $path )
+			&& 0 === substr_compare( $path, self::ENDPOINT_PATH, -strlen( self::ENDPOINT_PATH ), null, true );
+	}
+
+	/**
+	 * The base URL an administrator typed, recovered from the stored endpoint.
+	 *
+	 * The screen shows the base and appends `/jsonrpc` visually; the option stores the whole
+	 * endpoint. This is the one place that conversion happens, so the field, the deep links beside
+	 * it and the request all agree.
+	 */
+	public static function endpoint_base_url( string $endpoint ): string {
+		$endpoint = self::normalize_endpoint_url( $endpoint );
+		if ( '' === $endpoint ) {
+			return '';
+		}
+		if ( self::path_ends_with_endpoint( $endpoint ) ) {
+			$endpoint = substr( $endpoint, 0, -strlen( self::ENDPOINT_PATH ) );
+		}
+		return rtrim( $endpoint, '/' );
+	}
+
+	/**
+	 * What the settings field shows: the instance address, without scheme and without `/jsonrpc`.
+	 *
+	 * The screen renders `https://` and `/jsonrpc` as fixed affixes around the input, so the value
+	 * inside it is only the part an administrator actually chooses. Storage is unaffected — the
+	 * option always holds the whole endpoint URL.
+	 */
+	public static function endpoint_display_value( string $endpoint ): string {
+		$base = self::endpoint_base_url( $endpoint );
+
+		return '' === $base ? '' : (string) preg_replace( '#^https?://#i', '', $base );
+	}
+
+	/**
+	 * Render a connection-test outcome as a headline plus a list of metric lines.
+	 *
+	 * Pure by design: every decision the two test paths make — tone, wording, how an unknown count
+	 * or a retried request reads — lives here and nowhere else, so the AJAX result and the legacy
+	 * admin notice cannot drift, and the whole thing is unit-testable on the stub bootstrap without
+	 * an HTTP layer. It receives measurement and an already-extracted message only; the shared payload
+	 * step redacts any reflected credential before calling it, and request headers are never inputs.
+	 *
+	 * @param array{duration_ms?: int, http_code?: int, attempts?: int, jsonrpc_code?: int} $meta Transport and protocol status from the client result.
+	 * @param int|null                                                  $product_count API-reported total, or null when unknown.
+	 * @param bool                                                      $success       Whether the call succeeded.
+	 * @param string                                                    $error_message Error message to show when it did not.
+	 * @return array{tone: string, message: string, details: array<int, string>}
+	 */
+	public static function format_test_result( array $meta, ?int $product_count, bool $success, string $error_message = '' ): array {
+		$duration_ms  = isset( $meta['duration_ms'] ) ? max( 0, (int) $meta['duration_ms'] ) : 0;
+		$http_code    = isset( $meta['http_code'] ) ? (int) $meta['http_code'] : 0;
+		$attempts     = isset( $meta['attempts'] ) ? max( 1, (int) $meta['attempts'] ) : 1;
+		$jsonrpc_code = isset( $meta['jsonrpc_code'] ) ? (int) $meta['jsonrpc_code'] : null;
+
+		if ( ! $success ) {
+			$tone    = 'error';
+			$message = '' !== trim( $error_message )
+				? $error_message
+				: __( 'Connection failed.', 'skwirrel-pim-sync' );
+		} elseif ( 0 === $product_count ) {
+			// The call did succeed, so this is not an error — but a green tick over an empty
+			// catalogue is exactly the false reassurance this story exists to remove.
+			$tone    = 'warning';
+			$message = __( 'Connection works, but the API returned no products.', 'skwirrel-pim-sync' );
+		} else {
+			$tone    = 'success';
+			$message = __( 'Connection successful.', 'skwirrel-pim-sync' );
+		}
+
+		$details = [
+			sprintf(
+				/* translators: %s = round-trip time in milliseconds */
+				__( 'Round-trip: %s ms', 'skwirrel-pim-sync' ),
+				number_format_i18n( $duration_ms )
+			),
+			sprintf(
+				/* translators: %s = HTTP / JSON-RPC status description */
+				__( 'Status: %s', 'skwirrel-pim-sync' ),
+				self::describe_test_status( $http_code, $success, $jsonrpc_code )
+			),
+		];
+
+		// Only a successful call can report a total; on a failure there is no pagination block to
+		// read, and an "unavailable" line there would add noise rather than information.
+		if ( $success ) {
+			$details[] = null === $product_count
+				? __( 'Products: unavailable', 'skwirrel-pim-sync' )
+				: sprintf(
+					/* translators: %s = number of products the API reports */
+					__( 'Products: %s', 'skwirrel-pim-sync' ),
+					number_format_i18n( $product_count )
+				);
+		}
+
+		// Without this, a 30-second result that was really three retried requests reads as one
+		// very slow request.
+		if ( $attempts > 1 ) {
+			$details[] = sprintf(
+				/* translators: %s = number of request attempts made */
+				__( 'Attempts: %s', 'skwirrel-pim-sync' ),
+				number_format_i18n( $attempts )
+			);
+		}
+
+		return [
+			'tone'    => $tone,
+			'message' => $message,
+			'details' => $details,
+		];
+	}
+
+	/**
+	 * Wording for the status line of a connection test.
+	 *
+	 * A zero code means no HTTP response was received at all, which must read as a transport
+	 * failure rather than as the status "0".
+	 */
+	private static function describe_test_status( int $http_code, bool $success, ?int $jsonrpc_code ): string {
+		if ( $http_code <= 0 ) {
+			return __( 'no response (transport error)', 'skwirrel-pim-sync' );
+		}
+
+		if ( $http_code >= 400 ) {
+			/* translators: %s = HTTP status code */
+			return sprintf( __( 'HTTP %s', 'skwirrel-pim-sync' ), number_format_i18n( $http_code ) );
+		}
+
+		if ( $success ) {
+			/* translators: %s = HTTP status code */
+			return sprintf( __( 'HTTP %s · JSON-RPC OK', 'skwirrel-pim-sync' ), number_format_i18n( $http_code ) );
+		}
+
+		if ( null !== $jsonrpc_code ) {
+			return sprintf(
+				/* translators: 1: HTTP status code, 2: JSON-RPC error code */
+				__( 'HTTP %1$s · JSON-RPC error %2$s', 'skwirrel-pim-sync' ),
+				number_format_i18n( $http_code ),
+				number_format_i18n( $jsonrpc_code )
+			);
+		}
+
+		/* translators: %s = HTTP status code */
+		return sprintf( __( 'HTTP %s · JSON-RPC error', 'skwirrel-pim-sync' ), number_format_i18n( $http_code ) );
+	}
+
+	/**
+	 * Turn a raw client result into the shared, secret-safe presentation payload.
+	 *
+	 * The API controls its error message and could reflect the credential it received. Redact that
+	 * message before it reaches either renderer, while keeping the public formatter credential-free.
+	 * The JSON-RPC error code is protocol status, so it is added to the formatter metadata without
+	 * changing the client's transport-measurement contract.
+	 *
+	 * @param array{success: bool, result?: mixed, error?: array{code: int, message: string, data?: mixed}, meta: array{duration_ms: int, http_code: int, attempts: int}, product_count: int|null} $result Client test result.
+	 * @param string $auth_token Credential used for the request; never returned.
+	 * @return array{tone: string, message: string, details: array<int, string>}
+	 */
+	private static function prepare_test_result_payload( array $result, string $auth_token ): array {
+		$success = ! empty( $result['success'] );
+		$meta    = $result['meta'];
+
+		if ( ! $success && isset( $result['error']['code'] ) ) {
+			$meta['jsonrpc_code'] = (int) $result['error']['code'];
+		}
+
+		$error_message = $success ? '' : (string) ( $result['error']['message'] ?? '' );
+		if ( '' !== $auth_token && false !== strpos( $error_message, $auth_token ) ) {
+			$error_message = __( 'Connection failed.', 'skwirrel-pim-sync' );
+		}
+
+		return self::format_test_result( $meta, $result['product_count'], $success, $error_message );
 	}
 
 	public function handle_test_connection(): void {
@@ -554,7 +980,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			(int) ( $opts['retries'] ?? 2 )
 		);
 
-		$result = $client->test_connection();
+		$result    = $client->test_connection( self::get_context_ids() );
+		$success   = ! empty( $result['success'] );
+		$formatted = self::prepare_test_result_payload( $result, $token );
 
 		// Stash the result in a transient instead of the URL so a subsequent
 		// settings save (which redirects through options.php and preserves the
@@ -562,8 +990,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		set_transient(
 			self::TEST_RESULT_TRANSIENT,
 			[
-				'success' => ! empty( $result['success'] ),
-				'message' => empty( $result['success'] ) ? (string) ( $result['error']['message'] ?? 'Unknown error' ) : '',
+				'success' => $success,
+				'tone'    => $formatted['tone'],
+				'message' => $formatted['message'],
+				'details' => $formatted['details'],
 			],
 			60
 		);
@@ -597,7 +1027,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$token_in = isset( $_POST['auth_token'] ) ? trim( (string) wp_unslash( $_POST['auth_token'] ) ) : '';
 
 		if ( '' === $endpoint ) {
-			wp_send_json_error( [ 'message' => __( 'Enter a Skwirrel subdomain first.', 'skwirrel-pim-sync' ) ] );
+			wp_send_json_error( [ 'message' => __( 'Enter your Skwirrel address first.', 'skwirrel-pim-sync' ) ] );
 		}
 
 		// Autosave the environment/connection settings so the saved config matches what is tested.
@@ -605,26 +1035,55 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		if ( ! is_array( $opts ) ) {
 			$opts = [];
 		}
+		// The Context ID decides which dataset the probe reads, so this path tests the one currently
+		// in the form rather than the last saved one — otherwise an administrator who edits it and
+		// presses Test connection before Save gets a green tick and a product total for the context
+		// they just moved away from. Read only when the field is present, so an older cached copy of
+		// the inline script keeps the previous behaviour instead of clearing a stored value.
+		//
+		// Validated BEFORE anything is written. This handler autosaves, so bailing out halfway would
+		// leave the new token persisted against the old endpoint and context while telling the
+		// administrator the submission failed.
+		$context_in = null;
+		if ( isset( $_POST['context_id'] ) ) {
+			$context_in = sanitize_text_field( trim( (string) wp_unslash( $_POST['context_id'] ) ) );
+			if ( '' !== $context_in && null === self::resolve_context_ids( $context_in ) ) {
+				wp_send_json_error(
+					[ 'message' => __( 'The context ID must be a whole number greater than 0. Leave it empty to use the Skwirrel default context.', 'skwirrel-pim-sync' ) ]
+				);
+			}
+		}
+
 		$opts['endpoint_url'] = $endpoint;
 		$opts['auth_type']    = 'token';
 		$token                = $this->sanitize_token( $token_in ); // New token, or the stored one when masked/empty.
 		update_option( self::TOKEN_OPTION_KEY, $token, false );
 		$opts['auth_token'] = '' !== self::get_auth_token() ? self::MASK : '';
+		if ( null !== $context_in ) {
+			$opts['context_id']                  = $context_in;
+			$opts[ self::CONTEXT_EFFECTIVE_KEY ] = $context_in;
+		}
 		update_option( self::OPTION_KEY, $opts, false );
 
-		$client = new Skwirrel_WC_Sync_JsonRpc_Client(
+		$client_token = self::get_auth_token();
+		$client       = new Skwirrel_WC_Sync_JsonRpc_Client(
 			$endpoint,
 			'token',
-			self::get_auth_token(),
+			$client_token,
 			(int) ( $opts['timeout'] ?? 30 ),
 			(int) ( $opts['retries'] ?? 2 )
 		);
-		$result = $client->test_connection();
+		$result       = $client->test_connection( self::context_ids_from_options( $opts ) );
+		$success      = ! empty( $result['success'] );
 
-		if ( ! empty( $result['success'] ) ) {
-			wp_send_json_success( [ 'message' => __( 'Connection successful — settings saved.', 'skwirrel-pim-sync' ) ] );
+		$payload = self::prepare_test_result_payload( $result, $client_token );
+
+		// Zero products stays a success response — the call *did* succeed. The warning travels in
+		// `tone`, so flipping the success flag here would make the browser render it as a failure.
+		if ( $success ) {
+			wp_send_json_success( $payload );
 		}
-		wp_send_json_error( [ 'message' => (string) ( $result['error']['message'] ?? __( 'Connection failed.', 'skwirrel-pim-sync' ) ) ] );
+		wp_send_json_error( $payload );
 	}
 
 	/**
@@ -792,25 +1251,27 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// request for minutes (120s × up to six attempts), which would defeat the chunking above —
 		// the browser or an FPM/proxy timeout would kill the refresh with no continuation returned.
 		// A discovery scan is a best-effort read, so it fails fast and resumes on the next chunk.
-		$client = new Skwirrel_WC_Sync_JsonRpc_Client(
+		$client      = new Skwirrel_WC_Sync_JsonRpc_Client(
 			$endpoint,
 			(string) ( $opts['auth_type'] ?? 'token' ),
 			$token,
 			min( self::STATUS_SCAN_TIMEOUT, max( 5, (int) ( $opts['timeout'] ?? 30 ) ) ),
 			min( self::STATUS_SCAN_RETRIES, max( 0, (int) ( $opts['retries'] ?? 2 ) ) )
 		);
-		$result = $client->call(
-			'getProducts',
-			[
-				'page'                         => max( 1, $page ),
-				'limit'                        => $limit,
-				'include_product_status'       => true,
-				'include_product_translations' => false,
-				'include_attachments'          => false,
-				'include_trade_items'          => false,
-				'include_categories'           => false,
-			]
-		);
+		$params      = [
+			'page'                         => max( 1, $page ),
+			'limit'                        => $limit,
+			'include_product_status'       => true,
+			'include_product_translations' => false,
+			'include_attachments'          => false,
+			'include_trade_items'          => false,
+			'include_categories'           => false,
+		];
+		$context_ids = self::get_context_ids();
+		if ( null !== $context_ids ) {
+			$params['include_contexts'] = $context_ids;
+		}
+		$result = $client->call( 'getProducts', $params );
 
 		if ( empty( $result['success'] ) ) {
 			return new WP_Error( 'skwirrel_api_error', (string) ( $result['error']['message'] ?? __( 'The request to Skwirrel failed.', 'skwirrel-pim-sync' ) ) );
@@ -1468,13 +1929,21 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'abortSyncConfirm'       => __( 'Stop the running sync?', 'skwirrel-pim-sync' ),
 				'testConnectionNonce'    => wp_create_nonce( 'skwirrel_test_connection_nonce' ),
 				'testingLabel'           => __( 'Testing…', 'skwirrel-pim-sync' ),
-				'testSubdomainLabel'     => __( 'Enter a subdomain first.', 'skwirrel-pim-sync' ),
+				'testSubdomainLabel'     => __( 'Enter an address first.', 'skwirrel-pim-sync' ),
 				'testFailedLabel'        => __( 'Connection failed.', 'skwirrel-pim-sync' ),
 				'testNetworkLabel'       => __( 'Network error.', 'skwirrel-pim-sync' ),
 				'refreshStatusesNonce'   => wp_create_nonce( 'skwirrel_refresh_statuses_nonce' ),
 				'refreshStatusesLabel'   => __( 'Fetching…', 'skwirrel-pim-sync' ),
 				'refreshStatusesError'   => __( 'Could not refresh statuses.', 'skwirrel-pim-sync' ),
 				'refreshStatusesUnsaved' => __( 'Statuses updated. Save your changes to see the new rows — the page was not reloaded because this form has unsaved edits.', 'skwirrel-pim-sync' ),
+				/*
+				 * Contract with the settings tab strip: the IDs of the fields whose validation
+				 * failed on this request, in reported order. Each one also carries
+				 * `data-skw-error-field="{id}"` on its `.skw-field` wrapper, so a consumer can go
+				 * from an ID to the field block, and from there to the `[data-skw-panel]` holding
+				 * it, without knowing which tab any field lives on. Empty on a clean render.
+				 */
+				'errorFields'            => self::failing_field_ids(),
 			]
 		);
 
@@ -1503,42 +1972,50 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '   if (this.value !== "_custom") { document.getElementById("image_language_custom").value = ""; }'
 			. '  });'
 			. ' }'
-			. ' var subInput = document.getElementById("skwirrel_subdomain");'
+			. ' var hostInput = document.getElementById("skwirrel_base_url");'
 			. ' var urlField = document.getElementById("endpoint_url");'
-			. ' function skwNormalizeSubdomain(raw) {'
+			// Mirrors Admin_Settings::normalize_endpoint_url(): strip what the affixes already show,
+			// then expand a bare label to a skwirrel.eu subdomain. A value carrying its own domain
+			// is left exactly as typed, so skwirrel.dev, clientname.nl and self-hosted instances
+			// all work. The server normalises again on save, so this is convenience, not trust.
+			. ' function skwNormalizeHost(raw) {'
 			. '  var s = (raw || "").trim().toLowerCase();'
-			. '  s = s.replace(/^https?:\\/\\//, "");'
-			. '  s = s.replace(/\\/.*$/, "");'
-			. '  while (/\\.skwirrel\\.eu$/.test(s)) { s = s.replace(/\\.skwirrel\\.eu$/, ""); }'
-			. '  return s.replace(/^\\.+|\\.+$/g, "");'
+			. '  while (/^https?:\\/\\//.test(s)) { s = s.replace(/^https?:\\/\\//, ""); }'
+			. '  s = s.replace(/\\/+$/, "");'
+			. '  s = s.replace(/\\/jsonrpc$/, "");'
+			. '  s = s.replace(/^\\.+|\\.+$/g, "");'
+			. '  if (s && s.indexOf("/") === -1 && s.indexOf(".") === -1) { s += ".skwirrel.eu"; }'
+			. '  return s;'
 			. ' }'
-			. ' function skwApplySubdomain(v) {'
-			. '  var clean = skwNormalizeSubdomain(v);'
-			. '  if (urlField) urlField.value = clean ? "https://" + clean + ".skwirrel.eu/jsonrpc" : "";'
-			. '  var label = clean || "<your-subdomain>";'
+			. ' function skwApplyHost(v) {'
+			. '  var clean = skwNormalizeHost(v);'
+			. '  var base = clean ? "https://" + clean : "";'
+			. '  if (urlField) urlField.value = base ? base + "/jsonrpc" : "";'
+			. '  var label = base || "https://your-instance";'
 			. '  var tokenDomain = document.getElementById("skwirrel-token-domain");'
-			. '  var tokenLink = document.getElementById("skwirrel-token-link");'
 			. '  if (tokenDomain) tokenDomain.textContent = label;'
-			. '  if (tokenLink && clean) tokenLink.href = "https://" + clean + ".skwirrel.eu/data/webservice";'
-			. '  var catLink = document.getElementById("skwirrel-categories-link");'
 			. '  document.querySelectorAll(".skwirrel-link-domain").forEach(function(el) { el.textContent = label; });'
-			. '  if (catLink && clean) catLink.href = "https://" + clean + ".skwirrel.eu/base/categories";'
-			. '  var selLink = document.getElementById("skwirrel-selections-link");'
-			. '  if (selLink && clean) selLink.href = "https://" + clean + ".skwirrel.eu/data/selections";'
-			. ' }'
-			. ' if (subInput && urlField) {'
-			. '  subInput.addEventListener("input", function() { skwApplySubdomain(this.value); });'
-			. '  subInput.addEventListener("blur", function() {'
-			. '   var clean = skwNormalizeSubdomain(this.value);'
-			. '   if (clean !== this.value) { this.value = clean; }'
-			. '   skwApplySubdomain(clean);'
+			. '  [["skwirrel-token-link", "/data/webservice"],'
+			. '   ["skwirrel-categories-link", "/base/categories"],'
+			. '   ["skwirrel-selections-link", "/data/selections"],'
+			. '   ["skwirrel-groups-link", "/base/groups"]].forEach(function(pair) {'
+			. '   var el = document.getElementById(pair[0]);'
+			. '   if (el && base) { el.href = base + pair[1]; }'
 			. '  });'
-			. '  subInput.addEventListener("paste", function(e) {'
+			. ' }'
+			. ' if (hostInput && urlField) {'
+			. '  hostInput.addEventListener("input", function() { skwApplyHost(this.value); });'
+			. '  hostInput.addEventListener("blur", function() {'
+			. '   var clean = skwNormalizeHost(this.value);'
+			. '   if (clean !== this.value) { this.value = clean; }'
+			. '   skwApplyHost(clean);'
+			. '  });'
+			. '  hostInput.addEventListener("paste", function(e) {'
 			. '   var pasted = (e.clipboardData || window.clipboardData).getData("text");'
-			. '   var clean = skwNormalizeSubdomain(pasted);'
+			. '   var clean = skwNormalizeHost(pasted);'
 			. '   e.preventDefault();'
 			. '   this.value = clean;'
-			. '   skwApplySubdomain(clean);'
+			. '   skwApplyHost(clean);'
 			. '  });'
 			. ' }'
 			. ' var historyBtn = document.getElementById("skwirrel-clear-history-btn");'
@@ -1552,24 +2029,53 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. ' var testBtn = document.getElementById("skwirrel-test-connection");'
 			. ' if (testBtn) testBtn.addEventListener("click", function(){'
 			. '  var res = document.getElementById("skwirrel-test-result");'
-			. '  var subEl = document.getElementById("skwirrel_subdomain");'
-			. '  var sub = subEl ? subEl.value.trim() : "";'
-			. '  function setRes(txt, cls){ if(res){ res.textContent = txt; res.className = "skw-test-result" + (cls ? " " + cls : ""); } }'
+			. '  var subEl = document.getElementById("skwirrel_base_url");'
+			. '  var sub = skwNormalizeHost(subEl ? subEl.value : "");'
+			// Built with createElement/textContent rather than innerHTML: the headline can be an
+			// API-supplied error string. The whole result is written in one pass so the aria-live
+			// region announces the headline and its metrics together.
+			. '  function setRes(txt, cls, details){'
+			. '   if(!res) return;'
+			. '   res.setAttribute("aria-busy", "true");'
+			. '   var fragment = document.createDocumentFragment();'
+			. '   var head = document.createElement("span");'
+			. '   head.className = "skw-test-headline";'
+			. '   head.textContent = txt;'
+			. '   fragment.appendChild(head);'
+			. '   if (Array.isArray(details)) {'
+			. '    details.forEach(function(d){'
+			. '     var m = document.createElement("span");'
+			. '     m.className = "skw-test-metric";'
+			. '     m.textContent = String(d);'
+			. '     fragment.appendChild(m);'
+			. '    });'
+			. '   }'
+			. '   res.className = "skw-test-result" + (cls ? " " + cls : "");'
+			. '   while (res.firstChild) { res.removeChild(res.firstChild); }'
+			. '   res.appendChild(fragment);'
+			. '   res.setAttribute("aria-busy", "false");'
+			. '  }'
 			. '  if (!sub) { setRes(skwirrelPimSync.testSubdomainLabel, "skw-test-error"); if(subEl) subEl.focus(); return; }'
 			. '  var tokenEl = document.getElementById("auth_token");'
 			. '  var fd = new FormData();'
 			. '  fd.append("action", "skwirrel_wc_sync_test_connection");'
 			. '  fd.append("_nonce", skwirrelPimSync.testConnectionNonce);'
-			. '  fd.append("endpoint_url", "https://" + sub + ".skwirrel.eu/jsonrpc");'
+			. '  fd.append("endpoint_url", "https://" + sub + "/jsonrpc");'
 			. '  if (tokenEl) fd.append("auth_token", tokenEl.value);'
+			. '  var ctxEl = document.getElementById("context_id");'
+			. '  if (ctxEl) fd.append("context_id", ctxEl.value);'
 			. '  testBtn.disabled = true;'
 			. '  setRes(skwirrelPimSync.testingLabel, "");'
 			. '  fetch(skwirrelPimSync.ajaxUrl, { method: "POST", body: fd })'
 			. '   .then(function(r){ return r.json(); })'
 			. '   .then(function(r){'
 			. '    var ok = r && r.success;'
-			. '    var msg = (r && r.data && r.data.message) ? r.data.message : skwirrelPimSync.testFailedLabel;'
-			. '    setRes(msg, ok ? "skw-test-success" : "skw-test-error");'
+			. '    var d = (r && r.data) ? r.data : {};'
+			. '    var msg = d.message ? d.message : skwirrelPimSync.testFailedLabel;'
+			// Drive the class from the server tone when it is there; a browser holding a stale
+			// copy of this script simply falls back to the old success/error mapping.
+			. '    var toneClass = { success: "skw-test-success", warning: "skw-test-warning", error: "skw-test-error" }[d.tone];'
+			. '    setRes(msg, toneClass || (ok ? "skw-test-success" : "skw-test-error"), d.details);'
 			. '   })'
 			. '   .catch(function(){ setRes(skwirrelPimSync.testNetworkLabel, "skw-test-error"); })'
 			. '   .finally(function(){ testBtn.disabled = false; });'
@@ -1615,6 +2121,114 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. ' });'
 			// The Stop-sync button is wired by the global status poller (event delegation), so it keeps
 			// working after the banner re-renders and on every admin page.
+			. '})();'
+		);
+
+		// Required-field markers that follow their condition live. The server renders the correct
+		// initial state, so with this script absent the markers are still right — they just stop
+		// reacting until the next save. Each marker carries the settings keys that govern it
+		// (`data-skw-req-when`), so the conditions are never restated here.
+		wp_add_inline_script(
+			'skwirrel-pim-sync-admin',
+			'(function() {'
+			. ' var markers = document.querySelectorAll("[data-skw-req][data-skw-req-when]");'
+			. ' if (!markers.length) return;'
+			. ' var watched = [];'
+			. ' function apply(marker) {'
+			. '  var keys = (marker.getAttribute("data-skw-req-when") || "").split(" ").filter(Boolean);'
+			. '  var required = keys.some(function(name) {'
+			. '   var box = document.querySelector(\'input[type=checkbox][name="\' + name + \'"]\');'
+			. '   return !!(box && box.checked);'
+			. '  });'
+			. '  if (required) { marker.removeAttribute("hidden"); } else { marker.setAttribute("hidden", "hidden"); }'
+			. '  var input = document.getElementById(marker.getAttribute("data-skw-req"));'
+			. '  if (!input) return;'
+			. '  if (required) { input.setAttribute("required", "required"); input.setAttribute("aria-required", "true"); }'
+			. '  else { input.removeAttribute("required"); input.removeAttribute("aria-required"); }'
+			. ' }'
+			. ' Array.prototype.forEach.call(markers, function(marker) {'
+			. '  var keys = (marker.getAttribute("data-skw-req-when") || "").split(" ").filter(Boolean);'
+			. '  keys.forEach(function(name) {'
+			. '   var box = document.querySelector(\'input[type=checkbox][name="\' + name + \'"]\');'
+			. '   if (box && watched.indexOf(box) === -1) {'
+			. '    watched.push(box);'
+			. '    box.addEventListener("change", function() {'
+			. '     Array.prototype.forEach.call(markers, apply);'
+			. '    });'
+			. '   }'
+			. '  });'
+			. ' });'
+			. '})();'
+		);
+
+		// Settings tab strip (ARIA tabs pattern). Every panel stays in the DOM and inside the
+		// one options.php form — the inactive ones are only hidden — so a submit from any tab
+		// still carries every field. With this script absent, all panels stay visible and the
+		// screen reads exactly as it did before tabs existed.
+		wp_add_inline_script(
+			'skwirrel-pim-sync-admin',
+			'(function() {'
+			. ' var strip = document.querySelector(".skw-tabs");'
+			. ' if (!strip) return;'
+			. ' var tabs = Array.prototype.slice.call(strip.querySelectorAll("[role=tab]"));'
+			. ' if (!tabs.length) return;'
+			. ' var form = document.getElementById("skwirrel-sync-settings-form");'
+			. ' function panelOf(tab) { return document.getElementById(tab.getAttribute("aria-controls")); }'
+			. ' function tabBySlug(slug) {'
+			. '  for (var i = 0; i < tabs.length; i++) { if (tabs[i].getAttribute("data-skw-tab") === slug) return tabs[i]; }'
+			. '  return null;'
+			. ' }'
+			. ' function activate(tab, opts) {'
+			. '  opts = opts || {};'
+			. '  tabs.forEach(function(t) {'
+			. '   var on = t === tab;'
+			. '   t.setAttribute("aria-selected", on ? "true" : "false");'
+			. '   t.setAttribute("tabindex", on ? "0" : "-1");'
+			. '   var p = panelOf(t);'
+			. '   if (!p) return;'
+			. '   if (on) { p.removeAttribute("hidden"); } else { p.setAttribute("hidden", "hidden"); }'
+			. '  });'
+			. '  if (opts.focus) { tab.focus(); }'
+			. '  var slug = tab.getAttribute("data-skw-tab");'
+			. '  if (opts.hash && slug && window.history && window.history.replaceState) {'
+			. '   window.history.replaceState(null, "", window.location.pathname + window.location.search + "#tab-" + slug);'
+			. '  }'
+			. ' }'
+			. ' tabs.forEach(function(tab, index) {'
+			. '  tab.addEventListener("click", function() { activate(tab, { focus: true, hash: true }); });'
+			. '  tab.addEventListener("keydown", function(e) {'
+			. '   var next = -1;'
+			. '   if (e.key === "ArrowRight") { next = (index + 1) % tabs.length; }'
+			. '   else if (e.key === "ArrowLeft") { next = (index - 1 + tabs.length) % tabs.length; }'
+			. '   else if (e.key === "Home") { next = 0; }'
+			. '   else if (e.key === "End") { next = tabs.length - 1; }'
+			. '   else { return; }'
+			. '   e.preventDefault();'
+			. '   activate(tabs[next], { focus: true, hash: true });'
+			. '  });'
+			. ' });'
+			// Which tab opens: an errored tab first (the server marks those), then a #tab- deep
+			// link, then whatever the server pre-selected, then the first tab.
+			. ' var initial = null;'
+			. ' for (var i = 0; i < tabs.length; i++) { if (tabs[i].hasAttribute("data-skw-errors")) { initial = tabs[i]; break; } }'
+			. ' if (!initial && window.location.hash.indexOf("#tab-") === 0) { initial = tabBySlug(window.location.hash.slice(5)); }'
+			. ' if (!initial) { for (var j = 0; j < tabs.length; j++) { if (tabs[j].getAttribute("aria-selected") === "true") { initial = tabs[j]; break; } } }'
+			. ' activate(initial || tabs[0], { focus: false, hash: false });'
+			// A required control inside a hidden panel is not focusable, so the browser refuses to
+			// report it ("An invalid form control ... is not focusable") and the save silently fails.
+			// Open the panel that holds the first invalid control before native validation runs.
+			. ' if (form) {'
+			. '  form.addEventListener("click", function(e) {'
+			. '   var btn = e.target.closest ? e.target.closest("button[type=submit], input[type=submit]") : null;'
+			. '   if (!btn) return;'
+			. '   var invalid = form.querySelector(":invalid");'
+			. '   if (!invalid) return;'
+			. '   var panel = invalid.closest("[data-skw-panel]");'
+			. '   if (!panel) return;'
+			. '   var tab = tabBySlug(panel.getAttribute("data-skw-panel"));'
+			. '   if (tab && tab.getAttribute("aria-selected") !== "true") { activate(tab, { focus: false, hash: true }); }'
+			. '  }, true);'
+			. ' }'
 			. '})();'
 		);
 
@@ -1879,10 +2493,64 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$dashboard->render( $active_view );
 	}
 
+	/**
+	 * Settings errors recorded for this plugin's option on the current request.
+	 *
+	 * Read through `get_settings_errors()`, which moves the messages out of the
+	 * `settings_errors` transient into the `$wp_settings_errors` global on its first call and
+	 * serves every later call from that global — so every reader on this request sees the same
+	 * list, whichever one runs first.
+	 *
+	 * @return array<int, array<string, mixed>> Settings errors.
+	 */
+	public static function settings_errors_for_option(): array {
+		if ( ! function_exists( 'get_settings_errors' ) ) {
+			return [];
+		}
+
+		return get_settings_errors( self::OPTION_KEY );
+	}
+
+	/**
+	 * Whether the current request carries at least one error-severity settings message.
+	 */
+	public static function has_settings_error(): bool {
+		foreach ( self::settings_errors_for_option() as $error ) {
+			if ( 'error' === ( $error['type'] ?? '' ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Field IDs whose validation failed on the current request, in the order reported.
+	 *
+	 * @return array<int, string>
+	 */
+	public static function failing_field_ids(): array {
+		$map    = self::error_field_map();
+		$fields = [];
+
+		foreach ( self::settings_errors_for_option() as $error ) {
+			$code  = isset( $error['code'] ) && is_string( $error['code'] ) ? $error['code'] : '';
+			$field = $map[ $code ] ?? '';
+			if ( '' !== $field && ! in_array( $field, $fields, true ) ) {
+				$fields[] = $field;
+			}
+		}
+
+		return $fields;
+	}
+
 	private function maybe_show_notices(): void {
-		// "Settings saved" after WordPress redirects back from options.php.
+		// "Settings saved" after WordPress redirects back from options.php — suppressed when the
+		// save produced a validation error, because a green confirmation over a value the
+		// sanitiser rejected is worse than no feedback at all. The messages themselves are shown
+		// as a summary above the tab strip and inline at their field by the settings screen.
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter set by WP core
-		if ( isset( $_GET['settings-updated'] ) && 'true' === $_GET['settings-updated'] ) {
+		if ( isset( $_GET['settings-updated'] ) && 'true' === $_GET['settings-updated'] && ! self::has_settings_error() ) {
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Settings saved.', 'skwirrel-pim-sync' ) . '</p></div>';
 		}
 
@@ -1891,14 +2559,29 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$test_result = get_transient( self::TEST_RESULT_TRANSIENT );
 		if ( false !== $test_result ) {
 			delete_transient( self::TEST_RESULT_TRANSIENT );
-			if ( is_array( $test_result ) && ! empty( $test_result['success'] ) ) {
-				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Connection test successful.', 'skwirrel-pim-sync' ) . '</p></div>';
-			} else {
-				$msg = is_array( $test_result ) && ! empty( $test_result['message'] )
-					? (string) $test_result['message']
-					: __( 'Connection failed.', 'skwirrel-pim-sync' );
-				echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( $msg ) . '</p></div>';
+			$test_result = is_array( $test_result ) ? $test_result : [];
+			$tone        = isset( $test_result['tone'] ) ? (string) $test_result['tone'] : '';
+			if ( ! in_array( $tone, [ 'success', 'warning', 'error' ], true ) ) {
+				$tone = empty( $test_result['success'] ) ? 'error' : 'success';
 			}
+			$notice_class = 'error' === $tone ? 'notice-error' : ( 'warning' === $tone ? 'notice-warning' : 'notice-success' );
+			$msg          = ! empty( $test_result['message'] )
+				? (string) $test_result['message']
+				: __( 'Connection failed.', 'skwirrel-pim-sync' );
+			$details      = isset( $test_result['details'] ) && is_array( $test_result['details'] ) ? $test_result['details'] : [];
+
+			echo '<div class="notice ' . esc_attr( $notice_class ) . ' is-dismissible"><p>' . esc_html( $msg ) . '</p>';
+			if ( [] !== $details ) {
+				echo '<p class="skw-test-metrics">';
+				foreach ( $details as $index => $detail ) {
+					if ( $index > 0 ) {
+						echo ' &middot; ';
+					}
+					echo '<span class="skw-test-metric">' . esc_html( (string) $detail ) . '</span>';
+				}
+				echo '</p>';
+			}
+			echo '</div>';
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
 		if ( isset( $_GET['sync'] ) && 'queued' === $_GET['sync'] ) {
@@ -1910,7 +2593,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
 		if ( isset( $_GET['reset'] ) && 'done' === $_GET['reset'] ) {
-			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Skwirrel sync settings reset. All configuration options were deleted, scheduled jobs cancelled, and caches flushed. Products, media, categories and sync history are untouched. Re-enter your subdomain and API token below to continue.', 'skwirrel-pim-sync' ) . '</p></div>';
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Skwirrel sync settings reset. All configuration options were deleted, scheduled jobs cancelled, and caches flushed. Products, media, categories and sync history are untouched. Re-enter your Skwirrel address and API token below to continue.', 'skwirrel-pim-sync' ) . '</p></div>';
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only redirect parameter
 		if ( isset( $_GET['purge'] ) && 'queued' === $_GET['purge'] ) {

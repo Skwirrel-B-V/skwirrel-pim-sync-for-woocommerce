@@ -94,3 +94,50 @@ test('non-array stored option falls back to defaults gracefully', function () {
     expect($opts)->toBeArray();
     expect($opts['prices_managed_outside_skwirrel'])->toBeFalse();
 });
+
+// ------------------------------------------------------------------
+// The setting's actual contract: no price write, in any branch
+// ------------------------------------------------------------------
+
+test('the external-price gate is read from one helper', function () {
+    $source = (string) file_get_contents(
+        dirname(__DIR__, 2) . '/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php'
+    );
+
+    // One place decides it, so the four write paths cannot drift apart.
+    expect(substr_count($source, "get_options()['prices_managed_outside_skwirrel']"))->toBe(1);
+    expect($source)->toContain('private function prices_are_external(): bool');
+    expect(substr_count($source, '$external_prices  = $this->prices_are_external();'))->toBe(4);
+});
+
+test('no price setter is left outside the external-price gate', function () {
+    // The contract is absolute: when prices are managed outside Skwirrel the plugin writes no
+    // price field at all — not the PIM price, not the price-on-request blank, not the
+    // missing-price zero. Every setter must therefore sit under an $external_prices branch.
+    $source = (string) file_get_contents(
+        dirname(__DIR__, 2) . '/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php'
+    );
+    $lines = explode("\n", $source);
+
+    $writes = [];
+    foreach ($lines as $i => $line) {
+        if (preg_match('/->set_(regular_)?price\(/', $line)) {
+            $writes[] = $i;
+        }
+    }
+    expect(count($writes))->toBeGreaterThan(0);
+
+    $ungated = [];
+    foreach ($writes as $at) {
+        // Walk back far enough to span a whole price block (the missing-price branch carries a
+        // multi-line warning call between the gate and its setters), but not into the next one.
+        $window = implode("\n", array_slice($lines, max(0, $at - 30), 31));
+        if (!str_contains($window, '$external_prices')) {
+            $ungated[] = $at + 1;
+        }
+    }
+
+    // Collected rather than asserted one at a time, so a regression names every offending line.
+    expect($ungated)->toBe([], 'price setters not under the external-price gate: ' . implode(', ', $ungated));
+});
+

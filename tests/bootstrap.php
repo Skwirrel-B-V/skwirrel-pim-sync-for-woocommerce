@@ -29,6 +29,18 @@ if (!function_exists('__')) {
     }
 }
 
+if (!function_exists('_n')) {
+    function _n(string $single, string $plural, int $number, string $domain = 'default'): string {
+        return 1 === $number ? $single : $plural;
+    }
+}
+
+if (!function_exists('number_format_i18n')) {
+    function number_format_i18n($number, int $decimals = 0): string {
+        return number_format((float) $number, $decimals);
+    }
+}
+
 if (!function_exists('_x')) {
     function _x(string $text, string $context, string $domain = 'default'): string {
         return $text;
@@ -131,6 +143,22 @@ if (!function_exists('wp_strip_all_tags')) {
 if (!function_exists('sanitize_text_field')) {
     function sanitize_text_field(string $str): string {
         return trim(strip_tags($str));
+    }
+}
+
+if (!function_exists('wp_kses_post')) {
+    /**
+     * Minimal stand-in for WordPress's post-content sanitiser.
+     *
+     * Real wp_kses_post() runs an allow-list; this stub only needs to be faithful enough that a
+     * sanitisation assertion is real rather than a pass-through, so it strips the script/style
+     * elements (content included) and inline event handlers while leaving formatting alone.
+     */
+    function wp_kses_post(string $content): string {
+        $content = preg_replace('#<(script|style)\b[^>]*>.*?</\1>#is', '', $content) ?? $content;
+        $content = preg_replace('#</?(script|style)\b[^>]*>#i', '', $content) ?? $content;
+        $content = preg_replace('#\son[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)#i', '', $content) ?? $content;
+        return $content;
     }
 }
 
@@ -538,6 +566,32 @@ if (!class_exists('WC_Product_Variable')) {
     }
 }
 
+// Settings errors. add_settings_error() records into $wp_settings_errors exactly as WordPress
+// does, so a test can call sanitize_settings() and read back which fields it rejected.
+if (!function_exists('add_settings_error')) {
+    function add_settings_error(string $setting, string $code, string $message, string $type = 'error'): void {
+        $GLOBALS['wp_settings_errors'][] = [
+            'setting' => $setting,
+            'code' => $code,
+            'message' => $message,
+            'type' => $type,
+        ];
+    }
+}
+
+if (!function_exists('get_settings_errors')) {
+    function get_settings_errors(string $setting = '', bool $sanitize = false): array {
+        $errors = $GLOBALS['wp_settings_errors'] ?? [];
+        if ($setting === '') {
+            return $errors;
+        }
+        return array_values(array_filter(
+            $errors,
+            static fn (array $error): bool => $error['setting'] === $setting
+        ));
+    }
+}
+
 // Load plugin classes (order matters — dependencies first).
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-logger.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-media-importer.php';
@@ -559,3 +613,4 @@ if (!function_exists('wp_parse_url')) {
 }
 
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-settings.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-dashboard.php';

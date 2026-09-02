@@ -12,8 +12,36 @@ test honestly with the stub bootstrap in `tests/Unit`:
 - rewrite rules (variation permalinks)
 - the full `Sync_Service::run_sync()` flow with a stubbed JSON-RPC endpoint
 
-Each test is wrapped in a database transaction by `WP_UnitTestCase` and rolled
-back at teardown — no state leaks between tests.
+### Test isolation — read this before adding a test
+
+There is **no transactional rollback**, despite what this file used to claim. `WP_UnitTestCase`
+cannot be bound under Pest 3: wp-env's WordPress test framework calls
+`PHPUnit\Util\Test::parseTestMethodAnnotations()`, which PHPUnit removed in version 10. Binding it
+fails at `abstract-testcase.php:592`.
+
+Isolation is provided instead by `Skwirrel_Integration_TestCase` (bound via `uses()` in
+`bootstrap.php`), which after **every** test deletes:
+
+- every product and variation, plus any post carrying `_skwirrel_*` meta — by wildcard
+- every term carrying `_skwirrel_*` term meta
+- every `skwirrel_*` option and transient
+
+and once at the **start of every run**, so a database left dirty by an interrupted run heals itself
+rather than failing the next one across unrelated files.
+
+Consequences for anything you add here:
+
+- You do **not** need to clean up after your test. The per-file `beforeEach` option deletions that
+  predate this are redundant; they are harmless and are being left alone for now.
+- Do **not** rely on state surviving between tests — there is no `beforeAll` fixture pattern in this
+  suite, and anything you create is gone by the next test.
+- If you add a new `skwirrel_*` option or `_skwirrel_*` meta key, cleanup is automatic. The purges
+  match by wildcard specifically so nobody has to remember to extend a list.
+
+Registration is deliberately in `bootstrap.php`, not `tests/Pest.php`. Pest evaluates `Pest.php`
+before the WordPress test framework is loaded, and its `uses()` / `afterEach()` registrations do not
+apply to this suite at all — silently. A base class bound via `uses( ... )->in( __DIR__ )` from the
+bootstrap does apply.
 
 ## One-time setup
 

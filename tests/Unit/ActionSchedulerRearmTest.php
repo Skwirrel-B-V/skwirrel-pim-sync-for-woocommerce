@@ -83,6 +83,16 @@ test('upgrade with empty interval schedules nothing but still updates the versio
 	expect($GLOBALS['_test_options']['skwirrel_wc_sync_version'])->toBe('3.10.2');
 });
 
+test('upgrade removes the expired WooCommerce menu signpost flag', function () {
+	$GLOBALS['_test_options']['skwirrel_wc_sync_version']          = '3.10.1';
+	$GLOBALS['_test_options']['skwirrel_wc_sync_settings']         = [ 'sync_interval' => '' ];
+	$GLOBALS['_test_options']['skwirrel_wc_sync_show_wc_signpost'] = true;
+
+	Skwirrel_WC_Sync_Action_Scheduler::instance()->maybe_upgrade_reschedule();
+
+	expect(array_key_exists('skwirrel_wc_sync_show_wc_signpost', $GLOBALS['_test_options']))->toBeFalse();
+});
+
 test('version match with interval set but no action self-heals exactly one action', function () {
 	$GLOBALS['_test_options']['skwirrel_wc_sync_version']  = '3.10.2';
 	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [ 'sync_interval' => 'daily' ];

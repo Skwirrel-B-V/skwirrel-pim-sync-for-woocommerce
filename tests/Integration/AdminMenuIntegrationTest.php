@@ -15,7 +15,7 @@
  *    (WooCommerce reorders the top level, so the raw positions are not the rendered order);
  *  - the four submenu rows core ends up with, including that the first one is the RENAMED parent;
  *  - that `get_admin_page_parent()` — what core actually calls to decide which top-level menu owns
- *    the current screen — resolves to our menu, with and without the WooCommerce signpost;
+ *    the current screen — resolves to our menu;
  *  - that `highlight_active_tab()` returns a value that is genuinely present in `$submenu`, which
  *    is what `wp-admin/menu-header.php` compares `$submenu_file` against when picking `.current`.
  *
@@ -172,7 +172,7 @@ function skwAdminMenuSubSlugs( string $parent ): array {
 
 beforeEach(function () {
 	wp_set_current_user( 1 );
-	delete_option( Skwirrel_WC_Sync_Admin_Settings::WC_SIGNPOST_OPTION );
+	delete_option( 'skwirrel_wc_sync_show_wc_signpost' );
 	unset( $_GET['tab'] );
 	$GLOBALS['pagenow']     = 'admin.php';
 	$GLOBALS['typenow']     = '';
@@ -181,7 +181,7 @@ beforeEach(function () {
 });
 
 afterEach(function () {
-	delete_option( Skwirrel_WC_Sync_Admin_Settings::WC_SIGNPOST_OPTION );
+	delete_option( 'skwirrel_wc_sync_show_wc_signpost' );
 	unset( $_GET['tab'] );
 });
 
@@ -404,48 +404,17 @@ test('highlight_active_tab leaves other screens alone', function () {
 
 /*
 |--------------------------------------------------------------------------
-| 4. WooCommerce signpost
+| 4. Expired WooCommerce signpost
 |--------------------------------------------------------------------------
 */
 
-test('no signpost appears under WooCommerce on a fresh install', function () {
-	delete_option( Skwirrel_WC_Sync_Admin_Settings::WC_SIGNPOST_OPTION );
+test('the expired signpost never returns under WooCommerce even when its legacy flag remains', function () {
+	update_option( 'skwirrel_wc_sync_show_wc_signpost', 1 );
 
 	skwAdminMenuBuild();
 
 	expect( $GLOBALS['submenu']['woocommerce'] ?? [] )->not->toBeEmpty();
-
 	foreach ( skwAdminMenuSubSlugs( 'woocommerce' ) as $slug ) {
 		expect( $slug )->not->toContain( 'skwirrel' );
 	}
-});
-
-test('an upgraded site gets exactly one signpost under WooCommerce, and keeps its own menu', function () {
-	update_option( Skwirrel_WC_Sync_Admin_Settings::WC_SIGNPOST_OPTION, 1 );
-
-	skwAdminMenuBuild();
-
-	$signposts = array_values( array_filter(
-		$GLOBALS['submenu']['woocommerce'],
-		static fn( $item ) => str_contains( $item[2], 'skwirrel-pim-sync' )
-	) );
-
-	expect( $signposts )->toHaveCount( 1 );
-	expect( $signposts[0][0] )->toBe( 'Skwirrel' )
-		->and( $signposts[0][1] )->toBe( 'manage_woocommerce' )
-		->and( $signposts[0][2] )->toBe( 'admin.php?page=skwirrel-pim-sync' )
-		// Empty page title == link only. A page title here would make core treat it as a screen
-		// of its own living under WooCommerce.
-		->and( $signposts[0][3] )->toBe( '' );
-
-	// Our own top-level menu is untouched: still four rows, still owning the page.
-	expect( $GLOBALS['submenu']['skwirrel-pim-sync'] )->toHaveCount( 4 );
-
-	$GLOBALS['plugin_page'] = 'skwirrel-pim-sync';
-	$GLOBALS['parent_file'] = '';
-	expect( get_admin_page_parent() )->toBe( 'skwirrel-pim-sync' );
-
-	// The signpost registers under its own slug, so it cannot displace the page's real parent.
-	expect( $GLOBALS['_parent_pages']['skwirrel-pim-sync'] )->toBe( 'skwirrel-pim-sync' );
-	expect( $GLOBALS['_parent_pages']['admin.php?page=skwirrel-pim-sync'] ?? null )->toBe( 'woocommerce' );
 });

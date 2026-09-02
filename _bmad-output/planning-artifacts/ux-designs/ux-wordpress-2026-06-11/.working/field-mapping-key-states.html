@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Field mapping — key states</title>
+<style>
+:root{
+--blue:#5F84C1;--blue-light:#C2D7FF;--blue-tint:#E7EFFF;--dark:#282828;
+--t-strong:#111827;--t-body:#1f2937;--t-label:#374151;--t-muted:#6b7280;--t-faint:#9ca3af;
+--b-default:#e5e7eb;--b-input:#d1d5db;--b-subtle:#f3f4f6;
+--s-page:#f0f0f1;--s-card:#ffffff;--s-raised:#f9fafb;
+--warn-fg:#92400e;--warn-accent:#d97706;--warn-bg:#fffbeb;--warn-border:#fde68a;
+--r-sm:4px;--r-md:6px;--r:8px;--r-lg:12px;
+--font:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--s-page);font-family:var(--font);font-size:13px;color:var(--t-body);padding:24px}
+.wrap{max-width:960px;margin:0 auto}
+.hdr{background:var(--dark);color:#fff;border-radius:var(--r-lg) var(--r-lg) 0 0;padding:16px 20px}
+.hdr h1{margin:0;font-size:18px;font-weight:600}
+.hdr p{margin:4px 0 0;font-size:12px;color:rgba(255,255,255,.65)}
+.tabs{display:flex;gap:2px;background:var(--s-card);border-bottom:1px solid var(--b-default);padding:0 12px}
+.tab{padding:12px 14px;font-size:13px;color:var(--t-muted);border-bottom:2px solid transparent;cursor:default}
+.tab[aria-selected=true]{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
+.card{background:var(--s-card);border-radius:0 0 var(--r-lg) var(--r-lg);padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:32px}
+h2{font-size:16px;margin:0 0 6px;color:var(--t-strong)}
+.lede{font-size:13px;color:var(--t-muted);margin:0 0 4px;max-width:640px;line-height:1.55}
+.lede strong{color:var(--t-label)}
+.row{padding:16px 0;border-top:1px solid var(--b-subtle)}
+.row:first-of-type{border-top:0}
+.lab{font-size:12px;font-weight:600;color:var(--t-label);display:block}
+.def{font-size:11px;color:var(--t-muted);margin:2px 0 8px}
+select,input[type=text]{font-family:var(--font);font-size:13px;padding:6px 8px;border:1px solid var(--b-input);border-radius:var(--r-sm);background:#fff;color:var(--t-body);min-width:340px}
+select:focus,input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(95,132,193,.15)}
+.reveal{margin-top:10px;padding-left:14px;border-left:2px solid var(--b-subtle)}
+.sub{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.sub:last-child{margin-bottom:0}
+.sub label{font-size:11px;color:var(--t-muted);width:52px;flex:none}
+.hint{font-size:11px;color:var(--t-faint);margin:6px 0 0}
+.meta{font-size:11px;color:var(--t-faint);margin-top:6px}
+.btn{font-family:var(--font);font-size:12px;padding:5px 10px;border:1px solid var(--b-input);border-radius:var(--r-sm);background:#fff;color:var(--t-label);cursor:default}
+.dim{opacity:.55}
+.dim select{background:var(--s-raised)}
+.reason{font-size:11px;color:var(--t-muted);margin-top:6px}
+.reason a{color:var(--blue)}
+.warnrow{background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--r-md);padding:12px 14px;margin-top:10px}
+.warnrow p{margin:0;font-size:11px;color:var(--warn-fg);display:flex;gap:6px;align-items:flex-start}
+.state{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--blue);background:var(--blue-tint);display:inline-block;padding:3px 8px;border-radius:9999px;margin-bottom:12px}
+.note{font-size:11px;color:var(--t-muted);border-left:2px solid var(--b-default);padding-left:10px;margin-top:14px;line-height:1.6}
+</style></head><body><div class="wrap">
+
+<div class="hdr"><h1>Skwirrel PIM sync</h1><p>Settings</p></div>
+<div class="tabs">
+<div class="tab">Connection</div><div class="tab">What to sync</div><div class="tab">How it looks</div>
+<div class="tab" aria-selected="true">Field mapping</div><div class="tab">Advanced</div>
+</div>
+<div class="card">
+<span class="state">State 1 · resting — nothing overridden</span>
+<h2>Field mapping</h2>
+<p class="lede">WooCommerce normally builds these fields from Skwirrel&rsquo;s standard sources. Override one only when your catalogue keeps that value somewhere else. Anything left on <strong>Default</strong> keeps working exactly as it does today.</p>
+
+<div class="row"><span class="lab">Stock quantity</span>
+<p class="def">Default: WooCommerce manages stock itself</p>
+<select><option>Default (no override)</option><option>Custom class feature</option></select></div>
+
+<div class="row"><span class="lab">Product title</span>
+<p class="def">Default: ERP description, then product translations</p>
+<select><option>Default (no override)</option><option>Standard Skwirrel field</option><option>Custom class feature</option></select></div>
+
+<div class="row"><span class="lab">Short description</span>
+<p class="def">Default: product translations</p>
+<select><option>Default (no override)</option><option>Standard Skwirrel field</option><option>Custom class feature</option></select></div>
+
+<div class="row"><span class="lab">Long description</span>
+<p class="def">Default: long description, then marketing text, then web text</p>
+<select><option>Default (no override)</option><option>Standard Skwirrel field</option><option>Custom class feature</option></select></div>
+<p class="note">Four quiet rows. No badges, no accents. An override is the only thing that stands out.</p>
+</div>
+
+<div class="card" style="border-radius:var(--r-lg)">
+<span class="state">State 2 · an override chosen</span>
+<div class="row"><span class="lab">Product title</span>
+<p class="def">Default: ERP description, then product translations</p>
+<select><option selected>Custom class feature</option></select>
+<div class="reveal">
+<div class="sub"><label for="c">Class</label><select id="c"><option selected>Webshop content (WEBCONTENT)</option><option>Logistics (LOGI)</option></select></div>
+<div class="sub"><label for="f">Feature</label><select id="f"><option selected>Web title &middot; A &middot; WEB_TITLE</option><option>Web subtitle &middot; A &middot; WEB_SUB</option></select></div>
+<p class="hint">Only features that hold text are listed. 24 of 31 features shown.</p>
+<p class="meta">List from Skwirrel, updated 6 minutes ago &nbsp; <button class="btn">&#8635; Refresh</button></p>
+</div></div>
+<p class="note">Description first, then type, then code &mdash; so the meaningful part is heard first. No identifier is ever typed, and there is no &ldquo;is this an ID or a code&rdquo; question to get wrong.</p>
+</div>
+
+<div class="card" style="border-radius:var(--r-lg)">
+<span class="state">State 3 · precondition missing</span>
+<div class="row dim"><span class="lab">Long description</span>
+<p class="def">Default: long description, then marketing text, then web text</p>
+<select disabled><option>Custom class feature</option></select>
+<p class="reason">Inactive because no custom class collection ID is set &mdash; <a href="#">set it under What to sync</a>.</p>
+</div>
+<p class="note">Today this saves cleanly and silently does nothing; the only feedback is a line in the sync log after the fact. Here the dependency is visible at the moment of choosing.</p>
+</div>
+
+<div class="card" style="border-radius:var(--r-lg)">
+<span class="state">State 4 · the feature was deleted in Skwirrel</span>
+<div class="row"><span class="lab">Product title</span>
+<p class="def">Default: ERP description, then product translations</p>
+<select><option selected>Custom class feature</option></select>
+<div class="reveal">
+<div class="sub"><label>Class</label><select><option selected>Webshop content (WEBCONTENT)</option></select></div>
+<div class="sub"><label>Feature</label><select><option selected>Web title (WEB_TITLE) &mdash; no longer in Skwirrel</option></select></div>
+</div>
+<div class="warnrow"><p><span>&#9888;</span><span>This feature is no longer in Skwirrel. Titles are falling back to the ERP description &mdash; nothing has been blanked. Repoint it, or set this row back to Default.</span></p></div>
+</div>
+<p class="note">Kept and flagged, never auto-cleared. Editing someone&rsquo;s configuration on their behalf is the opposite of control. The warning is carried in the option text too, so it survives a screen reader and monochrome.</p>
+</div>
+
+</div></body></html>

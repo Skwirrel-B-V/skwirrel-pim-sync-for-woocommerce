@@ -1,6 +1,6 @@
 ---
 status: final
-updated: 2026-06-11
+updated: 2026-08-27
 sources:
   - prd: '_bmad-output/planning-artifacts/prds/prd-wordpress-2026-06-10/prd.md'
   - architecture: '_bmad-output/planning-artifacts/architecture.md'
@@ -175,6 +175,19 @@ Behavioural specs live in EXPERIENCE.md; this is the visual contract. All exist 
 - **badge** — pill, `{typography.size_xs}` semibold; green/red/yellow status variants.
 - **settings_form** — fieldgroups with title; label + input/select/affixed-input/checkbox-group;
   field hints; inactive (relation-disabled) state = dimmed + reason line. `[ASSUMPTION]`
+- **mapping_row** — one override target inside `settings_form`. Label (`{typography.size_sm}` semibold,
+  `{colors.text.label}`) · **Source** select · revealed reference control(s), indented one
+  `{spacing.md}` step with a `{colors.border.subtle}` left rule so the dependency reads visually.
+  The default-state caption sits under the label in `{colors.text.muted}` `{typography.size_xs}`.
+  Resting rows are visually quiet — no badge, no accent, no fill; an override is what stands out.
+- **remote_select** — a `settings_form` select fed from Skwirrel. Trailing **Refresh** as a
+  `.skw-btn` secondary (icon + label, never icon-only); cache age and refresh outcome render beneath in
+  `{colors.text.faint}` `{typography.size_xs}`. Disabled state uses the existing relation-disabled
+  dim, not a new treatment.
+- **stale_option** — a saved reference no longer offered by Skwirrel. Marked **in the option text**
+  ("— no longer in Skwirrel"); the row takes the warning border/tint from `{colors.status.warning_*}`,
+  paired with the standard warning icon. Never colour alone, never red — this is a state to review,
+  not a destructive action.
 - **button** — `.skw-btn` primary (blue), secondary (outline), danger (red). Primary = commit/save.
 - **danger_zone** — bordered red-tinted block; danger button; houses Reset (FR-17).
 - **log_modal / live_log** — dark `{colors.log_dark.*}` monospace viewer with level colouring,
@@ -190,4 +203,9 @@ Behavioural specs live in EXPERIENCE.md; this is the visual contract. All exist 
 - **Don't** surface raw logs or stack traces as primary content — they live behind the dark
   log viewer / a "Details" disclosure (non-technical audience).
 - **Don't** use the lime `{colors.brand.green}` as a button or large fill — accent only.
+- **Do** keep an un-overridden `mapping_row` visually silent; the tab should read as "nothing is
+  overridden here" at a glance, with overrides as the only figures on the ground.
+- **Don't** render a mapping's reference control before its Source is chosen — an empty dependent
+  select reads as broken.
+- **Don't** use red for a stale mapping; it is a warning to review, not a destructive state.
 - **Don't** let the plugin's chrome fight wp-admin; the dark header is the *only* strong departure.

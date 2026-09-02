@@ -135,7 +135,7 @@ test('get_etim_attributes returns label => value map for type A features', funct
 });
 
 test('get_etim_attributes uses image_language from settings to pick translation', function () {
-	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [ 'image_language' => 'fr' ];
+	$this->extractor->set_image_language( 'fr' );
 	$product = [
 		'_etim' => [
 			'_etim_features' => [
@@ -459,7 +459,7 @@ test('formats type M (modelling) with translated value description', function ()
 // ------------------------------------------------------------------
 
 test('language pick prefers exact match over prefix match', function () {
-	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [ 'image_language' => 'nl-BE' ];
+	$this->extractor->set_image_language( 'nl-BE' );
 	$product = [
 		'_etim' => [
 			'_etim_features' => [
@@ -486,7 +486,7 @@ test('language pick prefers exact match over prefix match', function () {
 });
 
 test('language pick falls back to 2-char prefix match', function () {
-	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [ 'image_language' => 'nl-BE' ];
+	$this->extractor->set_image_language( 'nl-BE' );
 	$product = [
 		'_etim' => [
 			'_etim_features' => [
@@ -511,7 +511,7 @@ test('language pick falls back to 2-char prefix match', function () {
 });
 
 test('language pick falls back to first translation when no match at all', function () {
-	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [ 'image_language' => 'de' ];
+	$this->extractor->set_image_language( 'de' );
 	$product = [
 		'_etim' => [
 			'_etim_features' => [
@@ -549,7 +549,7 @@ test('resolve_etim_feature_label returns code when no translations exist', funct
 });
 
 test('resolve_etim_feature_label uses provided language over default', function () {
-	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [ 'image_language' => 'nl' ];
+	$this->extractor->set_image_language( 'nl' );
 	$feature = [
 		'etim_feature_code' => 'EF',
 		'_etim_feature_translations' => [

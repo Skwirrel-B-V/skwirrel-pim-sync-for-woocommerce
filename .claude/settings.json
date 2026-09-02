@@ -1,19 +1,32 @@
 {
-    "permissions": {
-        "allow": [
-            "Bash(php *)",
-            "Bash(composer *)",
-            "Bash(vendor/bin/phpunit *)",
-            "Bash(vendor/bin/phpstan *)",
-            "Bash(vendor/bin/phpcs *)",
-            "Bash(vendor/bin/phpcbf *)",
-            "Bash(git *)",
-            "Bash(ls *)",
-            "Bash(mkdir *)"
-        ],
-        "deny": [
-            "Bash(rm -rf *)",
-            "Bash(wp db *)"
+  "permissions": {
+    "allow": [
+      "Bash(php *)",
+      "Bash(composer *)",
+      "Bash(vendor/bin/phpunit *)",
+      "Bash(vendor/bin/phpstan *)",
+      "Bash(vendor/bin/phpcs *)",
+      "Bash(vendor/bin/phpcbf *)",
+      "Bash(git *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(wp db *)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env PROJECT_ROOT=/Users/joskoomen/Documents/Projects/Skwirrel/wordpress /Users/joskoomen/Documents/Projects/Skwirrel/wordpress/.claude/skills/bmad-story-automator/scripts/story-automator stop-hook",
+            "timeout": 10
+          }
         ]
-    }
+      }
+    ]
+  }
 }

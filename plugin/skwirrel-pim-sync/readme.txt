@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 3.13.1
+Stable tag: 3.14.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,39 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 3.14.0 =
+
+* New: the settings screen is grouped into tabs — Connection, What to sync, How it looks, Advanced and Field mapping — so you no longer scroll past forty settings to reach one. No setting changed, moved out of its group, or was renamed.
+* New: a tab containing a field that failed validation is marked with a warning icon and a count, and opens first. Validation messages from saving are now shown on the screen itself.
+* New: link straight to a tab with `#tab-connection`, `#tab-what-to-sync`, `#tab-how-it-looks`, `#tab-advanced` or `#tab-field-mapping`; the address bar keeps up as you switch tabs.
+* New: the tab strip is fully keyboard operable (arrow keys, Home and End) and announced correctly by screen readers.
+* New: mandatory settings are marked with an asterisk, and fields that are only mandatory in certain configurations pick the marker up the moment you tick the setting that makes them so — no save needed to find out.
+* New: every validation message now appears next to the field it is about, as well as in the standard WordPress summary at the top, and screen readers announce it together with that field.
+* New: an optional Context ID on the API Connection settings, for Skwirrel instances that serve more than one context. Leave it empty to keep using the Skwirrel default context — that is what your shop does today.
+* New: the Context ID is applied to products, product groups and categories alike, so your catalogue can never end up a mix of two contexts.
+* New: changing the Context ID re-imports your whole catalogue on the next synchronisation, and says so when you save. Saving without changing it does not.
+* New: a Context ID that is not a whole number greater than 0 is rejected with a message at the field, stays visible so you can correct it, and is never sent to Skwirrel. Your synchronisation keeps using the context that was working, so a typo cannot quietly point your shop at a different catalogue.
+* New: "Test connection" now reports how long the round trip took, the status that came back, and how many products Skwirrel says it has — instead of only telling you it worked.
+* New: a test that connects but finds no products is shown as a warning rather than a green tick, so an empty selection is visible straight away instead of after a synchronisation that imports nothing.
+* New: a failed test now shows the timing and the status next to the error, so a timeout can be told apart from a refusal, and it says how many attempts were made when it retried.
+* New: a "Field mapping" tab where you can point four WooCommerce fields at your own Skwirrel custom fields — stock quantity, product title, short description and long description. Leave one empty and that field keeps working exactly as it does today.
+* New: stock levels can now come straight from Skwirrel, for simple products and for each variation of a variable product separately, so you stop keeping stock in two systems.
+* New: a product with no value for the mapped stock field is left completely alone — its stock is never set to 0 and never switched to unmanaged. The same holds for the title and description mappings: an empty field falls back to the text you get today instead of blanking your product.
+* New: products priced on request are never made available by the stock field — a variation stays out of stock, and a simple product keeps whatever stock state you gave it.
+* Note: the stock field reads numeric features, or text features containing only a number. Clearing the field switches the mapping off again, and the next synchronisation then puts priced variations back to unmanaged and in stock, so the quantities it was keeping are lost.
+* New: document links on a product now show the document's real name in your shop's language instead of the file name, so you can tell a mounting instruction from a declaration of performance without opening both.
+* Fix: a synchronisation now finishes under the settings it started with. Changing the Context ID or a field mapping while a synchronisation is running no longer applies to only half of your catalogue, and can no longer cause valid products to be removed.
+* Fix: with a Context ID set, "Test connection" now reports the number of products in *that* context instead of the default one.
+* Change: the connection setting now takes your full Skwirrel address instead of just a subdomain, so instances on skwirrel.dev, your own domain, or a self-hosted address can be configured normally. Typing only a name, like yourcompany, still adds .skwirrel.eu for you, so existing shops keep working unchanged. The links to your token, categories, selections and groups pages now follow that address too.
+* Change: "Prices managed outside Skwirrel" now leaves prices entirely alone. Previously it only stopped the sync writing a 0 when Skwirrel had no price — a price from Skwirrel, or a blank for a product priced on request, still overwrote what your other system had set. With the setting on, the sync no longer writes any price at all. Availability still syncs as before.
+* Fix: saving while a required field sits on another tab now opens that tab and points at the field, instead of the browser silently refusing to submit.
+* Fix: the Super category ID no longer has to be filled in before the form submits when category sync is switched off.
+* Fix: saving with a rejected value no longer shows a green "Settings saved." confirmation alongside the error.
+* Fix: the Custom class collection ID is no longer labelled "(optional)" while saving can reject it as missing.
+* Fix: restored the translated delete-protection hint to the wording the plugin actually displays.
+* Maintenance: the temporary WooCommerce-menu pointer used during the top-level-menu migration has now expired and been removed.
+* Note: with JavaScript disabled the settings screen still shows every setting, exactly as before.
 
 = 3.13.1 =
 

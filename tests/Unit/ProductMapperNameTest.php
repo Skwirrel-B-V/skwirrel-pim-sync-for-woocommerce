@@ -139,3 +139,59 @@ test('get_long_description returns empty when all fields missing', function () {
 
 	expect($this->mapper->get_long_description($product))->toBe('');
 });
+
+// ------------------------------------------------------------------
+// Story 6.3 (AC 2, 3, 4) — the title field mapping.
+// ------------------------------------------------------------------
+
+test('get_name prefers a mapped title over product_erp_description', function () {
+	$product = [
+		'product_erp_description' => 'ERP Product Name',
+		'_custom_classes' => [
+			[
+				'custom_class_id'  => 3,
+				'_custom_features' => [
+					['custom_feature_id' => 812, 'custom_feature_type' => 'T', 'text_value' => 'Mapped Name'],
+				],
+			],
+		],
+	];
+
+	$this->mapper->set_content_mapping('812', '', '');
+
+	expect($this->mapper->get_name($product))->toBe('Mapped Name');
+});
+
+test('get_name falls back to product_erp_description when the mapped title is empty', function () {
+	$product = [
+		'product_erp_description' => 'ERP Product Name',
+		'_custom_classes' => [
+			[
+				'custom_class_id'  => 3,
+				'_custom_features' => [
+					['custom_feature_id' => 812, 'custom_feature_type' => 'T', 'text_value' => ''],
+				],
+			],
+		],
+	];
+
+	$this->mapper->set_content_mapping('812', '', '');
+
+	expect($this->mapper->get_name($product))->toBe('ERP Product Name');
+});
+
+test('get_name is unchanged when no title mapping is configured', function () {
+	$product = [
+		'product_erp_description' => 'ERP Product Name',
+		'_custom_classes' => [
+			[
+				'custom_class_id'  => 3,
+				'_custom_features' => [
+					['custom_feature_id' => 812, 'custom_feature_type' => 'T', 'text_value' => 'Would have won'],
+				],
+			],
+		],
+	];
+
+	expect($this->mapper->get_name($product))->toBe('ERP Product Name');
+});

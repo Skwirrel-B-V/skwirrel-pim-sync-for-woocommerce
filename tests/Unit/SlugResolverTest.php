@@ -348,3 +348,39 @@ test('resolve_for_variation returns base slug when collision but SKU is empty', 
 		}
 	};
 });
+
+// ------------------------------------------------------------------
+// Story 6.3 (AC 7) — a mapped title never reaches the slug.
+// ------------------------------------------------------------------
+
+test('the slug resolver reads the raw payload, so a mapped title cannot reach it', function () {
+	$GLOBALS['_test_options']['skwirrel_wc_sync_permalinks'] = [
+		'slug_source_field' => 'internal_product_code',
+		'slug_suffix_field' => '',
+	];
+
+	$resolver = new Skwirrel_WC_Sync_Slug_Resolver();
+
+	$product = [
+		'product_id'              => 1,
+		'internal_product_code'   => 'ABC-123',
+		'product_erp_description' => 'ERP title',
+		'_custom_classes'         => [
+			[
+				'custom_class_id'  => 3,
+				'_custom_features' => [
+					[ 'custom_feature_id' => 812, 'custom_feature_type' => 'T', 'text_value' => 'Mapped marketing title' ],
+				],
+			],
+		],
+	];
+
+	// Even with the content mapping configured, the slug comes from the raw SKU field.
+	$mapper = new Skwirrel_WC_Sync_Product_Mapper();
+	$mapper->set_content_mapping( '812', '', '' );
+	expect( $mapper->get_name( $product ) )->toBe( 'Mapped marketing title' );
+
+	$slug = $resolver->resolve( $product );
+	expect( $slug )->not->toContain( 'mapped' );
+	expect( $slug )->toBe( 'abc-123' );
+} );

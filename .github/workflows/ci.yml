@@ -54,6 +54,68 @@ jobs:
       - name: Run PHPCS
         run: vendor/bin/phpcs
 
+  integration:
+    name: Integration Tests (wp-env)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Get composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-php8.3-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php8.3-composer-
+
+      # vendor/ is mounted into the wp-env container via .wp-env.json mappings,
+      # so installing on the host is what puts the test tooling in the container.
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install wp-env
+        run: npm ci
+
+      - name: Start wp-env
+        run: npm run env:start
+
+      # A CI runner starts with fresh databases, so this is belt-and-braces. It is
+      # here because the integration suite is only guaranteed idempotent from a clean
+      # tests DB: it has no transactional rollback (wp-env's WordPress test framework
+      # calls PHPUnit\Util\Test::parseTestMethodAnnotations(), removed in PHPUnit 10,
+      # so WP_UnitTestCase cannot be bound under Pest 3). Each test file cleans up by
+      # hand instead. Keep this step until that isolation story lands.
+      - name: Reset the tests database
+        run: npx wp-env clean tests
+
+      - name: Run integration tests (Pest + real WP/WC)
+        run: npm run test:integration
+
+      # --watch defaults to true and would hang the job until the timeout;
+      # the integration suite runs against the `tests` environment, not `development`.
+      - name: Dump wp-env logs on failure
+        if: failure()
+        run: npx wp-env logs tests --watch=false || true
+
   plugin-check:
     name: WordPress.org Plugin Check
     runs-on: ubuntu-latest

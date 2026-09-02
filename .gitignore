@@ -55,3 +55,4 @@ skwirrel/
 # 2823b89 and removed again by the 6.11.0 update.
 .claude/skills/**/workflow-plan*.md
 .claude/skills/**/validation-report-20*.md
+.claude/.story-automator-active

@@ -14,6 +14,7 @@ require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-
 require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-taxonomy-manager.php';
 require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-category-sync.php';
 require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php';
+require_once __DIR__ . '/../../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php';
 
 beforeEach(function () {
     $logger           = new Skwirrel_WC_Sync_Logger();
@@ -127,4 +128,70 @@ test('the content_hash_exclude filter drops additional volatile keys', function 
     expect(($this->hash)($repriced))->toBe(($this->hash)($base));
 
     remove_filter('skwirrel_wc_sync_content_hash_exclude', $filter);
+});
+
+// ------------------------------------------------------------------
+// Story 6.3 (AC 8) — the change gate sees a mapped content change.
+// Verification, not new machinery: _custom_classes is part of the hashed payload.
+// ------------------------------------------------------------------
+
+test('a changed custom-class value changes the content hash', function () {
+    $this->upserter->set_content_hash_context('observe', 'sig-v1');
+
+    $before = [
+        'product_id'       => 1,
+        'product_updated_on' => '2026-01-01T00:00:00Z',
+        '_custom_classes'  => [
+            [
+                'custom_class_id'  => 3,
+                '_custom_features' => [
+                    [ 'custom_feature_id' => 812, 'custom_feature_type' => 'T', 'text_value' => 'Old title' ],
+                ],
+            ],
+        ],
+    ];
+    $after                  = $before;
+    $after['_custom_classes'][0]['_custom_features'][0]['text_value'] = 'New title';
+
+    expect(($this->hash)($before))->not->toBe(($this->hash)($after));
+});
+
+test('a custom-class change is still seen when only product_updated_on also moved', function () {
+    $this->upserter->set_content_hash_context('observe', 'sig-v1');
+
+    $before = [
+        'product_id'         => 1,
+        'product_updated_on' => '2026-01-01T00:00:00Z',
+        '_custom_classes'    => [
+            [ '_custom_features' => [ [ 'custom_feature_id' => 814, 'custom_feature_type' => 'B', 'big_text_value' => 'A' ] ] ],
+        ],
+    ];
+    // Only the volatile key moves: the hash must be identical.
+    $touched                       = $before;
+    $touched['product_updated_on'] = '2026-02-02T00:00:00Z';
+    expect(($this->hash)($before))->toBe(($this->hash)($touched));
+
+    // Now the content moves too: the hash must differ.
+    $changed = $touched;
+    $changed['_custom_classes'][0]['_custom_features'][0]['big_text_value'] = 'B';
+    expect(($this->hash)($touched))->not->toBe(($this->hash)($changed));
+});
+
+test('each content mapping setting changes the sync signature', function () {
+    $service = (new ReflectionClass(Skwirrel_WC_Sync_Service::class))->newInstanceWithoutConstructor();
+    $method  = new ReflectionMethod(Skwirrel_WC_Sync_Service::class, 'compute_sync_signature');
+
+    $base = [
+        'title_feature_id'             => '',
+        'short_description_feature_id' => '',
+        'long_description_feature_id'  => '',
+    ];
+    $baseline = $method->invoke($service, $base);
+
+    foreach (['title_feature_id', 'short_description_feature_id', 'long_description_feature_id'] as $key) {
+        $changed       = $base;
+        $changed[$key] = '812';
+
+        expect($method->invoke($service, $changed))->not->toBe($baseline, "{$key} must reopen the change gate");
+    }
 });
