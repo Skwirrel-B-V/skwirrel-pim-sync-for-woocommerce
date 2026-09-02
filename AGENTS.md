@@ -6,6 +6,21 @@ WordPress plugin that synchronises products from the Skwirrel PIM system into Wo
 
 All UI strings use English source text with translatable strings (text domain `skwirrel-pim-sync`). Translations are available for nl_NL, nl_BE, de_DE, fr_FR, fr_BE, en_US, and en_GB.
 
+## Code Review Scope
+
+**Automated code review covers `plugin/skwirrel-pim-sync/` only — the shippable plugin.** That is the
+code customers run; it is the only code where a defect reaches a live shop.
+
+Everything else in this repository is a developer workspace and is **out of scope for review**: `tests/`,
+`.github/`, `_bmad/`, `_bmad-output/`, `.claude/`, `.codex/`, `.agents/`, `docs/`, `design-artifacts/`,
+`mu-plugins/`, and the root tooling config (`composer.json`, `package.json`, `.wp-env.json`,
+`phpstan.neon.dist`, `.phpcs.xml.dist`, `phpunit*.xml.dist`). Do not raise findings about those paths —
+including machine-specific paths in local agent configuration, CI workflow structure, or the shape of the
+test harness.
+
+Reviewing a change to plugin code by *reading* a test to understand intended behaviour is fine and often
+necessary. Reporting a defect whose fix lives outside `plugin/skwirrel-pim-sync/` is not.
+
 ## Repository Layout
 
 The repository is a developer workspace, not the plugin itself. Tooling lives at the repo root; the shippable plugin lives under `plugin/skwirrel-pim-sync/`.
