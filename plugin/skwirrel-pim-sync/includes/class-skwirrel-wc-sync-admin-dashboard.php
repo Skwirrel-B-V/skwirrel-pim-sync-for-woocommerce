@@ -1844,7 +1844,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<input type="text" id="stock_quantity_feature" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[stock_quantity_feature]" value="<?php echo esc_attr( (string) ( $opts['stock_quantity_feature'] ?? '' ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 1234 or STOCK_QTY', 'skwirrel-pim-sync' ); ?>"
 				<?php $this->render_field_state_attrs( 'stock_quantity_feature', 'stock_quantity_feature-hint' ); ?> />
 				<?php $this->render_field_error( 'stock_quantity_feature' ); ?>
-				<p class="skw-field-hint" id="stock_quantity_feature-hint"><?php esc_html_e( 'The ID or code of one product-level custom feature holding the stock quantity. Leave empty to turn the mapping off and manage stock in WooCommerce as before. When a product has no value for this feature, its current stock is left untouched — never set to 0 and never switched to unmanaged. Trade-item level features are not used.', 'skwirrel-pim-sync' ); ?></p>
+				<p class="skw-field-hint" id="stock_quantity_feature-hint"><?php esc_html_e( 'The ID or code of one product-level custom feature holding the stock quantity. The feature must be numeric, or text that contains only a number; range, logical and multi-value features are ignored. When a product has no usable value, its current stock is left untouched — never set to 0 and never switched to unmanaged. Trade-item level features are not used. Products priced on request keep their own availability whatever this feature says. Clearing this field turns the mapping off again, and the next synchronisation then returns priced variations to unmanaged and in stock, discarding the quantities it had been maintaining.', 'skwirrel-pim-sync' ); ?></p>
 			</div>
 			<?php
 			$content_fields = array(

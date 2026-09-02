@@ -2,21 +2,7 @@
 # Copyright (C) 2024–2026 Skwirrel Sync
 # This file is distributed under the GPL v2 or later.
 msgid ""
-msgstr ""
-"Project-Id-Version: Skwirrel PIM sync for WooCommerce 1.7.0\n"
-"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/skwirrel-pim-"
-"sync\n"
-"POT-Creation-Date: 2026-08-27T06:35:42+00:00\n"
-"PO-Revision-Date: 2026-02-26 12:00+0000\n"
-"Last-Translator: Skwirrel Sync <info@skwirrel.eu>\n"
-"Language-Team: Nederlands (Nederland)\n"
-"Language: nl_NL\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"X-Domain: skwirrel-pim-sync\n"
-"X-Generator: Skwirrel PIM sync for WooCommerce 1.7.0\n"
+msgstr "Project-Id-Version: Skwirrel PIM sync for WooCommerce 1.7.0\nReport-Msgid-Bugs-To: https://wordpress.org/support/plugin/skwirrel-pim-sync\nPOT-Creation-Date: 2026-08-27T06:35:42+00:00\nPO-Revision-Date: 2026-02-26 12:00+0000\nLast-Translator: Skwirrel Sync <info@skwirrel.eu>\nLanguage-Team: Nederlands (Nederland)\nLanguage: nl_NL\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=(n != 1);\nX-Domain: skwirrel-pim-sync\nX-Generator: Skwirrel PIM sync for WooCommerce 1.7.0\n"
 
 #. Plugin Name of the plugin
 #: skwirrel-pim-sync.php
@@ -153,9 +139,7 @@ msgstr "Sync wordt uitgevoerd…"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:200
 msgid "Products are being synchronized. Progress updates live below."
-msgstr ""
-"Producten worden gesynchroniseerd. De voortgang wordt hieronder live "
-"bijgewerkt."
+msgstr "Producten worden gesynchroniseerd. De voortgang wordt hieronder live bijgewerkt."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:209
 msgid "Sync Now"
@@ -407,15 +391,8 @@ msgid "View"
 msgstr "Bekijken"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:751
-msgid ""
-"The Created, Updated and Deleted counts include each variation of a variable "
-"product, while the product list they link to shows parent products only — "
-"for variable products the list is therefore shorter than the count."
-msgstr ""
-"De aantallen Aangemaakt, Bijgewerkt en Verwijderd tellen elke variatie van "
-"een variabel product mee, terwijl de productlijst waarnaar ze linken alleen "
-"hoofdproducten toont — bij variabele producten is de lijst dus korter dan "
-"het aantal."
+msgid "The Created, Updated and Deleted counts include each variation of a variable product, while the product list they link to shows parent products only — for variable products the list is therefore shorter than the count."
+msgstr "De aantallen Aangemaakt, Bijgewerkt en Verwijderd tellen elke variatie van een variabel product mee, terwijl de productlijst waarnaar ze linken alleen hoofdproducten toont — bij variabele producten is de lijst dus korter dan het aantal."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:796
 msgid "Connection"
@@ -468,12 +445,8 @@ msgid "Danger zone"
 msgstr "Gevarenzone"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1307
-msgid ""
-"Delete all products created or synced by Skwirrel. This cannot be undone if "
-"you empty the trash."
-msgstr ""
-"Verwijder alle producten die door Skwirrel zijn aangemaakt of "
-"gesynchroniseerd. Dit kan niet ongedaan worden als je de prullenbak leegt."
+msgid "Delete all products created or synced by Skwirrel. This cannot be undone if you empty the trash."
+msgstr "Verwijder alle producten die door Skwirrel zijn aangemaakt of gesynchroniseerd. Dit kan niet ongedaan worden als je de prullenbak leegt."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1311
 msgid "Also empty the trash (permanently delete)"
@@ -488,18 +461,8 @@ msgid "Reset settings"
 msgstr "Instellingen resetten"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1320
-msgid ""
-"Delete all Skwirrel sync configuration (endpoint URL, API token, sync "
-"schedule, slug rules). Cancels all scheduled sync jobs and flushes the "
-"object cache. Products, media, categories and sync history are untouched — "
-"use this when your settings refuse to update because of an aggressive "
-"persistent cache."
-msgstr ""
-"Verwijder alle Skwirrel-sync-instellingen (endpoint-URL, API-token, "
-"syncschema, slug-regels). Alle geplande synctaken worden geannuleerd en de "
-"objectcache wordt geleegd. Producten, media, categorieën en "
-"synchronisatiegeschiedenis blijven ongemoeid — gebruik dit wanneer je "
-"instellingen niet bijwerken door een agressieve persistente cache."
+msgid "Delete all Skwirrel sync configuration (endpoint URL, API token, sync schedule, slug rules). Cancels all scheduled sync jobs and flushes the object cache. Products, media, categories and sync history are untouched — use this when your settings refuse to update because of an aggressive persistent cache."
+msgstr "Verwijder alle Skwirrel-sync-instellingen (endpoint-URL, API-token, syncschema, slug-regels). Alle geplande synctaken worden geannuleerd en de objectcache wordt geleegd. Producten, media, categorieën en synchronisatiegeschiedenis blijven ongemoeid — gebruik dit wanneer je instellingen niet bijwerken door een agressieve persistente cache."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1325
 msgid "Reset Skwirrel sync settings"
@@ -555,18 +518,8 @@ msgid "Context ID"
 msgstr "Context-ID"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1402
-msgid ""
-"Optional. Leave this empty unless Skwirrel told you otherwise — an empty "
-"field uses the Skwirrel default context. Fill it in only if your Skwirrel "
-"instance serves several shops and you need the content of one specific "
-"context. Changing it re-imports your whole catalogue on the next "
-"synchronisation."
-msgstr ""
-"Optioneel. Laat dit leeg tenzij Skwirrel iets anders aangeeft — een leeg "
-"veld gebruikt de standaardcontext van Skwirrel. Vul het alleen in als jouw "
-"Skwirrel-omgeving meerdere shops bedient en je de inhoud van één specifieke "
-"context nodig hebt. Wijzig je dit, dan wordt bij de volgende synchronisatie "
-"je volledige catalogus opnieuw geïmporteerd."
+msgid "Optional. Leave this empty unless Skwirrel told you otherwise — an empty field uses the Skwirrel default context. Fill it in only if your Skwirrel instance serves several shops and you need the content of one specific context. Changing it re-imports your whole catalogue on the next synchronisation."
+msgstr "Optioneel. Laat dit leeg tenzij Skwirrel iets anders aangeeft — een leeg veld gebruikt de standaardcontext van Skwirrel. Vul het alleen in als jouw Skwirrel-omgeving meerdere shops bedient en je de inhoud van één specifieke context nodig hebt. Wijzig je dit, dan wordt bij de volgende synchronisatie je volledige catalogus opnieuw geïmporteerd."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1406
 msgid "Test connection"
@@ -588,23 +541,14 @@ msgstr " — te kort"
 #. hours
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1449
 #, php-format
-msgid ""
-"Your last full sync took ~%1$d min, so auto-syncs must be at least %2$d "
-"hours apart (one full hour of rest between runs)."
-msgstr ""
-"Je laatste volledige synchronisatie duurde ~%1$d min, dus automatische "
-"synchronisaties moeten minstens %2$d uur uit elkaar liggen (één volledig uur "
-"rust tussen runs)."
+msgid "Your last full sync took ~%1$d min, so auto-syncs must be at least %2$d hours apart (one full hour of rest between runs)."
+msgstr "Je laatste volledige synchronisatie duurde ~%1$d min, dus automatische synchronisaties moeten minstens %2$d uur uit elkaar liggen (één volledig uur rust tussen runs)."
 
 #. translators: %d: minimum interval in hours
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1456
 #, php-format
-msgid ""
-"Auto-syncs must be at least %d hours apart until the first full sync has run "
-"to measure its duration."
-msgstr ""
-"Automatische synchronisaties moeten minstens %d uur uit elkaar liggen totdat "
-"de eerste volledige synchronisatie is uitgevoerd om de duur te meten."
+msgid "Auto-syncs must be at least %d hours apart until the first full sync has run to measure its duration."
+msgstr "Automatische synchronisaties moeten minstens %d uur uit elkaar liggen totdat de eerste volledige synchronisatie is uitgevoerd om de duur te meten."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1477
 msgid "Sync Options"
@@ -676,8 +620,7 @@ msgstr "Alles als beide"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1506
 msgid "Auto maps UPSELL/SUCCESSOR types to upsells, all others to cross-sells."
-msgstr ""
-"Automatisch: UPSELL/SUCCESSOR types worden upsells, alle andere cross-sells."
+msgstr "Automatisch: UPSELL/SUCCESSOR types worden upsells, alle andere cross-sells."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1510
 msgid "Variant label"
@@ -696,11 +639,8 @@ msgid "Product name (translated)"
 msgstr "Productnaam (vertaald)"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1516
-msgid ""
-"Label shown in the variant dropdown when no variation axes are available."
-msgstr ""
-"Label dat wordt getoond in de variant dropdown wanneer er geen variatie-"
-"assen beschikbaar zijn."
+msgid "Label shown in the variant dropdown when no variation axes are available."
+msgstr "Label dat wordt getoond in de variant dropdown wanneer er geen variatie-assen beschikbaar zijn."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1521
 msgid "Super category ID"
@@ -744,9 +684,7 @@ msgstr "bijv. 5"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1553
 msgid "Only needed when syncing custom classes or grouped products."
-msgstr ""
-"Alleen nodig bij het synchroniseren van eigen klassen of gegroepeerde "
-"producten."
+msgstr "Alleen nodig bij het synchroniseren van eigen klassen of gegroepeerde producten."
 
 #. translators: %s = link to Skwirrel groups page
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1557
@@ -857,12 +795,8 @@ msgid "Slug settings have changed."
 msgstr "Slug-instellingen zijn gewijzigd."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1671
-msgid ""
-"Run a full sync to update product URLs. Changing slugs may break existing "
-"links and SEO rankings."
-msgstr ""
-"Voer een volledige synchronisatie uit om product-URL's bij te werken. Het "
-"wijzigen van slugs kan bestaande links en SEO-posities breken."
+msgid "Run a full sync to update product URLs. Changing slugs may break existing links and SEO rankings."
+msgstr "Voer een volledige synchronisatie uit om product-URL's bij te werken. Het wijzigen van slugs kan bestaande links en SEO-posities breken."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1677
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:81
@@ -878,12 +812,8 @@ msgid "Update on re-sync"
 msgstr "Bijwerken bij hersynchronisatie"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1696
-msgid ""
-"Existing product URLs will be overwritten on the next sync. This may break "
-"existing links and SEO rankings."
-msgstr ""
-"Bestaande product-URL's worden overschreven bij de volgende synchronisatie. "
-"Dit kan bestaande links en SEO-posities breken."
+msgid "Existing product URLs will be overwritten on the next sync. This may break existing links and SEO rankings."
+msgstr "Bestaande product-URL's worden overschreven bij de volgende synchronisatie. Dit kan bestaande links en SEO-posities breken."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1699
 msgid "Edit permalink settings"
@@ -936,44 +866,24 @@ msgid "Manual (no auto-delete)"
 msgstr "Handmatig (niet automatisch verwijderen)"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1745
-msgid ""
-"How long to keep per-sync log files. Old files are cleaned up at the start "
-"of each sync."
-msgstr ""
-"Hoe lang per-sync logbestanden bewaard worden. Oude bestanden worden "
-"opgeruimd aan het begin van elke sync."
+msgid "How long to keep per-sync log files. Old files are cleaned up at the start of each sync."
+msgstr "Hoe lang per-sync logbestanden bewaard worden. Oude bestanden worden opgeruimd aan het begin van elke sync."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1759
 msgid "Product status handling"
 msgstr "Productstatusverwerking"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1760
-msgid ""
-"Choose the WooCommerce state for each Skwirrel product status. The built-in "
-"statuses (Draft, Available, Discontinued) are always shown; any extra "
-"statuses your Skwirrel instance defines are discovered automatically during "
-"a sync — or click \"Refresh statuses from Skwirrel\" to fetch them now. "
-"\"Keep published\" leaves the product visible, \"Draft\" hides it, \"Trash\" "
-"moves it to the trash, and \"Deprecated\" retires it gradually."
-msgstr ""
-"Kies de WooCommerce-status voor elke Skwirrel-productstatus. De ingebouwde "
-"statussen (Concept, Beschikbaar, Uitgefaseerd) worden altijd getoond; extra "
-"statussen die jouw Skwirrel-omgeving definieert worden automatisch ontdekt "
-"tijdens een sync — of klik op \"Statussen ophalen uit Skwirrel\" om ze nu op "
-"te halen. \"Gepubliceerd houden\" laat het product zichtbaar, \"Concept\" "
-"verbergt het, \"Prullenbak\" verplaatst het naar de prullenbak en "
-"\"Verouderd\" faseert het geleidelijk uit."
+msgid "Choose the WooCommerce state for each Skwirrel product status. The built-in statuses (Draft, Available, Discontinued) are always shown; any extra statuses your Skwirrel instance defines are discovered automatically during a sync — or click \"Refresh statuses from Skwirrel\" to fetch them now. \"Keep published\" leaves the product visible, \"Draft\" hides it, \"Trash\" moves it to the trash, and \"Deprecated\" retires it gradually."
+msgstr "Kies de WooCommerce-status voor elke Skwirrel-productstatus. De ingebouwde statussen (Concept, Beschikbaar, Uitgefaseerd) worden altijd getoond; extra statussen die jouw Skwirrel-omgeving definieert worden automatisch ontdekt tijdens een sync — of klik op \"Statussen ophalen uit Skwirrel\" om ze nu op te halen. \"Gepubliceerd houden\" laat het product zichtbaar, \"Concept\" verbergt het, \"Prullenbak\" verplaatst het naar de prullenbak en \"Verouderd\" faseert het geleidelijk uit."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1768
 msgid "Default for new statuses"
 msgstr "Standaard voor nieuwe statussen"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1774
-msgid ""
-"Applied to any status not mapped below, including newly discovered ones."
-msgstr ""
-"Wordt toegepast op elke status die hieronder niet is toegewezen, inclusief "
-"nieuw ontdekte."
+msgid "Applied to any status not mapped below, including newly discovered ones."
+msgstr "Wordt toegepast op elke status die hieronder niet is toegewezen, inclusief nieuw ontdekte."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1779
 msgid "Skwirrel status"
@@ -992,25 +902,12 @@ msgid "Remove deprecated products after (full syncs)"
 msgstr "Uitgefaseerde producten verwijderen na (volledige syncs)"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1805
-msgid ""
-"How many full syncs a product stays in the Deprecated status before it is "
-"moved to the trash. 0 = remove immediately (trashed on the same full sync it "
-"becomes deprecated — no review window). Only applies to statuses mapped to "
-"Deprecated."
-msgstr ""
-"Hoeveel volledige syncs een product in de status Uitgefaseerd blijft voordat "
-"het naar de prullenbak wordt verplaatst. 0 = direct verwijderen (naar de "
-"prullenbak bij dezelfde volledige sync waarin het uitgefaseerd wordt — geen "
-"beoordelingsvenster). Alleen van toepassing op statussen die aan "
-"Uitgefaseerd zijn toegewezen."
+msgid "How many full syncs a product stays in the Deprecated status before it is moved to the trash. 0 = remove immediately (trashed on the same full sync it becomes deprecated — no review window). Only applies to statuses mapped to Deprecated."
+msgstr "Hoeveel volledige syncs een product in de status Uitgefaseerd blijft voordat het naar de prullenbak wordt verplaatst. 0 = direct verwijderen (naar de prullenbak bij dezelfde volledige sync waarin het uitgefaseerd wordt — geen beoordelingsvenster). Alleen van toepassing op statussen die aan Uitgefaseerd zijn toegewezen."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1824
-msgid ""
-"Drive WooCommerce fields from a Skwirrel custom class feature, so you no "
-"longer maintain the same value in two systems."
-msgstr ""
-"Stuur WooCommerce-velden aan vanuit een Skwirrel custom class-kenmerk, zodat "
-"je dezelfde waarde niet langer in twee systemen bijhoudt."
+msgid "Drive WooCommerce fields from a Skwirrel custom class feature, so you no longer maintain the same value in two systems."
+msgstr "Stuur WooCommerce-velden aan vanuit een Skwirrel custom class-kenmerk, zodat je dezelfde waarde niet langer in twee systemen bijhoudt."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1826
 msgid "Stock quantity"
@@ -1021,79 +918,40 @@ msgid "e.g. 1234 or STOCK_QTY"
 msgstr "bijv. 1234 of STOCK_QTY"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1830
-msgid ""
-"The ID or code of one product-level custom feature holding the stock "
-"quantity. Leave empty to turn the mapping off and manage stock in "
-"WooCommerce as before. When a product has no value for this feature, its "
-"current stock is left untouched — never set to 0 and never switched to "
-"unmanaged. Trade-item level features are not used."
-msgstr ""
-"Het ID of de code van één custom kenmerk op productniveau met het "
-"voorraadaantal. Laat leeg om de koppeling uit te zetten en de voorraad zoals "
-"voorheen in WooCommerce te beheren. Heeft een product geen waarde voor dit "
-"kenmerk, dan blijft de huidige voorraad ongewijzigd — nooit op 0 gezet en "
-"nooit op onbeheerd gezet. Kenmerken op trade item-niveau worden niet "
-"gebruikt."
+msgid "The ID or code of one product-level custom feature holding the stock quantity. The feature must be numeric, or text that contains only a number; range, logical and multi-value features are ignored. When a product has no usable value, its current stock is left untouched — never set to 0 and never switched to unmanaged. Trade-item level features are not used. Products priced on request keep their own availability whatever this feature says. Clearing this field turns the mapping off again, and the next synchronisation then returns priced variations to unmanaged and in stock, discarding the quantities it had been maintaining."
+msgstr "De ID of code van één productgebonden custom feature met de voorraad. De feature moet numeriek zijn, of tekst die alleen een getal bevat; bereik-, logische en meerwaardige features worden genegeerd. Heeft een product geen bruikbare waarde, dan blijft de huidige voorraad ongemoeid — nooit op 0 gezet en nooit op onbeheerd. Features op handelsartikelniveau worden niet gebruikt. Producten met prijs op aanvraag houden hun eigen beschikbaarheid, wat deze feature ook zegt. Dit veld leegmaken schakelt de koppeling weer uit, en de volgende synchronisatie zet geprijsde varianten dan terug op onbeheerd en op voorraad, waarbij de bijgehouden aantallen verloren gaan."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1835
 msgid "Product title"
 msgstr "Producttitel"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1836
-msgid ""
-"The ID or code of the custom feature holding the product title. Leave empty "
-"to keep using the normal source (the ERP description, then the product "
-"translations). When a product has no value for this feature, the normal "
-"source is used for that product — the title is never blanked."
-msgstr ""
-"Het ID of de code van het custom kenmerk met de producttitel. Laat leeg om "
-"de normale bron te blijven gebruiken (de ERP-omschrijving, daarna de "
-"productvertalingen). Heeft een product geen waarde voor dit kenmerk, dan "
-"wordt voor dat product de normale bron gebruikt — de titel wordt nooit "
-"leeggemaakt."
+msgid "The ID or code of the custom feature holding the product title. Leave empty to keep using the normal source (the ERP description, then the product translations). When a product has no value for this feature, the normal source is used for that product — the title is never blanked."
+msgstr "Het ID of de code van het custom kenmerk met de producttitel. Laat leeg om de normale bron te blijven gebruiken (de ERP-omschrijving, daarna de productvertalingen). Heeft een product geen waarde voor dit kenmerk, dan wordt voor dat product de normale bron gebruikt — de titel wordt nooit leeggemaakt."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1839
 msgid "Short description"
 msgstr "Korte omschrijving"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1840
-msgid ""
-"The ID or code of the custom feature holding the short description. Leave "
-"empty to keep using the product translations. A product without a value "
-"keeps the normal source."
-msgstr ""
-"Het ID of de code van het custom kenmerk met de korte omschrijving. Laat "
-"leeg om de productvertalingen te blijven gebruiken. Een product zonder "
-"waarde houdt de normale bron."
+msgid "The ID or code of the custom feature holding the short description. Leave empty to keep using the product translations. A product without a value keeps the normal source."
+msgstr "Het ID of de code van het custom kenmerk met de korte omschrijving. Laat leeg om de productvertalingen te blijven gebruiken. Een product zonder waarde houdt de normale bron."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1843
 msgid "Long description"
 msgstr "Lange omschrijving"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1844
-msgid ""
-"The ID or code of the custom feature holding the long description. Leave "
-"empty to keep using the normal source. Formatting is kept; unsafe markup is "
-"removed. A product without a value keeps the normal source."
-msgstr ""
-"Het ID of de code van het custom kenmerk met de lange omschrijving. Laat "
-"leeg om de normale bron te blijven gebruiken. Opmaak blijft behouden; "
-"onveilige markup wordt verwijderd. Een product zonder waarde houdt de "
-"normale bron."
+msgid "The ID or code of the custom feature holding the long description. Leave empty to keep using the normal source. Formatting is kept; unsafe markup is removed. A product without a value keeps the normal source."
+msgstr "Het ID of de code van het custom kenmerk met de lange omschrijving. Laat leeg om de normale bron te blijven gebruiken. Opmaak blijft behouden; onveilige markup wordt verwijderd. Een product zonder waarde houdt de normale bron."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1851
 msgid "e.g. 812 or PRODUCT_TITLE"
 msgstr "bijv. 812 of PRODUCT_TITLE"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1859
-msgid ""
-"Field mappings read product-level custom classes. Set the custom class "
-"collection ID under \"What to sync\" so those values can be fetched; without "
-"it the mappings stay inactive."
-msgstr ""
-"Veldkoppelingen lezen custom classes op productniveau. Stel het collectie-ID "
-"voor custom classes in onder „Wat synchroniseren” zodat die waarden "
-"opgehaald kunnen worden; zonder dat blijven de koppelingen inactief."
+msgid "Field mappings read product-level custom classes. Set the custom class collection ID under \"What to sync\" so those values can be fetched; without it the mappings stay inactive."
+msgstr "Veldkoppelingen lezen custom classes op productniveau. Stel het collectie-ID voor custom classes in onder „Wat synchroniseren” zodat die waarden opgehaald kunnen worden; zonder dat blijven de koppelingen inactief."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1874
 msgid "Verbose logging"
@@ -1112,31 +970,16 @@ msgid "Protect Skwirrel products from deletion"
 msgstr "Skwirrel-producten beschermen tegen verwijdering"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1878
-msgid ""
-"When enabled, manual deletion of Skwirrel-managed products from the product "
-"list or editor is blocked while a sync is running, to prevent conflicts. "
-"What the sync itself does with removed or discontinued products is "
-"controlled by \"Product status handling\" above."
-msgstr ""
-"Indien ingeschakeld wordt handmatige verwijdering van door Skwirrel beheerde "
-"producten via de productlijst of de editor geblokkeerd terwijl een sync "
-"actief is, om conflicten te voorkomen. Wat de sync zelf doet met verwijderde "
-"of uitgefaseerde producten wordt geregeld door \"Productstatusverwerking\" "
-"hierboven."
+msgid "When enabled, manual deletion of Skwirrel-managed products from the product list or editor is blocked while a sync is running, to prevent conflicts. What the sync itself does with removed or discontinued products is controlled by \"Product status handling\" above."
+msgstr "Indien ingeschakeld wordt handmatige verwijdering van door Skwirrel beheerde producten via de productlijst of de editor geblokkeerd terwijl een sync actief is, om conflicten te voorkomen. Wat de sync zelf doet met verwijderde of uitgefaseerde producten wordt geregeld door \"Productstatusverwerking\" hierboven."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1879
 msgid "Prices managed outside Skwirrel"
 msgstr "Prijzen worden buiten Skwirrel beheerd"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1880
-msgid ""
-"Enable this when product prices are synced from a separate system (e.g. "
-"ERP). When enabled, the PIM sync will not overwrite existing variation "
-"prices when no price is present in the PIM payload."
-msgstr ""
-"Schakel dit in wanneer productprijzen vanuit een ander systeem (bijv. ERP) "
-"worden gesynchroniseerd. Wanneer ingeschakeld zal de PIM-sync bestaande "
-"variatieprijzen niet overschrijven als er geen prijs in de PIM-data zit."
+msgid "Enable this when product prices are synced from a separate system (e.g. ERP). When enabled, the PIM sync will not overwrite existing variation prices when no price is present in the PIM payload."
+msgstr "Schakel dit in wanneer productprijzen vanuit een ander systeem (bijv. ERP) worden gesynchroniseerd. Wanneer ingeschakeld zal de PIM-sync bestaande variatieprijzen niet overschrijven als er geen prijs in de PIM-data zit."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1897
 msgid "Live sync log"
@@ -1153,20 +996,14 @@ msgid "Idle"
 msgstr "Inactief"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1906
-msgid ""
-"Tails the current sync log file. When no sync is running, the most recent "
-"log is shown."
-msgstr ""
-"Toont het actieve sync logbestand. Wanneer geen sync actief is, wordt het "
-"meest recente log weergegeven."
+msgid "Tails the current sync log file. When no sync is running, the most recent log is shown."
+msgstr "Toont het actieve sync logbestand. Wanneer geen sync actief is, wordt het meest recente log weergegeven."
 
 #. translators: %s: link to verbose logging setting
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1913
 #, php-format
 msgid "Verbose logging is disabled. Enable it in %s to see per-product detail."
-msgstr ""
-"Uitgebreide logging is uitgeschakeld. Schakel dit in via %s voor detail per "
-"product."
+msgstr "Uitgebreide logging is uitgeschakeld. Schakel dit in via %s voor detail per product."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1921
 #: includes/class-skwirrel-wc-sync-admin-settings.php:2235
@@ -1186,12 +1023,8 @@ msgid "Debug Variation Attributes"
 msgstr "Debug variatie-attributen"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1943
-msgid ""
-"If variations show \"Any Colour\" or \"Any Number of cups\" instead of real "
-"values:"
-msgstr ""
-"Als variaties \"Elke Kleur\" of \"Elk Aantal kopjes\" tonen in plaats van "
-"echte waarden:"
+msgid "If variations show \"Any Colour\" or \"Any Number of cups\" instead of real values:"
+msgstr "Als variaties \"Elke Kleur\" of \"Elk Aantal kopjes\" tonen in plaats van echte waarden:"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1945
 msgid "Add to wp-config.php:"
@@ -1206,11 +1039,8 @@ msgid "Check:"
 msgstr "Controleer:"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1948
-msgid ""
-"If etim_values_found is empty: API languages must match (e.g. en, en-GB)."
-msgstr ""
-"Als etim_values_found leeg is: API-talen moeten overeenkomen (bijv. en, en-"
-"GB)."
+msgid "If etim_values_found is empty: API languages must match (e.g. en, en-GB)."
+msgstr "Als etim_values_found leeg is: API-talen moeten overeenkomen (bijv. en, en-GB)."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1949
 msgid "If ATTR VERIFY FAIL: check wp_postmeta for attribute_pa_ entries."
@@ -1235,42 +1065,24 @@ msgid "Sync now"
 msgstr "Nu synchroniseren"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:293
-msgid ""
-"The context ID changed, so the next synchronisation imports your whole "
-"catalogue again. This makes sure every product and category comes from the "
-"new context."
-msgstr ""
-"Het context-ID is gewijzigd, dus bij de volgende synchronisatie wordt je "
-"volledige catalogus opnieuw geïmporteerd. Zo komen alle producten en "
-"categorieën uit de nieuwe context."
+msgid "The context ID changed, so the next synchronisation imports your whole catalogue again. This makes sure every product and category comes from the new context."
+msgstr "Het context-ID is gewijzigd, dus bij de volgende synchronisatie wordt je volledige catalogus opnieuw geïmporteerd. Zo komen alle producten en categorieën uit de nieuwe context."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:425
-msgid ""
-"The context ID must be a whole number greater than 0. Leave it empty to use "
-"the Skwirrel default context."
-msgstr ""
-"Het context-ID moet een heel getal groter dan 0 zijn. Laat het leeg om de "
-"standaardcontext van Skwirrel te gebruiken."
+msgid "The context ID must be a whole number greater than 0. Leave it empty to use the Skwirrel default context."
+msgstr "Het context-ID moet een heel getal groter dan 0 zijn. Laat het leeg om de standaardcontext van Skwirrel te gebruiken."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:446
-msgid ""
-"Category sync is enabled but no valid super category ID is set. Please enter "
-"a super category ID greater than 0."
-msgstr ""
-"Categoriesynchronisatie staat aan, maar er is geen geldig supercategorie-ID "
-"ingesteld. Voer een supercategorie-ID groter dan 0 in."
+msgid "Category sync is enabled but no valid super category ID is set. Please enter a super category ID greater than 0."
+msgstr "Categoriesynchronisatie staat aan, maar er is geen geldig supercategorie-ID ingesteld. Voer een supercategorie-ID groter dan 0 in."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:502
 msgid "At least one selection ID greater than 0 is required."
 msgstr "Ten minste één selectie-ID groter dan 0 is vereist."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:515
-msgid ""
-"A custom class collection ID greater than 0 is required when syncing custom "
-"classes or grouped products."
-msgstr ""
-"Een collectie-ID voor eigen klassen groter dan 0 is vereist bij het "
-"synchroniseren van eigen klassen of gegroepeerde producten."
+msgid "A custom class collection ID greater than 0 is required when syncing custom classes or grouped products."
+msgstr "Een collectie-ID voor eigen klassen groter dan 0 is vereist bij het synchroniseren van eigen klassen of gegroepeerde producten."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:734
 #: includes/class-skwirrel-wc-sync-admin-settings.php:843
@@ -1381,25 +1193,15 @@ msgstr "Statusgegevens bijgewerkt — bezig met herladen…"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1039
 msgid "No new statuses found. Every status in the catalogue is already listed."
-msgstr ""
-"Geen nieuwe statussen gevonden. Alle statussen in de catalogus staan al in "
-"de lijst."
+msgstr "Geen nieuwe statussen gevonden. Alle statussen in de catalogus staan al in de lijst."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1041
-msgid ""
-"No new statuses found so far — the scan stopped before the end of the "
-"catalogue."
-msgstr ""
-"Nog geen nieuwe statussen gevonden — het doorzoeken is gestopt voor het "
-"einde van de catalogus."
+msgid "No new statuses found so far — the scan stopped before the end of the catalogue."
+msgstr "Nog geen nieuwe statussen gevonden — het doorzoeken is gestopt voor het einde van de catalogus."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1106
-msgid ""
-"Set the Skwirrel endpoint and API token (and save) before refreshing "
-"statuses."
-msgstr ""
-"Stel het Skwirrel-endpoint en de API-token in (en sla op) voordat je "
-"statussen ophaalt."
+msgid "Set the Skwirrel endpoint and API token (and save) before refreshing statuses."
+msgstr "Stel het Skwirrel-endpoint en de API-token in (en sla op) voordat je statussen ophaalt."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1136
 msgid "The request to Skwirrel failed."
@@ -1448,33 +1250,20 @@ msgid "Error"
 msgstr "Fout"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1779
-msgid ""
-"WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be "
-"undone!\\n\\nAre you sure?"
-msgstr ""
-"WAARSCHUWING: Alle Skwirrel-producten worden PERMANENT verwijderd. Dit kan "
-"niet ongedaan worden gemaakt!\\n\\nWeet je het zeker?"
+msgid "WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be undone!\\n\\nAre you sure?"
+msgstr "WAARSCHUWING: Alle Skwirrel-producten worden PERMANENT verwijderd. Dit kan niet ongedaan worden gemaakt!\\n\\nWeet je het zeker?"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1780
 msgid "All Skwirrel products will be moved to the trash.\\n\\nAre you sure?"
-msgstr ""
-"Alle Skwirrel-producten worden naar de prullenbak verplaatst.\\n\\nWeet je "
-"het zeker?"
+msgstr "Alle Skwirrel-producten worden naar de prullenbak verplaatst.\\n\\nWeet je het zeker?"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1781
 msgid "Delete all sync history?"
 msgstr "Alle synchronisatiegeschiedenis verwijderen?"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1782
-msgid ""
-"Reset all Skwirrel sync settings? Endpoint URL, API token, sync schedule and "
-"slug rules will be deleted, and all scheduled syncs will be cancelled. "
-"Products, media, categories and sync history are kept.\\n\\nAre you sure?"
-msgstr ""
-"Alle Skwirrel-sync-instellingen resetten? Endpoint-URL, API-token, "
-"syncschema en slug-regels worden verwijderd en alle geplande syncs worden "
-"geannuleerd. Producten, media, categorieën en synchronisatiegeschiedenis "
-"blijven behouden.\\n\\nWeet je het zeker?"
+msgid "Reset all Skwirrel sync settings? Endpoint URL, API token, sync schedule and slug rules will be deleted, and all scheduled syncs will be cancelled. Products, media, categories and sync history are kept.\\n\\nAre you sure?"
+msgstr "Alle Skwirrel-sync-instellingen resetten? Endpoint-URL, API-token, syncschema en slug-regels worden verwijderd en alle geplande syncs worden geannuleerd. Producten, media, categorieën en synchronisatiegeschiedenis blijven behouden.\\n\\nWeet je het zeker?"
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1790
 msgid "Testing…"
@@ -1497,13 +1286,8 @@ msgid "Could not refresh statuses."
 msgstr "Kon de statussen niet ophalen."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:1797
-msgid ""
-"Statuses updated. Save your changes to see the new rows — the page was not "
-"reloaded because this form has unsaved edits."
-msgstr ""
-"Statussen bijgewerkt. Sla je wijzigingen op om de nieuwe rijen te zien — de "
-"pagina is niet herladen omdat dit formulier niet-opgeslagen wijzigingen "
-"bevat."
+msgid "Statuses updated. Save your changes to see the new rows — the page was not reloaded because this form has unsaved edits."
+msgstr "Statussen bijgewerkt. Sla je wijzigingen op om de nieuwe rijen te zien — de pagina is niet herladen omdat dit formulier niet-opgeslagen wijzigingen bevat."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:2145
 #: includes/class-skwirrel-wc-sync-admin-settings.php:2232
@@ -1536,38 +1320,20 @@ msgid "Settings saved."
 msgstr "Instellingen bewaard."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:2437
-msgid ""
-"Sync started in the background. Results will appear here once the sync is "
-"completed. Refresh the page to check the status."
-msgstr ""
-"Sync is gestart op de achtergrond. De resultaten verschijnen hier zodra de "
-"sync is voltooid. Vernieuw de pagina om de status te controleren."
+msgid "Sync started in the background. Results will appear here once the sync is completed. Refresh the page to check the status."
+msgstr "Sync is gestart op de achtergrond. De resultaten verschijnen hier zodra de sync is voltooid. Vernieuw de pagina om de status te controleren."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:2441
 msgid "Sync history deleted."
 msgstr "Synchronisatiegeschiedenis verwijderd."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:2445
-msgid ""
-"Skwirrel sync settings reset. All configuration options were deleted, "
-"scheduled jobs cancelled, and caches flushed. Products, media, categories "
-"and sync history are untouched. Re-enter your subdomain and API token below "
-"to continue."
-msgstr ""
-"Skwirrel-sync-instellingen gereset. Alle configuratieopties zijn verwijderd, "
-"geplande taken geannuleerd en caches geleegd. Producten, media, categorieën "
-"en synchronisatiegeschiedenis blijven ongemoeid. Voer hieronder opnieuw je "
-"subdomein en API-token in om verder te gaan."
+msgid "Skwirrel sync settings reset. All configuration options were deleted, scheduled jobs cancelled, and caches flushed. Products, media, categories and sync history are untouched. Re-enter your subdomain and API token below to continue."
+msgstr "Skwirrel-sync-instellingen gereset. Alle configuratieopties zijn verwijderd, geplande taken geannuleerd en caches geleegd. Producten, media, categorieën en synchronisatiegeschiedenis blijven ongemoeid. Voer hieronder opnieuw je subdomein en API-token in om verder te gaan."
 
 #: includes/class-skwirrel-wc-sync-admin-settings.php:2449
-msgid ""
-"Purge started in the background. All Skwirrel products, imported media, "
-"categories and attributes will be deleted. Refresh the page to check the "
-"status."
-msgstr ""
-"Opruimactie is gestart op de achtergrond. Alle Skwirrel producten, "
-"geïmporteerde media, categorieën en attributen worden verwijderd. Vernieuw "
-"de pagina om de status te controleren."
+msgid "Purge started in the background. All Skwirrel products, imported media, categories and attributes will be deleted. Refresh the page to check the status."
+msgstr "Opruimactie is gestart op de achtergrond. Alle Skwirrel producten, geïmporteerde media, categorieën en attributen worden verwijderd. Vernieuw de pagina om de status te controleren."
 
 #. translators: %1$d = created count, %2$d = updated count, %3$d = failed count
 #: includes/class-skwirrel-wc-sync-admin-settings.php:2459
@@ -1676,27 +1442,16 @@ msgid "Skwirrel PIM"
 msgstr "Skwirrel PIM"
 
 #: includes/class-skwirrel-wc-sync-connectors.php:104
-msgid ""
-"API token for syncing products from the Skwirrel PIM system to WooCommerce."
-msgstr ""
-"API-token voor het synchroniseren van producten van het Skwirrel PIM-systeem "
-"naar WooCommerce."
+msgid "API token for syncing products from the Skwirrel PIM system to WooCommerce."
+msgstr "API-token voor het synchroniseren van producten van het Skwirrel PIM-systeem naar WooCommerce."
 
 #: includes/class-skwirrel-wc-sync-delete-protection.php:166
-msgid ""
-"This product is managed by Skwirrel. Changes to product data should be made "
-"in Skwirrel."
-msgstr ""
-"Dit product wordt beheerd door Skwirrel. Wijzigingen aan productgegevens "
-"dienen in Skwirrel te worden gemaakt."
+msgid "This product is managed by Skwirrel. Changes to product data should be made in Skwirrel."
+msgstr "Dit product wordt beheerd door Skwirrel. Wijzigingen aan productgegevens dienen in Skwirrel te worden gemaakt."
 
 #: includes/class-skwirrel-wc-sync-delete-protection.php:169
-msgid ""
-"If you delete or trash this product, it will be automatically recreated "
-"during the next sync."
-msgstr ""
-"Als u dit product verwijdert, wordt het automatisch opnieuw aangemaakt bij "
-"de volgende sync."
+msgid "If you delete or trash this product, it will be automatically recreated during the next sync."
+msgstr "Als u dit product verwijdert, wordt het automatisch opnieuw aangemaakt bij de volgende sync."
 
 #. translators: %s = last sync datetime
 #: includes/class-skwirrel-wc-sync-delete-protection.php:172
@@ -1709,32 +1464,16 @@ msgid "Delete locked — sync running"
 msgstr "Verwijderen vergrendeld — sync actief"
 
 #: includes/class-skwirrel-wc-sync-delete-protection.php:257
-msgid ""
-"This product is managed by Skwirrel and will be recreated during the next "
-"sync.\\n\\nAre you sure you want to trash this product?"
-msgstr ""
-"Dit product wordt beheerd door Skwirrel en wordt opnieuw aangemaakt bij de "
-"volgende sync.\\n\\nWeet je zeker dat je dit product naar de prullenbak wilt "
-"verplaatsen?"
+msgid "This product is managed by Skwirrel and will be recreated during the next sync.\\n\\nAre you sure you want to trash this product?"
+msgstr "Dit product wordt beheerd door Skwirrel en wordt opnieuw aangemaakt bij de volgende sync.\\n\\nWeet je zeker dat je dit product naar de prullenbak wilt verplaatsen?"
 
 #: includes/class-skwirrel-wc-sync-delete-protection.php:274
-msgid ""
-"This category was created by Skwirrel Sync and will be recreated during the "
-"next sync.\\n\\nAre you sure you want to delete this category?"
-msgstr ""
-"Deze categorie is aangemaakt door Skwirrel Sync en wordt opnieuw aangemaakt "
-"bij de volgende sync.\\n\\nWeet je zeker dat je deze categorie wilt "
-"verwijderen?"
+msgid "This category was created by Skwirrel Sync and will be recreated during the next sync.\\n\\nAre you sure you want to delete this category?"
+msgstr "Deze categorie is aangemaakt door Skwirrel Sync en wordt opnieuw aangemaakt bij de volgende sync.\\n\\nWeet je zeker dat je deze categorie wilt verwijderen?"
 
 #: includes/class-skwirrel-wc-sync-delete-protection.php:402
-msgid ""
-"A Skwirrel sync is running. Deleting Skwirrel-managed products is "
-"temporarily disabled to prevent conflicts. You can delete them again once "
-"the sync has finished."
-msgstr ""
-"Er is een Skwirrel-sync actief. Het verwijderen van door Skwirrel beheerde "
-"producten is tijdelijk uitgeschakeld om conflicten te voorkomen. U kunt ze "
-"weer verwijderen zodra de sync is voltooid."
+msgid "A Skwirrel sync is running. Deleting Skwirrel-managed products is temporarily disabled to prevent conflicts. You can delete them again once the sync has finished."
+msgstr "Er is een Skwirrel-sync actief. Het verwijderen van door Skwirrel beheerde producten is tijdelijk uitgeschakeld om conflicten te voorkomen. U kunt ze weer verwijderen zodra de sync is voltooid."
 
 #: includes/class-skwirrel-wc-sync-deprecated-status.php:51
 msgctxt "product status"
@@ -1771,8 +1510,7 @@ msgstr "Productfabrikant-basis"
 
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:124
 msgid "Configure how Skwirrel generates product URL slugs during sync."
-msgstr ""
-"Configureer hoe Skwirrel product-URL-slugs genereert tijdens synchronisatie."
+msgstr "Configureer hoe Skwirrel product-URL-slugs genereert tijdens synchronisatie."
 
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:135
 msgid "Product name (default)"
@@ -1780,46 +1518,31 @@ msgstr "Productnaam (standaard)"
 
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:141
 msgid "The source field used as the base URL (slug) for new products."
-msgstr ""
-"Het bronveld dat wordt gebruikt als basis-URL (slug) voor nieuwe producten."
+msgstr "Het bronveld dat wordt gebruikt als basis-URL (slug) voor nieuwe producten."
 
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:153
 msgid "None — WordPress auto-numbers (-2, -3)"
 msgstr "Geen — WordPress nummert automatisch (-2, -3)"
 
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:159
-msgid ""
-"If the slug already exists, this field is appended as a suffix. Existing "
-"slugs are not changed."
-msgstr ""
-"Als de slug al bestaat, wordt dit veld als suffix toegevoegd. Bestaande "
-"slugs worden niet gewijzigd."
+msgid "If the slug already exists, this field is appended as a suffix. Existing slugs are not changed."
+msgstr "Als de slug al bestaat, wordt dit veld als suffix toegevoegd. Bestaande slugs worden niet gewijzigd."
 
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:172
 msgid "Also update slugs for existing products during sync"
 msgstr "Ook slugs bijwerken voor bestaande producten tijdens synchronisatie"
 
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:174
-msgid ""
-"When enabled, product slugs are updated on every sync based on the source "
-"field above. When disabled, only new products get a slug from Skwirrel."
-msgstr ""
-"Indien ingeschakeld worden product-slugs bij elke synchronisatie bijgewerkt "
-"op basis van het bovenstaande bronveld. Indien uitgeschakeld krijgen alleen "
-"nieuwe producten een slug van Skwirrel."
+msgid "When enabled, product slugs are updated on every sync based on the source field above. When disabled, only new products get a slug from Skwirrel."
+msgstr "Indien ingeschakeld worden product-slugs bij elke synchronisatie bijgewerkt op basis van het bovenstaande bronveld. Indien uitgeschakeld krijgen alleen nieuwe producten een slug van Skwirrel."
 
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:187
 msgid "Enable clean variation URLs"
 msgstr "Schakel schone variatie-URLs in"
 
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:190
-msgid ""
-"When enabled, variations are accessible at /product/{product-slug}/"
-"{variation-slug}/. Requires variation slugs to be generated during sync."
-msgstr ""
-"Indien ingeschakeld zijn variaties bereikbaar op /product/{product-slug}/"
-"{variatie-slug}/. Vereist dat variatie-slugs worden gegenereerd tijdens de "
-"sync."
+msgid "When enabled, variations are accessible at /product/{product-slug}/{variation-slug}/. Requires variation slugs to be generated during sync."
+msgstr "Indien ingeschakeld zijn variaties bereikbaar op /product/{product-slug}/{variatie-slug}/. Vereist dat variatie-slugs worden gegenereerd tijdens de sync."
 
 #: includes/class-skwirrel-wc-sync-permalink-settings.php:203
 msgid "The base slug for the product manufacturer taxonomy URLs."
@@ -1840,12 +1563,8 @@ msgstr "GTIN / Fabrikant artikelcode"
 #. translators: %1$s = install URL, %2$s = activate URL
 #: includes/class-skwirrel-wc-sync-plugin.php:298
 #, php-format
-msgid ""
-"WooCommerce is required. <a href=\"%1$s\">Install WooCommerce</a> or <a "
-"href=\"%2$s\">activate WooCommerce</a>."
-msgstr ""
-"WooCommerce is vereist. <a href=\"%1$s\">Installeer WooCommerce</a> of <a "
-"href=\"%2$s\">activeer WooCommerce</a>."
+msgid "WooCommerce is required. <a href=\"%1$s\">Install WooCommerce</a> or <a href=\"%2$s\">activate WooCommerce</a>."
+msgstr "WooCommerce is vereist. <a href=\"%1$s\">Installeer WooCommerce</a> of <a href=\"%2$s\">activeer WooCommerce</a>."
 
 #: includes/class-skwirrel-wc-sync-product-documents.php:56
 msgid "Documents"
@@ -1962,8 +1681,7 @@ msgstr "Ongeldig product-ID."
 #: includes/class-skwirrel-wc-sync-product-sync-meta-box.php:593
 #, php-format
 msgid "Grouped product synced successfully (%1$d created, %2$d updated)."
-msgstr ""
-"Gegroepeerd product gesynchroniseerd (%1$d aangemaakt, %2$d bijgewerkt)."
+msgstr "Gegroepeerd product gesynchroniseerd (%1$d aangemaakt, %2$d bijgewerkt)."
 
 #: includes/class-skwirrel-wc-sync-product-sync-meta-box.php:602
 msgid "No Skwirrel product ID found for this product."
@@ -1982,89 +1700,43 @@ msgid "Product %s"
 msgstr "Product %s"
 
 #: includes/class-skwirrel-wc-sync-purge-handler.php:689
-msgid ""
-"Removal skipped: the product membership picture for this run is incomplete, "
-"so no product can be proven to have left the selection. The product sync "
-"itself finished normally."
-msgstr ""
-"Verwijderen overgeslagen: het beeld van de selectie-inhoud is voor deze run "
-"onvolledig, dus van geen enkel product is te bewijzen dat het de selectie "
-"heeft verlaten. De productsynchronisatie zelf is normaal afgerond."
+msgid "Removal skipped: the product membership picture for this run is incomplete, so no product can be proven to have left the selection. The product sync itself finished normally."
+msgstr "Verwijderen overgeslagen: het beeld van de selectie-inhoud is voor deze run onvolledig, dus van geen enkel product is te bewijzen dat het de selectie heeft verlaten. De productsynchronisatie zelf is normaal afgerond."
 
 #: includes/class-skwirrel-wc-sync-purge-handler.php:713
-msgid ""
-"Removal skipped: the removal set could not be measured against the catalogue "
-"it came from. Nothing was removed."
-msgstr ""
-"Verwijderen overgeslagen: de te verwijderen set kon niet worden afgezet "
-"tegen de catalogus waar hij uit komt. Er is niets verwijderd."
+msgid "Removal skipped: the removal set could not be measured against the catalogue it came from. Nothing was removed."
+msgstr "Verwijderen overgeslagen: de te verwijderen set kon niet worden afgezet tegen de catalogus waar hij uit komt. Er is niets verwijderd."
 
 #. translators: 1: number of products, 2: total Skwirrel-managed products, 3:
 #. percentage of the catalogue, 4: allowed percentage
 #: includes/class-skwirrel-wc-sync-purge-handler.php:734
 #, php-format
-msgid ""
-"Mass removal refused: %1$d of %2$d Skwirrel products (%3$s%%) are no longer "
-"in the selection, which exceeds the %4$s%% safety limit. Nothing was "
-"removed. Run a manual sync to apply it."
-msgstr ""
-"Massale verwijdering geweigerd: %1$d van de %2$d Skwirrel-producten (%3$s%%) "
-"zitten niet meer in de selectie, meer dan de veiligheidsgrens van %4$s%%. Er "
-"is niets verwijderd. Voer een handmatige synchronisatie uit om dit alsnog "
-"door te voeren."
+msgid "Mass removal refused: %1$d of %2$d Skwirrel products (%3$s%%) are no longer in the selection, which exceeds the %4$s%% safety limit. Nothing was removed. Run a manual sync to apply it."
+msgstr "Massale verwijdering geweigerd: %1$d van de %2$d Skwirrel-producten (%3$s%%) zitten niet meer in de selectie, meer dan de veiligheidsgrens van %4$s%%. Er is niets verwijderd. Voer een handmatige synchronisatie uit om dit alsnog door te voeren."
 
 #: includes/class-skwirrel-wc-sync-purge-handler.php:970
-msgid ""
-"Removal skipped: the product membership could not be read from the database "
-"safely. Nothing was removed."
-msgstr ""
-"Verwijderen overgeslagen: de productselectie kon niet veilig uit de database "
-"worden gelezen. Er is niets verwijderd."
+msgid "Removal skipped: the product membership could not be read from the database safely. Nothing was removed."
+msgstr "Verwijderen overgeslagen: de productselectie kon niet veilig uit de database worden gelezen. Er is niets verwijderd."
 
 #: includes/class-skwirrel-wc-sync-purge-handler.php:1003
-msgid ""
-"Removal skipped: a product has an invalid Skwirrel product ID, so its "
-"selection membership cannot be determined safely. Nothing was removed."
-msgstr ""
-"Verwijderen overgeslagen: een product heeft een ongeldig Skwirrel-product-"
-"ID, waardoor niet veilig is vast te stellen of het in de selectie zit. Er is "
-"niets verwijderd."
+msgid "Removal skipped: a product has an invalid Skwirrel product ID, so its selection membership cannot be determined safely. Nothing was removed."
+msgstr "Verwijderen overgeslagen: een product heeft een ongeldig Skwirrel-product-ID, waardoor niet veilig is vast te stellen of het in de selectie zit. Er is niets verwijderd."
 
 #: includes/class-skwirrel-wc-sync-purge-handler.php:1015
-msgid ""
-"Removal skipped: a product has conflicting Skwirrel product IDs, so its "
-"selection membership cannot be determined safely. Nothing was removed."
-msgstr ""
-"Verwijderen overgeslagen: een product heeft tegenstrijdige Skwirrel-product-"
-"ID's, waardoor niet veilig is vast te stellen of het in de selectie zit. Er "
-"is niets verwijderd."
+msgid "Removal skipped: a product has conflicting Skwirrel product IDs, so its selection membership cannot be determined safely. Nothing was removed."
+msgstr "Verwijderen overgeslagen: een product heeft tegenstrijdige Skwirrel-product-ID's, waardoor niet veilig is vast te stellen of het in de selectie zit. Er is niets verwijderd."
 
 #: includes/class-skwirrel-wc-sync-service.php:168
-msgid ""
-"Another sync is already running; refusing to start a second concurrent run."
-msgstr ""
-"Er loopt al een synchronisatie; een tweede gelijktijdige run wordt geweigerd."
+msgid "Another sync is already running; refusing to start a second concurrent run."
+msgstr "Er loopt al een synchronisatie; een tweede gelijktijdige run wordt geweigerd."
 
 #: includes/class-skwirrel-wc-sync-service.php:534
-msgid ""
-"Sync aborted before product changes because the membership sweep returned an "
-"empty selection while grouped-product sync is enabled. Run a manual sync to "
-"confirm an intentionally empty selection."
-msgstr ""
-"Synchronisatie afgebroken vóór productwijzigingen omdat de selectiescan een "
-"lege selectie opleverde terwijl gegroepeerde producten zijn ingeschakeld. "
-"Voer een handmatige synchronisatie uit om een bewust lege selectie te "
-"bevestigen."
+msgid "Sync aborted before product changes because the membership sweep returned an empty selection while grouped-product sync is enabled. Run a manual sync to confirm an intentionally empty selection."
+msgstr "Synchronisatie afgebroken vóór productwijzigingen omdat de selectiescan een lege selectie opleverde terwijl gegroepeerde producten zijn ingeschakeld. Voer een handmatige synchronisatie uit om een bewust lege selectie te bevestigen."
 
 #: includes/class-skwirrel-wc-sync-service.php:535
-msgid ""
-"Sync aborted before product changes because the membership sweep was "
-"incomplete while grouped-product sync is enabled. Retry after the selection "
-"check succeeds."
-msgstr ""
-"Synchronisatie afgebroken vóór productwijzigingen omdat de selectiescan "
-"onvolledig was terwijl gegroepeerde producten zijn ingeschakeld. Probeer het "
-"opnieuw nadat de selectiecontrole is geslaagd."
+msgid "Sync aborted before product changes because the membership sweep was incomplete while grouped-product sync is enabled. Retry after the selection check succeeds."
+msgstr "Synchronisatie afgebroken vóór productwijzigingen omdat de selectiescan onvolledig was terwijl gegroepeerde producten zijn ingeschakeld. Probeer het opnieuw nadat de selectiecontrole is geslaagd."
 
 #: includes/class-skwirrel-wc-sync-service.php:568
 msgid "Fetching products from API…"
@@ -2103,24 +1775,12 @@ msgid "Cleaning up…"
 msgstr "Opruimen…"
 
 #: includes/class-skwirrel-wc-sync-service.php:1594
-msgid ""
-"Sync stalled: a step made no progress across several attempts and was "
-"aborted (check the log for a fatal error or a problem product)."
-msgstr ""
-"Synchronisatie vastgelopen: een stap maakte geen voortgang na meerdere "
-"pogingen en is afgebroken (controleer het logbestand op een fatale fout of "
-"een probleemproduct)."
+msgid "Sync stalled: a step made no progress across several attempts and was aborted (check the log for a fatal error or a problem product)."
+msgstr "Synchronisatie vastgelopen: een stap maakte geen voortgang na meerdere pogingen en is afgebroken (controleer het logbestand op een fatale fout of een probleemproduct)."
 
 #: includes/class-skwirrel-wc-sync-service.php:2523
-msgid ""
-"Removal skipped: the membership sweep returned an empty selection. Nothing "
-"was removed during this scheduled run; run a manual sync to confirm and "
-"apply an intentionally empty selection."
-msgstr ""
-"Verwijderen overgeslagen: de selectiescan leverde een lege selectie op. Er "
-"is tijdens deze geplande run niets verwijderd; voer een handmatige "
-"synchronisatie uit om een bewust lege selectie te bevestigen en door te "
-"voeren."
+msgid "Removal skipped: the membership sweep returned an empty selection. Nothing was removed during this scheduled run; run a manual sync to confirm and apply an intentionally empty selection."
+msgstr "Verwijderen overgeslagen: de selectiescan leverde een lege selectie op. Er is tijdens deze geplande run niets verwijderd; voer een handmatige synchronisatie uit om een bewust lege selectie te bevestigen en door te voeren."
 
 #: includes/class-skwirrel-wc-sync-taxonomy-manager.php:141
 #: includes/class-skwirrel-wc-sync-taxonomy-manager.php:153
@@ -2165,8 +1825,7 @@ msgstr "Nieuwe %s"
 
 #: skwirrel-pim-sync.php:50
 msgid "Skwirrel PIM sync for WooCommerce requires WooCommerce to function."
-msgstr ""
-"Skwirrel PIM sync for WooCommerce vereist WooCommerce om te functioneren."
+msgstr "Skwirrel PIM sync for WooCommerce vereist WooCommerce om te functioneren."
 
 #: skwirrel-pim-sync.php:52
 msgid "Install WooCommerce"

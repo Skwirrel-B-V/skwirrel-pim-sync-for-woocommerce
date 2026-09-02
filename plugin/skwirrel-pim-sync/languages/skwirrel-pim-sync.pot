@@ -1,18 +1,7 @@
 # Copyright (C) 2026 Skwirrel B.V.
 # This file is distributed under the GPL v2 or later.
 msgid ""
-msgstr ""
-"Project-Id-Version: Skwirrel PIM sync for WooCommerce 3.14.0\n"
-"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/skwirrel-pim-sync\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-08-27T06:35:42+00:00\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"X-Generator: WP-CLI 2.12.0\n"
-"X-Domain: skwirrel-pim-sync\n"
+msgstr "Project-Id-Version: Skwirrel PIM sync for WooCommerce 3.14.0\nReport-Msgid-Bugs-To: https://wordpress.org/support/plugin/skwirrel-pim-sync\nLast-Translator: FULL NAME <EMAIL@ADDRESS>\nLanguage-Team: LANGUAGE <LL@li.org>\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPOT-Creation-Date: 2026-08-27T06:35:42+00:00\nPO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\nX-Generator: WP-CLI 2.12.0\nX-Domain: skwirrel-pim-sync\n"
 
 #. Plugin Name of the plugin
 #: skwirrel-pim-sync.php
@@ -927,7 +916,7 @@ msgid "e.g. 1234 or STOCK_QTY"
 msgstr ""
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1830
-msgid "The ID or code of one product-level custom feature holding the stock quantity. Leave empty to turn the mapping off and manage stock in WooCommerce as before. When a product has no value for this feature, its current stock is left untouched — never set to 0 and never switched to unmanaged. Trade-item level features are not used."
+msgid "The ID or code of one product-level custom feature holding the stock quantity. The feature must be numeric, or text that contains only a number; range, logical and multi-value features are ignored. When a product has no usable value, its current stock is left untouched — never set to 0 and never switched to unmanaged. Trade-item level features are not used. Products priced on request keep their own availability whatever this feature says. Clearing this field turns the mapping off again, and the next synchronisation then returns priced variations to unmanaged and in stock, discarding the quantities it had been maintaining."
 msgstr ""
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1835

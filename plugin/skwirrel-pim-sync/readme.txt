@@ -96,7 +96,8 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * New: a "Field mapping" tab where you can point four WooCommerce fields at your own Skwirrel custom fields — stock quantity, product title, short description and long description. Leave one empty and that field keeps working exactly as it does today.
 * New: stock levels can now come straight from Skwirrel, for simple products and for each variation of a variable product separately, so you stop keeping stock in two systems.
 * New: a product with no value for the mapped stock field is left completely alone — its stock is never set to 0 and never switched to unmanaged. The same holds for the title and description mappings: an empty field falls back to the text you get today instead of blanking your product.
-* New: variations priced on request stay out of stock whatever the stock field says.
+* New: products priced on request are never made available by the stock field — a variation stays out of stock, and a simple product keeps whatever stock state you gave it.
+* Note: the stock field reads numeric features, or text features containing only a number. Clearing the field switches the mapping off again, and the next synchronisation then puts priced variations back to unmanaged and in stock, so the quantities it was keeping are lost.
 * New: document links on a product now show the document's real name in your shop's language instead of the file name, so you can tell a mounting instruction from a declaration of performance without opening both.
 * Fix: a synchronisation now finishes under the settings it started with. Changing the Context ID or a field mapping while a synchronisation is running no longer applies to only half of your catalogue, and can no longer cause valid products to be removed.
 * Fix: with a Context ID set, "Test connection" now reports the number of products in *that* context instead of the default one.

@@ -381,8 +381,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$wc_product->set_status( $applied_status );
 		$this->maybe_reset_deprecated_counter( (int) $wc_id, $was_deprecated, $applied_status );
 
-		$price = $this->mapper->get_regular_price( $product );
-		if ( $this->mapper->is_price_on_request( $product ) ) {
+		$price            = $this->mapper->get_regular_price( $product );
+		$price_on_request = $this->mapper->is_price_on_request( $product );
+		if ( $price_on_request ) {
 			$wc_product->set_regular_price( '' );
 			$wc_product->set_price( '' );
 			$wc_product->set_sold_individually( false );
@@ -413,7 +414,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$wc_product->set_price( '0' );
 		}
 
-		$this->apply_stock_mapping( $wc_product, $product );
+		// Price on request is kept out of the mapping on every write path, simple and variation
+		// alike: a product with no price is not something a quantity can make available. The two
+		// paths differ in what they do about it, and deliberately so — the variation branches carry
+		// a pre-existing explicit `set_stock_status( 'outofstock' )`, while a simple product has
+		// never had its stock touched for price-on-request. Skipping here restores exactly that,
+		// rather than adding a destructive write NFR-9 does not permit.
+		if ( ! $price_on_request ) {
+			$this->apply_stock_mapping( $wc_product, $product );
+		}
 
 		$attrs = $this->mapper->get_attributes( $product );
 
@@ -1850,8 +1859,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$wc_product->set_status( $applied_status );
 		$this->maybe_reset_deprecated_counter( (int) $wc_id, $was_deprecated, $applied_status );
 
-		$price = $this->mapper->get_regular_price( $product );
-		if ( $this->mapper->is_price_on_request( $product ) ) {
+		$price            = $this->mapper->get_regular_price( $product );
+		$price_on_request = $this->mapper->is_price_on_request( $product );
+		if ( $price_on_request ) {
 			$wc_product->set_regular_price( '' );
 			$wc_product->set_price( '' );
 			$wc_product->set_sold_individually( false );
@@ -1882,7 +1892,15 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$wc_product->set_price( '0' );
 		}
 
-		$this->apply_stock_mapping( $wc_product, $product );
+		// Price on request is kept out of the mapping on every write path, simple and variation
+		// alike: a product with no price is not something a quantity can make available. The two
+		// paths differ in what they do about it, and deliberately so — the variation branches carry
+		// a pre-existing explicit `set_stock_status( 'outofstock' )`, while a simple product has
+		// never had its stock touched for price-on-request. Skipping here restores exactly that,
+		// rather than adding a destructive write NFR-9 does not permit.
+		if ( ! $price_on_request ) {
+			$this->apply_stock_mapping( $wc_product, $product );
+		}
 
 		$wc_product->save();
 		$id = $wc_product->get_id();

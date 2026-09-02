@@ -246,6 +246,33 @@ test( 'a price-on-request variation ends up out of stock whatever quantity resol
 	expect( $variation->get_stock_status() )->toBe( 'outofstock' );
 } );
 
+test( 'a price-on-request SIMPLE product is not made available by a mapped quantity', function () {
+	// Simple products and variations reach the same conclusion by different routes. A variation
+	// carries a pre-existing explicit outofstock write; a simple product has never had its stock
+	// touched for price-on-request, so the mapping is skipped and WooCommerce is left exactly as
+	// it was. What must NOT happen either way is a quantity turning a priceless product available.
+	$payload = stock_payload( 'SIMPLE-AC7-POR', 99.0, null, true );
+
+	$this->upserter->upsert_product( $payload );
+
+	$product = wc_get_product( wc_get_product_id_by_sku( 'SIMPLE-AC7-POR' ) );
+	expect( $product )->not->toBeFalse();
+	expect( $product->get_manage_stock() )->toBeFalse();
+	expect( $product->get_stock_quantity() )->toBeNull();
+} );
+
+test( 'a priced simple product still receives its mapped quantity', function () {
+	// The control: skipping price-on-request must not have disabled the mapping generally.
+	$payload = stock_payload( 'SIMPLE-AC7-PRICED', 42.0, 10.0 );
+
+	$this->upserter->upsert_product( $payload );
+
+	$product = wc_get_product( wc_get_product_id_by_sku( 'SIMPLE-AC7-PRICED' ) );
+	expect( $product->get_manage_stock() )->toBeTrue();
+	expect( (int) $product->get_stock_quantity() )->toBe( 42 );
+	expect( $product->get_stock_status() )->toBe( 'instock' );
+} );
+
 test( 'a queued variation that becomes price on request is no longer stock managed', function () {
 	$parent_id = stock_variable_parent( 'PARENT-AC7-QUEUED' );
 	$group     = [ 'wc_variable_id' => $parent_id, 'sku' => 'VAR-AC7-QUEUED' ];
