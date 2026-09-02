@@ -978,8 +978,8 @@ msgid "Prices managed outside Skwirrel"
 msgstr "Prices managed outside Skwirrel"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1880
-msgid "Enable this when product prices are synced from a separate system (e.g. ERP). When enabled, the PIM sync will not overwrite existing variation prices when no price is present in the PIM payload."
-msgstr "Enable this when product prices are synced from a separate system (e.g. ERP). When enabled, the PIM sync will not overwrite existing variation prices when no price is present in the PIM payload."
+msgid "Enable this when product prices are synced from a separate system (e.g. ERP). When enabled, the PIM sync never writes a price in WooCommerce — not a price from Skwirrel, not a blank for products priced on request, and not a zero when Skwirrel has no price. The other system owns the field completely. Availability is still synced: a variation priced on request is still set to out of stock."
+msgstr "Enable this when product prices are synced from a separate system (e.g. ERP). When enabled, the PIM sync never writes a price in WooCommerce — not a price from Skwirrel, not a blank for products priced on request, and not a zero when Skwirrel has no price. The other system owns the field completely. Availability is still synced: a variation priced on request is still set to out of stock."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1897
 msgid "Live sync log"

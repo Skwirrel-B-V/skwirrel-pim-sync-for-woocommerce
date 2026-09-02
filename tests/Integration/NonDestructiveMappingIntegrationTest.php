@@ -644,11 +644,28 @@ test( 'with prices managed outside Skwirrel an existing variation price survives
 		[ 'wc_variable_id' => $parent_id, 'sku' => $sku ]
 	);
 	$variation_id = wc_get_product_id_by_sku( $sku );
-	expect( (float) wc_get_product( $variation_id )->get_regular_price() )->toBe( 55.0 );
+
+	// Even a payload that HAS a price writes nothing: the setting means the plugin does not touch
+	// the price field, not merely that it declines to zero it. The external system is the only
+	// writer, so the ERP's price is seeded here the way that system would set it.
+	expect( wc_get_product( $variation_id )->get_regular_price() )->toBe( '' );
+
+	$erp = wc_get_product( $variation_id );
+	$erp->set_regular_price( '55' );
+	$erp->set_price( '55' );
+	$erp->save();
 
 	// Now a payload with no price at all: the ERP's price must survive.
 	$upserter->create_or_update_variation(
 		ndm_payload( $sku, [], false, null ),
+		[ 'wc_variable_id' => $parent_id, 'sku' => $sku ]
+	);
+
+	expect( (float) wc_get_product( $variation_id )->get_regular_price() )->toBe( 55.0 );
+
+	// And a payload that DOES carry a price still does not overwrite it.
+	$upserter->create_or_update_variation(
+		ndm_payload( $sku, [], false, 12.34 ),
 		[ 'wc_variable_id' => $parent_id, 'sku' => $sku ]
 	);
 

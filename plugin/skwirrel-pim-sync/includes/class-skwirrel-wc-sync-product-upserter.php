@@ -383,23 +383,31 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$price            = $this->mapper->get_regular_price( $product );
 		$price_on_request = $this->mapper->is_price_on_request( $product );
+		$external_prices  = $this->prices_are_external();
+
+		// Not a price field: price-on-request is a statement about how the item is bought, so it
+		// applies whoever owns the price.
 		if ( $price_on_request ) {
+			$wc_product->set_sold_individually( false );
+		}
+
+		if ( $external_prices ) {
+			// Prices are managed by an external system (e.g. ERP). Write nothing at all.
+			$this->logger->verbose(
+				'Prices are managed outside Skwirrel, leaving this product\'s price untouched',
+				[
+					'sku'              => $sku,
+					'product_id'       => $product['product_id'] ?? '?',
+					'pim_price'        => $price,
+					'price_on_request' => $price_on_request,
+				]
+			);
+		} elseif ( $price_on_request ) {
 			$wc_product->set_regular_price( '' );
 			$wc_product->set_price( '' );
-			$wc_product->set_sold_individually( false );
 		} elseif ( null !== $price ) {
 			$wc_product->set_regular_price( (string) $price );
 			$wc_product->set_price( (string) $price );
-		} elseif ( ! empty( $this->get_options()['prices_managed_outside_skwirrel'] ) ) {
-			// No PIM price; prices are managed by an external system (e.g. ERP).
-			// Leave price fields untouched so the external sync's values survive.
-			$this->logger->verbose(
-				'Product has no PIM price, preserving existing (external price sync)',
-				[
-					'sku'        => $sku,
-					'product_id' => $product['product_id'] ?? '?',
-				]
-			);
 		} else {
 			// No price available - set to 0 and log warning.
 			$this->logger->warning(
@@ -662,10 +670,12 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		// so the legacy "priced means always available" writes are suppressed here identically.
 		$stock_governed   = $this->stock_mapping_is_active();
 		$price_on_request = $this->mapper->is_price_on_request( $product );
-		$external_prices  = ! empty( $this->get_options()['prices_managed_outside_skwirrel'] );
+		$external_prices  = $this->prices_are_external();
 
 		$price = $this->mapper->get_regular_price( $product );
 		if ( $price_on_request ) {
+			// Availability is not a price, so this still applies when an external system owns the
+			// price; only the two price setters are withheld.
 			if ( ! $external_prices ) {
 				$variation->set_regular_price( '' );
 				$variation->set_price( '' );
@@ -673,13 +683,24 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$variation->set_manage_stock( false );
 			$variation->set_stock_status( 'outofstock' ); // Price on request = out of stock
 		} elseif ( null !== $price && $price > 0 ) {
-			$variation->set_regular_price( (string) $price );
-			$variation->set_price( (string) $price );
+			if ( $external_prices ) {
+				$this->logger->verbose(
+					'Prices are managed outside Skwirrel, leaving this variation\'s price untouched',
+					[
+						'sku'        => $sku,
+						'product_id' => $product['product_id'] ?? '?',
+						'pim_price'  => $price,
+					]
+				);
+			} else {
+				$variation->set_regular_price( (string) $price );
+				$variation->set_price( (string) $price );
+			}
 			if ( ! $stock_governed ) {
 				$variation->set_stock_status( 'instock' );
 				$variation->set_manage_stock( false ); // Don't manage stock, always available
 			}
-		} elseif ( ! empty( $this->get_options()['prices_managed_outside_skwirrel'] ) ) {
+		} elseif ( $external_prices ) {
 			// No PIM price; prices are managed by an external system (e.g. ERP).
 			// Leave price/stock fields untouched so the external sync's values survive.
 			$this->logger->verbose(
@@ -1861,23 +1882,31 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		$price            = $this->mapper->get_regular_price( $product );
 		$price_on_request = $this->mapper->is_price_on_request( $product );
+		$external_prices  = $this->prices_are_external();
+
+		// Not a price field: price-on-request is a statement about how the item is bought, so it
+		// applies whoever owns the price.
 		if ( $price_on_request ) {
+			$wc_product->set_sold_individually( false );
+		}
+
+		if ( $external_prices ) {
+			// Prices are managed by an external system (e.g. ERP). Write nothing at all.
+			$this->logger->verbose(
+				'Prices are managed outside Skwirrel, leaving this product\'s price untouched',
+				[
+					'sku'              => $sku,
+					'product_id'       => $product['product_id'] ?? '?',
+					'pim_price'        => $price,
+					'price_on_request' => $price_on_request,
+				]
+			);
+		} elseif ( $price_on_request ) {
 			$wc_product->set_regular_price( '' );
 			$wc_product->set_price( '' );
-			$wc_product->set_sold_individually( false );
 		} elseif ( null !== $price ) {
 			$wc_product->set_regular_price( (string) $price );
 			$wc_product->set_price( (string) $price );
-		} elseif ( ! empty( $this->get_options()['prices_managed_outside_skwirrel'] ) ) {
-			// No PIM price; prices are managed by an external system (e.g. ERP).
-			// Leave price fields untouched so the external sync's values survive.
-			$this->logger->verbose(
-				'Product has no PIM price, preserving existing (external price sync)',
-				[
-					'sku'        => $sku,
-					'product_id' => $product['product_id'] ?? '?',
-				]
-			);
 		} else {
 			// No price available - set to 0 and log warning.
 			$this->logger->warning(
@@ -2029,10 +2058,12 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		// exactly the NFR-9 violation the mapping exists to prevent.
 		$stock_governed   = $this->stock_mapping_is_active();
 		$price_on_request = $this->mapper->is_price_on_request( $product );
-		$external_prices  = ! empty( $this->get_options()['prices_managed_outside_skwirrel'] );
+		$external_prices  = $this->prices_are_external();
 
 		$price = $this->mapper->get_regular_price( $product );
 		if ( $price_on_request ) {
+			// Availability is not a price, so this still applies when an external system owns the
+			// price; only the two price setters are withheld.
 			if ( ! $external_prices ) {
 				$variation->set_regular_price( '' );
 				$variation->set_price( '' );
@@ -2040,13 +2071,24 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$variation->set_manage_stock( false );
 			$variation->set_stock_status( 'outofstock' );
 		} elseif ( null !== $price && $price > 0 ) {
-			$variation->set_regular_price( (string) $price );
-			$variation->set_price( (string) $price );
+			if ( $external_prices ) {
+				$this->logger->verbose(
+					'Prices are managed outside Skwirrel, leaving this variation\'s price untouched',
+					[
+						'sku'        => $sku,
+						'product_id' => $product['product_id'] ?? '?',
+						'pim_price'  => $price,
+					]
+				);
+			} else {
+				$variation->set_regular_price( (string) $price );
+				$variation->set_price( (string) $price );
+			}
 			if ( ! $stock_governed ) {
 				$variation->set_stock_status( 'instock' );
 				$variation->set_manage_stock( false );
 			}
-		} elseif ( ! empty( $this->get_options()['prices_managed_outside_skwirrel'] ) ) {
+		} elseif ( $external_prices ) {
 			// No PIM price; prices are managed by an external system (e.g. ERP).
 			// Leave price/stock fields untouched so the external sync's values survive.
 			$this->logger->verbose(
@@ -3273,6 +3315,24 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			];
 		}
 		return $downloads;
+	}
+
+	/**
+	 * Whether WooCommerce prices are owned by a system outside Skwirrel.
+	 *
+	 * When true the plugin writes **no** price field at all — not the PIM's price, not the
+	 * price-on-request blank, not the missing-price zero. The setting means what it says: prices
+	 * are managed outside Skwirrel, so this plugin has no opinion to express about them. Anything
+	 * it wrote would be overwritten by the owning system on its next run at best, and would show a
+	 * wrong price to customers in between — which is exactly the €0 flash on variable parents that
+	 * put this setting here.
+	 *
+	 * Non-price consequences of the same payload still apply: a price-on-request variation is still
+	 * set out of stock, and a price-on-request simple product still clears `sold_individually`.
+	 * Availability is not a price.
+	 */
+	private function prices_are_external(): bool {
+		return ! empty( $this->get_options()['prices_managed_outside_skwirrel'] );
 	}
 
 	/**

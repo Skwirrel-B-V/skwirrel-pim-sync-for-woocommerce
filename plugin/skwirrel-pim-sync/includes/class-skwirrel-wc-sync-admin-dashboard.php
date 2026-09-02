@@ -1905,7 +1905,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[protect_from_deletion]" value="1" <?php checked( $opts['protect_from_deletion'] ?? true ); ?> /> <?php esc_html_e( 'Protect Skwirrel products from deletion', 'skwirrel-pim-sync' ); ?></label>
 					<p class="skw-field-hint"><?php esc_html_e( 'When enabled, manual deletion of Skwirrel-managed products from the product list or editor is blocked while a sync is running, to prevent conflicts. What the sync itself does with removed or discontinued products is controlled by "Product status handling" above.', 'skwirrel-pim-sync' ); ?></p>
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[prices_managed_outside_skwirrel]" value="1" <?php checked( ! empty( $opts['prices_managed_outside_skwirrel'] ) ); ?> /> <?php esc_html_e( 'Prices managed outside Skwirrel', 'skwirrel-pim-sync' ); ?></label>
-				<p class="skw-field-hint"><?php esc_html_e( 'Enable this when product prices are synced from a separate system (e.g. ERP). When enabled, the PIM sync will not overwrite existing variation prices when no price is present in the PIM payload.', 'skwirrel-pim-sync' ); ?></p>
+				<p class="skw-field-hint"><?php esc_html_e( 'Enable this when product prices are synced from a separate system (e.g. ERP). When enabled, the PIM sync never writes a price in WooCommerce — not a price from Skwirrel, not a blank for products priced on request, and not a zero when Skwirrel has no price. The other system owns the field completely. Availability is still synced: a variation priced on request is still set to out of stock.', 'skwirrel-pim-sync' ); ?></p>
 			</div>
 		</div>
 		<?php

@@ -273,6 +273,58 @@ test( 'a priced simple product still receives its mapped quantity', function () 
 	expect( $product->get_stock_status() )->toBe( 'instock' );
 } );
 
+test( 'with prices managed outside Skwirrel the plugin writes no price at all', function () {
+	// The setting's contract, verified against real WooCommerce: not the PIM price, not the
+	// price-on-request blank, not the missing-price zero. An external system owns the field.
+	update_option( 'skwirrel_wc_sync_settings', array_merge(
+		(array) get_option( 'skwirrel_wc_sync_settings', [] ),
+		[ 'prices_managed_outside_skwirrel' => true ]
+	) );
+	$upserter = stock_upserter();
+
+	// Seed a product carrying a price the ERP put there.
+	$seed = new WC_Product_Simple();
+	$seed->set_name( 'ERP priced' );
+	$seed->set_sku( 'EXT-PRICE-POR' );
+	$seed->set_status( 'publish' );
+	$seed->set_regular_price( '249.50' );
+	$seed->set_price( '249.50' );
+	$id = $seed->save();
+	update_post_meta( $id, '_skwirrel_external_id', 'ext:EXT-PRICE-POR' );
+	update_post_meta( $id, '_skwirrel_product_id', abs( crc32( 'EXT-PRICE-POR' ) ) % 100000 );
+
+	// The PIM now says price-on-request — which used to blank the price on this path.
+	$payload = stock_payload( 'EXT-PRICE-POR', null, null, true );
+	$upserter->upsert_product( $payload );
+
+	$after = wc_get_product( wc_get_product_id_by_sku( 'EXT-PRICE-POR' ) );
+	expect( $after->get_regular_price() )->toBe( '249.50' );
+} );
+
+test( 'with prices managed outside Skwirrel a PIM price does not overwrite the ERP price', function () {
+	update_option( 'skwirrel_wc_sync_settings', array_merge(
+		(array) get_option( 'skwirrel_wc_sync_settings', [] ),
+		[ 'prices_managed_outside_skwirrel' => true ]
+	) );
+	$upserter = stock_upserter();
+
+	$seed = new WC_Product_Simple();
+	$seed->set_name( 'ERP priced 2' );
+	$seed->set_sku( 'EXT-PRICE-PIM' );
+	$seed->set_status( 'publish' );
+	$seed->set_regular_price( '99.00' );
+	$seed->set_price( '99.00' );
+	$id = $seed->save();
+	update_post_meta( $id, '_skwirrel_external_id', 'ext:EXT-PRICE-PIM' );
+	update_post_meta( $id, '_skwirrel_product_id', abs( crc32( 'EXT-PRICE-PIM' ) ) % 100000 );
+
+	// The PIM has a price of its own. The ERP still owns the field.
+	$upserter->upsert_product( stock_payload( 'EXT-PRICE-PIM', null, 12.34 ) );
+
+	$after = wc_get_product( wc_get_product_id_by_sku( 'EXT-PRICE-PIM' ) );
+	expect( $after->get_regular_price() )->toBe( '99.00' );
+} );
+
 test( 'a queued variation that becomes price on request is no longer stock managed', function () {
 	$parent_id = stock_variable_parent( 'PARENT-AC7-QUEUED' );
 	$group     = [ 'wc_variable_id' => $parent_id, 'sku' => 'VAR-AC7-QUEUED' ];

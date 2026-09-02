@@ -101,6 +101,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * New: document links on a product now show the document's real name in your shop's language instead of the file name, so you can tell a mounting instruction from a declaration of performance without opening both.
 * Fix: a synchronisation now finishes under the settings it started with. Changing the Context ID or a field mapping while a synchronisation is running no longer applies to only half of your catalogue, and can no longer cause valid products to be removed.
 * Fix: with a Context ID set, "Test connection" now reports the number of products in *that* context instead of the default one.
+* Change: "Prices managed outside Skwirrel" now leaves prices entirely alone. Previously it only stopped the sync writing a 0 when Skwirrel had no price — a price from Skwirrel, or a blank for a product priced on request, still overwrote what your other system had set. With the setting on, the sync no longer writes any price at all. Availability still syncs as before.
 * Fix: saving while a required field sits on another tab now opens that tab and points at the field, instead of the browser silently refusing to submit.
 * Fix: the Super category ID no longer has to be filled in before the form submits when category sync is switched off.
 * Fix: saving with a rejected value no longer shows a green "Settings saved." confirmation alongside the error.
