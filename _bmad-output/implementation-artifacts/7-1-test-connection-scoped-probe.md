@@ -33,6 +33,14 @@ Story 5.4 closed with this note, and this story is exactly what it names:
 > call exactly as unfiltered as it is today.
 > — `_bmad-output/implementation-artifacts/5-4-test-connection-metrics.md:80`
 
+**Landed early (3.14.0 code review, PR #53):** the *Context ID* half of that note is already done. The
+unfiltered gate now sends `include_contexts` when a Context ID is configured, because a probe that reads
+the default context's total while every sync targets another one reports a number about the wrong
+dataset — see `Skwirrel_WC_Sync_JsonRpc_Client::test_connection( ?array $context_ids )`. This is exactly
+what AC 4's `build_probe_block()` specifies for the shared block, so this story absorbs it rather than
+re-deriving it: fold the existing parameter into the seam. **Selection filtering (`collection_ids` /
+`dynamic_selection_id`) is untouched and remains wholly this story's work.**
+
 **Jos's ruling, binding on this story:** Test Connection grows *toward* a dry run. This is a deliberate
 stepping stone to a future full dry-run feature. Removing the filtered probe, or reverting Test
 Connection to a pure reachability check, is off the table. No acceptance criterion below hedges on that.

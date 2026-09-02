@@ -235,6 +235,48 @@ test('a stored stock_quantity_feature is surfaced through get_options', function
 });
 
 // ------------------------------------------------------------------
+// A run freezes the mapping it writes stock with
+// ------------------------------------------------------------------
+
+test('a frozen run keeps its own stock mapping after the live setting changes', function () {
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [
+        'stock_quantity_feature' => 'STOCK_QTY',
+    ];
+    $this->upserter->set_run_options(['stock_quantity_feature' => 'STOCK_QTY']);
+
+    // An administrator retargets (or clears) the mapping while the run is between steps.
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [
+        'stock_quantity_feature' => '',
+    ];
+
+    $ref = new ReflectionMethod($this->upserter, 'stock_mapping_setting');
+
+    expect($ref->invoke($this->upserter))->toBe('STOCK_QTY');
+});
+
+test('an upserter with no frozen run reads the live stock mapping', function () {
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [
+        'stock_quantity_feature' => 'LIVE_QTY',
+    ];
+    $this->upserter->set_run_options(null);
+
+    $ref = new ReflectionMethod($this->upserter, 'stock_mapping_setting');
+
+    expect($ref->invoke($this->upserter))->toBe('LIVE_QTY');
+});
+
+test('a frozen run that turned the mapping off leaves stock alone for the whole run', function () {
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [
+        'stock_quantity_feature' => 'STOCK_QTY',
+    ];
+    $this->upserter->set_run_options(['stock_quantity_feature' => '']);
+
+    $ref = new ReflectionMethod($this->upserter, 'stock_mapping_is_active');
+
+    expect($ref->invoke($this->upserter))->toBeFalse();
+});
+
+// ------------------------------------------------------------------
 // The mapper delegates, consistent with every other custom-class field
 // ------------------------------------------------------------------
 

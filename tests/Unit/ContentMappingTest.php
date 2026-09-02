@@ -202,6 +202,22 @@ test('whitespace-only mapped content falls back to the normal source', function 
     expect($this->mapper->get_long_description($product))->toBe('Lange omschrijving');
 });
 
+test('surrounding whitespace is trimmed off a resolved value', function () {
+    // The trim lives at the shared boundary, so all three getters agree: a padded feature value
+    // resolves to its content, and a value that is *only* padding resolves to nothing at all.
+    $product = content_product([
+        'custom_feature_id'   => 812,
+        'custom_feature_type' => 'T',
+        'text_value'          => "  Padded title \n",
+    ]);
+
+    $this->mapper->set_content_mapping('812', '812', '812');
+
+    expect($this->mapper->get_name($product))->toBe('Padded title');
+    expect($this->mapper->get_short_description($product))->toBe('Padded title');
+    expect($this->mapper->get_long_description($product))->toBe('Padded title');
+});
+
 test('the title is not run through the post sanitiser', function () {
     // Over-sanitising a title would strip legitimate entities; the AC scopes kses to long text.
     $product = content_product([

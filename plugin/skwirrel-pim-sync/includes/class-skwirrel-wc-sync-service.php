@@ -462,6 +462,9 @@ class Skwirrel_WC_Sync_Service {
 		// rules and trash others under the new — and then stamp the signature of the old mapping.
 		if ( is_array( $ctx['options'] ?? null ) ) {
 			$this->apply_status_handling( $ctx['options'] );
+			// Same reason, same copy: the upserter's own settings reads (the FR-18 stock mapping,
+			// the Context ID the membership sweep pages with) must not drift mid-run either.
+			$this->upserter->set_run_options( $ctx['options'] );
 		}
 		Skwirrel_WC_Sync_History::sync_heartbeat();
 

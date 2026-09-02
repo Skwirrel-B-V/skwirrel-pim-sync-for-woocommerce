@@ -173,7 +173,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 */
 	public function get_name( array $product ): string {
 		$mapped = $this->mapped_content( $product, $this->title_feature_ref );
-		if ( '' !== trim( $mapped ) ) {
+		if ( '' !== $mapped ) {
 			return $mapped;
 		}
 		$erp = $product['product_erp_description'] ?? '';
@@ -193,7 +193,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 */
 	public function get_short_description( array $product ): string {
 		$mapped = $this->mapped_content( $product, $this->short_description_feature_ref );
-		if ( '' !== trim( $mapped ) ) {
+		if ( '' !== $mapped ) {
 			return $mapped;
 		}
 		$translations = $product['_product_translations'] ?? [];
@@ -209,7 +209,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 */
 	public function get_long_description( array $product ): string {
 		$mapped = $this->mapped_content( $product, $this->long_description_feature_ref );
-		if ( '' !== trim( $mapped ) ) {
+		if ( '' !== $mapped ) {
 			// Markup in authored copy survives; unsafe markup does not (FR-19). Title and short
 			// description are deliberately left alone — over-sanitising a title would strip
 			// legitimate entities.
@@ -240,7 +240,10 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		if ( '' === $ref ) {
 			return '';
 		}
-		return $this->custom_class->resolve_text_feature_value( $product, $ref, $this->image_language );
+		// Trimmed here, once, rather than at each of the three call sites: a feature holding only
+		// spaces, tabs or newlines is "nothing to say", not "say nothing" — passing it through would
+		// blank a title or description with visually empty content instead of falling back.
+		return trim( $this->custom_class->resolve_text_feature_value( $product, $ref, $this->image_language ) );
 	}
 
 	/**

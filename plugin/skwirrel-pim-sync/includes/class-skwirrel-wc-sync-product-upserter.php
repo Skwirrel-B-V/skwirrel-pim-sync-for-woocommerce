@@ -47,6 +47,22 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	/** When true, a re-sync skips products whose Skwirrel `product_updated_on` has not advanced. */
 	private bool $change_gate_enabled = false;
 
+	/**
+	 * This run's frozen settings, or null when there is no run to freeze to.
+	 *
+	 * A resumable run builds a brand-new upserter on every Action Scheduler step, so reading the
+	 * live option per product lets an administrator's mid-run settings save split one run across two
+	 * configurations — the first half of the catalogue written under the old rules, the second under
+	 * the new, and the run then stamping the signature of whichever it read last. The service
+	 * injects the run's own copy here (the same one it already replays into the mapper's status and
+	 * content mappings), so every product in a run is written under one configuration.
+	 *
+	 * Null keeps the pre-existing behaviour for every direct caller and unit test: read the option.
+	 *
+	 * @var array<string, mixed>|null
+	 */
+	private ?array $run_options = null;
+
 	/** Post meta storing the content-hash of the last fully-committed payload (for the JSON-diff gate). */
 	public const CONTENT_HASH_META = '_skwirrel_content_hash';
 
@@ -136,6 +152,19 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 */
 	public function set_change_gate_enabled( bool $enabled ): void {
 		$this->change_gate_enabled = $enabled;
+	}
+
+	/**
+	 * Freeze this upserter to one run's settings.
+	 *
+	 * Mirrors {@see Skwirrel_WC_Sync_Service::apply_status_handling()} on the mapper: run-scoped
+	 * configuration is injected once per step rather than re-read per product, so the whole run
+	 * shares one mapping. Covers the FR-18 stock mapping and the Context ID alike.
+	 *
+	 * @param array<string, mixed>|null $options The run's settings copy; null restores live reads.
+	 */
+	public function set_run_options( ?array $options ): void {
+		$this->run_options = $options;
 	}
 
 	/**
@@ -969,7 +998,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		// Only sent when a Context ID is actually configured. getGroupedProducts has never been
 		// given this parameter, so adding it unconditionally would change the request every
 		// existing install makes.
-		$context_ids = Skwirrel_WC_Sync_Admin_Settings::get_context_ids();
+		$context_ids = $this->context_ids();
 		if ( null !== $context_ids ) {
 			$params['include_contexts'] = $context_ids;
 		}
@@ -1194,7 +1223,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 		$limit       = max( 1, null === $page_limit ? self::SWEEP_PAGE_LIMIT : $page_limit );
 		$options     = [];
-		$context_ids = Skwirrel_WC_Sync_Admin_Settings::get_context_ids();
+		$context_ids = $this->context_ids();
 		if ( null !== $context_ids ) {
 			$options['include_contexts'] = $context_ids;
 		}
@@ -3229,6 +3258,23 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	}
 
 	/**
+	 * The Context ID this run must use, or null when none is configured.
+	 *
+	 * Resolved from the run's frozen settings when there is one, so a Context ID saved while a
+	 * resumable run is between membership-sweep pages cannot make one sweep combine membership from
+	 * two contexts — that set drives both payload filtering and stale-product removal, so a mixed
+	 * sweep could trash perfectly valid products. Falls back to the live option outside a run.
+	 *
+	 * @return array<int, int>|null
+	 */
+	private function context_ids(): ?array {
+		if ( null === $this->run_options ) {
+			return Skwirrel_WC_Sync_Admin_Settings::get_context_ids();
+		}
+		return Skwirrel_WC_Sync_Admin_Settings::resolve_context_ids( $this->run_options['context_id'] ?? '' );
+	}
+
+	/**
 	 * The configured FR-18 stock mapping, or '' when the mapping is off.
 	 *
 	 * The one place the setting key is read, so call sites never spell it out.
@@ -3332,7 +3378,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'prices_managed_outside_skwirrel' => false,
 			'stock_quantity_feature'          => '',
 		];
-		$saved    = get_option( 'skwirrel_wc_sync_settings', [] );
+		$saved    = null === $this->run_options ? get_option( 'skwirrel_wc_sync_settings', [] ) : $this->run_options;
 		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );
 	}
 

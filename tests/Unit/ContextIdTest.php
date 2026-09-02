@@ -305,6 +305,102 @@ test('the selection membership sweep keeps its existing empty options when no co
     'invalid' => ['abc'],
 ]);
 
+test('the connection test probes the configured context', function () {
+    skw_set_context_setting('9');
+    $client = new Skw_Recording_Rpc_Client();
+
+    $client->test_connection(Skwirrel_WC_Sync_Admin_Settings::get_context_ids());
+
+    expect($client->params_for('getProducts')['include_contexts'])->toBe([9]);
+});
+
+test('the connection test sends no context parameter when none is configured', function ($stored) {
+    skw_set_context_setting($stored);
+    $client = new Skw_Recording_Rpc_Client();
+
+    $client->test_connection(Skwirrel_WC_Sync_Admin_Settings::get_context_ids());
+
+    expect(array_key_exists('include_contexts', $client->params_for('getProducts')))->toBeFalse();
+})->with([
+    'never set' => [null],
+    'empty' => [''],
+    'invalid' => ['abc'],
+]);
+
+test('both Test Connection handlers hand the configured context to the probe', function () {
+    // The handlers build a live HTTP client, so the wiring is pinned at the source level.
+    $source = (string) file_get_contents(
+        dirname(__DIR__, 2) . '/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-settings.php'
+    );
+
+    expect(substr_count($source, 'test_connection( self::get_context_ids() )'))->toBe(2);
+    expect(preg_match('/->test_connection\(\s*\)/', $source))->toBe(0);
+});
+
+/*
+ * ---------------------------------------------------------------------------
+ * A run freezes the context it sweeps with
+ * ---------------------------------------------------------------------------
+ */
+
+test('a run frozen to a context keeps sweeping that context after the live setting changes', function () {
+    skw_set_context_setting('9');
+    $upserter = skw_make_upserter();
+    $upserter->set_run_options(['context_id' => '9']);
+
+    // An administrator saves a different context mid-run.
+    skw_set_context_setting('4');
+
+    $client = new Skw_Recording_Rpc_Client();
+    $upserter->fetch_product_ids_page_for_selection($client, 12, 1);
+
+    // Membership from two contexts in one sweep would drive removals against a mixed set.
+    expect($client->params_for('getProductsByFilter')['options']['include_contexts'])->toBe([9]);
+});
+
+test('an upserter with no frozen run falls back to the live context', function () {
+    skw_set_context_setting('4');
+    $client = new Skw_Recording_Rpc_Client();
+
+    $upserter = skw_make_upserter();
+    $upserter->set_run_options(null);
+    $upserter->fetch_product_ids_page_for_selection($client, 12, 1);
+
+    expect($client->params_for('getProductsByFilter')['options']['include_contexts'])->toBe([4]);
+});
+
+test('a frozen run with no context configured sweeps without the parameter', function () {
+    skw_set_context_setting('9');
+    $upserter = skw_make_upserter();
+    $upserter->set_run_options(['context_id' => '']);
+
+    $client = new Skw_Recording_Rpc_Client();
+    $upserter->fetch_product_ids_page_for_selection($client, 12, 1);
+
+    expect($client->params_for('getProductsByFilter')['options'])->toBe([]);
+});
+
+test('the grouped-product fetch follows the same frozen context', function () {
+    skw_set_context_setting('4');
+    $upserter = skw_make_upserter();
+    $upserter->set_run_options(['context_id' => '9', 'batch_size' => 10]);
+
+    $client = new Skw_Recording_Rpc_Client();
+    $upserter->sync_grouped_products_first($client, ['batch_size' => 10]);
+
+    expect($client->params_for('getGroupedProducts')['include_contexts'])->toBe([9]);
+});
+
+test('each resumable step re-applies the run context to the upserter', function () {
+    // run_step() builds a fresh upserter every Action Scheduler step; the freeze has to be
+    // re-applied there or the second half of a run drifts to the live option.
+    $source = (string) file_get_contents(
+        dirname(__DIR__, 2) . '/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php'
+    );
+
+    expect($source)->toContain('$this->upserter->set_run_options( $ctx[\'options\'] );');
+});
+
 /**
  * Every call site reads the one helper, and none is left on a hardcoded literal.
  *

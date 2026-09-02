@@ -193,21 +193,29 @@ class Skwirrel_WC_Sync_JsonRpc_Client {
 	 * size of the returned array — the call asks for a single product, so counting the array would
 	 * report `1` on every install. Absent or non-numeric means unknown, never a substituted number.
 	 *
+	 * The configured Context ID travels with the probe. Without it the test would report the default
+	 * context's total while every sync targets another one — a confusing zero, an unrelated number,
+	 * or a failure on an install where only the configured context is reachable. Null (nothing
+	 * configured) sends no `include_contexts` at all, exactly as before.
+	 *
+	 * @param array<int, int>|null $context_ids Configured `include_contexts`, or null when unset.
 	 * @return array{success: bool, result?: mixed, error?: array{code: int, message: string, data?: mixed}, meta: array{duration_ms: int, http_code: int, attempts: int}, product_count: int|null}
 	 */
-	public function test_connection(): array {
-		$result = $this->call(
-			'getProducts',
-			[
-				'page'                         => 1,
-				'limit'                        => 1,
-				'include_product_status'       => false,
-				'include_product_translations' => false,
-				'include_attachments'          => false,
-				'include_trade_items'          => false,
-				'include_categories'           => false,
-			]
-		);
+	public function test_connection( ?array $context_ids = null ): array {
+		$params = [
+			'page'                         => 1,
+			'limit'                        => 1,
+			'include_product_status'       => false,
+			'include_product_translations' => false,
+			'include_attachments'          => false,
+			'include_trade_items'          => false,
+			'include_categories'           => false,
+		];
+		if ( null !== $context_ids ) {
+			$params['include_contexts'] = $context_ids;
+		}
+
+		$result = $this->call( 'getProducts', $params );
 
 		if ( $result['success'] ) {
 			$this->logger->info( 'Connection test successful' );

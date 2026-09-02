@@ -606,10 +606,13 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	 * force-full-sync comparison in {@see self::on_settings_updated()} all read this, so the message
 	 * shown to the user, the value sent to the API and the decision to re-sync can never disagree.
 	 *
+	 * Public so a sync run can resolve the Context ID out of its own frozen settings copy instead of
+	 * re-reading the live option between resumable steps.
+	 *
 	 * @param mixed $raw Stored setting value.
 	 * @return array<int, int>|null Single-element context list, or null when unset/invalid.
 	 */
-	private static function resolve_context_ids( $raw ): ?array {
+	public static function resolve_context_ids( $raw ): ?array {
 		if ( ! is_scalar( $raw ) ) {
 			return null;
 		}
@@ -862,7 +865,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			(int) ( $opts['retries'] ?? 2 )
 		);
 
-		$result    = $client->test_connection();
+		$result    = $client->test_connection( self::get_context_ids() );
 		$success   = ! empty( $result['success'] );
 		$formatted = self::prepare_test_result_payload( $result, $token );
 
@@ -932,7 +935,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			(int) ( $opts['timeout'] ?? 30 ),
 			(int) ( $opts['retries'] ?? 2 )
 		);
-		$result       = $client->test_connection();
+		$result       = $client->test_connection( self::get_context_ids() );
 		$success      = ! empty( $result['success'] );
 
 		$payload = self::prepare_test_result_payload( $result, $client_token );

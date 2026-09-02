@@ -93,6 +93,13 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * New: "Test connection" now reports how long the round trip took, the status that came back, and how many products Skwirrel says it has — instead of only telling you it worked.
 * New: a test that connects but finds no products is shown as a warning rather than a green tick, so an empty selection is visible straight away instead of after a synchronisation that imports nothing.
 * New: a failed test now shows the timing and the status next to the error, so a timeout can be told apart from a refusal, and it says how many attempts were made when it retried.
+* New: a "Field mapping" tab where you can point four WooCommerce fields at your own Skwirrel custom fields — stock quantity, product title, short description and long description. Leave one empty and that field keeps working exactly as it does today.
+* New: stock levels can now come straight from Skwirrel, for simple products and for each variation of a variable product separately, so you stop keeping stock in two systems.
+* New: a product with no value for the mapped stock field is left completely alone — its stock is never set to 0 and never switched to unmanaged. The same holds for the title and description mappings: an empty field falls back to the text you get today instead of blanking your product.
+* New: products priced on request stay out of stock whatever the stock field says.
+* New: document links on a product now show the document's real name in your shop's language instead of the file name, so you can tell a mounting instruction from a declaration of performance without opening both.
+* Fix: a synchronisation now finishes under the settings it started with. Changing the Context ID or a field mapping while a synchronisation is running no longer applies to only half of your catalogue, and can no longer cause valid products to be removed.
+* Fix: with a Context ID set, "Test connection" now reports the number of products in *that* context instead of the default one.
 * Fix: saving while a required field sits on another tab now opens that tab and points at the field, instead of the browser silently refusing to submit.
 * Fix: the Super category ID no longer has to be filled in before the form submits when category sync is switched off.
 * Fix: saving with a rejected value no longer shows a green "Settings saved." confirmation alongside the error.
