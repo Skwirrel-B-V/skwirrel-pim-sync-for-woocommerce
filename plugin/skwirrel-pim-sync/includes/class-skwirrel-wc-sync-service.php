@@ -2509,6 +2509,12 @@ class Skwirrel_WC_Sync_Service {
 				// Only controls the manual delete-lock while a sync runs; does not change
 				// synced product output, so it must not bust the change gate when toggled.
 				'protect_from_deletion',
+				// Display-only. `context_id` is what the administrator typed and is redisplayed
+				// verbatim; `context_id_effective` is what the run actually fetches with, and IS
+				// hashed. Hashing both would make a cosmetic edit — `1` to `01`, or one rejected
+				// value replaced by another — invalidate the gate and reprocess the whole catalogue
+				// for a context that never moved.
+				'context_id',
 			]
 		);
 		$relevant = array_diff_key( $options, $ignore );

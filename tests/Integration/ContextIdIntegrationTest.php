@@ -19,7 +19,8 @@
  *
  * Also pinned: the two invariants the story's Dev Notes call out as "verify you don't disturb this"
  * and which nothing asserted — the test-connection AJAX round trip must not schedule a full re-sync,
- * and `context_id` must stay OFF the change gate's denylist.
+ * and the EFFECTIVE context must stay OFF the change gate's denylist, while the display-only
+ * `context_id` stays ON it.
  *
  * NOT covered here (browser-only, and there is no E2E harness in this repo):
  *  - the browser's own handling of the numeric input hints (the attributes ARE asserted);
@@ -513,7 +514,7 @@ test(
 );
 
 test(
-	'the Context ID is part of the change-gate signature, so a change reprocesses every product',
+	'the effective Context ID is part of the change-gate signature, so a change reprocesses every product',
 	function (): void {
 		$service   = new Skwirrel_WC_Sync_Service();
 		$signature = new ReflectionMethod( Skwirrel_WC_Sync_Service::class, 'compute_sync_signature' );
@@ -522,13 +523,37 @@ test(
 		$base = array( 'collection_ids' => '1' );
 
 		$default = $signature->invoke( $service, $base );
-		$five    = $signature->invoke( $service, $base + array( 'context_id' => '5' ) );
-		$six     = $signature->invoke( $service, $base + array( 'context_id' => '6' ) );
+		$five    = $signature->invoke( $service, $base + array( 'context_id_effective' => '5' ) );
+		$six     = $signature->invoke( $service, $base + array( 'context_id_effective' => '6' ) );
 
 		// The flag forces a full FETCH; the signature forces a full REPROCESS. Both are needed —
-		// context_id must therefore stay off the signature's denylist.
+		// the EFFECTIVE context must therefore stay off the signature's denylist.
 		expect( $default )->not->toBe( $five );
 		expect( $five )->not->toBe( $six );
+	}
+);
+
+test(
+	'a display-only Context ID edit does not reprocess the catalogue',
+	function (): void {
+		$service   = new Skwirrel_WC_Sync_Service();
+		$signature = new ReflectionMethod( Skwirrel_WC_Sync_Service::class, 'compute_sync_signature' );
+		$signature->setAccessible( true );
+
+		$base = array(
+			'collection_ids'       => '1',
+			'context_id_effective' => '5',
+		);
+
+		// `1` typed as `01`, or one rejected value swapped for another: the raw value moves, the
+		// context the plugin fetches with does not. Hashing the display value would reprocess the
+		// entire catalogue for a cosmetic edit.
+		$typed_plain   = $signature->invoke( $service, $base + array( 'context_id' => '5' ) );
+		$typed_padded  = $signature->invoke( $service, $base + array( 'context_id' => '05' ) );
+		$typed_invalid = $signature->invoke( $service, $base + array( 'context_id' => 'abc' ) );
+
+		expect( $typed_plain )->toBe( $typed_padded );
+		expect( $typed_plain )->toBe( $typed_invalid );
 	}
 );
 
