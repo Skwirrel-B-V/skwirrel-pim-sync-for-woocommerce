@@ -273,6 +273,39 @@ test( 'a priced simple product still receives its mapped quantity', function () 
 	expect( $product->get_stock_status() )->toBe( 'instock' );
 } );
 
+test( 'the legacy variation path also writes no price when prices are managed outside Skwirrel', function () {
+	// The fourth write path. The other three are covered above; this one is reached by grouped
+	// products arriving as members rather than through create_or_update_variation(), and it was the
+	// one with no external-price coverage at all.
+	update_option( 'skwirrel_wc_sync_settings', array_merge(
+		(array) get_option( 'skwirrel_wc_sync_settings', [] ),
+		[ 'prices_managed_outside_skwirrel' => true ]
+	) );
+	$upserter = stock_upserter();
+
+	$parent_id = stock_variable_parent( 'PARENT-EXT-LEGACY' );
+	$group     = [ 'wc_variable_id' => $parent_id, 'sku' => 'VAR-EXT-LEGACY' ];
+
+	// A payload carrying a price: nothing is written, because the ERP owns the field.
+	$upserter->upsert_product_as_variation( stock_payload( 'VAR-EXT-LEGACY', null, 77.0 ), $group );
+
+	$variation_id = wc_get_product_id_by_sku( 'VAR-EXT-LEGACY' );
+	expect( wc_get_product( $variation_id )->get_regular_price() )->toBe( '' );
+
+	// The ERP sets its price, then the PIM turns the item price-on-request. Availability changes;
+	// the price does not.
+	$erp = wc_get_product( $variation_id );
+	$erp->set_regular_price( '77' );
+	$erp->set_price( '77' );
+	$erp->save();
+
+	$upserter->upsert_product_as_variation( stock_payload( 'VAR-EXT-LEGACY', null, null, true ), $group );
+
+	$after = wc_get_product( $variation_id );
+	expect( (float) $after->get_regular_price() )->toBe( 77.0 );
+	expect( $after->get_stock_status() )->toBe( 'outofstock' );
+} );
+
 test( 'with prices managed outside Skwirrel the plugin writes no price at all', function () {
 	// The setting's contract, verified against real WooCommerce: not the PIM price, not the
 	// price-on-request blank, not the missing-price zero. An external system owns the field.
