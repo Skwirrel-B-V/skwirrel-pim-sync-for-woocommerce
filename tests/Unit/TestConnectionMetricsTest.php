@@ -426,7 +426,13 @@ test('both test paths use one shared secret-safe formatter pipeline', function (
     // legacy path redirects and exits, so it cannot be invoked from a test — this is the guard.
     $source = skw_admin_settings_source();
 
-    $ajax   = substr($source, (int) strpos($source, 'public function handle_test_connection_ajax'));
+    // Sliced to the end of the handler rather than a fixed byte count, so adding a line to it
+    // cannot silently move the shared-formatter call out of the window being inspected.
+    $ajax_start = (int) strpos($source, 'public function handle_test_connection_ajax');
+    $ajax_next  = strpos($source, "\n\tpublic function ", $ajax_start + 1);
+    $ajax       = false === $ajax_next
+        ? substr($source, $ajax_start)
+        : substr($source, $ajax_start, $ajax_next - $ajax_start);
     $legacy = substr(
         $source,
         (int) strpos($source, 'public function handle_test_connection('),
@@ -434,7 +440,7 @@ test('both test paths use one shared secret-safe formatter pipeline', function (
     );
 
     expect($legacy)->toContain('self::prepare_test_result_payload(');
-    expect(substr($ajax, 0, 2500))->toContain('self::prepare_test_result_payload(');
+    expect($ajax)->toContain('self::prepare_test_result_payload(');
 
     $pipeline = substr(
         $source,

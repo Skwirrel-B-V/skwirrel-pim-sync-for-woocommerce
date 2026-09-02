@@ -279,7 +279,12 @@ class Skwirrel_WC_Sync_Service {
 			'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
 			'include_related_products'     => ! empty( $options['sync_related_products'] ),
 			'include_languages'            => $this->get_include_languages(),
-			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::get_context_ids() ?? [ 1 ],
+			// From the run's own settings snapshot, not the live option. Everything else this run
+			// does with the context — the category tree, the membership sweep, the per-product
+			// writes — resolves it from `$options`, and a save landing between that snapshot and
+			// this line would otherwise fetch products from one context while the rest of the run
+			// reasoned about another.
+			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::resolve_context_ids( $options['context_id'] ?? '' ) ?? [ 1 ],
 		];
 
 		$sync_cc        = ! empty( $options['sync_custom_classes'] );

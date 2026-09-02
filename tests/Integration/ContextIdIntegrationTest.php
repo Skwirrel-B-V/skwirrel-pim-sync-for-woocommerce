@@ -22,7 +22,7 @@
  * and `context_id` must stay OFF the change gate's denylist.
  *
  * NOT covered here (browser-only, and there is no E2E harness in this repo):
- *  - the number spinner's own client-side `min`/`step` enforcement (the attributes ARE asserted);
+ *  - the browser's own handling of the numeric input hints (the attributes ARE asserted);
  *  - what the field and its message look like on screen.
  */
 
@@ -279,9 +279,12 @@ test(
 		$input = skwContextElementById( $xpath, 'context_id' );
 
 		expect( $input )->not->toBeNull( 'the Context ID field is not rendered' );
-		expect( $input->getAttribute( 'type' ) )->toBe( 'number' );
-		expect( $input->getAttribute( 'min' ) )->toBe( '1' );
-		expect( $input->getAttribute( 'step' ) )->toBe( '1' );
+		// Deliberately not type="number": that input's value-sanitization algorithm reports a
+		// non-numeric value as the empty string, which would hide the rejected value the sanitiser
+		// keeps verbatim so it can be corrected. Numeric hints give the keypad without the loss.
+		expect( $input->getAttribute( 'type' ) )->toBe( 'text' );
+		expect( $input->getAttribute( 'inputmode' ) )->toBe( 'numeric' );
+		expect( $input->getAttribute( 'pattern' ) )->toBe( '[0-9]*' );
 		expect( $input->getAttribute( 'placeholder' ) )->toBe( '1' );
 		expect( $input->getAttribute( 'name' ) )->toBe( 'skwirrel_wc_sync_settings[context_id]' );
 		expect( $input->getAttribute( 'value' ) )->toBe( '7' );

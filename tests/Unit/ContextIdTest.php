@@ -343,14 +343,32 @@ test('the connection test sends no context parameter when none is configured', f
     'invalid' => ['abc'],
 ]);
 
-test('both Test Connection handlers hand the configured context to the probe', function () {
+test('both Test Connection handlers hand a context to the probe, each from its own source', function () {
     // The handlers build a live HTTP client, so the wiring is pinned at the source level.
     $source = (string) file_get_contents(
         dirname(__DIR__, 2) . '/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-settings.php'
     );
 
-    expect(substr_count($source, 'test_connection( self::get_context_ids() )'))->toBe(2);
+    // The legacy admin_post path tests what is saved, because that is all it has.
+    expect(substr_count($source, 'test_connection( self::get_context_ids() )'))->toBe(1);
+    // The AJAX path tests what is in the form: it autosaves the posted value first, then probes
+    // with that, so editing the Context ID and pressing Test connection before Save is honest.
+    expect(substr_count($source, "test_connection( self::resolve_context_ids( \$opts['context_id'] ?? '' ) )"))->toBe(1);
     expect(preg_match('/->test_connection\(\s*\)/', $source))->toBe(0);
+});
+
+test('the AJAX test posts and validates the Context ID from the form', function () {
+    $source = (string) file_get_contents(
+        dirname(__DIR__, 2) . '/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-settings.php'
+    );
+
+    // The browser sends it...
+    expect($source)->toContain('fd.append("context_id", ctxEl.value);');
+    // ...the handler validates it before storing, using the one resolve rule...
+    expect($source)->toContain("null === self::resolve_context_ids( \$context_in )");
+    // ...and an absent field leaves the stored value alone, so a cached older script cannot
+    // silently clear a configured context.
+    expect($source)->toContain("if ( isset( \$_POST['context_id'] ) ) {");
 });
 
 /*
@@ -440,9 +458,10 @@ test('no call site is left on a hardcoded context literal', function () {
         );
     }
 
-    // The four remaining sites that default to context 1 inline; the two grouped sites are covered
-    // above, and getCategories now takes its contexts from the run instead of resolving its own.
-    expect($wired)->toBe(4);
+    // The three remaining sites that default to context 1 inline. The two grouped sites are covered
+    // above; getCategories and begin_run() now resolve the context from the run's own frozen
+    // settings copy instead of re-reading the live option.
+    expect($wired)->toBe(3);
 });
 
 test('a rejected Context ID is rendered in a control that can actually show it', function () {

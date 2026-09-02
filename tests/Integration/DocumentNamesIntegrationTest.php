@@ -252,6 +252,9 @@ test( 'the legacy all-in-one upsert path writes the resolved title too', functio
 
 test( 'a two-letter prefix match resolves end to end', function () {
 	update_option( 'skwirrel_wc_sync_settings', [ 'image_language' => 'nl-BE', 'sync_images' => false ] );
+	// The language is read when the mapper is built, exactly as Sync_Service does it once per run,
+	// so a test that changes it has to rebuild rather than expect a live re-read mid-flight.
+	$this->upserter = docnames_upserter();
 	docnames_stub_download( 'cdn.example/CER-77.pdf' );
 
 	$sku = 'DOC-AC2-prefix';
@@ -269,6 +272,9 @@ test( 'a two-letter prefix match resolves end to end', function () {
 
 test( 'an exact match wins over a prefix sibling', function () {
 	update_option( 'skwirrel_wc_sync_settings', [ 'image_language' => 'nl-BE', 'sync_images' => false ] );
+	// The language is read when the mapper is built, exactly as Sync_Service does it once per run,
+	// so a test that changes it has to rebuild rather than expect a live re-read mid-flight.
+	$this->upserter = docnames_upserter();
 	docnames_stub_download( 'cdn.example/CER-78.pdf' );
 
 	$sku = 'DOC-AC2-exact';

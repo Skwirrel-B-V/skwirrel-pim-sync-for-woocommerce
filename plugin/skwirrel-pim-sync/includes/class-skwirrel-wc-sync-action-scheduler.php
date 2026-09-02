@@ -152,17 +152,36 @@ class Skwirrel_WC_Sync_Action_Scheduler {
 			$args = [ 'delta' => $args ];
 		}
 
-		// Als een Skwirrel-product in WC is verwijderd, forceer volledige sync
-		$force_full = get_option( 'skwirrel_wc_sync_force_full_sync', false );
+		// A trashed Skwirrel product, or a changed Context ID, arms a full sync for the next run.
+		$logger     = new Skwirrel_WC_Sync_Logger();
+		$force_full = (bool) get_option( 'skwirrel_wc_sync_force_full_sync', false );
 		if ( $force_full ) {
-			delete_option( 'skwirrel_wc_sync_force_full_sync' );
-			( new Skwirrel_WC_Sync_Logger() )->info( 'Scheduled sync: force_full_sync flag was set (Delete_Protection saw a Skwirrel item trashed since last run) — running as full sync and clearing the flag.' );
+			$logger->info( 'Scheduled sync: force_full_sync flag is set (a Skwirrel item was trashed, or the Context ID changed, since the last run) — requesting a full sync.' );
 		}
 
 		$delta = $force_full ? false : ( $args['delta'] ?? true );
 		// Kick off (or resume) the resumable, batched runner: one bounded step per async action,
 		// so no single server time limit can kill the whole run.
-		Skwirrel_WC_Sync_Service::start_async( (bool) $delta, Skwirrel_WC_Sync_History::TRIGGER_SCHEDULED );
+		$result = Skwirrel_WC_Sync_Service::start_async( (bool) $delta, Skwirrel_WC_Sync_History::TRIGGER_SCHEDULED );
+
+		// The flag is consumed only by a run that can actually honour it: a FRESH start, carrying
+		// this call's `$delta = false`. Clearing it up front lost the forced full sync whenever
+		// start_async() declined — a long resumable run still holding the mutex returns
+		// `already_running`, and a lapsed run is RESUMED, which continues the old delta run rather
+		// than starting the full one. In both cases the flag would have been gone and every later
+		// scheduled run would have stayed delta, so the catalogue never reconciled.
+		if ( ! $force_full ) {
+			return;
+		}
+		if ( ! empty( $result['started'] ) && empty( $result['resumed'] ) ) {
+			delete_option( 'skwirrel_wc_sync_force_full_sync' );
+			$logger->info( 'Scheduled sync: full run started, force_full_sync flag cleared.' );
+			return;
+		}
+		$logger->info(
+			'Scheduled sync: the forced full sync could not start, so the flag is kept for the next run.',
+			[ 'reason' => (string) ( $result['reason'] ?? ( ! empty( $result['resumed'] ) ? 'resumed_existing_run' : 'unknown' ) ) ]
+		);
 	}
 
 	/**

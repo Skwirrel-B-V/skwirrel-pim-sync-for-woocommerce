@@ -206,6 +206,17 @@ function skwPurgeSkwirrelOptions(): void {
 function skwPurgeProductCatalogue(): void {
 	global $wpdb;
 
+	// Drop the run state FIRST. Delete_Protection hooks `pre_delete_post` and refuses to delete any
+	// Skwirrel-managed product while a run-state option looks fresh, so a test that leaves one
+	// behind -- or an interrupted earlier run -- would silently turn this purge into a no-op and
+	// hand the next test a catalogue it believes is empty. That is exactly the poisoned inheritance
+	// this function exists to prevent, so it clears the lock itself rather than depending on the
+	// order its callers happen to use.
+	delete_option( class_exists( 'Skwirrel_WC_Sync_Service' ) ? Skwirrel_WC_Sync_Service::OPTION_RUN_STATE : 'skwirrel_wc_sync_run_state' );
+	delete_option( 'skwirrel_wc_sync_run_sweep' );
+	delete_option( 'skwirrel_wc_sync_run_groupmap' );
+	wp_cache_flush();
+
 	$post_ids = $wpdb->get_col(
 		"SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key LIKE '\_skwirrel\_%'"
 	);
@@ -215,6 +226,15 @@ function skwPurgeProductCatalogue(): void {
 
 	foreach ( array_unique( array_merge( $post_ids, $product_ids ) ) as $pid ) {
 		wp_delete_post( (int) $pid, true );
+	}
+
+	// Fail loudly rather than leaking into the next test: a survivor here means something still
+	// blocks deletion, and every downstream failure would look like an unrelated regression.
+	$survivors = (int) $wpdb->get_var(
+		"SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type IN ( 'product', 'product_variation' )"
+	);
+	if ( $survivors > 0 ) {
+		fwrite( STDERR, sprintf( "skwPurgeProductCatalogue: %d product(s) survived the purge.\n", $survivors ) );
 	}
 }
 

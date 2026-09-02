@@ -925,6 +925,21 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$token                = $this->sanitize_token( $token_in ); // New token, or the stored one when masked/empty.
 		update_option( self::TOKEN_OPTION_KEY, $token, false );
 		$opts['auth_token'] = '' !== self::get_auth_token() ? self::MASK : '';
+
+		// The Context ID decides which dataset the probe reads, so this path tests the one currently
+		// in the form rather than the last saved one — otherwise an administrator who edits it and
+		// presses Test connection before Save gets a green tick and a product total for the context
+		// they just moved away from. Sent only when the field is present, so an older cached copy of
+		// the inline script keeps the previous behaviour instead of clearing a stored value.
+		if ( isset( $_POST['context_id'] ) ) {
+			$context_in = sanitize_text_field( trim( (string) wp_unslash( $_POST['context_id'] ) ) );
+			if ( '' !== $context_in && null === self::resolve_context_ids( $context_in ) ) {
+				wp_send_json_error(
+					[ 'message' => __( 'The context ID must be a whole number greater than 0. Leave it empty to use the Skwirrel default context.', 'skwirrel-pim-sync' ) ]
+				);
+			}
+			$opts['context_id'] = $context_in;
+		}
 		update_option( self::OPTION_KEY, $opts, false );
 
 		$client_token = self::get_auth_token();
@@ -935,7 +950,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			(int) ( $opts['timeout'] ?? 30 ),
 			(int) ( $opts['retries'] ?? 2 )
 		);
-		$result       = $client->test_connection( self::get_context_ids() );
+		$result       = $client->test_connection( self::resolve_context_ids( $opts['context_id'] ?? '' ) );
 		$success      = ! empty( $result['success'] );
 
 		$payload = self::prepare_test_result_payload( $result, $client_token );
@@ -1916,6 +1931,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '  fd.append("_nonce", skwirrelPimSync.testConnectionNonce);'
 			. '  fd.append("endpoint_url", "https://" + sub + ".skwirrel.eu/jsonrpc");'
 			. '  if (tokenEl) fd.append("auth_token", tokenEl.value);'
+			. '  var ctxEl = document.getElementById("context_id");'
+			. '  if (ctxEl) fd.append("context_id", ctxEl.value);'
 			. '  testBtn.disabled = true;'
 			. '  setRes(skwirrelPimSync.testingLabel, "");'
 			. '  fetch(skwirrelPimSync.ajaxUrl, { method: "POST", body: fd })'
