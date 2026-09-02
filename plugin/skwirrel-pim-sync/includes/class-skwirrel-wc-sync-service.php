@@ -2026,8 +2026,17 @@ class Skwirrel_WC_Sync_Service {
 			'include_languages'         => $this->get_include_languages(),
 		];
 
-		/** This conditional is documented in Product_Upserter::sync_grouped_products_first(). */
+		/**
+		 * Resolved ONCE for this whole operation, not per request. A single re-sync issues three
+		 * kinds of call — the paginated group lookup, the member-product fetch and the per-product
+		 * attribute re-fetch — and re-reading the option before each would let a Context ID saved
+		 * mid-operation find the group in one context and build its variations from another.
+		 *
+		 * @var array<int, int>|null
+		 */
 		$context_ids = Skwirrel_WC_Sync_Admin_Settings::get_context_ids();
+
+		/** This conditional is documented in Product_Upserter::sync_grouped_products_first(). */
 		if ( null !== $context_ids ) {
 			$params['include_contexts'] = $context_ids;
 		}
@@ -2146,7 +2155,7 @@ class Skwirrel_WC_Sync_Service {
 			'include_etim'                 => true,
 			'include_etim_translations'    => true,
 			'include_languages'            => $this->get_include_languages(),
-			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::get_context_ids() ?? [ 1 ],
+			'include_contexts'             => $context_ids ?? [ 1 ],
 		];
 
 		$sync_cc              = ! empty( $options['sync_custom_classes'] );
@@ -2290,7 +2299,7 @@ class Skwirrel_WC_Sync_Service {
 					$attr_includes['include_etim']              = true;
 					$attr_includes['include_etim_translations'] = true;
 					$attr_includes['include_languages']         = $this->get_include_languages();
-					$attr_includes['include_contexts']          = Skwirrel_WC_Sync_Admin_Settings::get_context_ids() ?? [ 1 ];
+					$attr_includes['include_contexts']          = $context_ids ?? [ 1 ];
 					$attr_product                               = $this->fetch_product_attributes( $client, $product, $attr_includes );
 				} else {
 					$attr_product = $product;

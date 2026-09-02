@@ -464,10 +464,12 @@ test('no call site is left on a hardcoded context literal', function () {
         );
     }
 
-    // The three remaining sites that default to context 1 inline. The two grouped sites are covered
-    // above; getCategories and begin_run() now resolve the context from the run's own frozen
-    // settings copy instead of re-reading the live option.
-    expect($wired)->toBe(3);
+    // One site left resolving inline: sync_single_product(), a one-shot admin re-sync of a single
+    // item that issues exactly one context-bearing call, so there is nothing for it to disagree
+    // with. Everything else reads the run's frozen settings copy (getCategories, begin_run) or
+    // resolves once per operation and reuses it (sync_single_grouped_product, membership sweep,
+    // grouped fetch).
+    expect($wired)->toBe(1);
 });
 
 test('a rejected Context ID is rendered in a control that can actually show it', function () {
@@ -488,6 +490,30 @@ test('a rejected Context ID is rendered in a control that can actually show it',
     // naming the context that stays in use.
     expect($field)->not->toContain('pattern=');
     expect($field)->not->toContain('required');
+});
+
+test('a single grouped re-sync resolves its context once and reuses it', function () {
+    // Three kinds of call in one operation — the paginated group lookup, the member-product fetch
+    // and the per-product attribute re-fetch. Re-reading the option before each would let a save
+    // mid-operation find the group in one context and build its variations from another.
+    $source = (string) file_get_contents(
+        dirname(__DIR__, 2) . '/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php'
+    );
+
+    // It is the last public method in the file, so fall back to the next method of any visibility
+    // and then to end-of-file rather than slicing to a false offset.
+    $start = (int) strpos($source, 'public function sync_single_grouped_product');
+    $end   = PHP_INT_MAX;
+    foreach ([ "\n\tpublic function ", "\n\tprivate function ", "\n\tprotected function " ] as $needle) {
+        $at = strpos($source, $needle, $start + 1);
+        if (false !== $at) {
+            $end = min($end, $at);
+        }
+    }
+    $method = PHP_INT_MAX === $end ? substr($source, $start) : substr($source, $start, $end - $start);
+
+    expect(substr_count($method, 'Skwirrel_WC_Sync_Admin_Settings::get_context_ids()'))->toBe(1);
+    expect(substr_count($method, '$context_ids ?? [ 1 ]'))->toBe(2);
 });
 
 /*
