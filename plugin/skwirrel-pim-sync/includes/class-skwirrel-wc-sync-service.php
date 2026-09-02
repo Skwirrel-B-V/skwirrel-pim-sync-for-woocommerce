@@ -1832,6 +1832,27 @@ class Skwirrel_WC_Sync_Service {
 	 * @return array{success: bool, outcome?: string, error?: string}
 	 */
 	public function sync_single_product( int $skwirrel_product_id ): array {
+		// One settings snapshot for the whole operation, injected into the upserter for its
+		// duration. Without it the upserter re-reads the live option per product, so a stock
+		// mapping or Context ID saved mid-operation would apply to part of the work and not the
+		// rest — the same split a resumable run freezes against, on a path that has no run.
+		$options = $this->get_options();
+		$this->upserter->set_run_options( $options );
+		try {
+			return $this->run_single_product( $skwirrel_product_id, $options );
+		} finally {
+			$this->upserter->set_run_options( null );
+		}
+	}
+
+	/**
+	 * Body of {@see self::sync_single_product()}, run with the settings already frozen.
+	 *
+	 * @param int                  $skwirrel_product_id Skwirrel product ID.
+	 * @param array<string, mixed> $options             This operation's frozen settings.
+	 * @return array<string, mixed>
+	 */
+	private function run_single_product( int $skwirrel_product_id, array $options ): array {
 		$client = $this->get_client();
 		if ( ! $client ) {
 			return [
@@ -1840,7 +1861,6 @@ class Skwirrel_WC_Sync_Service {
 			];
 		}
 
-		$options     = $this->get_options();
 		$req_options = [
 			'include_product_status'       => true,
 			'include_product_translations' => true,
@@ -1854,7 +1874,7 @@ class Skwirrel_WC_Sync_Service {
 			'include_etim'                 => true,
 			'include_etim_translations'    => true,
 			'include_languages'            => $this->get_include_languages(),
-			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::get_context_ids() ?? [ 1 ],
+			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ],
 		];
 
 		$sync_cc              = ! empty( $options['sync_custom_classes'] );
@@ -2000,6 +2020,27 @@ class Skwirrel_WC_Sync_Service {
 	 * @return array{success: bool, created?: int, updated?: int, failed?: int, error?: string}
 	 */
 	public function sync_single_grouped_product( int $grouped_product_id ): array {
+		// See sync_single_product(): one snapshot, frozen into the upserter for the whole
+		// operation. This path matters more, not less — it writes every member variation of a
+		// group, so a mapping changed halfway through would split one variable product's children
+		// across two configurations.
+		$options = $this->get_options();
+		$this->upserter->set_run_options( $options );
+		try {
+			return $this->run_single_grouped_product( $grouped_product_id, $options );
+		} finally {
+			$this->upserter->set_run_options( null );
+		}
+	}
+
+	/**
+	 * Body of {@see self::sync_single_grouped_product()}, run with the settings already frozen.
+	 *
+	 * @param int                  $grouped_product_id Skwirrel grouped product ID.
+	 * @param array<string, mixed> $options            This operation's frozen settings.
+	 * @return array<string, mixed>
+	 */
+	private function run_single_grouped_product( int $grouped_product_id, array $options ): array {
 		$client = $this->get_client();
 		if ( ! $client ) {
 			return [
@@ -2007,8 +2048,6 @@ class Skwirrel_WC_Sync_Service {
 				'error'   => 'Invalid API configuration',
 			];
 		}
-
-		$options = $this->get_options();
 
 		$this->logger->info(
 			'Single grouped product sync: searching for group in API',
@@ -2034,7 +2073,7 @@ class Skwirrel_WC_Sync_Service {
 		 *
 		 * @var array<int, int>|null
 		 */
-		$context_ids = Skwirrel_WC_Sync_Admin_Settings::get_context_ids();
+		$context_ids = Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options );
 
 		/** This conditional is documented in Product_Upserter::sync_grouped_products_first(). */
 		if ( null !== $context_ids ) {

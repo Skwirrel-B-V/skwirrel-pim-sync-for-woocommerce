@@ -464,12 +464,11 @@ test('no call site is left on a hardcoded context literal', function () {
         );
     }
 
-    // One site left resolving inline: sync_single_product(), a one-shot admin re-sync of a single
-    // item that issues exactly one context-bearing call, so there is nothing for it to disagree
-    // with. Everything else reads the run's frozen settings copy (getCategories, begin_run) or
-    // resolves once per operation and reuses it (sync_single_grouped_product, membership sweep,
-    // grouped fetch).
-    expect($wired)->toBe(1);
+    // Nothing resolves the live option inline any more. Every context-bearing call reads a
+    // settings snapshot: the resumable run's frozen copy (begin_run, getCategories, the sweep,
+    // per-product writes), or the one-shot admin paths' own snapshot, taken once per operation
+    // and reused across every request it makes.
+    expect($wired)->toBe(0);
 });
 
 test('a rejected Context ID is rendered in a control that can actually show it', function () {
@@ -502,7 +501,8 @@ test('a single grouped re-sync resolves its context once and reuses it', functio
 
     // It is the last public method in the file, so fall back to the next method of any visibility
     // and then to end-of-file rather than slicing to a false offset.
-    $start = (int) strpos($source, 'public function sync_single_grouped_product');
+    // The body lives in the private runner now; the public method is the freeze wrapper.
+    $start = (int) strpos($source, 'private function run_single_grouped_product');
     $end   = PHP_INT_MAX;
     foreach ([ "\n\tpublic function ", "\n\tprivate function ", "\n\tprotected function " ] as $needle) {
         $at = strpos($source, $needle, $start + 1);
@@ -512,8 +512,29 @@ test('a single grouped re-sync resolves its context once and reuses it', functio
     }
     $method = PHP_INT_MAX === $end ? substr($source, $start) : substr($source, $start, $end - $start);
 
-    expect(substr_count($method, 'Skwirrel_WC_Sync_Admin_Settings::get_context_ids()'))->toBe(1);
+    // Resolved once, from this operation's own settings snapshot, and reused at all three sites.
+    expect(substr_count($method, 'Skwirrel_WC_Sync_Admin_Settings::get_context_ids()'))->toBe(0);
+    expect(substr_count($method, 'context_ids_from_options( $options )'))->toBe(1);
     expect(substr_count($method, '$context_ids ?? [ 1 ]'))->toBe(2);
+});
+
+test('the one-shot admin re-syncs freeze their settings for the whole operation', function () {
+    // Neither path is a resumable run, but both write many products and both used to re-read the
+    // live option per product — so a stock mapping or Context ID saved halfway through split the
+    // operation across two configurations.
+    $source = (string) file_get_contents(
+        dirname(__DIR__, 2) . '/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-service.php'
+    );
+
+    foreach ([ 'sync_single_product', 'sync_single_grouped_product' ] as $entry) {
+        $at     = (int) strpos($source, 'public function ' . $entry . '(');
+        $window = substr($source, $at, 700);
+
+        expect($window)->toContain('$this->upserter->set_run_options( $options );');
+        // Released again on every exit, so a one-shot path cannot leave the upserter frozen.
+        expect($window)->toContain('} finally {');
+        expect($window)->toContain('$this->upserter->set_run_options( null );');
+    }
 });
 
 /*
