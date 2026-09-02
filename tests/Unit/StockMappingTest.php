@@ -276,6 +276,34 @@ test('a frozen run that turned the mapping off leaves stock alone for the whole 
     expect($ref->invoke($this->upserter))->toBeFalse();
 });
 
+test('a frozen run keeps the languages it started with', function () {
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = [
+        'include_languages' => [ 'fr-BE', 'fr' ],
+        'image_language'    => 'fr',
+    ];
+    $this->upserter->set_run_options([
+        'include_languages' => [ 'nl-NL', 'nl' ],
+        'image_language'    => 'nl',
+    ]);
+
+    $ref = new ReflectionMethod($this->upserter, 'get_include_languages');
+
+    // These pick the ETIM and custom-class variation terms, so two siblings of the same variable
+    // product must never be resolved in different languages because a save landed between them.
+    expect($ref->invoke($this->upserter))->toBe(['nl-NL', 'nl']);
+});
+
+test('the upserter reads no setting behind the run\'s back', function () {
+    // One read of the live option is allowed: the fallback inside get_options() itself, for the
+    // callers that are not a run. Every other setting has to come through it.
+    $source = (string) file_get_contents(
+        dirname(__DIR__, 2) . '/plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-upserter.php'
+    );
+
+    expect(substr_count($source, "get_option( 'skwirrel_wc_sync_settings'"))->toBe(1);
+    expect($source)->toContain('$saved    = null === $this->run_options ? get_option(');
+});
+
 // ------------------------------------------------------------------
 // The mapper delegates, consistent with every other custom-class field
 // ------------------------------------------------------------------

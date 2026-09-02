@@ -709,7 +709,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$etim_values     = [];
 		if ( ! empty( $etim_codes ) ) {
 			$lang        = $this->get_include_languages();
-			$lang        = ! empty( $lang ) ? $lang[0] : ( get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl' );
+			$lang        = ! empty( $lang ) ? $lang[0] : (string) ( $this->get_options()['image_language'] ?? 'nl' );
 			$etim_values = $this->mapper->get_etim_feature_values_for_codes( $product, $etim_codes, $lang );
 			$this->logger->verbose(
 				'Variation eTIM lookup',
@@ -2060,7 +2060,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$etim_values     = [];
 		if ( ! empty( $etim_codes ) ) {
 			$lang_arr    = $this->get_include_languages();
-			$lang        = ! empty( $lang_arr ) ? $lang_arr[0] : ( get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl' );
+			$lang        = ! empty( $lang_arr ) ? $lang_arr[0] : (string) ( $this->get_options()['image_language'] ?? 'nl' );
 			$etim_values = $this->mapper->get_etim_feature_values_for_codes( $product, $etim_codes, $lang );
 			foreach ( $etim_codes as $ef ) {
 				$code = strtoupper( (string) ( $ef['code'] ?? '' ) );
@@ -2094,7 +2094,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$custom_values = [];
 		if ( ! empty( $custom_codes ) ) {
 			$lang_arr      = $this->get_include_languages();
-			$lang          = ! empty( $lang_arr ) ? $lang_arr[0] : ( get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl' );
+			$lang          = ! empty( $lang_arr ) ? $lang_arr[0] : (string) ( $this->get_options()['image_language'] ?? 'nl' );
 			$custom_values = $this->mapper->get_custom_feature_values_for_ids( $product, $custom_codes, $lang );
 			foreach ( $custom_codes as $cf ) {
 				$feature_id = (int) ( $cf['id'] ?? 0 );
@@ -2294,7 +2294,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$custom_axis_labels = [];
 			if ( $wc_variable_id && ! empty( $custom_codes ) && ! empty( $product['_custom_classes'] ) ) {
 				$lang_arr      = $this->get_include_languages();
-				$lang          = ! empty( $lang_arr ) ? $lang_arr[0] : ( get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl' );
+				$lang          = ! empty( $lang_arr ) ? $lang_arr[0] : (string) ( $this->get_options()['image_language'] ?? 'nl' );
 				$custom_values = $this->mapper->get_custom_feature_values_for_ids( $product, $custom_codes, $lang );
 				foreach ( $custom_values as $data ) {
 					if ( ! empty( $data['label'] ) ) {
@@ -2615,7 +2615,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			return;
 		}
 
-		$opts       = get_option( 'skwirrel_wc_sync_settings', [] );
+		$opts       = $this->get_options();
 		$type       = $opts['related_products_type'] ?? 'cross_sells';
 		$sync_cross = in_array( $type, [ 'cross_sells', 'both', 'auto' ], true );
 		$sync_up    = in_array( $type, [ 'upsells', 'both', 'auto' ], true );
@@ -3377,6 +3377,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'verbose_logging'                 => false,
 			'prices_managed_outside_skwirrel' => false,
 			'stock_quantity_feature'          => '',
+			'related_products_type'           => 'cross_sells',
 		];
 		$saved    = null === $this->run_options ? get_option( 'skwirrel_wc_sync_settings', [] ) : $this->run_options;
 		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );
@@ -3472,7 +3473,10 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * @return array<string> Language codes (e.g. ['nl-NL', 'nl']).
 	 */
 	private function get_include_languages(): array {
-		$opts  = get_option( 'skwirrel_wc_sync_settings', [] );
+		// Through get_options(), so a resumable run keeps the languages it started with. These pick
+		// the ETIM and custom-class variation terms, so a mid-run change would otherwise give two
+		// siblings of the same variable product attribute terms in different languages.
+		$opts  = $this->get_options();
 		$langs = $opts['include_languages'] ?? [ 'nl-NL', 'nl' ];
 		if ( ! empty( $langs ) && is_array( $langs ) ) {
 			return array_values( array_filter( array_map( 'sanitize_text_field', $langs ) ) );
