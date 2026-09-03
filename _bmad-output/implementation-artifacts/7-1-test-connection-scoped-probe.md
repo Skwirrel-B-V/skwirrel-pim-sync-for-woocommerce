@@ -1,18 +1,22 @@
 ---
-status: backlog
-baseline_commit: db22f7689656a755035ba04ac25bd4b3117eabd6
-baseline_revision: 0d41b0d64cbe8b882027043c2ec2bbd27bae2a8f
+status: ready-for-dev
+baseline_commit: 4044e2256f699b9c16d7816ab41e790f54097f4f
+baseline_revision: 4044e2256f699b9c16d7816ab41e790f54097f4f
+drafted_against_commit: db22f7689656a755035ba04ac25bd4b3117eabd6
 context:
   - _bmad-output/implementation-artifacts/5-4-test-connection-metrics.md
+  - _bmad-output/implementation-artifacts/epic-6-retro-2026-08-27.md
+  - _bmad-output/implementation-artifacts/deferred-work.md
   - _bmad-output/project-context.md
   - _bmad-output/planning-artifacts/epics.md
   - CLAUDE.md
   - .claude/rules/admin-settings.md
+  - .claude/rules/testing.md
 ---
 
 # Story 7.1: Test Connection tests *your* settings, not just the server
 
-Status: backlog
+Status: ready-for-dev
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -44,6 +48,86 @@ re-deriving it: fold the existing parameter into the seam. **Selection filtering
 **Jos's ruling, binding on this story:** Test Connection grows *toward* a dry run. This is a deliberate
 stepping stone to a future full dry-run feature. Removing the filtered probe, or reverting Test
 Connection to a pure reachability check, is off the table. No acceptance criterion below hedges on that.
+
+## Code anchors — authoritative, re-verified at HEAD `4044e22`
+
+**Read this before the Acceptance Criteria.** Every `file:line` reference inside the ACs and Dev Notes
+below was written on 2026-08-27 against `db22f76`. The 3.14.0 work has landed since — the top-level menu
+and Connectors work, the Context ID commits (PR #53), and `4044e22` "the connection field takes a full
+address, not a subdomain". **Effectively every inline line number in this story is now wrong.** The
+*symbols* and the *reasoning* are correct and were re-verified; the line numbers were not carried
+forward. Resolve by symbol, and use this table.
+
+| Symbol | File (`plugin/skwirrel-pim-sync/`) | Line @ `4044e22` |
+|---|---|---|
+| `JsonRpc_Client::call()` | `includes/class-skwirrel-wc-sync-jsonrpc-client.php` | 51 |
+| retry loop `while ( $attempt <= $this->retries )` | ″ | 78 |
+| `usleep( 500000 * $attempt )` backoff | ″ | 111 |
+| `test_connection( ?array $context_ids = null )` | ″ | 204 |
+| `extract_product_count()` (`private static`) | ″ | 237 |
+| `STATUS_SCAN_BUDGET` / `_TIMEOUT` / `_RETRIES` | `includes/class-skwirrel-wc-sync-admin-settings.php` | 49 / 55 / 58 |
+| `unconditional_required_fields()` | ″ | 327 |
+| `sanitize_settings()` | ″ | 406 |
+| **selection-ID parse to extract** | ″ | **509–514** |
+| `resolve_context_ids()` (`public static`) | ″ | 633 |
+| `get_context_ids()` (`public static`) | ″ | 667 |
+| `context_ids_from_options( array $opts )` (`public static`) | ″ | 710 |
+| `normalize_endpoint_url()` | ″ | 728 |
+| `format_test_result()` | ″ | 842 |
+| `prepare_test_result_payload()` | ″ | 951 |
+| `handle_test_connection()` (legacy `admin_post`) | ″ | 967 |
+| `handle_test_connection_ajax()` | ″ | 1020 |
+| `fetch_statuses()` + its clamps | ″ | 1241, 1258–1259 |
+| budget check pattern to copy | ″ | 1156 |
+| `setRes()` inline renderer | ″ | 2037–2057 |
+| `maybe_show_notices()` | ″ | 2547 |
+| `run_sync()` "No selection IDs configured" hard-fail | `includes/class-skwirrel-wc-sync-service.php` | 248 |
+| sole `fetch_products_page()` call site (`$use_filter = true`) | ″ | 725 |
+| `fetch_products_page()` | ″ | 2422 |
+| `get_collection_ids()` (`private`, non-static) | ″ | 2580 |
+| `get_settings_tabs()` / `what-to-sync` tab | `includes/class-skwirrel-wc-sync-admin-dashboard.php` | 801 / 809 |
+| `#skwirrel-test-result` `<span>` (AC 6 turns it into a `<div>`) | ″ | 1440 |
+| tone CSS `.skw-test-result.skw-test-{success,error,warning}` | `assets/dashboard.css` | 405–428 |
+| `.skw-test-metric` | ″ | 430–437 |
+
+### Three ACs whose *premises* drifted, not just their line numbers
+
+These are substantive. Do not implement the AC as literally worded where it conflicts with this section.
+
+1. **AC 11's autosave premise is out of date, and the context is no longer read from saved settings.**
+   `handle_test_connection_ajax()` (`:1020`) now writes **five** keys, not three: `endpoint_url`,
+   `auth_type`, the token option, and — when the field is posted — `context_id` **and**
+   `context_id_effective`. It then probes with `self::context_ids_from_options( $opts )` against the
+   `$opts` it just wrote, i.e. **the context currently in the form**, deliberately, with a comment at
+   `:1039-1045` explaining why (an admin who edits the Context ID and tests before saving must not get a
+   total for the context they just left).
+   **What still holds:** AC 11's actual requirement — *this story adds no new write*. Keep it exactly so.
+   **What changes:** the "you typed it but it wasn't tested" caveat in AC 11 applies to
+   **`collection_ids` only**. Selections are read from saved settings; the context is form-fresh. Row 2
+   must therefore name the context it actually probed, which the AC 6 segment shape already does.
+2. **AC 3's "resolve the context through `get_context_ids()`" is right for one path and wasteful for the
+   other.** `get_context_ids()` (`:667`) re-reads the option and delegates to
+   `context_ids_from_options()` (`:710`). In the AJAX path the caller already holds the freshly-written
+   `$opts`, so use **`context_ids_from_options( $opts )`** there — that is what the existing
+   `test_connection()` call does at `:1073`, and re-reading would be a second source of truth for the
+   same value. The legacy `admin_post` path (`:967`) has no such `$opts` in hand and correctly uses
+   `get_context_ids()`. Both are the same accessor family; **still no second context parser.** That is
+   the clause AC 3 actually protects.
+3. **AC 3's `unconditional_required_fields()` citation is right in substance, wrong in content.** At
+   `:327-329` it returns `[ 'skwirrel_base_url', 'collection_ids' ]` — the endpoint field is now
+   `skwirrel_base_url` (a full address since `4044e22`, normalised by `normalize_endpoint_url()` at
+   `:728`), not `endpoint_url`. **`collection_ids` is still unconditionally required**, which is the
+   only part AC 3 leans on, so the `blocked` branch stands exactly as written.
+
+### Two smaller facts a dev will otherwise trip over
+
+- **The extraction target for `parse_selection_ids()` is `:509-514`**, and it already filters `> 0`:
+  `preg_split( '/[\s,]+/', ..., PREG_SPLIT_NO_EMPTY )` → `trim` → `is_numeric` filter → `intval` →
+  `$v > 0`. Extract that verbatim. The surrounding required-field error at `:516-521` stays in
+  `sanitize_settings()` — it is validation, not parsing, and must not move into the helper.
+- **`setRes()` still guards on `skwirrelPimSync.testSubdomainLabel` (`:2058`)** even though the field is
+  now a full address. That naming is stale but harmless and **out of scope** — do not rename it here.
+  The guard itself must survive your rewrite of `setRes()`.
 
 ## Acceptance Criteria
 
@@ -352,6 +436,110 @@ pattern (`AdminSettingsRequiredFieldsTest.php:244`, `TestConnectionMetricsTest.p
 `FieldMappingTranslationsTest.php:102`) — there is no global POT-coverage gate, so a story that skips
 this ships untranslatable strings silently.
 
+## Tasks / Subtasks
+
+Ordered so each step is independently green. Run the three gates from the **repo root** after each task,
+not once at the end: `vendor/bin/pest`, `vendor/bin/phpstan analyse --memory-limit=2G`, `vendor/bin/phpcs`.
+
+- [ ] **T1 — Extract `parse_selection_ids()` (AC 3, Ruling on shared parsing)**
+  - [ ] Add `public static function parse_selection_ids( mixed $raw ): array` to
+        `Skwirrel_WC_Sync_Admin_Settings`, lifted **verbatim** from `sanitize_settings():509-514`.
+  - [ ] Route the sanitiser through it; leave the required-field error at `:516-521` where it is.
+  - [ ] Behaviour-identical: the existing sanitiser tests must pass **unchanged**. If one needs editing,
+        the extraction is wrong.
+  - [ ] Do **not** touch the three private `normalize_positive_id()` copies, and do not widen
+        `Service::get_collection_ids()`.
+
+- [ ] **T2 — `build_probe_block()` seam on the client (AC 4)**
+  - [ ] Add `private function build_probe_block(): array` returning only the shared read block:
+        `page => 1`, `limit => 1`, every `include_*` off, plus `include_contexts` when a context is set.
+        **No mode argument.**
+  - [ ] Refactor the existing unfiltered `test_connection()` (`:204`) params to use it — pure refactor,
+        the gate's request must be byte-identical to today.
+  - [ ] Express the envelope choice with an explicit `bool $use_filter`, mirroring
+        `fetch_products_page()` (`service:2422`). **Reject** any single builder that switches envelope on
+        an empty `$filters` array.
+  - [ ] Reuse `extract_product_count()` (`:237`, `private static`) in place. Do not duplicate it; do not
+        widen its visibility.
+
+- [ ] **T3 — Scoped probe inside `test_connection()` (AC 1, 2, 3, 5, 13)**
+  - [ ] Extend the signature to take the resolved selection IDs **and** an injectable clock/budget, so
+        the budget is testable without wall-clock nondeterminism.
+  - [ ] Add exactly one payload key: `scoped`, in the shape AC 1 specifies. **No top-level
+        `product_count` inside `scoped`, no summed total anywhere, on any path.**
+  - [ ] Gate first: if the unfiltered probe failed, issue **zero** scoped requests and mark every
+        selection `not_tested` / `product_count => null`.
+  - [ ] No selections configured → `mode => 'blocked'`, `selections => []`, **no request issued**.
+  - [ ] Selections configured → `mode => 'filter'`, one `getProductsByFilter` per ID with
+        `filter => [ 'dynamic_selection_id' => (int) $id ]`. No `updated_on`, no `options` payload.
+  - [ ] Clamp probe-local timeout/retries and enforce an elapsed budget **between** calls, copying
+        `fetch_statuses()` (`:1241`, `:1258-1259`) and the budget check at `:1156`. No new setting.
+  - [ ] A scoped failure **never** flips top-level `success`.
+  - [ ] Update the `@return` docblock array shape to declare `scoped` — PHPStan level 6 reads it.
+
+- [ ] **T4 — Wire both callers (AC 11, 12, and Code-anchor corrections 1–2)**
+  - [ ] `handle_test_connection_ajax()` (`:1020`): resolve selections via
+        `parse_selection_ids( $opts['collection_ids'] ?? '' )` from **saved** settings, and the context
+        via **`context_ids_from_options( $opts )`** (already in hand — do not re-read the option).
+  - [ ] `handle_test_connection()` (`:967`): same, with `get_context_ids()`.
+  - [ ] **Add no new `update_option()` call.** The autosave block stays exactly as it is.
+  - [ ] The client must not read settings. Callers resolve, client receives.
+
+- [ ] **T5 — Payload layer: verdicts, tones, copy (AC 5, 7, 8, 12)**
+  - [ ] Extend `format_test_result()` (`:842`) / `prepare_test_result_payload()` (`:951`) to carry the
+        per-selection segments, each with its own machine-constant `tone` and its own text.
+  - [ ] Row 2's tone is the worst of its segments; **Row 2 is never red on any path**.
+  - [ ] One next-step pointer per amber Row 2 (not one per segment), naming the **What to sync** tab
+        (`dashboard:809`).
+  - [ ] Confirm the existing reflected-credential redaction covers scoped error messages too.
+  - [ ] Every new string through `__()`/`esc_html__()` with the literal `'skwirrel-pim-sync'`; numbers
+        through `number_format_i18n()`; tones stay untranslated.
+
+- [ ] **T6 — Markup + CSS (AC 6, 7, 9)**
+  - [ ] `dashboard:1440`: `<span id="skwirrel-test-result">` → `<div>`. Keep `role="status"`,
+        `aria-live="polite"`, `aria-atomic="true"`.
+  - [ ] `assets/dashboard.css:405-428`: drop the inline `margin-left: 12px` treatment for a block layout
+        under the button row; introduce row-scoped tones
+        (`.skw-test-row.skw-tone-{success,warning,error,muted}`) and keep the panel class on the outer
+        element.
+  - [ ] Give `success`, `error` and the new `muted` a non-colour affordance (glyph and/or weight) —
+        today only `warning` has one (`:426`). NFR-7.
+
+- [ ] **T7 — Renderer (AC 6, 9, 10)**
+  - [ ] Rewrite `setRes()` (`:2037-2057`) to build the fixed two-row skeleton every time.
+  - [ ] Keep Row 1's existing detail ordering (round-trip → status → products → attempts when > 1) —
+        pinned by `tests/Unit/TestConnectionMetricsTest.php`.
+  - [ ] Build the `<details><summary>Technical details (for support)</summary><pre>` block as a
+        **sibling below** the live region, never a child of it.
+  - [ ] `createElement` + `textContent` only — **no `innerHTML` anywhere**. One detached
+        `DocumentFragment`, one synchronous swap. Do not add more `aria-busy`; the existing bracket is
+        inert.
+  - [ ] Preserve the `testSubdomainLabel` guard at `:2058` (stale name, still live behaviour).
+  - [ ] A stale cached script must still degrade to today's single-row rendering.
+
+- [ ] **T8 — Legacy `admin_post` notice (AC 12)**
+  - [ ] `maybe_show_notices()` (`:2547`) renders the scoped headline and its detail lines as additional
+        **escaped** lines in the same notice. No two-row skeleton, no `<details>`.
+  - [ ] Do not delete the legacy path; do not grow a second renderer.
+
+- [ ] **T9 — Tests (AC 1–13 + the Testing section)**
+  - [ ] New `tests/Unit/TestConnectionScopedProbeTest.php` covering every case listed under **Testing**,
+        including the no-sum guarantee asserted directly and the injectable budget clock.
+  - [ ] Integration additions in `tests/Integration/TestConnectionMetricsIntegrationTest.php`, reusing
+        its canned-response client subclass and callback-tracking teardown. **Never
+        `remove_all_filters()`** — that was a 5.4 review finding.
+  - [ ] Re-run the six "must not contradict" assertions listed in Dev Notes and confirm each still
+        passes for the reason it was written, not by coincidence.
+
+- [ ] **T10 — Translations (AC 14) — last, and in this order**
+  - [ ] Regenerate the POT via the wp-env recipe in **Testing**; `msgmerge` each of the seven locales;
+        translate; fill `en_GB`/`en_US` as mirrors (`msgstr` == `msgid`), never empty; `msgcat --width=79`;
+        **`msgfmt` last** so every `.mo` is newer than its `.po`
+        (`tests/Unit/AdminSettingsRequiredFieldsTest.php` asserts that ordering).
+  - [ ] Add the hand-curated POT-coverage `dataset()` for this story's new msgids to the new unit file.
+  - [ ] Touch no unrelated catalogue entries.
+  - [ ] Version bump / `CHANGELOG.md` / `readme.txt` are `/release`'s job — do not hand-edit.
+
 ## Ruling on shared parsing (Henk finding 2)
 
 **Ruling: authorise exactly one new shared helper, and scope it narrowly.**
@@ -621,6 +809,17 @@ Two numbers of his were wrong and are corrected here so a dev does not inherit t
 
 ## Change Log
 
+- 2026-09-02 — Context pass for dev hand-off (create-story). Re-verified every code anchor against
+  HEAD `4044e22`: **effectively all inline line numbers had drifted** since the 2026-08-27 draft at
+  `db22f76`, so an authoritative symbol→line table now sits above the ACs. Three AC premises were
+  corrected there rather than in place: AC 11's autosave list is five keys, not three, and the context is
+  read **from the form**, not saved settings (deliberate, commented at `:1039-1045`), so its
+  "typed-but-not-saved" caveat now applies to `collection_ids` only; AC 3's context resolution uses
+  `context_ids_from_options( $opts )` on the AJAX path and `get_context_ids()` on the legacy path;
+  `unconditional_required_fields()` now returns `skwirrel_base_url` (not `endpoint_url`) alongside
+  `collection_ids` — the `blocked` branch is unaffected. Tasks/Subtasks and the Dev Agent Record added.
+  Epic 6's "before Epic 7" gate confirmed cleared (`7e630fd`, epic-6 `done`). Status → ready-for-dev.
+
 - 2026-08-27 — Story drafted (John / PM) from the Test Connection → dry run roundtable. Encodes Winston's
   additive `scoped` key and its params seam, Sally's two-row panel with its amber/greyed tone
   rules and collapsed "Technical details (for support)" block, the gh#47 verdict-on-top display fix, and
@@ -653,3 +852,15 @@ Two numbers of his were wrong and are corrected here so a dev does not inherit t
   context-configured-but-no-selections case cannot take a `getProducts` branch, because `collection_ids`
   is unconditionally required and the sync hard-fails without it. Overlapping-selection double-work in
   the live sync filed to `deferred-work.md`.
+
+## Dev Agent Record
+
+### Agent Model Used
+
+_(fill in at implementation time)_
+
+### Debug Log References
+
+### Completion Notes List
+
+### File List
