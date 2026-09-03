@@ -58,24 +58,11 @@ test('super_category_id is required exactly when category sync is on', function 
     }
 });
 
-test('custom_collection_id is required exactly when any consuming feature is on', function () {
-    foreach (skw_checkbox_combinations() as $values) {
-        $expected = $values['sync_custom_classes']
-            || $values['sync_trade_item_custom_classes']
-            || $values['sync_grouped_products'];
-
-        $required = Skwirrel_WC_Sync_Admin_Settings::required_fields($values);
-
-        expect($required['custom_collection_id'])->toBe($expected);
-    }
-});
-
 test('an empty settings array requires only the unconditional fields', function () {
     expect(Skwirrel_WC_Sync_Admin_Settings::required_fields([]))->toBe([
         'skwirrel_base_url' => true,
         'collection_ids' => true,
         'super_category_id' => false,
-        'custom_collection_id' => false,
     ]);
 });
 
@@ -85,6 +72,14 @@ test('is_field_required matches the registry and is false for an unknown field',
     expect(Skwirrel_WC_Sync_Admin_Settings::is_field_required($values, 'super_category_id'))->toBeTrue();
     expect(Skwirrel_WC_Sync_Admin_Settings::is_field_required($values, 'custom_collection_id'))->toBeFalse();
     expect(Skwirrel_WC_Sync_Admin_Settings::is_field_required($values, 'auth_token'))->toBeFalse();
+});
+
+test('custom_collection_id is never required, regardless of the consuming features', function () {
+    foreach (skw_checkbox_combinations() as $values) {
+        $required = Skwirrel_WC_Sync_Admin_Settings::required_fields($values);
+
+        expect($required['custom_collection_id'] ?? false)->toBeFalse();
+    }
 });
 
 /*
@@ -116,7 +111,7 @@ test('every error code maps to a field the settings screen knows about', functio
  */
 test('the registry and sanitize_settings agree on every checkbox combination', function () {
     $settings = Skwirrel_WC_Sync_Admin_Settings::instance();
-    $validated = ['super_category_id', 'collection_ids', 'custom_collection_id'];
+    $validated = ['super_category_id', 'collection_ids'];
 
     foreach (skw_checkbox_combinations() as $values) {
         $GLOBALS['wp_settings_errors'] = [];
@@ -247,7 +242,6 @@ test('the strings this story added are in the POT and in all seven locales', fun
     $strings = [
         'required',
         'Category sync is enabled but no valid super category ID is set. Please enter a super category ID greater than 0.',
-        'A custom class collection ID greater than 0 is required when syncing custom classes or grouped products.',
     ];
 
     $catalogues = array_merge(

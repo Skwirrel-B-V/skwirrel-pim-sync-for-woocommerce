@@ -143,23 +143,23 @@ test( 'super_category_id becomes required as soon as category sync is on', funct
 	expect( $xpath->query( '//*[@data-skw-req="super_category_id"]' )->item( 0 )->hasAttribute( 'hidden' ) )->toBeFalse();
 } );
 
-test( 'custom_collection_id follows each of the three features that consume it', function (): void {
-	foreach ( [ 'sync_custom_classes', 'sync_trade_item_custom_classes', 'sync_grouped_products' ] as $key ) {
-		$opts         = (array) get_option( 'skwirrel_wc_sync_settings' );
-		$opts[ $key ] = true;
-		update_option( 'skwirrel_wc_sync_settings', $opts );
+test( 'custom_collection_id is never required, whichever of the three consuming features is on', function (): void {
+	foreach ( [ 'sync_custom_classes', 'sync_trade_item_custom_classes', 'sync_grouped_products', null ] as $key ) {
+		$opts = (array) get_option( 'skwirrel_wc_sync_settings' );
+		if ( null !== $key ) {
+			$opts[ $key ] = true;
+			update_option( 'skwirrel_wc_sync_settings', $opts );
+		}
 
 		$xpath = skwRequiredFieldsXPath( skwRenderRequiredFieldsScreen() );
 		expect( skwRequiredFieldsElementById( $xpath, 'custom_collection_id' )->hasAttribute( 'required' ) )
-			->toBeTrue( $key . ' does not make custom_collection_id required' );
+			->toBeFalse( ( $key ?? 'nothing' ) . ' makes custom_collection_id required' );
 
-		unset( $opts[ $key ] );
-		update_option( 'skwirrel_wc_sync_settings', $opts );
+		if ( null !== $key ) {
+			unset( $opts[ $key ] );
+			update_option( 'skwirrel_wc_sync_settings', $opts );
+		}
 	}
-
-	// With all three off it is optional again.
-	$xpath = skwRequiredFieldsXPath( skwRenderRequiredFieldsScreen() );
-	expect( skwRequiredFieldsElementById( $xpath, 'custom_collection_id' )->hasAttribute( 'required' ) )->toBeFalse();
 } );
 
 test( 'the marker names the settings keys that govern it so the toggle needs no second copy', function (): void {
@@ -168,19 +168,10 @@ test( 'the marker names the settings keys that govern it so the toggle needs no 
 	$super = $xpath->query( '//*[@data-skw-req="super_category_id"]' )->item( 0 );
 	expect( $super->getAttribute( 'data-skw-req-when' ) )->toBe( 'skwirrel_wc_sync_settings[sync_categories]' );
 
-	$custom = $xpath->query( '//*[@data-skw-req="custom_collection_id"]' )->item( 0 );
-	expect( $custom->getAttribute( 'data-skw-req-when' ) )->toBe(
-		'skwirrel_wc_sync_settings[sync_custom_classes] '
-		. 'skwirrel_wc_sync_settings[sync_trade_item_custom_classes] '
-		. 'skwirrel_wc_sync_settings[sync_grouped_products]'
-	);
-
 	// Every name it points at resolves to a checkbox that is actually on the screen.
-	foreach ( [ $super, $custom ] as $marker ) {
-		foreach ( explode( ' ', $marker->getAttribute( 'data-skw-req-when' ) ) as $name ) {
-			$box = $xpath->query( '//input[@type="checkbox"][@name="' . $name . '"]' );
-			expect( $box->length )->toBe( 1, $name . ' resolves to no checkbox' );
-		}
+	foreach ( explode( ' ', $super->getAttribute( 'data-skw-req-when' ) ) as $name ) {
+		$box = $xpath->query( '//input[@type="checkbox"][@name="' . $name . '"]' );
+		expect( $box->length )->toBe( 1, $name . ' resolves to no checkbox' );
 	}
 
 	// An unconditionally required field has nothing to follow.
@@ -404,7 +395,7 @@ test( 'no control blocks submit without a marker and a registry entry behind it'
  */
 test( 'every marker on the screen is a named character, not colour alone', function (): void {
 	$opts = (array) get_option( 'skwirrel_wc_sync_settings' );
-	// Turn everything on so all four markers are visible at once.
+	// Turn everything on so all three markers are visible at once.
 	foreach ( [ 'sync_categories', 'sync_custom_classes', 'sync_trade_item_custom_classes', 'sync_grouped_products' ] as $key ) {
 		$opts[ $key ] = true;
 	}
@@ -413,7 +404,8 @@ test( 'every marker on the screen is a named character, not colour alone', funct
 	$xpath   = skwRequiredFieldsXPath( skwRenderRequiredFieldsScreen() );
 	$markers = $xpath->query( '//*[@data-skw-req]' );
 
-	expect( $markers->length )->toBe( 4, 'the four registry fields should each render one marker' );
+	// custom_collection_id renders no marker at all — it is never required.
+	expect( $markers->length )->toBe( 3, 'the three registry fields should each render one marker' );
 
 	foreach ( $markers as $marker ) {
 		$field = $marker->getAttribute( 'data-skw-req' );
@@ -449,18 +441,19 @@ test( 'no field that validation can reject calls itself optional in its label', 
 
 /**
  * AC2 — the off state is the full off state: no marker, no `required`, and no `aria-required`
- * either. The story's suite asserted only the `required` attribute for this field.
+ * either. custom_collection_id is never required, whatever else is configured (the sync run
+ * itself fails fast with a clear message when a feature that needs it is on and it is missing).
  */
-test( 'custom_collection_id carries no required state at all while nothing consumes it', function (): void {
+test( 'custom_collection_id carries no required state at all, whatever else is configured', function (): void {
 	$xpath = skwRequiredFieldsXPath( skwRenderRequiredFieldsScreen() );
 	$input = skwRequiredFieldsElementById( $xpath, 'custom_collection_id' );
 
 	expect( $input )->not->toBeNull();
 	expect( $input->hasAttribute( 'required' ) )->toBeFalse();
 	expect( $input->hasAttribute( 'aria-required' ) )->toBeFalse();
-	expect( $xpath->query( '//*[@data-skw-req="custom_collection_id"]' )->item( 0 )->hasAttribute( 'hidden' ) )->toBeTrue();
+	expect( $xpath->query( '//*[@data-skw-req="custom_collection_id"]' )->length )->toBe( 0 );
 
-	// And the full on state, for the same field, is the mirror image.
+	// Turning on a feature that consumes it changes nothing.
 	$opts                        = (array) get_option( 'skwirrel_wc_sync_settings' );
 	$opts['sync_custom_classes'] = true;
 	update_option( 'skwirrel_wc_sync_settings', $opts );
@@ -468,9 +461,9 @@ test( 'custom_collection_id carries no required state at all while nothing consu
 	$xpath = skwRequiredFieldsXPath( skwRenderRequiredFieldsScreen() );
 	$input = skwRequiredFieldsElementById( $xpath, 'custom_collection_id' );
 
-	expect( $input->hasAttribute( 'required' ) )->toBeTrue();
-	expect( $input->getAttribute( 'aria-required' ) )->toBe( 'true' );
-	expect( $xpath->query( '//*[@data-skw-req="custom_collection_id"]' )->item( 0 )->hasAttribute( 'hidden' ) )->toBeFalse();
+	expect( $input->hasAttribute( 'required' ) )->toBeFalse();
+	expect( $input->hasAttribute( 'aria-required' ) )->toBeFalse();
+	expect( $xpath->query( '//*[@data-skw-req="custom_collection_id"]' )->length )->toBe( 0 );
 } );
 
 /**

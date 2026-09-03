@@ -339,8 +339,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	 */
 	public static function conditional_required_rules(): array {
 		return [
-			'super_category_id'    => [ 'sync_categories' ],
-			'custom_collection_id' => [ 'sync_custom_classes', 'sync_trade_item_custom_classes', 'sync_grouped_products' ],
+			'super_category_id' => [ 'sync_categories' ],
 		];
 	}
 
@@ -396,10 +395,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	 */
 	public static function error_field_map(): array {
 		return [
-			'super_category_id_required'    => 'super_category_id',
-			'collection_ids_required'       => 'collection_ids',
-			'custom_collection_id_required' => 'custom_collection_id',
-			'context_id'                    => 'context_id',
+			'super_category_id_required' => 'super_category_id',
+			'collection_ids_required'    => 'collection_ids',
+			'context_id'                 => 'context_id',
 		];
 	}
 
@@ -521,19 +519,11 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'error'
 			);
 		}
+		// Not required on the settings screen: the sync run itself fails fast with a clear
+		// message if custom classes, trade-item custom classes, or grouped products are on and
+		// this is missing (see Sync_Service::run_sync()), so nagging at save time would only
+		// block configuring the other, unrelated settings on this tab first.
 		$out['custom_collection_id'] = isset( $input['custom_collection_id'] ) ? sanitize_text_field( trim( $input['custom_collection_id'] ) ) : '';
-		// Only required when a feature that actually uses it is enabled: custom classes,
-		// trade-item custom classes, or grouped products (which may use custom variation axes).
-		// The condition lives in the required-field registry so the marker on the settings
-		// screen and this check can never disagree.
-		if ( self::is_field_required( $input, 'custom_collection_id' ) && ( '' === $out['custom_collection_id'] || 0 >= (int) $out['custom_collection_id'] ) ) {
-			add_settings_error(
-				self::OPTION_KEY,
-				'custom_collection_id_required',
-				__( 'A custom class collection ID greater than 0 is required when syncing custom classes or grouped products.', 'skwirrel-pim-sync' ),
-				'error'
-			);
-		}
 		// Custom classes
 		$out['sync_custom_classes']            = ! empty( $input['sync_custom_classes'] );
 		$out['sync_trade_item_custom_classes'] = ! empty( $input['sync_trade_item_custom_classes'] );

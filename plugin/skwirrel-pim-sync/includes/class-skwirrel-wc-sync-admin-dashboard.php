@@ -1562,7 +1562,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					</p>
 				</div>
 				<div class="skw-field"<?php $this->render_field_wrapper_attr( 'custom_collection_id' ); ?>>
-					<label for="custom_collection_id" class="skw-label"><?php esc_html_e( 'Custom class collection ID', 'skwirrel-pim-sync' ); ?><?php $this->render_required_marker( 'custom_collection_id' ); ?></label>
+					<label for="custom_collection_id" class="skw-label"><?php esc_html_e( 'Custom class collection ID', 'skwirrel-pim-sync' ); ?></label>
 					<input type="number" id="custom_collection_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[custom_collection_id]" value="<?php echo esc_attr( $opts['custom_collection_id'] ?? '' ); ?>" class="skw-input" min="1" placeholder="<?php esc_attr_e( 'e.g. 5', 'skwirrel-pim-sync' ); ?>"<?php $this->render_field_state_attrs( 'custom_collection_id', 'custom_collection_id-hint' ); ?> />
 					<?php $this->render_field_error( 'custom_collection_id' ); ?>
 					<p class="skw-field-hint" id="custom_collection_id-hint">

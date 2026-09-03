@@ -80,6 +80,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 = 3.14.0 =
 
+* Change: the Custom class collection ID is no longer marked required or blocked from saving when it is empty — a synchronisation that actually needs it (custom classes, trade-item custom classes, or grouped products enabled) still fails immediately with a clear message telling you to set it, so nothing silently runs without it.
 * New: the settings screen is grouped into tabs — Connection, What to sync, Field mapping and Advanced — so you no longer scroll past forty settings to reach one. No setting changed or was renamed; Media & Language moved into What to sync, and Permalinks moved into Advanced.
 * New: a tab containing a field that failed validation is marked with a warning icon and a count, and opens first. Validation messages from saving are now shown on the screen itself.
 * New: link straight to a tab with `#tab-connection`, `#tab-what-to-sync`, `#tab-field-mapping` or `#tab-advanced`; the address bar keeps up as you switch tabs.

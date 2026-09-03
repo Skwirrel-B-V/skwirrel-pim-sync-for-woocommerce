@@ -133,7 +133,7 @@ test('field lists are normalised to strings', function () {
     expect($tabs['x']['fields'])->toBe(['ok']);
 });
 
-test('the three sanitiser error codes all resolve to the What to sync tab', function (string $code) {
+test('the two sanitiser error codes all resolve to the What to sync tab', function (string $code) {
     $tabs   = Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs();
     $counts = Skwirrel_WC_Sync_Admin_Dashboard::count_errors_by_tab([$code], $tabs);
 
@@ -141,7 +141,6 @@ test('the three sanitiser error codes all resolve to the What to sync tab', func
 })->with([
     'super_category_id_required',
     'collection_ids_required',
-    'custom_collection_id_required',
 ]);
 
 test('several errors on one tab are counted, not collapsed', function () {
@@ -285,9 +284,9 @@ test('a closure renderer survives normalisation, so an outside tab can render it
 test('every built-in tab declares the field ids its own sanitiser rules can flag', function () {
     $tabs = Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs();
 
-    // The three codes the sanitiser raises today must each resolve, or the badge silently
+    // The two codes the sanitiser raises today must each resolve, or the badge silently
     // stops appearing when a field is renamed.
-    foreach (['super_category_id_required', 'collection_ids_required', 'custom_collection_id_required'] as $code) {
+    foreach (['super_category_id_required', 'collection_ids_required'] as $code) {
         expect(Skwirrel_WC_Sync_Admin_Dashboard::count_errors_by_tab([$code], $tabs))->not->toBe([]);
     }
 
