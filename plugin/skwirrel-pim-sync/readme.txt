@@ -80,9 +80,9 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 = 3.14.0 =
 
-* New: the settings screen is grouped into tabs — Connection, What to sync, How it looks, Advanced and Field mapping — so you no longer scroll past forty settings to reach one. No setting changed, moved out of its group, or was renamed.
+* New: the settings screen is grouped into tabs — Connection, What to sync, Field mapping and Advanced — so you no longer scroll past forty settings to reach one. No setting changed or was renamed; Media & Language moved into What to sync, and Permalinks moved into Advanced.
 * New: a tab containing a field that failed validation is marked with a warning icon and a count, and opens first. Validation messages from saving are now shown on the screen itself.
-* New: link straight to a tab with `#tab-connection`, `#tab-what-to-sync`, `#tab-how-it-looks`, `#tab-advanced` or `#tab-field-mapping`; the address bar keeps up as you switch tabs.
+* New: link straight to a tab with `#tab-connection`, `#tab-what-to-sync`, `#tab-field-mapping` or `#tab-advanced`; the address bar keeps up as you switch tabs.
 * New: the tab strip is fully keyboard operable (arrow keys, Home and End) and announced correctly by screen readers.
 * New: mandatory settings are marked with an asterisk, and fields that are only mandatory in certain configurations pick the marker up the moment you tick the setting that makes them so — no save needed to find out.
 * New: every validation message now appears next to the field it is about, as well as in the standard WordPress summary at the top, and screen readers announce it together with that field.

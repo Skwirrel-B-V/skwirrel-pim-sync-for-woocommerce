@@ -10,14 +10,13 @@ afterEach(function () {
     $GLOBALS['_test_filters'] = [];
 });
 
-test('the registry ships the five settings tabs in a deterministic order', function () {
+test('the registry ships the four settings tabs in a deterministic order', function () {
     $tabs = Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs();
 
-    expect(array_keys($tabs))->toBe(['connection', 'what-to-sync', 'field-mapping', 'how-it-looks', 'advanced']);
+    expect(array_keys($tabs))->toBe(['connection', 'what-to-sync', 'field-mapping', 'advanced']);
     expect($tabs['connection']['label'])->toBe('Connection');
     expect($tabs['what-to-sync']['label'])->toBe('What to sync');
     expect($tabs['field-mapping']['label'])->toBe('Field mapping');
-    expect($tabs['how-it-looks']['label'])->toBe('How it looks');
     expect($tabs['advanced']['label'])->toBe('Advanced');
 });
 
@@ -42,7 +41,7 @@ test('an external tab registers through the filter and lands at its order positi
 
     $tabs = Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs();
 
-    expect(array_keys($tabs))->toBe(['connection', 'what-to-sync', 'field-mapping', 'external-mapping', 'how-it-looks', 'advanced']);
+    expect(array_keys($tabs))->toBe(['connection', 'what-to-sync', 'field-mapping', 'external-mapping', 'advanced']);
     expect($tabs['external-mapping']['fields'])->toBe(['mapping_source']);
 });
 
@@ -84,7 +83,7 @@ test('a non-array filter result falls back to the built-in registry', function (
     });
 
     expect(array_keys(Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs()))
-        ->toBe(['connection', 'what-to-sync', 'field-mapping', 'how-it-looks', 'advanced']);
+        ->toBe(['connection', 'what-to-sync', 'field-mapping', 'advanced']);
 });
 
 test('an empty filtered registry falls back to the built-in panels', function () {
@@ -93,7 +92,7 @@ test('an empty filtered registry falls back to the built-in panels', function ()
     });
 
     expect(array_keys(Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs()))
-        ->toBe(['connection', 'what-to-sync', 'field-mapping', 'how-it-looks', 'advanced']);
+        ->toBe(['connection', 'what-to-sync', 'field-mapping', 'advanced']);
 });
 
 test('a filter cannot remove or replace a built-in panel and drop its settings from the form', function () {
@@ -113,7 +112,7 @@ test('a filter cannot remove or replace a built-in panel and drop its settings f
     $tabs = Skwirrel_WC_Sync_Admin_Dashboard::get_settings_tabs();
 
     expect(array_keys($tabs))
-        ->toBe(['connection', 'what-to-sync', 'field-mapping', 'external-mapping', 'how-it-looks', 'advanced']);
+        ->toBe(['connection', 'what-to-sync', 'field-mapping', 'external-mapping', 'advanced']);
     expect($tabs['connection']['render'])->toBe('render_settings_panel_connection');
     expect($tabs['connection']['fields'])->toContain('endpoint_url');
 });
@@ -171,7 +170,7 @@ test('representative field ids resolve to the tab that actually renders them', f
     ['endpoint_url', 'connection'],
     ['batch_size', 'what-to-sync'],
     ['title_feature_id', 'field-mapping'],
-    ['image_language', 'how-it-looks'],
+    ['image_language', 'what-to-sync'],
     ['sync_interval', 'advanced'],
     ['log_retention', 'advanced'],
 ]);

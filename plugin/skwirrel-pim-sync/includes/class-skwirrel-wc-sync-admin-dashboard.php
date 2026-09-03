@@ -810,19 +810,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				'label'  => __( 'What to sync', 'skwirrel-pim-sync' ),
 				'order'  => 20,
 				'render' => 'render_settings_panel_what_to_sync',
-				'fields' => array( 'batch_size', 'super_category_id', 'collection_ids', 'custom_collection_id' ),
+				'fields' => array( 'batch_size', 'super_category_id', 'collection_ids', 'custom_collection_id', 'image_language', 'include_languages' ),
 			),
 			'field-mapping' => array(
 				'label'  => __( 'Field mapping', 'skwirrel-pim-sync' ),
 				'order'  => 25,
 				'render' => 'render_settings_panel_field_mapping',
 				'fields' => array( 'stock_quantity_feature', 'title_feature_id', 'short_description_feature_id', 'long_description_feature_id' ),
-			),
-			'how-it-looks'  => array(
-				'label'  => __( 'How it looks', 'skwirrel-pim-sync' ),
-				'order'  => 30,
-				'render' => 'render_settings_panel_how_it_looks',
-				'fields' => array( 'image_language', 'include_languages' ),
 			),
 			'advanced'      => array(
 				'label'  => __( 'Advanced', 'skwirrel-pim-sync' ),
@@ -1014,9 +1008,6 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			case 'render_settings_panel_field_mapping':
 				$this->render_settings_panel_field_mapping( $context );
 				return;
-			case 'render_settings_panel_how_it_looks':
-				$this->render_settings_panel_how_it_looks( $context );
-				return;
 			case 'render_settings_panel_advanced':
 				$this->render_settings_panel_advanced( $context );
 				return;
@@ -1050,6 +1041,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private function render_settings_panel_what_to_sync( array $context ): void {
 		$this->render_fieldgroup_sync_options( (array) $context['opts'], (string) $context['base_url'] );
 		$this->render_fieldgroup_product_status( (array) $context['opts'] );
+		$this->render_fieldgroup_media_language( (array) $context['opts'] );
 	}
 
 	/**
@@ -1062,16 +1054,6 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	}
 
 	/**
-	 * Render the "How it looks" tab panel.
-	 *
-	 * @param array<string, mixed> $context Render context.
-	 */
-	private function render_settings_panel_how_it_looks( array $context ): void {
-		$this->render_fieldgroup_media_language( (array) $context['opts'] );
-		$this->render_fieldgroup_permalinks();
-	}
-
-	/**
 	 * Render the Advanced tab panel.
 	 *
 	 * @param array<string, mixed> $context Render context.
@@ -1079,6 +1061,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private function render_settings_panel_advanced( array $context ): void {
 		$this->render_fieldgroup_scheduling( (array) $context['opts'] );
 		$this->render_fieldgroup_sync_logs( (array) $context['opts'] );
+		$this->render_fieldgroup_permalinks();
 		$this->render_fieldgroup_advanced( (array) $context['opts'] );
 	}
 
