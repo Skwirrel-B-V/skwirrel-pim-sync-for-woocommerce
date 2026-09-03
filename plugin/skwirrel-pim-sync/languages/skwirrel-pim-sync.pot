@@ -947,8 +947,8 @@ msgstr ""
 msgid "e.g. 812 or PRODUCT_TITLE"
 msgstr ""
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1859
-msgid "Field mappings read product-level custom classes. Set the custom class collection ID under \"What to sync\" so those values can be fetched; without it the mappings stay inactive."
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1875
+msgid "Field mappings read product-level custom classes. Setting a custom class collection ID under \"What to sync\" narrows which collection they are read from; without one, every collection is searched."
 msgstr ""
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1874

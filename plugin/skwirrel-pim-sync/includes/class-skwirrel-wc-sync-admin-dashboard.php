@@ -1872,7 +1872,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<?php
 			endforeach;
 			?>
-			<p class="skw-field-hint"><?php esc_html_e( 'Field mappings read product-level custom classes. Set the custom class collection ID under "What to sync" so those values can be fetched; without it the mappings stay inactive.', 'skwirrel-pim-sync' ); ?></p>
+			<p class="skw-field-hint"><?php esc_html_e( 'Field mappings read product-level custom classes. Setting a custom class collection ID under "What to sync" narrows which collection they are read from; without one, every collection is searched.', 'skwirrel-pim-sync' ); ?></p>
 		</div>
 		<?php
 	}

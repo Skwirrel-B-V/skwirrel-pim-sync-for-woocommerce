@@ -949,9 +949,9 @@ msgstr "Het ID of de code van het custom kenmerk met de lange omschrijving. Laat
 msgid "e.g. 812 or PRODUCT_TITLE"
 msgstr "bijv. 812 of PRODUCT_TITLE"
 
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1859
-msgid "Field mappings read product-level custom classes. Set the custom class collection ID under \"What to sync\" so those values can be fetched; without it the mappings stay inactive."
-msgstr "Veldkoppelingen lezen custom classes op productniveau. Stel het collectie-ID voor custom classes in onder „Wat synchroniseren” zodat die waarden opgehaald kunnen worden; zonder dat blijven de koppelingen inactief."
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1875
+msgid "Field mappings read product-level custom classes. Setting a custom class collection ID under \"What to sync\" narrows which collection they are read from; without one, every collection is searched."
+msgstr "Veldkoppelingen lezen custom classes op productniveau. Het instellen van een collectie-ID voor custom classes onder „Wat synchroniseren” beperkt uit welke collectie ze gelezen worden; zonder ID wordt in alle collecties gezocht."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1874
 msgid "Verbose logging"
