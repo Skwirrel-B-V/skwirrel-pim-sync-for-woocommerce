@@ -949,6 +949,10 @@ msgstr "The ID or code of the custom feature holding the long description. Leave
 msgid "e.g. 812 or PRODUCT_TITLE"
 msgstr "e.g. 812 or PRODUCT_TITLE"
 
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1879
+msgid "Find your feature IDs and codes at %s — open a class to see its features, or check a product's own custom class values on its edit page."
+msgstr "Find your feature IDs and codes at %s — open a class to see its features, or check a product's own custom class values on its edit page."
+
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1875
 msgid "Field mappings read product-level custom classes. Setting a custom class collection ID under \"What to sync\" narrows which collection they are read from; without one, every collection is searched."
 msgstr "Field mappings read product-level custom classes. Setting a custom class collection ID under \"What to sync\" narrows which collection they are read from; without one, every collection is searched."

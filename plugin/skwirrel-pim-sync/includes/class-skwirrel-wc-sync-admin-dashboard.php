@@ -1050,7 +1050,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 * @param array<string, mixed> $context Render context.
 	 */
 	private function render_settings_panel_field_mapping( array $context ): void {
-		$this->render_fieldgroup_field_mapping( (array) $context['opts'] );
+		$this->render_fieldgroup_field_mapping( (array) $context['opts'], (string) $context['base_url'] );
 	}
 
 	/**
@@ -1833,7 +1833,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 *
 	 * @param array<string,mixed> $opts Stored plugin settings.
 	 */
-	private function render_fieldgroup_field_mapping( array $opts ): void {
+	private function render_fieldgroup_field_mapping( array $opts, string $base_url = '' ): void {
 		?>
 		<div class="skw-fieldgroup">
 			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Field mapping', 'skwirrel-pim-sync' ); ?></h3>
@@ -1872,6 +1872,15 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<?php
 			endforeach;
 			?>
+			<p class="skw-field-hint">
+				<?php
+				printf(
+					/* translators: %s = link to Skwirrel custom classes page */
+					esc_html__( 'Find your feature IDs and codes at %s — open a class to see its features, or check a product\'s own custom class values on its edit page.', 'skwirrel-pim-sync' ),
+					'<a href="' . esc_attr( ( '' !== $base_url ? $base_url : 'https://your-instance' ) . '/base/classes/classes' ) . '" target="_blank" id="skwirrel-classes-link"><span class="skwirrel-link-domain">' . esc_html( '' !== $base_url ? $base_url : 'https://your-instance' ) . '</span>/base/classes/classes</a>'
+				);
+				?>
+			</p>
 			<p class="skw-field-hint"><?php esc_html_e( 'Field mappings read product-level custom classes. Setting a custom class collection ID under "What to sync" narrows which collection they are read from; without one, every collection is searched.', 'skwirrel-pim-sync' ); ?></p>
 		</div>
 		<?php

@@ -949,6 +949,10 @@ msgstr "Die ID oder der Code des benutzerdefinierten Merkmals, das die lange Bes
 msgid "e.g. 812 or PRODUCT_TITLE"
 msgstr "z. B. 812 oder PRODUCT_TITLE"
 
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1879
+msgid "Find your feature IDs and codes at %s — open a class to see its features, or check a product's own custom class values on its edit page."
+msgstr "Ihre Feature-IDs und -Codes finden Sie unter %s — öffnen Sie eine Klasse, um ihre Features zu sehen, oder prüfen Sie die eigenen Werte der benutzerdefinierten Klasse eines Produkts auf dessen Bearbeitungsseite."
+
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1875
 msgid "Field mappings read product-level custom classes. Setting a custom class collection ID under \"What to sync\" narrows which collection they are read from; without one, every collection is searched."
 msgstr "Feldzuordnungen lesen benutzerdefinierte Klassen auf Produktebene. Das Festlegen einer Sammlungs-ID für benutzerdefinierte Klassen unter „Was synchronisiert wird“ schränkt ein, aus welcher Sammlung sie gelesen werden; ohne sie wird in allen Sammlungen gesucht."

@@ -81,6 +81,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 = 3.14.0 =
 
 * Change: the Custom class collection ID is now fully optional. It is no longer marked required or blocked from saving when empty, and a synchronisation with custom classes, trade-item custom classes, or grouped products enabled no longer fails when it is missing — custom classes are now fetched across every collection instead of one. Set it only to narrow the fetch to a single collection.
+* New: the Field mapping tab now links to where you find a feature's ID or code, the same way the other reference fields on this screen already do.
 * New: the settings screen is grouped into tabs — Connection, What to sync, Field mapping and Advanced — so you no longer scroll past forty settings to reach one. No setting changed or was renamed; Media & Language moved into What to sync, and Permalinks moved into Advanced.
 * New: a tab containing a field that failed validation is marked with a warning icon and a count, and opens first. Validation messages from saving are now shown on the screen itself.
 * New: link straight to a tab with `#tab-connection`, `#tab-what-to-sync`, `#tab-field-mapping` or `#tab-advanced`; the address bar keeps up as you switch tabs.

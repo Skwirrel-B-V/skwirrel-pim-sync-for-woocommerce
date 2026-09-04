@@ -83,6 +83,7 @@ function skw_field_mapping_strings(): array
     return [
         'Field mapping',
         'Drive WooCommerce fields from a Skwirrel custom class feature, so you no longer maintain the same value in two systems.',
+        'Find your feature IDs and codes at %s — open a class to see its features, or check a product\'s own custom class values on its edit page.',
         'Field mappings read product-level custom classes. Setting a custom class collection ID under "What to sync" narrows which collection they are read from; without one, every collection is searched.',
         'Stock quantity',
         'Product title',

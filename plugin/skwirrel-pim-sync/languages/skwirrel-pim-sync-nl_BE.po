@@ -949,6 +949,10 @@ msgstr "Het ID of de code van het custom kenmerk met de lange omschrijving. Laat
 msgid "e.g. 812 or PRODUCT_TITLE"
 msgstr "bijv. 812 of PRODUCT_TITLE"
 
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1879
+msgid "Find your feature IDs and codes at %s — open a class to see its features, or check a product's own custom class values on its edit page."
+msgstr "Vind je feature-ID’s en -codes op %s — open een class om de bijbehorende features te zien, of bekijk de custom class-waarden van een product op de bewerkpagina van dat product."
+
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1875
 msgid "Field mappings read product-level custom classes. Setting a custom class collection ID under \"What to sync\" narrows which collection they are read from; without one, every collection is searched."
 msgstr "Veldkoppelingen lezen custom classes op productniveau. Het instellen van een collectie-ID voor custom classes onder „Wat synchroniseren” beperkt uit welke collectie ze gelezen worden; zonder ID wordt in alle collecties gezocht."
