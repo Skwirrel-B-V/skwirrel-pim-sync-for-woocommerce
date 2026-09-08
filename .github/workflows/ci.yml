@@ -45,6 +45,9 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
+      - name: Install gettext (msgfmt)
+        run: sudo apt-get update && sudo apt-get install -y gettext
+
       - name: Run unit tests (Pest)
         run: vendor/bin/pest --testsuite=Unit
 
