@@ -2,6 +2,17 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.14.1]
+
+### Fixed
+
+* **Completed the translation backlog across all 7 locales.** de_DE, fr_FR and fr_BE were missing 24 strings each, nl_NL/nl_BE 5 each, en_US/en_GB 2 each (the mirror convention for those two means any gap there is a regression, not backlog). Every non-empty `msgid` in every catalogue now has a translation.
+* **A translation-completeness regression test.** `TranslationCompletenessTest` re-parses every `.po` file's msgid/msgstr blocks (not a simple substring check) and fails if any non-empty msgid still has an empty msgstr, plus runs `msgfmt --check-format` against every catalogue to catch a translated string whose placeholder count doesn't match its source — the exact defect class an earlier, buggy fill pass introduced and this session caught before it shipped (see Notes).
+
+### Notes
+
+* **How the backlog was measured, and a bug caught while fixing it.** The obvious approach — grep for `msgstr ""` — over-counts: a long translated string's `msgstr` line legitimately reads `msgstr ""` too, with the actual translation on the following wrapped lines, which is normal gettext formatting for anything past ~70 characters. A first fill pass used exactly that naive check, misidentified several dozen *already-translated* long strings as empty, and matched only the `msgstr ""` opening line when inserting new text — appending a fresh translation directly in front of the untouched original wrapped continuation lines, corrupting the entry with two concatenated translations and a doubled placeholder count. `msgfmt --check-format` caught it before it was committed; the fill was reverted and redone with a parser that joins a msgstr's full multi-line value before deciding whether it's actually empty. No corrupted catalogue ever reached a commit or the WordPress.org SVN.
+
 ## [3.14.0]
 
 ### Added

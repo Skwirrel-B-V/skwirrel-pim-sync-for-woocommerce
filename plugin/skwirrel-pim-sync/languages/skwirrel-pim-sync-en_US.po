@@ -1248,6 +1248,8 @@ msgid ""
 "Most \"nothing is happening\" reports turn out to be one of these. Work "
 "through them in order before assuming the plugin itself is broken."
 msgstr ""
+"Most \"nothing is happening\" reports turn out to be one of these. Work "
+"through them in order before assuming the plugin itself is broken."
 
 #. translators: %s: link to the health check above
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:2061
@@ -2260,6 +2262,10 @@ msgid ""
 "that WP-Cron is enabled and that the site can complete loopback requests to "
 "itself."
 msgstr ""
+"A sync has made no progress for %s. WordPress’s background task queue "
+"(Action Scheduler / WP-Cron) may not be executing on this server — check "
+"that WP-Cron is enabled and that the site can complete loopback requests to "
+"itself."
 
 #: includes/class-skwirrel-wc-sync-service.php:1748
 msgid ""

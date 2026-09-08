@@ -26,22 +26,24 @@ msgstr "Skwirrel PIM sync for WooCommerce"
 #. Plugin URI of the plugin
 #: skwirrel-pim-sync.php
 msgid "https://github.com/Skwirrel-B-V/skwirrel-pim-sync-for-woocommerce"
-msgstr ""
+msgstr "https://github.com/Skwirrel-B-V/skwirrel-pim-sync-for-woocommerce"
 
 #. Description of the plugin
 #: skwirrel-pim-sync.php
 msgid "Sync plugin for Skwirrel PIM via Skwirrel JSON-RPC API to WooCommerce."
 msgstr ""
+"Synchronisatieplugin voor Skwirrel PIM naar WooCommerce via de Skwirrel JSON-"
+"RPC API."
 
 #. Author of the plugin
 #: skwirrel-pim-sync.php
 msgid "Skwirrel B.V."
-msgstr ""
+msgstr "Skwirrel B.V."
 
 #. Author URI of the plugin
 #: skwirrel-pim-sync.php
 msgid "https://skwirrel.eu"
-msgstr ""
+msgstr "https://skwirrel.eu"
 
 #: includes/class-skwirrel-wc-sync-action-scheduler.php:259
 #: includes/class-skwirrel-wc-sync-action-scheduler.php:328
@@ -2300,6 +2302,10 @@ msgid ""
 "that WP-Cron is enabled and that the site can complete loopback requests to "
 "itself."
 msgstr ""
+"Er is al %s geen voortgang meer in een synchronisatie. De "
+"achtergrondtakenwachtrij van WordPress (Action Scheduler / WP-Cron) wordt "
+"mogelijk niet uitgevoerd op deze server — controleer of WP-Cron is "
+"ingeschakeld en of de site loopback-verzoeken naar zichzelf kan voltooien."
 
 #: includes/class-skwirrel-wc-sync-service.php:1748
 msgid ""
