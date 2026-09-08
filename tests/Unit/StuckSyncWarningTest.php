@@ -39,7 +39,7 @@ test('get_stuck_run_warning warns once a queued run has sat silent past the thre
 	Skwirrel_WC_Sync_Service::save_run_state([
 		'run_id'     => 'abc',
 		'step'       => 'init',
-		'started_at' => time() - 601,
+		'started_at' => time() - 301,
 	]);
 
 	$warning = Skwirrel_WC_Sync_Service::get_stuck_run_warning();
@@ -65,7 +65,7 @@ test('get_stuck_run_warning names DISABLE_WP_CRON when it is set', function () {
 	Skwirrel_WC_Sync_Service::save_run_state([
 		'run_id'     => 'abc',
 		'step'       => 'init',
-		'started_at' => time() - 601,
+		'started_at' => time() - 301,
 	]);
 
 	$warning = Skwirrel_WC_Sync_Service::get_stuck_run_warning();

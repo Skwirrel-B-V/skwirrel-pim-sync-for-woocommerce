@@ -80,7 +80,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 = 3.14.0 =
 
-* New: a warning appears on the plugin's admin pages when a sync has been queued for more than 10 minutes without starting — a sign that WordPress's background task queue (Action Scheduler / WP-Cron) is not running on the server, which can affect a manual "Sync Now" click as much as a scheduled sync.
+* New: a warning appears on the plugin's admin pages when a sync has been queued for more than 5 minutes without starting — a sign that WordPress's background task queue (Action Scheduler / WP-Cron) is not running on the server, which can affect a manual "Sync Now" click as much as a scheduled sync.
 * New: a "Run health check" button on the Debug tab checks whether WordPress can run scheduled tasks and reach itself over HTTP, using the same tests as Tools → Site Health.
 * New: a "Sync not working? Check this first" checklist on the Debug tab, for working through the usual causes before assuming the plugin is broken.
 * Change: the Custom class collection ID is now fully optional. It is no longer marked required or blocked from saving when empty, and a synchronisation with custom classes, trade-item custom classes, or grouped products enabled no longer fails when it is missing — custom classes are now fetched across every collection instead of one. Set it only to narrow the fetch to a single collection.

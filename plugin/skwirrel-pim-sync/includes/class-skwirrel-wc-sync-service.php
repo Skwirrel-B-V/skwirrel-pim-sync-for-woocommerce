@@ -1706,7 +1706,7 @@ class Skwirrel_WC_Sync_Service {
 	 * work (a long API page, media downloads) is never mistaken for one whose Action Scheduler
 	 * step simply never got picked up.
 	 */
-	private const STUCK_RUN_WARNING_THRESHOLD = 600;
+	private const STUCK_RUN_WARNING_THRESHOLD = 300;
 
 	/**
 	 * Warn the admin when a run is queued but Action Scheduler / WP-Cron never picked it up.
