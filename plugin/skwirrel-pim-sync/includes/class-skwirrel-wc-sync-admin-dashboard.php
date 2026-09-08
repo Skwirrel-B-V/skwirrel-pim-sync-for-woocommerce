@@ -1114,6 +1114,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 */
 	private function render_settings_panel_danger_zone(): void {
 		?>
+		<div class="skw-fg-head">
+			<span class="skw-fg-icon skw-fg-icon-red"><i class="ph ph-warning-octagon" aria-hidden="true"></i></span>
+			<div>
+				<h3 class="skw-danger-zone-title"><?php esc_html_e( 'Danger zone', 'skwirrel-pim-sync' ); ?></h3>
+				<p class="skw-fg-desc"><?php esc_html_e( 'Both actions below take effect immediately.', 'skwirrel-pim-sync' ); ?></p>
+			</div>
+		</div>
 		<div class="skw-fieldgroup">
 			<h3 class="skw-block-title skw-c-red"><?php esc_html_e( 'Delete all products', 'skwirrel-pim-sync' ); ?></h3>
 			<p class="skw-section-desc"><?php esc_html_e( 'Delete all products created or synced by Skwirrel. This cannot be undone if you empty the trash.', 'skwirrel-pim-sync' ); ?></p>
@@ -1304,11 +1311,26 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			$this->field_errors[ $field ][] = isset( $error['message'] ) ? (string) $error['message'] : '';
 		}
 
+		$settings_dashboard_url = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		$settings_debug_url     = add_query_arg( 'tab', 'debug', $settings_dashboard_url );
 		?>
+		<div class="skw-settings-page">
+			<div class="skw-set-crumbs">
+				<a href="<?php echo esc_url( $settings_dashboard_url ); ?>"><?php esc_html_e( 'Skwirrel PIM Sync', 'skwirrel-pim-sync' ); ?></a>
+				<span aria-hidden="true">/</span>
+				<span><?php esc_html_e( 'Settings', 'skwirrel-pim-sync' ); ?></span>
+			</div>
+			<div class="skw-set-header">
+				<div>
+					<h1><?php esc_html_e( 'Settings', 'skwirrel-pim-sync' ); ?></h1>
+					<p><?php esc_html_e( 'Configure your Skwirrel PIM API connection and synchronization options.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+				<div style="display:flex; align-items:center; gap:8px">
+					<a href="<?php echo esc_url( $settings_debug_url ); ?>" class="skw-set-btn"><i class="ph ph-bug" aria-hidden="true"></i> <?php esc_html_e( 'Debug', 'skwirrel-pim-sync' ); ?></a>
+					<a href="https://skwirrel.eu" target="_blank" rel="noopener noreferrer" class="skw-set-btn"><i class="ph ph-lifebuoy" aria-hidden="true"></i> <?php esc_html_e( 'Contact support', 'skwirrel-pim-sync' ); ?></a>
+				</div>
+			</div>
 		<div class="skw-section">
-			<h2 class="skw-section-title"><?php esc_html_e( 'Settings', 'skwirrel-pim-sync' ); ?></h2>
-			<p class="skw-section-desc"><?php esc_html_e( 'Configure your Skwirrel PIM API connection and synchronization options.', 'skwirrel-pim-sync' ); ?></p>
-
 			<?php if ( array() !== $errors ) : ?>
 				<div id="skwirrel-settings-errors">
 					<?php settings_errors( self::OPTION_KEY ); ?>
@@ -1391,6 +1413,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<?php $this->render_settings_tab_panel( $tabs['danger-zone'], $context ); ?>
 			</div>
 		<?php endif; ?>
+		</div>
 		<?php
 	}
 
@@ -1406,7 +1429,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private function render_fieldgroup_api_connection( array $opts, string $token_masked, string $full_url, string $base_url, string $base_host ): void {
 		?>
 		<div class="skw-fieldgroup">
-			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'API Connection', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-fg-head">
+				<span class="skw-fg-icon"><i class="ph ph-plugs-connected" aria-hidden="true"></i></span>
+				<div>
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'API Connection', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-fg-desc"><?php esc_html_e( 'Where your WooCommerce store reaches Skwirrel, and how patient it is.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+			</div>
 			<div class="skw-field"<?php $this->render_field_wrapper_attr( 'skwirrel_base_url' ); ?>>
 				<label for="skwirrel_base_url" class="skw-label"><?php esc_html_e( 'Skwirrel URL', 'skwirrel-pim-sync' ); ?><?php $this->render_required_marker( 'skwirrel_base_url' ); ?></label>
 				<div class="skw-input-affixed">
@@ -1505,7 +1534,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private function render_fieldgroup_scheduling( array $opts ): void {
 		?>
 		<div class="skw-fieldgroup">
-			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Scheduling', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-fg-head">
+				<span class="skw-fg-icon"><i class="ph ph-clock-clockwise" aria-hidden="true"></i></span>
+				<div>
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Scheduling', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-fg-desc"><?php esc_html_e( 'How often the sync runs on its own.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+			</div>
 			<div class="skw-field-row">
 				<div class="skw-field">
 					<label for="sync_interval" class="skw-label"><?php esc_html_e( 'Sync interval', 'skwirrel-pim-sync' ); ?></label>
@@ -1561,7 +1596,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private function render_fieldgroup_sync_options( array $opts, string $base_url ): void {
 		?>
 		<div class="skw-fieldgroup">
-			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Sync Options', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-fg-head">
+				<span class="skw-fg-icon"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i></span>
+				<div>
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Sync Options', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-fg-desc"><?php esc_html_e( 'Which object types travel from Skwirrel into WooCommerce.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+			</div>
 			<div class="skw-checkbox-group">
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_categories]" value="1" <?php checked( ! empty( $opts['sync_categories'] ) ); ?> /> <?php esc_html_e( 'Sync categories', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_grouped_products]" value="1" <?php checked( ! empty( $opts['sync_grouped_products'] ) ); ?> /> <?php esc_html_e( 'Sync grouped products (variable)', 'skwirrel-pim-sync' ); ?></label>
@@ -1675,7 +1716,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private function render_fieldgroup_media_language( array $opts ): void {
 		?>
 		<div class="skw-fieldgroup">
-			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Media & Language', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-fg-head">
+				<span class="skw-fg-icon skw-fg-icon-blue"><i class="ph ph-image" aria-hidden="true"></i></span>
+				<div>
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Media & Language', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-fg-desc"><?php esc_html_e( 'Images, the SKU source field and which translations are requested.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+			</div>
 			<div class="skw-field-row">
 				<div class="skw-field">
 					<label for="sync_images" class="skw-label"><?php esc_html_e( 'Import images', 'skwirrel-pim-sync' ); ?></label>
@@ -1750,7 +1797,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		$resync_needed    = get_option( 'skwirrel_wc_sync_slug_resync_needed', false );
 		?>
 		<div class="skw-fieldgroup">
-			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Permalinks', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-fg-head">
+				<span class="skw-fg-icon skw-fg-icon-blue"><i class="ph ph-link-simple" aria-hidden="true"></i></span>
+				<div>
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Permalinks', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-fg-desc"><?php esc_html_e( 'Read-only summary of the slug rules used for synced products.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+			</div>
 
 			<?php if ( $resync_needed && $update_on_resync ) : ?>
 			<div class="skw-notice skw-notice-warning" id="skwirrel-slug-warning">
@@ -1797,7 +1850,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private function render_fieldgroup_sync_logs( array $opts ): void {
 		?>
 		<div class="skw-fieldgroup">
-			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Sync Logs', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-fg-head">
+				<span class="skw-fg-icon skw-fg-icon-blue"><i class="ph ph-file-text" aria-hidden="true"></i></span>
+				<div>
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Sync Logs', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-fg-desc"><?php esc_html_e( 'Log granularity and retention.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+			</div>
 			<?php
 			$log_mode_manual    = $opts['log_mode_manual'] ?? 'per_sync';
 			$log_mode_scheduled = $opts['log_mode_scheduled'] ?? 'per_day';
@@ -1843,7 +1902,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private function render_fieldgroup_product_status( array $opts ): void {
 		?>
 		<div class="skw-fieldgroup">
-			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Product status handling', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-fg-head">
+				<span class="skw-fg-icon skw-fg-icon-blue"><i class="ph ph-toggle-right" aria-hidden="true"></i></span>
+				<div>
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Product status handling', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-fg-desc"><?php esc_html_e( 'Choose the WooCommerce state for each Skwirrel product status.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+			</div>
 				<p class="skw-field-hint"><?php esc_html_e( 'Choose the WooCommerce state for each Skwirrel product status. The built-in statuses (Draft, Available, Discontinued) are always shown; any extra statuses your Skwirrel instance defines are discovered automatically during a sync — or click "Refresh statuses from Skwirrel" to fetch them now. "Keep published" leaves the product visible, "Draft" hides it, "Trash" moves it to the trash, and "Deprecated" retires it gradually.', 'skwirrel-pim-sync' ); ?></p>
 				<?php
 				$status_map     = is_array( $opts['status_mapping'] ?? null ) ? $opts['status_mapping'] : [];
@@ -1907,7 +1972,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private function render_fieldgroup_field_mapping( array $opts, string $base_url = '' ): void {
 		?>
 		<div class="skw-fieldgroup">
-			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Field mapping', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-fg-head">
+				<span class="skw-fg-icon"><i class="ph ph-arrows-left-right" aria-hidden="true"></i></span>
+				<div>
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Field mapping', 'skwirrel-pim-sync' ); ?></h3>
+				</div>
+			</div>
 			<p class="skw-field-hint"><?php esc_html_e( 'Drive WooCommerce fields from a Skwirrel custom class feature, so you no longer maintain the same value in two systems.', 'skwirrel-pim-sync' ); ?></p>
 			<div class="skw-field">
 				<label for="stock_quantity_feature" class="skw-label"><?php esc_html_e( 'Stock quantity', 'skwirrel-pim-sync' ); ?></label>
@@ -1968,7 +2038,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private function render_fieldgroup_advanced( array $opts ): void {
 		?>
 		<div class="skw-fieldgroup">
-			<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Advanced', 'skwirrel-pim-sync' ); ?></h3>
+			<div class="skw-fg-head">
+				<span class="skw-fg-icon skw-fg-icon-blue"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i></span>
+				<div>
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Advanced', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-fg-desc"><?php esc_html_e( 'Behaviour switches for logging, cleanup and price ownership.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+			</div>
 			<div class="skw-checkbox-group">
 				<label class="skw-checkbox"><input type="checkbox" id="verbose_logging" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[verbose_logging]" value="1" <?php checked( ! empty( $opts['verbose_logging'] ) ); ?> /> <?php esc_html_e( 'Verbose logging', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[purge_stale_products]" value="1" <?php checked( ! empty( $opts['purge_stale_products'] ) ); ?> /> <?php esc_html_e( 'Clean up deleted products after full sync', 'skwirrel-pim-sync' ); ?></label>

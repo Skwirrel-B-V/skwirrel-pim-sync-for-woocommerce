@@ -1,0 +1,299 @@
+/* ==========================================================================
+   Skwirrel PIM Sync — Settings page redesign
+   Same self-hosted brand fonts/icon font as the Debug tab (assets/debug-page.css:
+   Anek Latin, Roboto — both open-licensed Google Fonts — and Phosphor, MIT).
+   Visual layer only: every field name/id, JS hook, and ARIA attribute in
+   render_page_settings() is untouched — this file restyles the existing
+   classes, it does not change what any of them do.
+   ========================================================================== */
+
+@font-face {
+	font-family: 'Anek Latin';
+	src: url('fonts/anek-latin-variable.woff2') format('woff2-variations');
+	font-weight: 100 800;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'Roboto';
+	src: url('fonts/roboto-300.woff2') format('woff2');
+	font-weight: 300;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'Roboto';
+	src: url('fonts/roboto-400.woff2') format('woff2');
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'Roboto';
+	src: url('fonts/roboto-500.woff2') format('woff2');
+	font-weight: 500;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'Roboto';
+	src: url('fonts/roboto-700.woff2') format('woff2');
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'Phosphor';
+	src: url('fonts/phosphor.woff2') format('woff2');
+	font-weight: normal;
+	font-style: normal;
+	font-display: block;
+}
+
+.skw-settings-page {
+	--font-display: 'Anek Latin', ui-sans-serif, system-ui, sans-serif;
+	--font-body: 'Roboto', ui-sans-serif, system-ui, -apple-system, sans-serif;
+	--font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+	--color-primary: hsl(220 100% 66%);
+	--color-lime: hsl(74 100% 71%);
+	--color-neutral: hsl(220 10% 18%);
+	--color-neutral-light: hsl(220 8% 40%);
+	--color-error: hsl(354 65% 58%);
+	--color-error-soft: hsl(355 80% 95%);
+
+	font-family: var(--font-body);
+	color: var(--color-neutral);
+}
+
+.skw-settings-page .ph {
+	font-family: 'Phosphor' !important;
+	font-style: normal;
+	font-weight: normal;
+	line-height: 1;
+	-webkit-font-feature-settings: 'liga';
+	font-feature-settings: 'liga';
+	-webkit-font-smoothing: antialiased;
+}
+.skw-settings-page .ph-plugs-connected:before { content: '\eb5a'; }
+.skw-settings-page .ph-arrows-clockwise:before { content: '\e094'; }
+.skw-settings-page .ph-toggle-right:before { content: '\e676'; }
+.skw-settings-page .ph-image:before { content: '\e2ca'; }
+.skw-settings-page .ph-arrows-left-right:before { content: '\e0a0'; }
+.skw-settings-page .ph-clock-clockwise:before { content: '\e19e'; }
+.skw-settings-page .ph-file-text:before { content: '\e23a'; }
+.skw-settings-page .ph-link-simple:before { content: '\e2e6'; }
+.skw-settings-page .ph-sliders-horizontal:before { content: '\e434'; }
+.skw-settings-page .ph-warning-octagon:before { content: '\e4e4'; }
+.skw-settings-page .ph-bug:before { content: '\e5f4'; }
+.skw-settings-page .ph-lifebuoy:before { content: '\e63a'; }
+.skw-settings-page .ph-arrow-left:before { content: '\e058'; }
+.skw-settings-page .ph-key:before { content: '\e2d6'; }
+.skw-settings-page .ph-plugs:before { content: '\eb56'; }
+
+/* -- Header -- */
+
+.skw-settings-page .skw-set-crumbs {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 6px;
+	font-size: 13px;
+	color: var(--color-neutral-light);
+}
+.skw-settings-page .skw-set-crumbs a { color: inherit; text-decoration: none; }
+.skw-settings-page .skw-set-crumbs a:hover { text-decoration: underline; }
+
+.skw-settings-page .skw-set-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+	margin-bottom: 20px;
+}
+.skw-settings-page .skw-set-header h1 {
+	margin: 0;
+	font-family: var(--font-display);
+	font-weight: 500;
+	font-size: 28px;
+	line-height: 1.2;
+}
+.skw-settings-page .skw-set-header p {
+	margin: 6px 0 0;
+	color: var(--color-neutral-light);
+	font-size: 14px;
+	max-width: 62ch;
+}
+
+.skw-set-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-family: var(--font-display);
+	font-weight: 600;
+	font-size: 13px;
+	padding: 0 14px;
+	height: 34px;
+	border-radius: 6px;
+	border: 1px solid rgb(28 31 38 / .18);
+	background: #fff;
+	color: var(--color-neutral);
+	cursor: pointer;
+	text-decoration: none;
+	white-space: nowrap;
+}
+.skw-set-btn:hover { border-color: var(--color-neutral); color: var(--color-neutral); }
+.skw-set-btn .ph { font-size: 16px; }
+
+/* -- Fieldgroup header: icon tile + title + description -- */
+
+.skw-settings-page .skw-fieldgroup {
+	padding-top: 4px;
+}
+.skw-settings-page .skw-fg-head {
+	display: flex;
+	gap: 14px;
+	align-items: flex-start;
+	margin-bottom: 20px;
+}
+.skw-settings-page .skw-fg-icon {
+	display: grid;
+	place-items: center;
+	width: 36px;
+	height: 36px;
+	border-radius: 8px;
+	background: var(--color-lime);
+	flex-shrink: 0;
+}
+.skw-settings-page .skw-fg-icon.skw-fg-icon-blue { background: hsl(220 100% 96%); }
+.skw-settings-page .skw-fg-icon.skw-fg-icon-red { background: var(--color-error-soft); }
+.skw-settings-page .skw-fg-icon .ph { font-size: 20px; color: var(--color-neutral); }
+.skw-settings-page .skw-fg-icon-blue .ph { color: var(--color-primary); }
+.skw-settings-page .skw-fg-icon-red .ph { color: var(--color-error); }
+.skw-settings-page .skw-fieldgroup-title {
+	font-family: var(--font-display);
+	font-weight: 500;
+	font-size: 19px;
+	line-height: 1.2;
+	color: var(--color-neutral);
+	margin: 0;
+}
+.skw-settings-page .skw-fg-desc {
+	margin: 4px 0 0;
+	color: var(--color-neutral-light);
+	font-size: 14px;
+	max-width: 74ch;
+}
+
+/* -- Fields -- */
+
+.skw-settings-page .skw-label {
+	font-family: var(--font-display);
+	font-weight: 600;
+	font-size: 14px;
+	color: var(--color-neutral);
+}
+.skw-settings-page .skw-input,
+.skw-settings-page .skw-select,
+.skw-settings-page select.skw-select {
+	font-family: var(--font-body);
+	font-size: 14px;
+	border: 1px solid rgb(28 31 38 / .18);
+	border-radius: 6px;
+	padding: 8px 12px;
+	color: var(--color-neutral);
+}
+.skw-settings-page .skw-input:focus,
+.skw-settings-page .skw-select:focus {
+	border-color: var(--color-primary);
+	outline: 2px solid hsl(220 100% 66% / .25);
+	outline-offset: 0;
+}
+.skw-settings-page .skw-input-affixed {
+	border: 1px solid rgb(28 31 38 / .18);
+	border-radius: 6px;
+}
+.skw-settings-page .skw-input-prefix,
+.skw-settings-page .skw-input-suffix {
+	font-family: var(--font-mono);
+	color: var(--color-neutral-light);
+}
+.skw-settings-page .skw-field-hint {
+	font-family: var(--font-body);
+	font-size: 13px;
+	color: var(--color-neutral-light);
+}
+.skw-settings-page .skw-field-hint strong {
+	color: var(--color-neutral);
+	font-weight: 500;
+}
+.skw-settings-page .skw-field-hint code,
+.skw-settings-page .skw-fg-desc code {
+	font-family: var(--font-mono);
+	font-size: 12.5px;
+	background: hsl(220 100% 96%);
+	padding: 1px 6px;
+	border-radius: 4px;
+}
+.skw-settings-page .skw-checkbox {
+	font-family: var(--font-body);
+	font-size: 14px;
+	color: var(--color-neutral);
+}
+.skw-settings-page .skw-required,
+.skw-settings-page .skw-field-required-marker {
+	color: var(--color-error);
+}
+
+/* -- Token / connector status strip -- */
+
+.skw-settings-page .skw-token-status {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px 12px;
+	padding: 12px 16px;
+	border-radius: 8px;
+	background: hsl(220 100% 96%);
+}
+.skw-settings-page .skw-token-status .ph { font-size: 18px; color: var(--color-primary); }
+
+/* -- Buttons -- */
+
+.skw-settings-page .button-primary {
+	font-family: var(--font-display);
+	font-weight: 600;
+	background: var(--color-neutral);
+	border-color: var(--color-neutral);
+	border-radius: 6px;
+	box-shadow: none;
+	text-shadow: none;
+}
+.skw-settings-page .button-primary:hover,
+.skw-settings-page .button-primary:focus {
+	background: hsl(220 10% 28%);
+	border-color: hsl(220 10% 28%);
+}
+.skw-settings-page .button:not(.button-primary) {
+	font-family: var(--font-display);
+	font-weight: 600;
+	border-radius: 6px;
+	box-shadow: none;
+}
+
+/* -- Danger zone -- */
+
+.skw-settings-page .skw-danger-zone {
+	border: 1px solid var(--color-error);
+	border-radius: 10px;
+}
+.skw-settings-page .skw-danger-zone .skw-fg-head { padding: 20px 0 0; }
+.skw-settings-page .skw-danger-zone-title {
+	font-family: var(--font-display);
+	font-weight: 500;
+	font-size: 19px;
+	line-height: 1.2;
+	margin: 0;
+	color: var(--color-error);
+}

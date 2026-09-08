@@ -2052,6 +2052,11 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		if ( isset( $_GET['tab'] ) && 'debug' === $_GET['tab'] ) {
 			wp_enqueue_style( 'skwirrel-pim-sync-debug-page', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/debug-page.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
 		}
+		// Settings tab: same self-hosted fonts/icons, scoped to .skw-settings-page.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tab parameter only selects which stylesheet loads
+		if ( isset( $_GET['tab'] ) && 'settings' === $_GET['tab'] ) {
+			wp_enqueue_style( 'skwirrel-pim-sync-settings-page', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/settings-page.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
+		}
 
 		// Admin page JS (purge confirmation + auto-reload).
 		wp_register_script( 'skwirrel-pim-sync-admin', false, [], SKWIRREL_WC_SYNC_VERSION, true );
