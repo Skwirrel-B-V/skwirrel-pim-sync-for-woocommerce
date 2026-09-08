@@ -17,9 +17,13 @@ _Curated long-term knowledge. Structured so a cold start is immediately useful._
 - **Integration suite reality (verified 2026-08-19):** `tests/Pest.php`'s `uses(WP_UnitTestCase::class)->in('Integration')` binding does NOT take effect — integration tests run as plain `PHPUnit\Framework\TestCase`, so there are **no DB transactions**; `tests/Integration/README.md` claims there are and is wrong. Hence the manual purge helpers in `tests/Integration/bootstrap.php`. wp-env pins WP 7.0 + WC 10.8.
 - **Admin-menu testing recipe:** `wp-admin/menu.php` (+ `wp-admin/includes/menu.php`) can only be loaded once per PHP process (function declarations), and must be required with the menu globals imported via `global`. Snapshot core's baseline from an `admin_menu` callback at `-PHP_INT_MAX`, then restore + re-fire per scenario. Rendered top-level order ≠ raw `$menu` keys: WooCommerce opts into `custom_menu_order` and rewrites the list. See `tests/Integration/AdminMenuIntegrationTest.php`.
 - **State at 2026-08-18:** version 3.12.2, fully consistent across all five locations.
-- **State at 2026-09-08:** on `release/3.14.0` (untagged, still open). Built the stuck-sync warning
-  + health check + Debug checklist on branch `feature/stuck-sync-warning` off it — all gates green,
-  not committed (build only). Version correctly stayed 3.14.0 per `release-consistency.py`.
+- **State at 2026-09-08:** PR #54 (`feature/stuck-sync-warning` → `release/3.14.0`) merged via merge
+  commit `91324cc`. Carries: the stuck-sync warning, on-demand health check + Debug checklist, WP
+  7.1 compat verification, admin-menu "Debug" row + non-navigating "Sync now", and an i18n sweep of
+  the whole Settings screen. Two sessions worked this same branch in parallel (Jos ran a second
+  chat that added the Danger-zone settings tab + completed nl_NL/nl_BE translations directly on the
+  branch) — both consolidated into the one PR before merge. Still version 3.14.0, still untagged.
+  Feature branch not deleted (remote only; local checkout still exists too).
 
 - **Catalogue regeneration recipe (verified 2026-08-27):** no local wp-cli; use the wp-env container — `npx wp-env run cli --env-cwd=wp-content/plugins/skwirrel-pim-sync wp i18n make-pot . languages/skwirrel-pim-sync.pot --slug=skwirrel-pim-sync --domain=skwirrel-pim-sync --exclude=vendor,node_modules,tests`, then `msgmerge --update --backup=none --no-fuzzy-matching` per locale, then translate, then `msgcat --width=79` to restore gettext wrapping (polib wraps *before* the space and reflows the whole file), then `msgfmt` **last** — `AdminSettingsRequiredFieldsTest` asserts .mo mtime >= .po mtime.
 - **en_GB and en_US are byte-identical mirrors of the English source** by convention here — msgstr == msgid. Fill them; don't leave them empty.
