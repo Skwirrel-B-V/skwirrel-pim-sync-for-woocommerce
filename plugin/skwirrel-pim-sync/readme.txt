@@ -89,6 +89,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * New: mandatory settings are marked with an asterisk, and fields that are only mandatory in certain configurations pick the marker up the moment you tick the setting that makes them so — no save needed to find out.
 * New: every validation message now appears next to the field it is about, as well as in the standard WordPress summary at the top, and screen readers announce it together with that field.
 * New: an optional Context ID on the API Connection settings, for Skwirrel instances that serve more than one context. Leave it empty to keep using the Skwirrel default context — that is what your shop does today.
+* Change: the Context ID field is now hidden on the settings screen, as almost no shop needs it. It is only hidden — an install that already has a context configured keeps using it exactly as before.
 * New: the Context ID is applied to products, product groups and categories alike, so your catalogue can never end up a mix of two contexts.
 * New: changing the Context ID re-imports your whole catalogue on the next synchronisation, and says so when you save. Saving without changing it does not.
 * New: a Context ID that is not a whole number greater than 0 is rejected with a message at the field, stays visible so you can correct it, and is never sent to Skwirrel. Your synchronisation keeps using the context that was working, so a typo cannot quietly point your shop at a different catalogue.

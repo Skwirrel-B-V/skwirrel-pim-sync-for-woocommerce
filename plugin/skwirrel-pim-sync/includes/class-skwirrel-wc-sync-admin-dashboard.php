@@ -1391,7 +1391,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<label for="retries" class="skw-label"><?php esc_html_e( 'Retries', 'skwirrel-pim-sync' ); ?></label>
 					<input type="number" id="retries" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[retries]" value="<?php echo esc_attr( (string) ( $opts['retries'] ?? 2 ) ); ?>" min="0" max="5" class="skw-input skw-input-sm" />
 				</div>
-				<div class="skw-field"<?php $this->render_field_wrapper_attr( 'context_id' ); ?>>
+				<div class="skw-field" hidden<?php $this->render_field_wrapper_attr( 'context_id' ); ?>>
 					<label for="context_id" class="skw-label"><?php esc_html_e( 'Context ID', 'skwirrel-pim-sync' ); ?></label>
 					<?php
 					/*
