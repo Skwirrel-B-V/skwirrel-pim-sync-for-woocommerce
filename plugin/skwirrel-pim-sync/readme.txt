@@ -2,7 +2,7 @@
 Contributors: jkoomen
 Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 8.3
 Stable tag: 3.14.0
 License: GPLv2 or later
@@ -80,6 +80,9 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 = 3.14.0 =
 
+* New: a warning appears on the plugin's admin pages when a sync has been queued for more than 5 minutes without starting — a sign that WordPress's background task queue (Action Scheduler / WP-Cron) is not running on the server, which can affect a manual "Sync Now" click as much as a scheduled sync.
+* New: a "Run health check" button on the Debug tab checks whether WordPress can run scheduled tasks and reach itself over HTTP, using the same tests as Tools → Site Health.
+* New: a "Sync not working? Check this first" checklist on the Debug tab, for working through the usual causes before assuming the plugin is broken.
 * Change: the Custom class collection ID is now fully optional. It is no longer marked required or blocked from saving when empty, and a synchronisation with custom classes, trade-item custom classes, or grouped products enabled no longer fails when it is missing — custom classes are now fetched across every collection instead of one. Set it only to narrow the fetch to a single collection.
 * New: the Field mapping tab now links to where you find a feature's ID or code, the same way the other reference fields on this screen already do.
 * New: the settings screen is grouped into tabs — Connection, What to sync, Field mapping and Advanced — so you no longer scroll past forty settings to reach one. No setting changed or was renamed; Media & Language moved into What to sync, and Permalinks moved into Advanced.
@@ -90,6 +93,8 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * New: every validation message now appears next to the field it is about, as well as in the standard WordPress summary at the top, and screen readers announce it together with that field.
 * New: an optional Context ID on the API Connection settings, for Skwirrel instances that serve more than one context. Leave it empty to keep using the Skwirrel default context — that is what your shop does today.
 * Change: the Context ID field is now hidden on the settings screen, as almost no shop needs it. It is only hidden — an install that already has a context configured keeps using it exactly as before.
+* Change: the Field mapping tab now states the feature type each field expects — numeric for Stock quantity, short text for Product title, long text for Short description and Long description — right above the existing explanation.
+* Change: Danger zone is now its own settings tab instead of a section shown below the settings form on every tab. The "Delete all Skwirrel products" and "Reset Skwirrel sync settings" actions themselves are unchanged.
 * New: the Context ID is applied to products, product groups and categories alike, so your catalogue can never end up a mix of two contexts.
 * New: changing the Context ID re-imports your whole catalogue on the next synchronisation, and says so when you save. Saving without changing it does not.
 * New: a Context ID that is not a whole number greater than 0 is rejected with a message at the field, stays visible so you can correct it, and is never sent to Skwirrel. Your synchronisation keeps using the context that was working, so a typo cannot quietly point your shop at a different catalogue.
@@ -112,6 +117,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * Fix: the Custom class collection ID is no longer labelled "(optional)" while saving can reject it as missing.
 * Fix: restored the translated delete-protection hint to the wording the plugin actually displays.
 * Maintenance: the temporary WooCommerce-menu pointer used during the top-level-menu migration has now expired and been removed.
+* Maintenance: verified compatible with and raised "Tested up to" to WordPress 7.1.
 * Note: with JavaScript disabled the settings screen still shows every setting, exactly as before.
 
 = 3.13.1 =

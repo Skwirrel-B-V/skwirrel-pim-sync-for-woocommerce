@@ -271,7 +271,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			</a>
 
 			<?php // -- Danger Zone -- ?>
-			<a href="<?php echo esc_url( add_query_arg( 'tab', 'settings', $base_url ) . '#skwirrel-danger-zone' ); ?>" class="skw-block skw-block-compact skw-block-danger">
+			<a href="<?php echo esc_url( add_query_arg( 'tab', 'settings', $base_url ) . '#tab-danger-zone' ); ?>" class="skw-block skw-block-compact skw-block-danger">
 				<div class="skw-block-icon skw-bg-red">
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
 				</div>
@@ -436,12 +436,39 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 * refresh the same banner in place on every admin screen.
 	 */
 	public static function get_sync_banner_html(): string {
-		if ( ! get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ) ) {
-			return '';
+		if ( get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ) ) {
+			ob_start();
+			self::render_sync_progress();
+			return (string) ob_get_clean();
 		}
-		ob_start();
-		self::render_sync_progress();
-		return (string) ob_get_clean();
+		$stuck_warning = Skwirrel_WC_Sync_Service::get_stuck_run_warning();
+		if ( null !== $stuck_warning ) {
+			ob_start();
+			self::render_stuck_warning( $stuck_warning );
+			return (string) ob_get_clean();
+		}
+		return '';
+	}
+
+	/**
+	 * Render the "sync queued but never started" warning shown in the shared banner slot —
+	 * present on every tab, since a stuck sync is just as relevant on Settings or Debug as on
+	 * the dashboard, and a manual "Sync Now" click looks synchronous but isn't.
+	 *
+	 * @param string $message Translated warning text from Skwirrel_WC_Sync_Service::get_stuck_run_warning().
+	 */
+	private static function render_stuck_warning( string $message ): void {
+		?>
+		<div class="skw-status-card skw-status-warning">
+			<div class="skw-status-icon">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
+			</div>
+			<div class="skw-status-body">
+				<p class="skw-status-title"><?php esc_html_e( 'Sync appears stuck', 'skwirrel-pim-sync' ); ?></p>
+				<p class="skw-status-meta"><?php echo esc_html( $message ); ?></p>
+			</div>
+		</div>
+		<?php
 	}
 
 	/**
@@ -824,6 +851,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				'render' => 'render_settings_panel_advanced',
 				'fields' => array( 'sync_interval', 'log_retention' ),
 			),
+			'danger-zone'   => array(
+				'label'  => __( 'Danger zone', 'skwirrel-pim-sync' ),
+				'order'  => 50,
+				'render' => 'render_settings_panel_danger_zone',
+				'fields' => array(),
+			),
 		);
 
 		/**
@@ -1011,6 +1044,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			case 'render_settings_panel_advanced':
 				$this->render_settings_panel_advanced( $context );
 				return;
+			case 'render_settings_panel_danger_zone':
+				$this->render_settings_panel_danger_zone();
+				return;
 		}
 
 		if ( is_callable( $render ) ) {
@@ -1063,6 +1099,45 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		$this->render_fieldgroup_sync_logs( (array) $context['opts'] );
 		$this->render_fieldgroup_permalinks();
 		$this->render_fieldgroup_advanced( (array) $context['opts'] );
+	}
+
+	/**
+	 * Render the "Danger zone" tab panel.
+	 *
+	 * These two actions post to `admin-post.php`, not `options.php`, so this panel is kept
+	 * out of the one settings `<form>` the other tabs share — a `<form>` nested inside
+	 * another is invalid HTML and browsers silently break its submission. The panel is still
+	 * wired into the same tab strip: {@see render_page_settings()} renders it after the
+	 * settings form closes, carrying the same `role="tabpanel"`/`id`/`data-skw-panel`
+	 * attributes the tab-switching script looks up by ID, so showing and hiding it works
+	 * exactly like every other tab despite living outside the form.
+	 */
+	private function render_settings_panel_danger_zone(): void {
+		?>
+		<div class="skw-fieldgroup">
+			<h3 class="skw-block-title skw-c-red"><?php esc_html_e( 'Delete all products', 'skwirrel-pim-sync' ); ?></h3>
+			<p class="skw-section-desc"><?php esc_html_e( 'Delete all products created or synced by Skwirrel. This cannot be undone if you empty the trash.', 'skwirrel-pim-sync' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-purge-form">
+				<input type="hidden" name="action" value="skwirrel_wc_sync_purge" />
+				<?php wp_nonce_field( 'skwirrel_wc_sync_purge', '_wpnonce' ); ?>
+				<label class="skw-checkbox"><input type="checkbox" name="skwirrel_purge_empty_trash" value="1" id="skwirrel-purge-permanent" /> <?php esc_html_e( 'Also empty the trash (permanently delete)', 'skwirrel-pim-sync' ); ?></label>
+				<div class="skw-field-actions" style="margin-top: 12px;">
+					<button type="submit" class="skw-btn skw-btn-danger"><?php esc_html_e( 'Delete all Skwirrel products', 'skwirrel-pim-sync' ); ?></button>
+				</div>
+			</form>
+		</div>
+		<div class="skw-fieldgroup">
+			<h3 class="skw-block-title skw-c-red"><?php esc_html_e( 'Reset settings', 'skwirrel-pim-sync' ); ?></h3>
+			<p class="skw-section-desc"><?php esc_html_e( 'Delete all Skwirrel sync configuration (endpoint URL, API token, sync schedule, slug rules). Cancels all scheduled sync jobs and flushes the object cache. Products, media, categories and sync history are untouched — use this when your settings refuse to update because of an aggressive persistent cache.', 'skwirrel-pim-sync' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-reset-settings-form">
+				<input type="hidden" name="action" value="skwirrel_wc_sync_reset_settings" />
+				<?php wp_nonce_field( 'skwirrel_wc_sync_reset_settings', '_wpnonce' ); ?>
+				<div class="skw-field-actions" style="margin-top: 12px;">
+					<button type="submit" class="skw-btn skw-btn-danger" id="skwirrel-reset-settings-btn"><?php esc_html_e( 'Reset Skwirrel sync settings', 'skwirrel-pim-sync' ); ?></button>
+				</div>
+			</form>
+		</div>
+		<?php
 	}
 
 	/**
@@ -1276,13 +1351,22 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<?php wp_nonce_field( 'options-options' ); ?>
 				<?php settings_fields( 'skwirrel_wc_sync' ); ?>
 
-				<?php foreach ( $tabs as $slug => $tab ) : ?>
+				<?php
+				foreach ( $tabs as $slug => $tab ) :
+					$slug = (string) $slug;
+					// The Danger zone panel posts to admin-post.php, not options.php — a <form>
+					// nested inside this one is invalid HTML and browsers silently break its
+					// submission. It is rendered after this form closes instead, see below.
+					if ( 'danger-zone' === $slug ) {
+						continue;
+					}
+					?>
 					<div
 						class="skw-tabpanel"
 						role="tabpanel"
-						id="panel-<?php echo esc_attr( (string) $slug ); ?>"
-						data-skw-panel="<?php echo esc_attr( (string) $slug ); ?>"
-						aria-labelledby="tab-<?php echo esc_attr( (string) $slug ); ?>"
+						id="panel-<?php echo esc_attr( $slug ); ?>"
+						data-skw-panel="<?php echo esc_attr( $slug ); ?>"
+						aria-labelledby="tab-<?php echo esc_attr( $slug ); ?>"
 						tabindex="0"
 					>
 						<?php $this->render_settings_tab_panel( $tab, $context ); ?>
@@ -1295,31 +1379,18 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			</form>
 		</div>
 
-		<?php // -- Danger Zone -- ?>
-		<div id="skwirrel-danger-zone" class="skw-section skw-danger-zone">
-			<h2 class="skw-section-title skw-c-red"><?php esc_html_e( 'Danger zone', 'skwirrel-pim-sync' ); ?></h2>
-			<p class="skw-section-desc"><?php esc_html_e( 'Delete all products created or synced by Skwirrel. This cannot be undone if you empty the trash.', 'skwirrel-pim-sync' ); ?></p>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-purge-form">
-				<input type="hidden" name="action" value="skwirrel_wc_sync_purge" />
-				<?php wp_nonce_field( 'skwirrel_wc_sync_purge', '_wpnonce' ); ?>
-				<label class="skw-checkbox"><input type="checkbox" name="skwirrel_purge_empty_trash" value="1" id="skwirrel-purge-permanent" /> <?php esc_html_e( 'Also empty the trash (permanently delete)', 'skwirrel-pim-sync' ); ?></label>
-				<div class="skw-field-actions" style="margin-top: 12px;">
-					<button type="submit" class="skw-btn skw-btn-danger"><?php esc_html_e( 'Delete all Skwirrel products', 'skwirrel-pim-sync' ); ?></button>
-				</div>
-			</form>
-
-			<hr style="margin: 24px 0; border: 0; border-top: 1px solid rgba(220, 50, 50, 0.2);" />
-
-			<h3 class="skw-block-title"><?php esc_html_e( 'Reset settings', 'skwirrel-pim-sync' ); ?></h3>
-			<p class="skw-section-desc"><?php esc_html_e( 'Delete all Skwirrel sync configuration (endpoint URL, API token, sync schedule, slug rules). Cancels all scheduled sync jobs and flushes the object cache. Products, media, categories and sync history are untouched — use this when your settings refuse to update because of an aggressive persistent cache.', 'skwirrel-pim-sync' ); ?></p>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-reset-settings-form">
-				<input type="hidden" name="action" value="skwirrel_wc_sync_reset_settings" />
-				<?php wp_nonce_field( 'skwirrel_wc_sync_reset_settings', '_wpnonce' ); ?>
-				<div class="skw-field-actions" style="margin-top: 12px;">
-					<button type="submit" class="skw-btn skw-btn-danger" id="skwirrel-reset-settings-btn"><?php esc_html_e( 'Reset Skwirrel sync settings', 'skwirrel-pim-sync' ); ?></button>
-				</div>
-			</form>
-		</div>
+		<?php if ( isset( $tabs['danger-zone'] ) ) : ?>
+			<div
+				class="skw-tabpanel skw-section skw-danger-zone"
+				role="tabpanel"
+				id="panel-danger-zone"
+				data-skw-panel="danger-zone"
+				aria-labelledby="tab-danger-zone"
+				tabindex="0"
+			>
+				<?php $this->render_settings_tab_panel( $tabs['danger-zone'], $context ); ?>
+			</div>
+		<?php endif; ?>
 		<?php
 	}
 
@@ -1635,7 +1706,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<option value="_custom" <?php selected( $is_custom ); ?>><?php esc_html_e( 'Other…', 'skwirrel-pim-sync' ); ?></option>
 					</select>
 					<span id="image_language_custom_wrap" style="display:<?php echo esc_attr( $is_custom ? 'inline-block' : 'none' ); ?>; margin-top: 6px;">
-						<input type="text" id="image_language_custom" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[image_language_custom]" value="<?php echo esc_attr( $is_custom ? $current_lang : '' ); ?>" class="skw-input skw-input-sm" pattern="[a-z]{2}(-[A-Z]{2})?" placeholder="e.g. es-ES" />
+						<input type="text" id="image_language_custom" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[image_language_custom]" value="<?php echo esc_attr( $is_custom ? $current_lang : '' ); ?>" class="skw-input skw-input-sm" pattern="[a-z]{2}(-[A-Z]{2})?" placeholder="<?php esc_attr_e( 'e.g. es-ES', 'skwirrel-pim-sync' ); ?>" />
 					</span>
 				</div>
 			</div>
@@ -1843,21 +1914,24 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<input type="text" id="stock_quantity_feature" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[stock_quantity_feature]" value="<?php echo esc_attr( (string) ( $opts['stock_quantity_feature'] ?? '' ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 1234 or STOCK_QTY', 'skwirrel-pim-sync' ); ?>"
 				<?php $this->render_field_state_attrs( 'stock_quantity_feature', 'stock_quantity_feature-hint' ); ?> />
 				<?php $this->render_field_error( 'stock_quantity_feature' ); ?>
-				<p class="skw-field-hint" id="stock_quantity_feature-hint"><?php esc_html_e( 'The ID or code of one product-level custom feature holding the stock quantity. The feature must be numeric, or text that contains only a number; range, logical and multi-value features are ignored. When a product has no usable value, its current stock is left untouched — never set to 0 and never switched to unmanaged. Trade-item level features are not used. Products priced on request keep their own availability whatever this feature says. Clearing this field turns the mapping off again, and the next synchronisation then returns priced variations to unmanaged and in stock, discarding the quantities it had been maintaining.', 'skwirrel-pim-sync' ); ?></p>
+				<p class="skw-field-hint" id="stock_quantity_feature-hint"><strong><?php esc_html_e( 'Must be a numeric feature.', 'skwirrel-pim-sync' ); ?></strong> <?php esc_html_e( 'The ID or code of one product-level custom feature holding the stock quantity. Text is accepted only if it contains nothing but a number; range, logical and multi-value features are ignored. When a product has no usable value, its current stock is left untouched — never set to 0 and never switched to unmanaged. Trade-item level features are not used. Products priced on request keep their own availability whatever this feature says. Clearing this field turns the mapping off again, and the next synchronisation then returns priced variations to unmanaged and in stock, discarding the quantities it had been maintaining.', 'skwirrel-pim-sync' ); ?></p>
 			</div>
 			<?php
 			$content_fields = array(
 				'title_feature_id'             => array(
-					'label' => __( 'Product title', 'skwirrel-pim-sync' ),
-					'hint'  => __( 'The ID or code of the custom feature holding the product title. Leave empty to keep using the normal source (the ERP description, then the product translations). When a product has no value for this feature, the normal source is used for that product — the title is never blanked.', 'skwirrel-pim-sync' ),
+					'label'     => __( 'Product title', 'skwirrel-pim-sync' ),
+					'type_note' => __( 'Should be a short text feature.', 'skwirrel-pim-sync' ),
+					'hint'      => __( 'The ID or code of the custom feature holding the product title. Leave empty to keep using the normal source (the ERP description, then the product translations). When a product has no value for this feature, the normal source is used for that product — the title is never blanked.', 'skwirrel-pim-sync' ),
 				),
 				'short_description_feature_id' => array(
-					'label' => __( 'Short description', 'skwirrel-pim-sync' ),
-					'hint'  => __( 'The ID or code of the custom feature holding the short description. Leave empty to keep using the product translations. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
+					'label'     => __( 'Short description', 'skwirrel-pim-sync' ),
+					'type_note' => __( 'Should be a long text feature.', 'skwirrel-pim-sync' ),
+					'hint'      => __( 'The ID or code of the custom feature holding the short description. Leave empty to keep using the product translations. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
 				),
 				'long_description_feature_id'  => array(
-					'label' => __( 'Long description', 'skwirrel-pim-sync' ),
-					'hint'  => __( 'The ID or code of the custom feature holding the long description. Leave empty to keep using the normal source. Formatting is kept; unsafe markup is removed. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
+					'label'     => __( 'Long description', 'skwirrel-pim-sync' ),
+					'type_note' => __( 'Should be a long text feature.', 'skwirrel-pim-sync' ),
+					'hint'      => __( 'The ID or code of the custom feature holding the long description. Leave empty to keep using the normal source. Formatting is kept; unsafe markup is removed. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
 				),
 			);
 			foreach ( $content_fields as $field_id => $field ) :
@@ -1867,7 +1941,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<input type="text" id="<?php echo esc_attr( $field_id ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $field_id ); ?>]" value="<?php echo esc_attr( (string) ( $opts[ $field_id ] ?? '' ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 812 or PRODUCT_TITLE', 'skwirrel-pim-sync' ); ?>"
 					<?php $this->render_field_state_attrs( $field_id, $field_id . '-hint' ); ?> />
 					<?php $this->render_field_error( $field_id ); ?>
-					<p class="skw-field-hint" id="<?php echo esc_attr( $field_id ); ?>-hint"><?php echo esc_html( $field['hint'] ); ?></p>
+					<p class="skw-field-hint" id="<?php echo esc_attr( $field_id ); ?>-hint"><strong><?php echo esc_html( $field['type_note'] ); ?></strong> <?php echo esc_html( $field['hint'] ); ?></p>
 				</div>
 				<?php
 			endforeach;
@@ -1961,6 +2035,64 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</button>
 			</div>
 			<pre id="skwirrel-live-log-content" data-filename="<?php echo esc_attr( $active_log ? $active_log : '' ); ?>"></pre>
+		</div>
+
+		<?php
+		$scheduled_actions_url = admin_url( 'tools.php?page=action-scheduler&s=skwirrel&status=pending' );
+		$site_health_url       = admin_url( 'site-health.php' );
+		$logger_for_debug      = new Skwirrel_WC_Sync_Logger();
+		$wc_log_url            = $logger_for_debug->get_log_file_url();
+		?>
+		<div class="skw-section" id="skwirrel-health-check">
+			<h2 class="skw-section-title"><?php esc_html_e( 'Sync health check', 'skwirrel-pim-sync' ); ?></h2>
+			<p class="skw-section-desc"><?php esc_html_e( 'Checks whether WordPress can actually run a queued sync step — the usual cause when a sync starts but nothing happens.', 'skwirrel-pim-sync' ); ?></p>
+			<button type="button" class="button" id="skwirrel-health-check-run"><?php esc_html_e( 'Run health check', 'skwirrel-pim-sync' ); ?></button>
+			<div id="skwirrel-health-check-results" class="skw-health-results"></div>
+		</div>
+
+		<div class="skw-section">
+			<h2 class="skw-section-title"><?php esc_html_e( 'Sync not working? Check this first', 'skwirrel-pim-sync' ); ?></h2>
+			<p class="skw-section-desc"><?php esc_html_e( 'Most "nothing is happening" reports turn out to be one of these. Work through them in order before assuming the plugin itself is broken.', 'skwirrel-pim-sync' ); ?></p>
+			<ol class="skw-debug-steps">
+				<li>
+					<?php
+					printf(
+						/* translators: %s: link to the health check above */
+						esc_html__( 'Run the %s above — it tells you directly whether WordPress can run scheduled tasks and reach itself over HTTP.', 'skwirrel-pim-sync' ),
+						'<a href="#skwirrel-health-check">' . esc_html__( 'health check', 'skwirrel-pim-sync' ) . '</a>'
+					);
+					?>
+				</li>
+				<li>
+					<?php
+					printf(
+						/* translators: %s: link to WooCommerce's own log viewer */
+						esc_html__( 'Check %s (source "skwirrel-pim-sync") for the actual error — a failure always logs there, even when verbose logging is off.', 'skwirrel-pim-sync' ),
+						$wc_log_url ? '<a href="' . esc_url( $wc_log_url ) . '" target="_blank">' . esc_html__( 'WooCommerce → Status → Logs', 'skwirrel-pim-sync' ) . '</a>' : esc_html__( 'WooCommerce → Status → Logs', 'skwirrel-pim-sync' )
+					);
+					?>
+				</li>
+				<li>
+					<?php
+					printf(
+						/* translators: %s: link to the Scheduled Actions screen */
+						esc_html__( 'Look at %s for hooks starting with "skwirrel_wc_sync_". Pending for more than a few minutes means the queue is not being processed at all — see the next two steps.', 'skwirrel-pim-sync' ),
+						'<a href="' . esc_url( $scheduled_actions_url ) . '" target="_blank">' . esc_html__( 'Scheduled Actions', 'skwirrel-pim-sync' ) . '</a>'
+					);
+					?>
+				</li>
+				<li>
+					<?php
+					printf(
+						/* translators: %s: link to WordPress's Site Health screen */
+						esc_html__( 'Open %s and look for "A scheduled event has failed" or "Your site could not complete a loopback request" — both point at WP-Cron/loopback delivery, not this plugin.', 'skwirrel-pim-sync' ),
+						'<a href="' . esc_url( $site_health_url ) . '" target="_blank">' . esc_html__( 'Tools → Site Health', 'skwirrel-pim-sync' ) . '</a>'
+					);
+					?>
+				</li>
+				<li><?php esc_html_e( 'If WP-Cron looks broken: check whether DISABLE_WP_CRON is set in wp-config.php, and if so, confirm your host has a real server cron job calling wp-cron.php on a schedule.', 'skwirrel-pim-sync' ); ?></li>
+				<li><?php esc_html_e( 'If loopback requests fail: ask your host whether a firewall, WAF, or security plugin blocks the site from making HTTP requests to itself.', 'skwirrel-pim-sync' ); ?></li>
+			</ol>
 		</div>
 
 		<div class="skw-section">

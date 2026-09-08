@@ -87,6 +87,13 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// Inline "Test connection": autosaves the environment/connection settings, then tests them.
 		add_action( 'wp_ajax_skwirrel_wc_sync_test_connection', [ $this, 'handle_test_connection_ajax' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_refresh_statuses', [ $this, 'handle_refresh_statuses' ] );
+		// On-demand health check (Debug tab): reuses WordPress core's own Site Health tests for
+		// scheduled events and loopback requests, so a stuck sync's actual cause — cron not running,
+		// or the site unable to call itself — is diagnosable without leaving the plugin's screen.
+		add_action( 'wp_ajax_skwirrel_wc_sync_health_check', [ $this, 'handle_health_check' ] );
+		// "Sync now" from the admin menu (any screen): starts the sync without navigating away.
+		// The in-page "Sync Now" button keeps using handle_sync_now() / admin-post.php.
+		add_action( 'wp_ajax_skwirrel_wc_sync_run_ajax', [ $this, 'handle_sync_now_ajax' ] );
 	}
 
 	/**
@@ -131,8 +138,12 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	 */
 	private static function tab_submenu_slugs(): array {
 		return [
-			'settings' => 'admin.php?page=' . self::PAGE_SLUG . '&tab=settings',
-			'debug'    => 'admin.php?page=' . self::PAGE_SLUG . '&tab=debug',
+			'settings'     => 'admin.php?page=' . self::PAGE_SLUG . '&tab=settings',
+			'debug'        => 'admin.php?page=' . self::PAGE_SLUG . '&tab=debug',
+			// Same tab as 'debug', anchored straight at the health check / troubleshooting
+			// checklist rather than the live log tail — a separate, more discoverable menu
+			// entry for "something's wrong, where do I even start" versus "show me the log".
+			'debug-health' => 'admin.php?page=' . self::PAGE_SLUG . '&tab=debug#skwirrel-health-check',
 		];
 	}
 
@@ -163,15 +174,18 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 		add_submenu_page( self::PAGE_SLUG, '', __( 'Settings', 'skwirrel-pim-sync' ), 'manage_woocommerce', $tabs['settings'] );
 		add_submenu_page( self::PAGE_SLUG, '', __( 'Sync logs', 'skwirrel-pim-sync' ), 'manage_woocommerce', $tabs['debug'] );
+		add_submenu_page( self::PAGE_SLUG, '', __( 'Debug', 'skwirrel-pim-sync' ), 'manage_woocommerce', $tabs['debug-health'] );
 
-		// Pure navigation: jumps to the "Sync Now" block on the status screen. It deliberately
-		// does not trigger a sync — an admin menu link must never perform a state change.
+		// Triggers the sync directly, the same nonced admin-post.php request the in-page "Sync Now"
+		// button uses (render_page_dashboard()) — not a navigation link. A menu click is a single,
+		// deliberate user action just like clicking that button; the nonce is what keeps it from
+		// being a bare, replayable GET that anything could trigger.
 		add_submenu_page(
 			self::PAGE_SLUG,
 			'',
 			__( 'Sync now', 'skwirrel-pim-sync' ),
 			'manage_woocommerce',
-			'admin.php?page=' . self::PAGE_SLUG . '#skwirrel-sync-now'
+			wp_nonce_url( admin_url( 'admin-post.php?action=skwirrel_wc_sync_run' ), 'skwirrel_wc_sync_run', '_wpnonce' )
 		);
 	}
 
@@ -1271,14 +1285,71 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		return is_array( $products ) ? $products : [];
 	}
 
+	/**
+	 * Starts a manual sync: sets the "running" badge and either enqueues the resumable Action
+	 * Scheduler runner, or (no Action Scheduler) prepares a fire-and-forget loopback URL. Shared
+	 * by handle_sync_now() (full-page redirect — the in-page "Sync Now" button and the admin menu
+	 * link's no-JS fallback) and handle_sync_now_ajax() (stays on the current page).
+	 *
+	 * @return string Empty when Action Scheduler will run the sync; otherwise the loopback URL the
+	 *                caller must pass to fire_manual_sync_loopback() — after sending its own
+	 *                response — to actually trigger the fallback sync.
+	 */
+	private function begin_manual_sync(): string {
+		// Show the "sync running" badge from the moment the user clicks.
+		set_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS, (string) time(), 60 );
+
+		// Preferred path: enqueue the resumable batched runner via Action Scheduler. One bounded step
+		// per async action means no single server time limit (php-fpm request_terminate_timeout, nginx
+		// fastcgi_read_timeout, proxy gateway) can kill the whole run, and it resumes automatically —
+		// fixing manual full syncs that died part-way and had to be restarted by hand.
+		if ( function_exists( 'as_enqueue_async_action' ) ) {
+			Skwirrel_WC_Sync_Service::start_async( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
+			return '';
+		}
+
+		// Fallback (no Action Scheduler): detached loopback request that runs the sync synchronously.
+		$token = bin2hex( random_bytes( 16 ) );
+		set_transient( self::BG_SYNC_TRANSIENT . '_' . $token, '1', 120 );
+
+		return add_query_arg(
+			[
+				'action' => self::BG_SYNC_ACTION,
+				'token'  => $token,
+			],
+			admin_url( 'admin-ajax.php' )
+		);
+	}
+
+	/**
+	 * Fires the fallback loopback request begin_manual_sync() prepared, if any. Call only after
+	 * the caller's own response has been sent (and, where available, fastcgi_finish_request()
+	 * called) so the fire-and-forget dispatch can never delay what the user sees.
+	 *
+	 * @param string $loopback_url Return value of begin_manual_sync(); a no-op when empty.
+	 */
+	private function fire_manual_sync_loopback( string $loopback_url ): void {
+		if ( '' === $loopback_url ) {
+			return;
+		}
+		wp_remote_post(
+			$loopback_url,
+			[
+				'blocking'  => false,
+				'timeout'   => 0.01,
+				// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress core filter
+				'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
+			]
+		);
+	}
+
 	public function handle_sync_now(): void {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			wp_die( esc_html__( 'Access denied.', 'skwirrel-pim-sync' ) );
 		}
 		check_admin_referer( 'skwirrel_wc_sync_run', '_wpnonce' );
 
-		// Show the "sync running" badge from the moment the user clicks.
-		set_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS, (string) time(), 60 );
+		$loopback_url = $this->begin_manual_sync();
 
 		$redirect = add_query_arg(
 			[
@@ -1287,46 +1358,39 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			],
 			admin_url( 'admin.php' )
 		);
+		wp_safe_redirect( $redirect );
 
-		// Preferred path: enqueue the resumable batched runner via Action Scheduler. One bounded step
-		// per async action means no single server time limit (php-fpm request_terminate_timeout, nginx
-		// fastcgi_read_timeout, proxy gateway) can kill the whole run, and it resumes automatically —
-		// fixing manual full syncs that died part-way and had to be restarted by hand.
-		if ( function_exists( 'as_enqueue_async_action' ) ) {
-			Skwirrel_WC_Sync_Service::start_async( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
-			wp_safe_redirect( $redirect );
+		if ( '' === $loopback_url ) {
 			exit;
 		}
-
-		// Fallback (no Action Scheduler): detached loopback request that runs the sync synchronously.
-		$token = bin2hex( random_bytes( 16 ) );
-		set_transient( self::BG_SYNC_TRANSIENT . '_' . $token, '1', 120 );
-
-		$url = add_query_arg(
-			[
-				'action' => self::BG_SYNC_ACTION,
-				'token'  => $token,
-			],
-			admin_url( 'admin-ajax.php' )
-		);
-
-		wp_safe_redirect( $redirect );
 
 		if ( function_exists( 'fastcgi_finish_request' ) ) {
 			fastcgi_finish_request();
 		}
 
-		wp_remote_post(
-			$url,
-			[
-				'blocking'  => false,
-				'timeout'   => 0.01,
-				// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress core filter
-				'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
-			]
-		);
+		$this->fire_manual_sync_loopback( $loopback_url );
 
 		exit;
+	}
+
+	/**
+	 * AJAX: trigger a manual sync without navigating away. Used by the "Sync now" admin menu
+	 * link, which appears on every admin screen and must leave the admin exactly where they were
+	 * — the existing status poller (already running globally) picks up the running sync and
+	 * shows the corner toast within its next tick, same as any other sync start.
+	 */
+	public function handle_sync_now_ajax(): void {
+		check_ajax_referer( 'skwirrel_wc_sync_run', '_nonce' );
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( 'Access denied', 403 );
+		}
+
+		// Fired before the response, unlike handle_sync_now(): wp_send_json_success() below always
+		// exits, so anything meant to run after it never would. The loopback is a non-blocking,
+		// 0.01s-timeout dispatch either way — firing it a moment earlier costs nothing perceptible.
+		$this->fire_manual_sync_loopback( $this->begin_manual_sync() );
+
+		wp_send_json_success();
 	}
 
 	public function handle_background_sync(): void {
@@ -1729,14 +1793,55 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			wp_send_json_error( 'Access denied', 403 );
 		}
 		$in_progress = (bool) get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
-		$summary     = Skwirrel_WC_Sync_Admin_Dashboard::get_current_step_summary();
+		// A stuck run (queued, never picked up by Action Scheduler) has no live heartbeat, so
+		// $in_progress is already false here — checked separately so the banner still shows it.
+		$stuck   = ! $in_progress ? Skwirrel_WC_Sync_Service::get_stuck_run_warning() : null;
+		$summary = Skwirrel_WC_Sync_Admin_Dashboard::get_current_step_summary();
 		wp_send_json_success(
 			[
 				'in_progress' => $in_progress,
+				'stuck'       => null !== $stuck,
 				// Full banner markup for the plugin's own pages; step/counter for the corner toast elsewhere.
-				'banner_html' => $in_progress ? Skwirrel_WC_Sync_Admin_Dashboard::get_sync_banner_html() : '',
+				'banner_html' => ( $in_progress || null !== $stuck ) ? Skwirrel_WC_Sync_Admin_Dashboard::get_sync_banner_html() : '',
 				'step'        => $in_progress ? $summary['label'] : '',
 				'counter'     => $in_progress ? $summary['counter'] : '',
+			]
+		);
+	}
+
+	/**
+	 * AJAX: on-demand cron/loopback health check for the Debug tab.
+	 *
+	 * Reuses WP_Site_Health's own tests rather than re-implementing them — same logic Tools →
+	 * Site Health uses, just surfaced where an admin is already looking for a sync problem.
+	 * get_test_loopback_requests() performs one live HTTP request to the site's own wp-cron.php
+	 * (10s timeout, core's own default), so this only runs on an explicit click, never on page load.
+	 */
+	public function handle_health_check(): void {
+		check_ajax_referer( 'skwirrel_health_check_nonce', '_nonce' );
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( 'Access denied', 403 );
+		}
+
+		if ( ! class_exists( 'WP_Site_Health' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/class-wp-site-health.php';
+		}
+		$health   = WP_Site_Health::get_instance();
+		$cron     = $health->get_test_scheduled_events();
+		$loopback = $health->get_test_loopback_requests();
+
+		wp_send_json_success(
+			[
+				'cron'     => [
+					'status'  => (string) ( $cron['status'] ?? 'good' ),
+					'label'   => wp_strip_all_tags( (string) ( $cron['label'] ?? '' ) ),
+					'message' => wp_strip_all_tags( (string) ( $cron['description'] ?? '' ) ),
+				],
+				'loopback' => [
+					'status'  => (string) ( $loopback['status'] ?? 'good' ),
+					'label'   => wp_strip_all_tags( (string) ( $loopback['label'] ?? '' ) ),
+					'message' => wp_strip_all_tags( (string) ( $loopback['description'] ?? '' ) ),
+				],
 			]
 		);
 	}
@@ -1830,7 +1935,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. ' var banner = document.getElementById("skwirrel-sync-banner");'
 			. ' var toast = document.getElementById("skwirrel-sync-toast");'
 			. ' if (!banner && !toast) return;'
-			. ' var active = banner ? !!banner.querySelector(".skw-progress-banner") : false;'
+			. ' var active = banner ? !!banner.querySelector(".skw-progress-banner, .skw-status-warning") : false;'
 			// Toast controls: position preference (persisted) + hide-for-session.
 			. ' function lsGet(k){ try { return window.localStorage.getItem(k); } catch(e){ return null; } }'
 			. ' function lsSet(k,v){ try { window.localStorage.setItem(k,v); } catch(e){} }'
@@ -1852,9 +1957,29 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '  var fd = new FormData(); fd.append("action","skwirrel_wc_sync_abort"); fd.append("_nonce", cfg.abortNonce);'
 			. '  fetch(cfg.ajaxUrl, {method:"POST", body:fd}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.success){ btn.textContent = cfg.errorLabel; } }).catch(function(){});'
 			. ' });'
+			// "Sync now" in the WP admin menu: start the sync in place, never navigate — scoped to
+			// #adminmenu specifically so the in-page "Sync Now" button (which keeps navigating to
+			// the dashboard, deliberately) is never intercepted by this, even though both links
+			// point at the same admin-post.php action.
+			. ' document.addEventListener("click", function(e){'
+			. '  var adminMenu = document.getElementById("adminmenu");'
+			. '  if (!adminMenu) return;'
+			. '  var link = e.target.closest ? e.target.closest("a") : null;'
+			. '  if (!link || !adminMenu.contains(link) || link.href.indexOf("action=skwirrel_wc_sync_run") === -1) return;'
+			. '  e.preventDefault();'
+			. '  if (link.dataset.skwBusy) return;'
+			. '  link.dataset.skwBusy = "1";'
+			. '  var m = link.href.match(/[?&]_wpnonce=([^&]+)/);'
+			. '  var fd = new FormData();'
+			. '  fd.append("action", "skwirrel_wc_sync_run_ajax");'
+			. '  fd.append("_nonce", m ? m[1] : "");'
+			. '  fetch(cfg.ajaxUrl, {method:"POST", body:fd})'
+			. '   .catch(function(){})'
+			. '   .finally(function(){ delete link.dataset.skwBusy; });'
+			. ' });'
 			. ' function render(d){'
 			. '  if (banner) {'
-			. '   if (d.in_progress) { banner.innerHTML = d.banner_html; active = true; }'
+			. '   if (d.in_progress || d.stuck) { banner.innerHTML = d.banner_html; active = true; }'
 			. '   else if (active) { active = false; banner.innerHTML = cfg.completedHtml; }'
 			. '   return;'
 			. '  }'
@@ -1926,6 +2051,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'refreshStatusesLabel'   => __( 'Fetching…', 'skwirrel-pim-sync' ),
 				'refreshStatusesError'   => __( 'Could not refresh statuses.', 'skwirrel-pim-sync' ),
 				'refreshStatusesUnsaved' => __( 'Statuses updated. Save your changes to see the new rows — the page was not reloaded because this form has unsaved edits.', 'skwirrel-pim-sync' ),
+				'healthCheckNonce'       => wp_create_nonce( 'skwirrel_health_check_nonce' ),
+				'healthCheckRunning'     => __( 'Checking…', 'skwirrel-pim-sync' ),
+				'healthCheckError'       => __( 'Could not run the health check.', 'skwirrel-pim-sync' ),
 				/*
 				 * Contract with the settings tab strip: the IDs of the fields whose validation
 				 * failed on this request, in reported order. Each one also carries
@@ -2459,6 +2587,42 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				. '})();';
 
 			wp_add_inline_script( 'skwirrel-pim-sync-admin', $live_js );
+
+			$run_label = esc_js( __( 'Run health check', 'skwirrel-pim-sync' ) );
+			// Same icon glyphs used elsewhere on this screen (skw-status-card success/error, the stuck-run
+			// warning) — reused here rather than introducing a third icon set for the same three meanings.
+			$health_js =
+				'(function() {'
+				. ' var btn = document.getElementById("skwirrel-health-check-run");'
+				. ' var out = document.getElementById("skwirrel-health-check-results");'
+				. ' if (!btn || !out) return;'
+				. ' var ICONS = {'
+				. '  good: "<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' width=\'20\' height=\'20\'><path d=\'M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z\' stroke-linecap=\'round\' stroke-linejoin=\'round\' /></svg>",'
+				. '  recommended: "<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' width=\'20\' height=\'20\'><path d=\'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z\' stroke-linecap=\'round\' stroke-linejoin=\'round\' /></svg>",'
+				. '  critical: "<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' width=\'20\' height=\'20\'><path d=\'M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z\' stroke-linecap=\'round\' stroke-linejoin=\'round\' /></svg>"'
+				. ' };'
+				. ' function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}'
+				. ' function row(r){'
+				. '  var icon = ICONS[r.status] || ICONS.recommended;'
+				. '  return "<div class=\"skw-health-row skw-health-" + esc(r.status) + "\"><div class=\"skw-health-icon\">" + icon + "</div><div class=\"skw-health-body\"><strong>" + esc(r.label) + "</strong><p>" + esc(r.message) + "</p></div></div>";'
+				. ' }'
+				. ' btn.addEventListener("click", function(){'
+				. '  btn.disabled = true; btn.textContent = skwirrelPimSync.healthCheckRunning;'
+				. '  var fd = new FormData();'
+				. '  fd.append("action", "skwirrel_wc_sync_health_check");'
+				. '  fd.append("_nonce", skwirrelPimSync.healthCheckNonce);'
+				. '  fetch(skwirrelPimSync.ajaxUrl, { method: "POST", body: fd })'
+				. '   .then(function(r){ return r.json(); })'
+				. '   .then(function(r){'
+				. '    if (!r || !r.success) { out.innerHTML = "<p class=\"skw-c-red\">" + esc(skwirrelPimSync.healthCheckError) + "</p>"; return; }'
+				. '    out.innerHTML = row(r.data.cron) + row(r.data.loopback);'
+				. '   })'
+				. '   .catch(function(){ out.innerHTML = "<p class=\"skw-c-red\">" + esc(skwirrelPimSync.healthCheckError) + "</p>"; })'
+				. '   .finally(function(){ btn.disabled = false; btn.textContent = "' . $run_label . '"; });'
+				. ' });'
+				. '})();';
+
+			wp_add_inline_script( 'skwirrel-pim-sync-admin', $health_js );
 		}
 	}
 
