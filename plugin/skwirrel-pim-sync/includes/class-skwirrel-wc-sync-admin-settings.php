@@ -17,6 +17,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	private const TOKEN_OPTION_KEY = 'skwirrel_wc_sync_auth_token';
 	private const MASK             = '••••••••';
 
+	/** Last health-check result (Debug tab): { time, cron: {...}, loopback: {...} }. No expiry — a
+	 * transient would silently blank the panel after its TTL even though nothing changed. */
+	public const HEALTH_CHECK_OPTION_KEY = 'skwirrel_wc_sync_last_health_check';
+
 	private static ?self $instance = null;
 
 	public static function instance(): self {
@@ -1830,20 +1834,37 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$cron     = $health->get_test_scheduled_events();
 		$loopback = $health->get_test_loopback_requests();
 
-		wp_send_json_success(
-			[
-				'cron'     => [
-					'status'  => (string) ( $cron['status'] ?? 'good' ),
-					'label'   => wp_strip_all_tags( (string) ( $cron['label'] ?? '' ) ),
-					'message' => wp_strip_all_tags( (string) ( $cron['description'] ?? '' ) ),
-				],
-				'loopback' => [
-					'status'  => (string) ( $loopback['status'] ?? 'good' ),
-					'label'   => wp_strip_all_tags( (string) ( $loopback['label'] ?? '' ) ),
-					'message' => wp_strip_all_tags( (string) ( $loopback['description'] ?? '' ) ),
-				],
-			]
-		);
+		$result = [
+			'time'     => time(),
+			'cron'     => [
+				'status'  => (string) ( $cron['status'] ?? 'good' ),
+				'label'   => wp_strip_all_tags( (string) ( $cron['label'] ?? '' ) ),
+				'message' => wp_strip_all_tags( (string) ( $cron['description'] ?? '' ) ),
+			],
+			'loopback' => [
+				'status'  => (string) ( $loopback['status'] ?? 'good' ),
+				'label'   => wp_strip_all_tags( (string) ( $loopback['label'] ?? '' ) ),
+				'message' => wp_strip_all_tags( (string) ( $loopback['description'] ?? '' ) ),
+			],
+		];
+
+		// Persisted (not a transient) so the Debug tab still shows the last result after a page
+		// refresh — a transient would silently blank the panel back to "Not run yet" once its TTL
+		// passed, even though nothing about the site had changed.
+		update_option( self::HEALTH_CHECK_OPTION_KEY, $result, false );
+
+		wp_send_json_success( $result );
+	}
+
+	/**
+	 * The persisted last health-check result, or null when the check has never been run
+	 * (Debug tab: falls back to the "Not run yet" empty state).
+	 *
+	 * @return array{time: int, cron: array{status: string, label: string, message: string}, loopback: array{status: string, label: string, message: string}}|null
+	 */
+	public static function get_last_health_check(): ?array {
+		$stored = get_option( self::HEALTH_CHECK_OPTION_KEY, null );
+		return is_array( $stored ) ? $stored : null;
 	}
 
 	/**

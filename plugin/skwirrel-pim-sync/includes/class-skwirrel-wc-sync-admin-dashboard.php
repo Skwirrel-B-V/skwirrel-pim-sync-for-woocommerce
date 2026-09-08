@@ -1911,34 +1911,34 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<p class="skw-field-hint"><?php esc_html_e( 'Drive WooCommerce fields from a Skwirrel custom class feature, so you no longer maintain the same value in two systems.', 'skwirrel-pim-sync' ); ?></p>
 			<div class="skw-field">
 				<label for="stock_quantity_feature" class="skw-label"><?php esc_html_e( 'Stock quantity', 'skwirrel-pim-sync' ); ?></label>
-				<input type="text" id="stock_quantity_feature" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[stock_quantity_feature]" value="<?php echo esc_attr( (string) ( $opts['stock_quantity_feature'] ?? '' ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 1234 or STOCK_QTY', 'skwirrel-pim-sync' ); ?>"
+				<input type="text" id="stock_quantity_feature" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[stock_quantity_feature]" value="<?php echo esc_attr( (string) ( $opts['stock_quantity_feature'] ?? '' ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. STOCK_QTY', 'skwirrel-pim-sync' ); ?>"
 				<?php $this->render_field_state_attrs( 'stock_quantity_feature', 'stock_quantity_feature-hint' ); ?> />
 				<?php $this->render_field_error( 'stock_quantity_feature' ); ?>
-				<p class="skw-field-hint" id="stock_quantity_feature-hint"><strong><?php esc_html_e( 'Must be a numeric feature.', 'skwirrel-pim-sync' ); ?></strong> <?php esc_html_e( 'The ID or code of one product-level custom feature holding the stock quantity. Text is accepted only if it contains nothing but a number; range, logical and multi-value features are ignored. When a product has no usable value, its current stock is left untouched — never set to 0 and never switched to unmanaged. Trade-item level features are not used. Products priced on request keep their own availability whatever this feature says. Clearing this field turns the mapping off again, and the next synchronisation then returns priced variations to unmanaged and in stock, discarding the quantities it had been maintaining.', 'skwirrel-pim-sync' ); ?></p>
+				<p class="skw-field-hint" id="stock_quantity_feature-hint"><strong><?php esc_html_e( 'Must be a numeric feature.', 'skwirrel-pim-sync' ); ?></strong> <?php esc_html_e( 'The code of one product-level custom feature holding the stock quantity. Only a whole number is used; range, logical and multi-value features are ignored. A product with no usable value keeps its current stock untouched. Trade-item level features are not used, and products priced on request keep their own availability regardless.', 'skwirrel-pim-sync' ); ?></p>
 			</div>
 			<?php
 			$content_fields = array(
 				'title_feature_id'             => array(
 					'label'     => __( 'Product title', 'skwirrel-pim-sync' ),
-					'type_note' => __( 'Should be a short text feature.', 'skwirrel-pim-sync' ),
-					'hint'      => __( 'The ID or code of the custom feature holding the product title. Leave empty to keep using the normal source (the ERP description, then the product translations). When a product has no value for this feature, the normal source is used for that product — the title is never blanked.', 'skwirrel-pim-sync' ),
+					'type_note' => __( 'Must be a short text feature.', 'skwirrel-pim-sync' ),
+					'hint'      => __( 'The code of the custom feature holding the product title. Leave empty to keep using the normal source (the ERP description, then the product translations). When a product has no value for this feature, the normal source is used for that product — the title is never blanked.', 'skwirrel-pim-sync' ),
 				),
 				'short_description_feature_id' => array(
 					'label'     => __( 'Short description', 'skwirrel-pim-sync' ),
-					'type_note' => __( 'Should be a long text feature.', 'skwirrel-pim-sync' ),
-					'hint'      => __( 'The ID or code of the custom feature holding the short description. Leave empty to keep using the product translations. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
+					'type_note' => __( 'Must be a long text feature.', 'skwirrel-pim-sync' ),
+					'hint'      => __( 'The code of the custom feature holding the short description. Leave empty to keep using the product translations. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
 				),
 				'long_description_feature_id'  => array(
 					'label'     => __( 'Long description', 'skwirrel-pim-sync' ),
-					'type_note' => __( 'Should be a long text feature.', 'skwirrel-pim-sync' ),
-					'hint'      => __( 'The ID or code of the custom feature holding the long description. Leave empty to keep using the normal source. Formatting is kept; unsafe markup is removed. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
+					'type_note' => __( 'Must be a long text feature.', 'skwirrel-pim-sync' ),
+					'hint'      => __( 'The code of the custom feature holding the long description. Leave empty to keep using the normal source. Formatting is kept; unsafe markup is removed. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
 				),
 			);
 			foreach ( $content_fields as $field_id => $field ) :
 				?>
 				<div class="skw-field">
 					<label for="<?php echo esc_attr( $field_id ); ?>" class="skw-label"><?php echo esc_html( $field['label'] ); ?></label>
-					<input type="text" id="<?php echo esc_attr( $field_id ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $field_id ); ?>]" value="<?php echo esc_attr( (string) ( $opts[ $field_id ] ?? '' ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 812 or PRODUCT_TITLE', 'skwirrel-pim-sync' ); ?>"
+					<input type="text" id="<?php echo esc_attr( $field_id ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $field_id ); ?>]" value="<?php echo esc_attr( (string) ( $opts[ $field_id ] ?? '' ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. PRODUCT_TITLE', 'skwirrel-pim-sync' ); ?>"
 					<?php $this->render_field_state_attrs( $field_id, $field_id . '-hint' ); ?> />
 					<?php $this->render_field_error( $field_id ); ?>
 					<p class="skw-field-hint" id="<?php echo esc_attr( $field_id ); ?>-hint"><strong><?php echo esc_html( $field['type_note'] ); ?></strong> <?php echo esc_html( $field['hint'] ); ?></p>
@@ -1955,7 +1955,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				);
 				?>
 			</p>
-			<p class="skw-field-hint"><?php esc_html_e( 'Field mappings read product-level custom classes. Setting a custom class collection ID under "What to sync" narrows which collection they are read from; without one, every collection is searched.', 'skwirrel-pim-sync' ); ?></p>
+			<p class="skw-field-hint"><?php esc_html_e( 'Field mappings read product-level custom classes. Setting a custom class collection ID under "What to sync" narrows which collection they are read from; without one, every collection is searched. Clearing a field turns its mapping off again, and the next synchronisation then returns that field to its default value.', 'skwirrel-pim-sync' ); ?></p>
 		</div>
 		<?php
 	}
@@ -2087,6 +2087,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</div>
 			</div>
 
+			<?php $last_health_check = Skwirrel_WC_Sync_Admin_Settings::get_last_health_check(); ?>
 			<div class="skw-dbg-section skw-dbg-section-body" id="skwirrel-health-check">
 				<div class="skw-dbg-section-head" style="padding:0">
 					<div class="skw-dbg-section-head-main">
@@ -2097,12 +2098,28 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						</div>
 					</div>
 					<div style="display:flex; align-items:center; gap:12px">
-						<span id="skwirrel-health-check-run-label" style="color:var(--color-neutral-light); font-size:13px"><?php esc_html_e( 'Not run yet', 'skwirrel-pim-sync' ); ?></span>
-						<button type="button" class="skw-dbg-btn skw-dbg-btn-solid" id="skwirrel-health-check-run"><i class="ph ph-play" aria-hidden="true"></i> <?php esc_html_e( 'Run health check', 'skwirrel-pim-sync' ); ?></button>
+						<span id="skwirrel-health-check-run-label" style="color:var(--color-neutral-light); font-size:13px">
+							<?php
+							if ( $last_health_check ) {
+								printf(
+									/* translators: %s: how long ago the health check last ran, e.g. "2 minutes" */
+									esc_html__( 'Last run %s ago', 'skwirrel-pim-sync' ),
+									esc_html( human_time_diff( (int) $last_health_check['time'], time() ) )
+								);
+							} else {
+								esc_html_e( 'Not run yet', 'skwirrel-pim-sync' );
+							}
+							?>
+						</span>
+						<button type="button" class="skw-dbg-btn skw-dbg-btn-solid" id="skwirrel-health-check-run"><i class="ph ph-play" aria-hidden="true"></i> <?php $last_health_check ? esc_html_e( 'Run again', 'skwirrel-pim-sync' ) : esc_html_e( 'Run health check', 'skwirrel-pim-sync' ); ?></button>
 					</div>
 				</div>
 				<div id="skwirrel-health-check-results">
-					<div class="skw-dbg-health-empty"><?php esc_html_e( 'Not run yet. The check takes a few seconds and makes one request from your site to itself.', 'skwirrel-pim-sync' ); ?></div>
+					<?php if ( $last_health_check ) : ?>
+						<?php $this->render_health_check_results( $last_health_check ); ?>
+					<?php else : ?>
+						<div class="skw-dbg-health-empty"><?php esc_html_e( 'Not run yet. The check takes a few seconds and makes one request from your site to itself.', 'skwirrel-pim-sync' ); ?></div>
+					<?php endif; ?>
 				</div>
 			</div>
 
@@ -2265,6 +2282,71 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</div>
 				<p style="margin:14px 0 0; color:var(--color-neutral-light); font-size:13px"><?php esc_html_e( 'Switch the flag back off when you are done — it writes one line per variation on every sync.', 'skwirrel-pim-sync' ); ?></p>
 			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the health-check verdict banner + check rows from a stored/AJAX result. Mirrors the
+	 * markup status_poller/health_js builds client-side after a click — kept in sync deliberately,
+	 * since this one also has to render the *persisted* last result on a plain page load.
+	 *
+	 * @param array{time: int, cron: array{status: string, label: string, message: string}, loopback: array{status: string, label: string, message: string}} $result
+	 */
+	private function render_health_check_results( array $result ): void {
+		$passing         = 'good' === $result['cron']['status'] && 'good' === $result['loopback']['status'];
+		$checks          = [
+			[
+				'name'   => __( 'WP-Cron', 'skwirrel-pim-sync' ),
+				'what'   => __( 'Can WordPress fire scheduled events?', 'skwirrel-pim-sync' ),
+				'result' => $result['cron'],
+			],
+			[
+				'name'   => __( 'Loopback request', 'skwirrel-pim-sync' ),
+				'what'   => __( 'Can the site make an HTTP request to itself?', 'skwirrel-pim-sync' ),
+				'result' => $result['loopback'],
+			],
+		];
+		$icon_for_status = [
+			'good'        => 'ph-check-circle',
+			'recommended' => 'ph-warning-circle',
+			'critical'    => 'ph-x-circle',
+		];
+		?>
+		<div class="skw-dbg-verdict skw-dbg-verdict-<?php echo $passing ? 'success' : 'error'; ?>">
+			<i class="ph <?php echo $passing ? 'ph-check-circle' : 'ph-x-circle'; ?>" aria-hidden="true"></i>
+			<div>
+				<div class="skw-dbg-verdict-title">
+					<?php
+					echo $passing
+						? esc_html__( 'Everything needed for a sync is working', 'skwirrel-pim-sync' )
+						: esc_html__( 'WordPress cannot run queued sync steps', 'skwirrel-pim-sync' );
+					?>
+				</div>
+				<p class="skw-dbg-verdict-body">
+					<?php
+					echo $passing
+						? esc_html__( 'Scheduled tasks fire and the site can reach itself.', 'skwirrel-pim-sync' )
+						: esc_html__( 'A sync will start and then sit still, because the queue is never processed. Fix WP-Cron and loopback delivery first — both are host-level, not plugin-level.', 'skwirrel-pim-sync' );
+					?>
+				</p>
+			</div>
+		</div>
+		<div class="skw-dbg-checks">
+			<?php foreach ( $checks as $check ) : ?>
+				<?php $icon = $icon_for_status[ $check['result']['status'] ] ?? 'ph-warning-circle'; ?>
+				<div class="skw-dbg-check-row">
+					<i class="ph <?php echo esc_attr( $icon ); ?>" aria-hidden="true"></i>
+					<div>
+						<div class="skw-dbg-check-name"><?php echo esc_html( $check['name'] ); ?></div>
+						<div class="skw-dbg-check-what"><?php echo esc_html( $check['what'] ); ?></div>
+					</div>
+					<div class="skw-dbg-check-result"><?php echo esc_html( $check['result']['label'] . ' — ' . $check['result']['message'] ); ?></div>
+					<?php if ( 'good' !== $check['result']['status'] ) : ?>
+						<a href="#skwirrel-troubleshoot" class="skw-dbg-check-fix"><?php esc_html_e( 'See troubleshooting', 'skwirrel-pim-sync' ); ?></a>
+					<?php endif; ?>
+				</div>
+			<?php endforeach; ?>
 		</div>
 		<?php
 	}
