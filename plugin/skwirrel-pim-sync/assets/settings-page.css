@@ -113,6 +113,7 @@
 	margin-bottom: 6px;
 	font-size: 13px;
 	color: var(--color-neutral-light);
+	padding-left: 24px;
 }
 .skw-settings-page .skw-set-crumbs a { color: inherit; text-decoration: none; }
 .skw-settings-page .skw-set-crumbs a:hover { text-decoration: underline; }
@@ -124,6 +125,7 @@
 	justify-content: space-between;
 	gap: 16px;
 	margin-bottom: 20px;
+	padding: 0 24px;
 }
 .skw-settings-page .skw-set-header h1 {
 	margin: 0;

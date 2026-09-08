@@ -71,6 +71,7 @@
 	--color-error: hsl(354 65% 58%);
 	--color-error-soft: hsl(355 80% 95%);
 	--color-error-dark: hsl(354 60% 32%);
+	--radius-sm: 0.25rem;
 
 	font-family: var(--font-body);
 	color: var(--color-neutral);
@@ -109,6 +110,7 @@
 	margin-bottom: 6px;
 	font-size: 13px;
 	color: var(--color-neutral-light);
+	padding-left: 24px;
 }
 .skw-debug-page .skw-dbg-crumbs a { color: inherit; text-decoration: none; }
 .skw-debug-page .skw-dbg-crumbs a:hover { text-decoration: underline; }
@@ -120,6 +122,7 @@
 	justify-content: space-between;
 	gap: 16px;
 	margin-bottom: 20px;
+	padding: 0 24px;
 }
 .skw-debug-page .skw-dbg-header h1 {
 	margin: 0;
@@ -144,8 +147,8 @@
 	font-size: 13px;
 	padding: 0 14px;
 	height: 34px;
-	border-radius: 6px;
-	border: 1px solid rgb(28 31 38 / .18);
+	border-radius: var(--radius-sm);
+	border: 1px solid var(--color-neutral);
 	background: #fff;
 	color: var(--color-neutral);
 	cursor: pointer;
@@ -162,27 +165,36 @@
 .skw-dbg-btn.skw-dbg-btn-ghost { border-color: transparent; background: transparent; }
 .skw-dbg-btn .ph { font-size: 16px; }
 
+/* Matches .skw-tabs/.skw-tab in settings-page.css exactly — same underline-tab look,
+   just on plain anchor jump-links instead of ARIA role="tab" buttons. */
 .skw-dbg-nav {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 8px;
-	padding-bottom: 4px;
-	margin-bottom: 20px;
+	gap: 28px;
 	border-bottom: 1px solid rgb(28 31 38 / .1);
+	margin: 0;
+	padding: 24px 24px 4px;
 }
 .skw-dbg-nav a {
+	display: inline-flex;
+	align-items: center;
+	padding: 0 0 14px;
+	margin-bottom: -1px;
+	border-bottom: 2px solid transparent;
 	font-family: var(--font-display);
-	font-weight: 600;
-	font-size: 13px;
-	padding: 8px 12px;
-	border-radius: 4px;
+	font-size: 15px;
+	font-weight: 500;
 	color: var(--color-neutral-light);
 	text-decoration: none;
 }
-.skw-dbg-nav a:hover,
-.skw-dbg-nav a.skw-dbg-nav-active {
-	background: hsl(245 55% 82% / .4);
+.skw-dbg-nav a:hover {
+	background: transparent;
 	color: var(--color-neutral);
+}
+.skw-dbg-nav a.skw-dbg-nav-active {
+	background: transparent;
+	color: var(--color-primary);
+	border-bottom-color: var(--color-primary);
 }
 
 /* -- Section shell -- */
@@ -360,6 +372,7 @@
 .skw-dbg-verdict-error .skw-dbg-verdict-title { color: var(--color-error-dark); }
 .skw-dbg-verdict-body { margin: 3px 0 0; font-size: 13.5px; color: var(--color-neutral); }
 
+#skwirrel-health-check-results { margin-top: 14px; }
 .skw-dbg-checks { border: 1px solid rgb(28 31 38 / .1); border-radius: 6px; overflow: hidden; margin-top: 14px; }
 .skw-dbg-check-row {
 	display: grid;

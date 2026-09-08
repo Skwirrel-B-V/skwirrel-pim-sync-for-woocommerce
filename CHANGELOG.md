@@ -2,6 +2,25 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.15.0]
+
+### Added
+
+* **Redesigned the Settings page to Skwirrel's own visual design system**, same treatment as the 3.14.2 Debug tab redesign: self-hosted Anek Latin + Roboto + Phosphor icon font, scoped to `.skw-settings-page` and loaded only on the settings tab. Visual layer only — every field name/id, the tab strip's ARIA wiring, required-field markers, error routing, and `sanitize_settings()` are byte-for-byte unchanged; verified by the full 233-test integration suite (`SettingsTabsIntegrationTest`, `SettingsRequiredFieldsIntegrationTest`) passing unmodified.
+* **The last sync health check now persists.** It's stored in a plain option (`skwirrel_wc_sync_last_health_check`, no expiry — a transient would silently blank the panel after its TTL even though nothing changed), so the Debug tab shows the real last result and "Last run X ago" on a normal page load instead of always resetting to "Not run yet" until the next click.
+* **Field mapping tab wording simplified**: placeholders now show only a code example (`e.g. STOCK_QTY`) instead of pairing a numeric-ID example with a code example, and the field hints say "The code of..." instead of "The ID or code of..." to steer people toward the option they can actually find on the Skwirrel classes page. The three content-mapping fields now say "Must be a short/long text feature," matching the stock field's existing "Must be a numeric feature." (was "Should be," which undersold that saving the wrong feature type silently does nothing).
+
+### Fixed
+
+* **Design-system verification pass on the Settings page**, comparing directly against the Skwirrel design system's own component source (`_ds_bundle.js`) and the original `.dc.html` mockups instead of a raw CSS token dump, which had led the first pass astray in a few places:
+  * Input/select/button borders and focus rings corrected to what the Input/Select/Checkbox components actually use (solid `--sk-neutral` border, 4px radius, a mascot-blue focus ring) — the legacy `--input-border-color` token they were built from turns out to be unused by the real components.
+  * "Save settings" and "Test connection" now render in one row on the Connection tab (a small script moves the single shared submit button into that panel while it's active and back out otherwise, so the no-JS single-submit-button guarantee `SettingsTabsIntegrationTest` locks in still holds on the server-rendered HTML).
+  * Danger zone no longer sits in its own separately red-bordered card below the main panel — it lives inside the same card as every other tab, with the red accent kept only on its icon/heading/buttons; the stray empty "Save settings" bar that used to show above it is now hidden while that tab is active.
+  * The product-status mapping table no longer uses WordPress core's `.widefat` chrome (grey borders, row striping) — restyled to the design's plain card with a soft header band and hairline row dividers.
+  * Checkboxes are tinted with the design's mascot blue via `accent-color`, with `!important` overrides for wp-admin's own `:checked` background/border-color (which otherwise wins since it isn't the same CSS property as `accent-color`).
+  * Tab strip (Settings and Debug) restyled to match: lighter font weight, wider spacing, blue underline on the active tab.
+* **The Debug tab's symptom column** ("What you see in the log") no longer gets the light-blue inline-code pill meant only for `wp_postmeta`/`en-GB`-style code references inside the explanatory text.
+
 ## [3.14.2]
 
 ### Added
