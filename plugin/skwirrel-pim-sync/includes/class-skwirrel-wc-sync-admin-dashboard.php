@@ -1870,21 +1870,24 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<input type="text" id="stock_quantity_feature" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[stock_quantity_feature]" value="<?php echo esc_attr( (string) ( $opts['stock_quantity_feature'] ?? '' ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 1234 or STOCK_QTY', 'skwirrel-pim-sync' ); ?>"
 				<?php $this->render_field_state_attrs( 'stock_quantity_feature', 'stock_quantity_feature-hint' ); ?> />
 				<?php $this->render_field_error( 'stock_quantity_feature' ); ?>
-				<p class="skw-field-hint" id="stock_quantity_feature-hint"><?php esc_html_e( 'The ID or code of one product-level custom feature holding the stock quantity. The feature must be numeric, or text that contains only a number; range, logical and multi-value features are ignored. When a product has no usable value, its current stock is left untouched — never set to 0 and never switched to unmanaged. Trade-item level features are not used. Products priced on request keep their own availability whatever this feature says. Clearing this field turns the mapping off again, and the next synchronisation then returns priced variations to unmanaged and in stock, discarding the quantities it had been maintaining.', 'skwirrel-pim-sync' ); ?></p>
+				<p class="skw-field-hint" id="stock_quantity_feature-hint"><strong><?php esc_html_e( 'Must be a numeric feature.', 'skwirrel-pim-sync' ); ?></strong> <?php esc_html_e( 'The ID or code of one product-level custom feature holding the stock quantity. Text is accepted only if it contains nothing but a number; range, logical and multi-value features are ignored. When a product has no usable value, its current stock is left untouched — never set to 0 and never switched to unmanaged. Trade-item level features are not used. Products priced on request keep their own availability whatever this feature says. Clearing this field turns the mapping off again, and the next synchronisation then returns priced variations to unmanaged and in stock, discarding the quantities it had been maintaining.', 'skwirrel-pim-sync' ); ?></p>
 			</div>
 			<?php
 			$content_fields = array(
 				'title_feature_id'             => array(
-					'label' => __( 'Product title', 'skwirrel-pim-sync' ),
-					'hint'  => __( 'The ID or code of the custom feature holding the product title. Leave empty to keep using the normal source (the ERP description, then the product translations). When a product has no value for this feature, the normal source is used for that product — the title is never blanked.', 'skwirrel-pim-sync' ),
+					'label'     => __( 'Product title', 'skwirrel-pim-sync' ),
+					'type_note' => __( 'Should be a short text feature.', 'skwirrel-pim-sync' ),
+					'hint'      => __( 'The ID or code of the custom feature holding the product title. Leave empty to keep using the normal source (the ERP description, then the product translations). When a product has no value for this feature, the normal source is used for that product — the title is never blanked.', 'skwirrel-pim-sync' ),
 				),
 				'short_description_feature_id' => array(
-					'label' => __( 'Short description', 'skwirrel-pim-sync' ),
-					'hint'  => __( 'The ID or code of the custom feature holding the short description. Leave empty to keep using the product translations. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
+					'label'     => __( 'Short description', 'skwirrel-pim-sync' ),
+					'type_note' => __( 'Should be a long text feature.', 'skwirrel-pim-sync' ),
+					'hint'      => __( 'The ID or code of the custom feature holding the short description. Leave empty to keep using the product translations. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
 				),
 				'long_description_feature_id'  => array(
-					'label' => __( 'Long description', 'skwirrel-pim-sync' ),
-					'hint'  => __( 'The ID or code of the custom feature holding the long description. Leave empty to keep using the normal source. Formatting is kept; unsafe markup is removed. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
+					'label'     => __( 'Long description', 'skwirrel-pim-sync' ),
+					'type_note' => __( 'Should be a long text feature.', 'skwirrel-pim-sync' ),
+					'hint'      => __( 'The ID or code of the custom feature holding the long description. Leave empty to keep using the normal source. Formatting is kept; unsafe markup is removed. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
 				),
 			);
 			foreach ( $content_fields as $field_id => $field ) :
@@ -1894,7 +1897,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<input type="text" id="<?php echo esc_attr( $field_id ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $field_id ); ?>]" value="<?php echo esc_attr( (string) ( $opts[ $field_id ] ?? '' ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. 812 or PRODUCT_TITLE', 'skwirrel-pim-sync' ); ?>"
 					<?php $this->render_field_state_attrs( $field_id, $field_id . '-hint' ); ?> />
 					<?php $this->render_field_error( $field_id ); ?>
-					<p class="skw-field-hint" id="<?php echo esc_attr( $field_id ); ?>-hint"><?php echo esc_html( $field['hint'] ); ?></p>
+					<p class="skw-field-hint" id="<?php echo esc_attr( $field_id ); ?>-hint"><strong><?php echo esc_html( $field['type_note'] ); ?></strong> <?php echo esc_html( $field['hint'] ); ?></p>
 				</div>
 				<?php
 			endforeach;
