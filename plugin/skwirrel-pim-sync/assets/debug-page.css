@@ -412,8 +412,12 @@
 	font-weight: 600;
 	font-size: 13px;
 }
+.skw-dbg-card p code {
+	font-family: var(--font-mono);
+	font-size: 12.5px;
+}
 .skw-dbg-checklist code,
-.skw-dbg-section code {
+.skw-dbg-table-row span code {
 	font-family: var(--font-mono);
 	font-size: 12.5px;
 	background: hsl(220 100% 96%);
@@ -491,4 +495,9 @@
 	border-top: 1px solid rgb(28 31 38 / .08);
 	font-size: 14px;
 }
-.skw-dbg-table-row code { word-break: break-word; }
+.skw-dbg-table-row > code {
+	font-family: var(--font-mono);
+	font-size: 12.5px;
+	background: #fff;
+	word-break: break-word;
+}
