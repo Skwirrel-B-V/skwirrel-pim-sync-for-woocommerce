@@ -2,6 +2,18 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [3.14.2]
+
+### Added
+
+* **Redesigned the Debug tab to match Skwirrel's own visual design system.** Self-hosted Anek Latin (display) and Roboto (body) — both open-licensed Google Fonts — plus the Phosphor icon font (MIT), loaded only on the Debug tab so the rest of the plugin keeps using Inter. New section navigation, a status pill on the live log, filterable log levels with live counts (All/Info/Warnings/Errors), a pass/fail verdict banner above the health-check results, a redesigned troubleshooting checklist, and a two-step card layout with copy-to-clipboard buttons for the variation-attributes debug flow.
+* **Live sync log entries can now be filtered by level**, with a running count per level shown on each filter chip — previously the log was one continuous unfiltered stream.
+* **Copy buttons on the Debug tab's code snippets** (the `SKWIRREL_WC_SYNC_DEBUG_ETIM` define and the debug log path) — no more selecting text by hand.
+
+### Notes
+
+* The two additional health checks visible in the original design reference (Action Scheduler queue depth, a live Skwirrel API reachability test) are deliberately not part of this release — visual redesign only. The existing WP-Cron and loopback checks are restyled into the new layout unchanged.
+
 ## [3.14.1]
 
 ### Fixed

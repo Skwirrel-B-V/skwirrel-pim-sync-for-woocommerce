@@ -2024,6 +2024,14 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// only changes browser cache busting on plugin upgrades.
 		wp_enqueue_style( 'skwirrel-pim-sync-inter-font', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', [], SKWIRREL_WC_SYNC_VERSION );
 
+		// Debug tab only: self-hosted Skwirrel brand fonts (Anek Latin, Roboto — both open-licensed
+		// Google Fonts) and the Phosphor icon font (MIT), scoped to .skw-debug-page. Not loaded on
+		// the other tabs, which keep using Inter.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tab parameter only selects which stylesheet loads
+		if ( isset( $_GET['tab'] ) && 'debug' === $_GET['tab'] ) {
+			wp_enqueue_style( 'skwirrel-pim-sync-debug-page', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/debug-page.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
+		}
+
 		// Admin page JS (purge confirmation + auto-reload).
 		wp_register_script( 'skwirrel-pim-sync-admin', false, [], SKWIRREL_WC_SYNC_VERSION, true );
 		wp_enqueue_script( 'skwirrel-pim-sync-admin' );
@@ -2499,49 +2507,110 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 		// Live log tail — only on the debug tab.
 		if ( 'debug' === $current_tab ) {
-			$lines_label   = esc_js( __( 'lines', 'skwirrel-pim-sync' ) );
-			$network_error = esc_js( __( 'Network error', 'skwirrel-pim-sync' ) );
-			$paused_label  = esc_js( __( 'Resume', 'skwirrel-pim-sync' ) );
 			$pause_label   = esc_js( __( 'Pause', 'skwirrel-pim-sync' ) );
-			$running_label = esc_js( __( 'Sync running', 'skwirrel-pim-sync' ) );
+			$resume_label  = esc_js( __( 'Resume', 'skwirrel-pim-sync' ) );
+			$running_label = esc_js( __( 'Running', 'skwirrel-pim-sync' ) );
 			$idle_label    = esc_js( __( 'Idle', 'skwirrel-pim-sync' ) );
-			$waiting_label = esc_js( __( 'Waiting for sync log…', 'skwirrel-pim-sync' ) );
+			$all_label     = esc_js( __( 'All', 'skwirrel-pim-sync' ) );
+			$info_label    = esc_js( __( 'Info', 'skwirrel-pim-sync' ) );
+			$warning_label = esc_js( __( 'Warnings', 'skwirrel-pim-sync' ) );
+			$error_label   = esc_js( __( 'Errors', 'skwirrel-pim-sync' ) );
+			/* translators: %d: number of shown log lines */
+			$showing_fmt = esc_js( __( 'Showing %d lines · payloads are JSON context written by the sync engine.', 'skwirrel-pim-sync' ) );
+			$empty_label = esc_js( __( 'Nothing to show — the view was cleared or no lines match this filter.', 'skwirrel-pim-sync' ) );
 
 			$live_js =
 				'(function() {'
-				. ' var pre = document.getElementById("skwirrel-live-log-content");'
-				. ' if (!pre) return;'
+				. ' var log = document.getElementById("skwirrel-live-log-content");'
+				. ' if (!log) return;'
 				. ' var stateEl = document.getElementById("skwirrel-live-log-state");'
-				. ' var dotEl = document.querySelector(".skw-live-log-dot");'
+				. ' var dotEl = document.getElementById("skwirrel-live-log-dot");'
 				. ' var fileEl = document.getElementById("skwirrel-live-log-filename");'
 				. ' var progressEl = document.getElementById("skwirrel-live-log-progress");'
+				. ' var summaryEl = document.getElementById("skwirrel-live-log-summary");'
 				. ' var pauseBtn = document.getElementById("skwirrel-live-log-pause");'
 				. ' var clearBtn = document.getElementById("skwirrel-live-log-clear");'
 				. ' var autoBox = document.getElementById("skwirrel-live-log-autoscroll");'
 				. ' var dlBtn = document.getElementById("skwirrel-live-log-download");'
-				. ' var filename = pre.dataset.filename || "";'
-				. ' var offset = 0, lineCount = 0, paused = false, timer = null;'
+				. ' var filterWrap = document.getElementById("skwirrel-live-log-filters");'
+				. ' var filename = log.dataset.filename || "";'
+				. ' var offset = 0, paused = false, timer = null, filter = "all";'
+				. ' var counts = { all: 0, info: 0, warning: 0, error: 0 };'
+				. ' var entries = [];'
 				. ' function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}'
-				. ' function fmtLine(line){'
-				. '  var e = esc(line);'
-				. '  if (/^={3,}/.test(line)) return "<span class=\"skw-log-separator\">" + e + "</span>";'
-				. '  var m = e.match(/^(\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\])\\[(INFO|WARNING|ERROR|DEBUG)\\](.*)/);'
-				. '  if (m) {'
-				. '   var msg = m[3].replace(/(\\{[^}]+\\})/g, "<span class=\"skw-log-json\">$1</span>");'
-				. '   return "<span class=\"skw-log-ts\">" + m[1] + "</span><span class=\"skw-log-" + m[2].toLowerCase() + "\">[" + m[2] + "]</span>" + msg;'
+				. ' function parseLine(line){'
+				. '  var m = line.match(/^\\[(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2})\\]\\[(INFO|WARNING|ERROR|DEBUG)\\](.*)/);'
+				. '  if (!m) return { time: "", level: "info", msg: line, payload: "" };'
+				. '  var rest = m[3];'
+				. '  var payload = "";'
+				. '  var pm = rest.match(/(\\{[^}]+\\})\\s*$/);'
+				. '  if (pm) { payload = pm[1]; rest = rest.slice(0, pm.index); }'
+				. '  var level = m[2].toLowerCase();'
+				. '  if (level === "debug") level = "info";'
+				. '  return { time: m[1].slice(-8), level: level, msg: rest.trim(), payload: payload };'
+				. ' }'
+				. ' function renderLine(entry, n){'
+				. '  var div = document.createElement("div");'
+				. '  div.className = "skw-dbg-log-line skw-dbg-log-" + entry.level;'
+				. '  div.dataset.level = entry.level;'
+				. '  var bar = (entry.level === "warning" || entry.level === "error") ? "<span class=\"skw-dbg-log-bar\"></span>" : "";'
+				. '  var levelText = entry.level === "warning" ? "WARNING" : entry.level === "error" ? "ERROR" : "INFO";'
+				. '  var payloadHtml = entry.payload ? "<div class=\"skw-dbg-log-payload\">" + esc(entry.payload) + "</div>" : "";'
+				. '  div.innerHTML = bar'
+				. '   + "<span class=\"skw-dbg-log-n\">" + n + "</span>"'
+				. '   + "<span class=\"skw-dbg-log-time\">" + esc(entry.time) + "</span>"'
+				. '   + "<span class=\"skw-dbg-log-level\">" + levelText + "</span>"'
+				. '   + "<div class=\"skw-dbg-log-msg-wrap\"><span class=\"skw-dbg-log-msg\">" + esc(entry.msg) + "</span>" + payloadHtml + "</div>";'
+				. '  div.style.display = (filter === "all" || filter === entry.level) ? "" : "none";'
+				. '  log.appendChild(div);'
+				. ' }'
+				. ' function updateCounts(){'
+				. '  if (!filterWrap) return;'
+				. '  var map = { all: "' . $all_label . '", info: "' . $info_label . '", warning: "' . $warning_label . '", error: "' . $error_label . '" };'
+				. '  var btns = filterWrap.querySelectorAll(".skw-dbg-chip");'
+				. '  for (var i = 0; i < btns.length; i++) {'
+				. '   var lvl = btns[i].dataset.level;'
+				. '   var c = btns[i].querySelector(".skw-dbg-chip-count");'
+				. '   if (c) c.textContent = counts[lvl] || 0;'
 				. '  }'
-				. '  return e;'
+				. ' }'
+				. ' function updateSummary(){'
+				. '  if (summaryEl) summaryEl.textContent = "' . $showing_fmt . '".replace("%d", counts[filter] || 0);'
+				. '  var visible = log.querySelectorAll(\'[data-level]:not([style*="display: none"])\').length;'
+				. '  if (progressEl) progressEl.textContent = counts.all + "";'
+				. '  var empty = log.querySelector(".skw-dbg-log-empty");'
+				. '  if (counts[filter] === 0) {'
+				. '   if (!empty) { empty = document.createElement("div"); empty.className = "skw-dbg-log-empty"; empty.textContent = "' . $empty_label . '"; log.appendChild(empty); }'
+				. '  } else if (empty) { empty.remove(); }'
 				. ' }'
 				. ' function appendChunk(raw){'
 				. '  if (!raw) return;'
-				. '  var lines = raw.split("\\n");'
-				. '  lineCount += lines.length;'
-				. '  var html = "";'
-				. '  for (var i = 0; i < lines.length; i++) html += fmtLine(lines[i]) + "\\n";'
-				. '  pre.insertAdjacentHTML("beforeend", html);'
-				. '  if (progressEl) progressEl.textContent = lineCount + " ' . $lines_label . '";'
-				. '  if (autoBox && autoBox.checked) pre.scrollTop = pre.scrollHeight;'
+				. '  var rawLines = raw.split("\\n");'
+				. '  for (var i = 0; i < rawLines.length; i++) {'
+				. '   if (!rawLines[i] || /^={3,}/.test(rawLines[i])) continue;'
+				. '   var entry = parseLine(rawLines[i]);'
+				. '   entries.push(entry);'
+				. '   counts.all++; counts[entry.level] = (counts[entry.level] || 0) + 1;'
+				. '   renderLine(entry, entries.length);'
+				. '  }'
+				. '  updateCounts(); updateSummary();'
+				. '  if (autoBox && autoBox.checked) log.scrollTop = log.scrollHeight;'
 				. ' }'
+				. ' function applyFilter(){'
+				. '  var rows = log.querySelectorAll("[data-level]");'
+				. '  for (var i = 0; i < rows.length; i++) {'
+				. '   rows[i].style.display = (filter === "all" || rows[i].dataset.level === filter) ? "" : "none";'
+				. '  }'
+				. '  updateSummary();'
+				. ' }'
+				. ' if (filterWrap) filterWrap.addEventListener("click", function(e){'
+				. '  var btn = e.target.closest ? e.target.closest(".skw-dbg-chip") : null;'
+				. '  if (!btn) return;'
+				. '  filter = btn.dataset.level;'
+				. '  var all = filterWrap.querySelectorAll(".skw-dbg-chip");'
+				. '  for (var i = 0; i < all.length; i++) all[i].classList.toggle("skw-dbg-chip-active", all[i] === btn);'
+				. '  applyFilter();'
+				. ' });'
 				. ' function poll(){'
 				. '  if (paused) { schedule(); return; }'
 				. '  var fd = new FormData();'
@@ -2555,16 +2624,17 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				. '    if (!r || !r.success) return;'
 				. '    var d = r.data;'
 				. '    if (d.filename && d.filename !== filename) {'
-				. '     filename = d.filename; offset = 0; lineCount = 0; pre.innerHTML = "";'
+				. '     filename = d.filename; offset = 0; entries = []; counts = { all: 0, info: 0, warning: 0, error: 0 };'
+				. '     log.innerHTML = "";'
 				. '     if (fileEl) fileEl.textContent = filename;'
-				. '     pre.dataset.filename = filename;'
+				. '     log.dataset.filename = filename;'
 				. '     if (dlBtn) dlBtn.disabled = false;'
 				. '    }'
 				. '    if (d.content) { offset = d.offset; appendChunk(d.content); }'
 				. '    else if (d.size !== undefined) { offset = d.size; }'
 				. '    if (!filename && fileEl) fileEl.textContent = "— ' . esc_js( __( 'no log yet', 'skwirrel-pim-sync' ) ) . '";'
 				. '    if (stateEl) stateEl.textContent = d.is_running ? "' . $running_label . '" : "' . $idle_label . '";'
-				. '    if (dotEl) { dotEl.classList.toggle("skw-live-log-dot-running", !!d.is_running); dotEl.classList.toggle("skw-live-log-dot-idle", !d.is_running); }'
+				. '    if (dotEl) dotEl.classList.toggle("skw-dbg-pill-running", !!d.is_running);'
 				. '   })'
 				. '   .catch(function(){ /* transient network error — keep trying */ })'
 				. '   .finally(function(){ schedule(); });'
@@ -2572,9 +2642,14 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				. ' function schedule(){ timer = setTimeout(poll, 2000); }'
 				. ' if (pauseBtn) pauseBtn.addEventListener("click", function(){'
 				. '  paused = !paused;'
-				. '  pauseBtn.textContent = paused ? "' . $paused_label . '" : "' . $pause_label . '";'
+				. '  pauseBtn.innerHTML = paused'
+				. '   ? "<i class=\"ph ph-play\" aria-hidden=\"true\"></i> ' . $resume_label . '"'
+				. '   : "<i class=\"ph ph-pause\" aria-hidden=\"true\"></i> ' . $pause_label . '";'
 				. ' });'
-				. ' if (clearBtn) clearBtn.addEventListener("click", function(){ pre.innerHTML = ""; lineCount = 0; if (progressEl) progressEl.textContent = ""; });'
+				. ' if (clearBtn) clearBtn.addEventListener("click", function(){'
+				. '  log.innerHTML = ""; entries = []; counts = { all: 0, info: 0, warning: 0, error: 0 };'
+				. '  updateCounts(); updateSummary();'
+				. ' });'
 				. ' if (dlBtn) dlBtn.addEventListener("click", function(){'
 				. '  if (!filename) return;'
 				. '  window.location.href = skwirrelPimSync.ajaxUrl'
@@ -2582,32 +2657,38 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				. '   + "&_nonce=" + encodeURIComponent(skwirrelPimSync.downloadLogNonce)'
 				. '   + "&filename=" + encodeURIComponent(filename);'
 				. ' });'
-				. ' if (!filename && fileEl) fileEl.textContent = "' . $waiting_label . '";'
+				. ' if (!filename && fileEl) fileEl.textContent = "' . esc_js( __( 'Waiting for sync log…', 'skwirrel-pim-sync' ) ) . '";'
 				. ' poll();'
 				. '})();';
 
 			wp_add_inline_script( 'skwirrel-pim-sync-admin', $live_js );
 
-			$run_label = esc_js( __( 'Run health check', 'skwirrel-pim-sync' ) );
-			// Same icon glyphs used elsewhere on this screen (skw-status-card success/error, the stuck-run
-			// warning) — reused here rather than introducing a third icon set for the same three meanings.
+			$run_label       = esc_js( __( 'Run health check', 'skwirrel-pim-sync' ) );
+			$run_again_label = esc_js( __( 'Run again', 'skwirrel-pim-sync' ) );
+			/* translators: %s: how long ago the health check last ran, e.g. "2 minutes" */
+			$last_run_fmt     = esc_js( __( 'Last run %s ago', 'skwirrel-pim-sync' ) );
+			$verdict_ok       = esc_js( __( 'Everything needed for a sync is working', 'skwirrel-pim-sync' ) );
+			$verdict_ok_body  = esc_js( __( 'Scheduled tasks fire and the site can reach itself.', 'skwirrel-pim-sync' ) );
+			$verdict_bad      = esc_js( __( 'WordPress cannot run queued sync steps', 'skwirrel-pim-sync' ) );
+			$verdict_bad_body = esc_js( __( 'A sync will start and then sit still, because the queue is never processed. Fix WP-Cron and loopback delivery first — both are host-level, not plugin-level.', 'skwirrel-pim-sync' ) );
+
 			$health_js =
 				'(function() {'
 				. ' var btn = document.getElementById("skwirrel-health-check-run");'
 				. ' var out = document.getElementById("skwirrel-health-check-results");'
+				. ' var runLabelEl = document.getElementById("skwirrel-health-check-run-label");'
 				. ' if (!btn || !out) return;'
-				. ' var ICONS = {'
-				. '  good: "<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' width=\'20\' height=\'20\'><path d=\'M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z\' stroke-linecap=\'round\' stroke-linejoin=\'round\' /></svg>",'
-				. '  recommended: "<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' width=\'20\' height=\'20\'><path d=\'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z\' stroke-linecap=\'round\' stroke-linejoin=\'round\' /></svg>",'
-				. '  critical: "<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' width=\'20\' height=\'20\'><path d=\'M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z\' stroke-linecap=\'round\' stroke-linejoin=\'round\' /></svg>"'
-				. ' };'
+				. ' var ICON = { good: "ph-check-circle", recommended: "ph-warning-circle", critical: "ph-x-circle" };'
 				. ' function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}'
-				. ' function row(r){'
-				. '  var icon = ICONS[r.status] || ICONS.recommended;'
-				. '  return "<div class=\"skw-health-row skw-health-" + esc(r.status) + "\"><div class=\"skw-health-icon\">" + icon + "</div><div class=\"skw-health-body\"><strong>" + esc(r.label) + "</strong><p>" + esc(r.message) + "</p></div></div>";'
+				. ' function row(name, what, r){'
+				. '  var icon = ICON[r.status] || ICON.recommended;'
+				. '  var fix = r.status !== "good" ? "<a href=\"#skwirrel-troubleshoot\" class=\"skw-dbg-check-fix\">' . esc_js( __( 'See troubleshooting', 'skwirrel-pim-sync' ) ) . '</a>" : "";'
+				. '  return "<div class=\"skw-dbg-check-row\"><i class=\"ph " + icon + "\" aria-hidden=\"true\"></i>"'
+				. '   + "<div><div class=\"skw-dbg-check-name\">" + esc(name) + "</div><div class=\"skw-dbg-check-what\">" + esc(what) + "</div></div>"'
+				. '   + "<div class=\"skw-dbg-check-result\">" + esc(r.label) + " — " + esc(r.message) + "</div>" + fix + "</div>";'
 				. ' }'
 				. ' btn.addEventListener("click", function(){'
-				. '  btn.disabled = true; btn.textContent = skwirrelPimSync.healthCheckRunning;'
+				. '  btn.disabled = true; btn.innerHTML = "<i class=\"ph ph-play\" aria-hidden=\"true\"></i> " + esc(skwirrelPimSync.healthCheckRunning);'
 				. '  var fd = new FormData();'
 				. '  fd.append("action", "skwirrel_wc_sync_health_check");'
 				. '  fd.append("_nonce", skwirrelPimSync.healthCheckNonce);'
@@ -2615,14 +2696,42 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				. '   .then(function(r){ return r.json(); })'
 				. '   .then(function(r){'
 				. '    if (!r || !r.success) { out.innerHTML = "<p class=\"skw-c-red\">" + esc(skwirrelPimSync.healthCheckError) + "</p>"; return; }'
-				. '    out.innerHTML = row(r.data.cron) + row(r.data.loopback);'
+				. '    var d = r.data;'
+				. '    var passing = d.cron.status === "good" && d.loopback.status === "good";'
+				. '    var verdict = "<div class=\"skw-dbg-verdict skw-dbg-verdict-" + (passing ? "success" : "error") + "\">"'
+				. '     + "<i class=\"ph " + (passing ? "ph-check-circle" : "ph-x-circle") + "\" aria-hidden=\"true\"></i>"'
+				. '     + "<div><div class=\"skw-dbg-verdict-title\">" + (passing ? "' . $verdict_ok . '" : "' . $verdict_bad . '") + "</div>"'
+				. '     + "<p class=\"skw-dbg-verdict-body\">" + (passing ? "' . $verdict_ok_body . '" : "' . $verdict_bad_body . '") + "</p></div></div>";'
+				. '    var rows = row("' . esc_js( __( 'WP-Cron', 'skwirrel-pim-sync' ) ) . '", "' . esc_js( __( 'Can WordPress fire scheduled events?', 'skwirrel-pim-sync' ) ) . '", d.cron)'
+				. '     + row("' . esc_js( __( 'Loopback request', 'skwirrel-pim-sync' ) ) . '", "' . esc_js( __( 'Can the site make an HTTP request to itself?', 'skwirrel-pim-sync' ) ) . '", d.loopback);'
+				. '    out.innerHTML = verdict + "<div class=\"skw-dbg-checks\">" + rows + "</div>";'
+				. '    if (runLabelEl) runLabelEl.textContent = "' . $last_run_fmt . '".replace("%s", "' . esc_js( __( 'a few seconds', 'skwirrel-pim-sync' ) ) . '");'
+				. '    btn.innerHTML = "<i class=\"ph ph-play\" aria-hidden=\"true\"></i> ' . $run_again_label . '";'
 				. '   })'
 				. '   .catch(function(){ out.innerHTML = "<p class=\"skw-c-red\">" + esc(skwirrelPimSync.healthCheckError) + "</p>"; })'
-				. '   .finally(function(){ btn.disabled = false; btn.textContent = "' . $run_label . '"; });'
+				. '   .finally(function(){ btn.disabled = false; });'
 				. ' });'
 				. '})();';
 
 			wp_add_inline_script( 'skwirrel-pim-sync-admin', $health_js );
+
+			$copy_js =
+				'(function() {'
+				. ' document.addEventListener("click", function(e){'
+				. '  var btn = e.target.closest ? e.target.closest(".skw-dbg-copy") : null;'
+				. '  if (!btn) return;'
+				. '  var text = btn.dataset.copy || "";'
+				. '  if (!text || !navigator.clipboard) return;'
+				. '  navigator.clipboard.writeText(text).then(function(){'
+				. '   var icon = btn.querySelector("i");'
+				. '   if (!icon) return;'
+				. '   icon.className = "ph ph-check-circle";'
+				. '   setTimeout(function(){ icon.className = "ph ph-copy"; }, 1500);'
+				. '  }).catch(function(){});'
+				. ' });'
+				. '})();';
+
+			wp_add_inline_script( 'skwirrel-pim-sync-admin', $copy_js );
 		}
 	}
 

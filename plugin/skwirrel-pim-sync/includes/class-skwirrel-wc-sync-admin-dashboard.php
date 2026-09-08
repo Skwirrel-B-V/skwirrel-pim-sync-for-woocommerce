@@ -1986,125 +1986,285 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 * Render the debug page.
 	 */
 	private function render_page_debug(): void {
-		$opts             = get_option( self::OPTION_KEY, array() );
-		$verbose_enabled  = ! empty( $opts['verbose_logging'] ) || ( defined( 'SKWIRREL_VERBOSE_SYNC' ) && SKWIRREL_VERBOSE_SYNC );
-		$sync_in_progress = (bool) get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
-		$active_log       = Skwirrel_WC_Sync_Logger::get_active_or_latest_log_filename();
-		?>
-		<div class="skw-section" id="skwirrel-live-log">
-			<div class="skw-section-header">
-				<h2 class="skw-section-title"><?php esc_html_e( 'Live sync log', 'skwirrel-pim-sync' ); ?></h2>
-				<div class="skw-live-log-status">
-					<span class="skw-live-log-dot skw-live-log-dot-<?php echo $sync_in_progress ? 'running' : 'idle'; ?>" aria-hidden="true"></span>
-					<span id="skwirrel-live-log-state">
-						<?php echo $sync_in_progress ? esc_html__( 'Sync running', 'skwirrel-pim-sync' ) : esc_html__( 'Idle', 'skwirrel-pim-sync' ); ?>
-					</span>
-				</div>
-			</div>
-			<p class="skw-section-desc">
-				<?php esc_html_e( 'Tails the current sync log file. When no sync is running, the most recent log is shown.', 'skwirrel-pim-sync' ); ?>
-			</p>
-			<?php if ( ! $verbose_enabled ) : ?>
-				<div class="skw-live-log-notice">
-					<?php
-					printf(
-						/* translators: %s: link to verbose logging setting */
-						esc_html__( 'Verbose logging is disabled. Enable it in %s to see per-product detail.', 'skwirrel-pim-sync' ),
-						'<a href="' . esc_url( add_query_arg( 'tab', 'settings', admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ) ) . '">' . esc_html__( 'Settings', 'skwirrel-pim-sync' ) . '</a>'
-					);
-					?>
-				</div>
-			<?php endif; ?>
-			<div class="skw-live-log-toolbar">
-				<button type="button" class="button" id="skwirrel-live-log-pause">
-					<?php esc_html_e( 'Pause', 'skwirrel-pim-sync' ); ?>
-				</button>
-				<button type="button" class="button" id="skwirrel-live-log-clear">
-					<?php esc_html_e( 'Clear', 'skwirrel-pim-sync' ); ?>
-				</button>
-				<label class="skw-live-log-autoscroll">
-					<input type="checkbox" id="skwirrel-live-log-autoscroll" checked>
-					<?php esc_html_e( 'Auto-scroll', 'skwirrel-pim-sync' ); ?>
-				</label>
-				<span class="skw-live-log-file" id="skwirrel-live-log-filename">
-					<?php echo $active_log ? esc_html( $active_log ) : '&mdash;'; ?>
-				</span>
-				<span class="skw-log-progress" id="skwirrel-live-log-progress"></span>
-				<button type="button" class="button skw-btn-log-download" id="skwirrel-live-log-download" <?php echo $active_log ? '' : 'disabled'; ?>>
-					<?php esc_html_e( 'Download', 'skwirrel-pim-sync' ); ?>
-				</button>
-			</div>
-			<pre id="skwirrel-live-log-content" data-filename="<?php echo esc_attr( $active_log ? $active_log : '' ); ?>"></pre>
-		</div>
-
-		<?php
+		$opts                  = get_option( self::OPTION_KEY, array() );
+		$verbose_enabled       = ! empty( $opts['verbose_logging'] ) || ( defined( 'SKWIRREL_VERBOSE_SYNC' ) && SKWIRREL_VERBOSE_SYNC );
+		$sync_in_progress      = (bool) get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
+		$active_log            = Skwirrel_WC_Sync_Logger::get_active_or_latest_log_filename();
+		$etim_debug_enabled    = defined( 'SKWIRREL_WC_SYNC_DEBUG_ETIM' ) && SKWIRREL_WC_SYNC_DEBUG_ETIM;
 		$scheduled_actions_url = admin_url( 'tools.php?page=action-scheduler&s=skwirrel&status=pending' );
 		$site_health_url       = admin_url( 'site-health.php' );
 		$logger_for_debug      = new Skwirrel_WC_Sync_Logger();
 		$wc_log_url            = $logger_for_debug->get_log_file_url();
+		$dashboard_url         = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		$settings_url          = add_query_arg( 'tab', 'settings', $dashboard_url );
 		?>
-		<div class="skw-section" id="skwirrel-health-check">
-			<h2 class="skw-section-title"><?php esc_html_e( 'Sync health check', 'skwirrel-pim-sync' ); ?></h2>
-			<p class="skw-section-desc"><?php esc_html_e( 'Checks whether WordPress can actually run a queued sync step — the usual cause when a sync starts but nothing happens.', 'skwirrel-pim-sync' ); ?></p>
-			<button type="button" class="button" id="skwirrel-health-check-run"><?php esc_html_e( 'Run health check', 'skwirrel-pim-sync' ); ?></button>
-			<div id="skwirrel-health-check-results" class="skw-health-results"></div>
-		</div>
+		<div class="skw-debug-page">
+			<div class="skw-dbg-crumbs">
+				<a href="<?php echo esc_url( $dashboard_url ); ?>"><?php esc_html_e( 'Skwirrel PIM Sync', 'skwirrel-pim-sync' ); ?></a>
+				<span aria-hidden="true">/</span>
+				<span><?php esc_html_e( 'Debug', 'skwirrel-pim-sync' ); ?></span>
+			</div>
+			<div class="skw-dbg-header">
+				<div>
+					<h1><?php esc_html_e( 'Debug', 'skwirrel-pim-sync' ); ?></h1>
+					<p><?php esc_html_e( 'Live sync log, health checks and variation attribute diagnostics. Start at the top and work down.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+				<div style="display:flex; align-items:center; gap:8px">
+					<a href="<?php echo esc_url( $dashboard_url ); ?>" class="skw-dbg-btn"><i class="ph ph-arrow-left" aria-hidden="true"></i> <?php esc_html_e( 'Back to dashboard', 'skwirrel-pim-sync' ); ?></a>
+					<a href="https://skwirrel.eu" target="_blank" rel="noopener noreferrer" class="skw-dbg-btn"><i class="ph ph-lifebuoy" aria-hidden="true"></i> <?php esc_html_e( 'Contact support', 'skwirrel-pim-sync' ); ?></a>
+				</div>
+			</div>
 
-		<div class="skw-section">
-			<h2 class="skw-section-title"><?php esc_html_e( 'Sync not working? Check this first', 'skwirrel-pim-sync' ); ?></h2>
-			<p class="skw-section-desc"><?php esc_html_e( 'Most "nothing is happening" reports turn out to be one of these. Work through them in order before assuming the plugin itself is broken.', 'skwirrel-pim-sync' ); ?></p>
-			<ol class="skw-debug-steps">
-				<li>
-					<?php
-					printf(
-						/* translators: %s: link to the health check above */
-						esc_html__( 'Run the %s above — it tells you directly whether WordPress can run scheduled tasks and reach itself over HTTP.', 'skwirrel-pim-sync' ),
-						'<a href="#skwirrel-health-check">' . esc_html__( 'health check', 'skwirrel-pim-sync' ) . '</a>'
-					);
-					?>
-				</li>
-				<li>
-					<?php
-					printf(
-						/* translators: %s: link to WooCommerce's own log viewer */
-						esc_html__( 'Check %s (source "skwirrel-pim-sync") for the actual error — a failure always logs there, even when verbose logging is off.', 'skwirrel-pim-sync' ),
-						$wc_log_url ? '<a href="' . esc_url( $wc_log_url ) . '" target="_blank">' . esc_html__( 'WooCommerce → Status → Logs', 'skwirrel-pim-sync' ) . '</a>' : esc_html__( 'WooCommerce → Status → Logs', 'skwirrel-pim-sync' )
-					);
-					?>
-				</li>
-				<li>
-					<?php
-					printf(
-						/* translators: %s: link to the Scheduled Actions screen */
-						esc_html__( 'Look at %s for hooks starting with "skwirrel_wc_sync_". Pending for more than a few minutes means the queue is not being processed at all — see the next two steps.', 'skwirrel-pim-sync' ),
-						'<a href="' . esc_url( $scheduled_actions_url ) . '" target="_blank">' . esc_html__( 'Scheduled Actions', 'skwirrel-pim-sync' ) . '</a>'
-					);
-					?>
-				</li>
-				<li>
-					<?php
-					printf(
-						/* translators: %s: link to WordPress's Site Health screen */
-						esc_html__( 'Open %s and look for "A scheduled event has failed" or "Your site could not complete a loopback request" — both point at WP-Cron/loopback delivery, not this plugin.', 'skwirrel-pim-sync' ),
-						'<a href="' . esc_url( $site_health_url ) . '" target="_blank">' . esc_html__( 'Tools → Site Health', 'skwirrel-pim-sync' ) . '</a>'
-					);
-					?>
-				</li>
-				<li><?php esc_html_e( 'If WP-Cron looks broken: check whether DISABLE_WP_CRON is set in wp-config.php, and if so, confirm your host has a real server cron job calling wp-cron.php on a schedule.', 'skwirrel-pim-sync' ); ?></li>
-				<li><?php esc_html_e( 'If loopback requests fail: ask your host whether a firewall, WAF, or security plugin blocks the site from making HTTP requests to itself.', 'skwirrel-pim-sync' ); ?></li>
-			</ol>
-		</div>
+			<div class="skw-dbg-nav">
+				<a href="#skwirrel-live-log"><?php esc_html_e( 'Live sync log', 'skwirrel-pim-sync' ); ?></a>
+				<a href="#skwirrel-health-check"><?php esc_html_e( 'Health check', 'skwirrel-pim-sync' ); ?></a>
+				<a href="#skwirrel-troubleshoot"><?php esc_html_e( 'Sync not working?', 'skwirrel-pim-sync' ); ?></a>
+				<a href="#skwirrel-variations"><?php esc_html_e( 'Variation attributes', 'skwirrel-pim-sync' ); ?></a>
+			</div>
 
-		<div class="skw-section">
-			<h2 class="skw-section-title"><?php esc_html_e( 'Debug Variation Attributes', 'skwirrel-pim-sync' ); ?></h2>
-			<p class="skw-section-desc"><?php esc_html_e( 'If variations show "Any Colour" or "Any Number of cups" instead of real values:', 'skwirrel-pim-sync' ); ?></p>
-			<ol class="skw-debug-steps">
-				<li><?php esc_html_e( 'Add to wp-config.php:', 'skwirrel-pim-sync' ); ?> <code>define('SKWIRREL_WC_SYNC_DEBUG_ETIM', true);</code></li>
-				<li><?php esc_html_e( 'Run "Sync Now" from the dashboard.', 'skwirrel-pim-sync' ); ?></li>
-				<li><?php esc_html_e( 'Check:', 'skwirrel-pim-sync' ); ?> <code>wp-content/uploads/skwirrel-pim-sync/skwirrel-variation-debug.log</code></li>
-				<li><?php esc_html_e( 'If etim_values_found is empty: API languages must match (e.g. en, en-GB).', 'skwirrel-pim-sync' ); ?></li>
-				<li><?php esc_html_e( 'If ATTR VERIFY FAIL: check wp_postmeta for attribute_pa_ entries.', 'skwirrel-pim-sync' ); ?></li>
-			</ol>
+			<div class="skw-dbg-section" id="skwirrel-live-log">
+				<div class="skw-dbg-section-head">
+					<div class="skw-dbg-section-head-main">
+						<span class="skw-dbg-icon-tile"><i class="ph ph-terminal-window" aria-hidden="true"></i></span>
+						<div>
+							<h2><?php esc_html_e( 'Live sync log', 'skwirrel-pim-sync' ); ?></h2>
+							<p><?php esc_html_e( 'Tails the current sync log file. When no sync is running, the most recent log is shown.', 'skwirrel-pim-sync' ); ?></p>
+						</div>
+					</div>
+					<div class="skw-dbg-pill">
+						<span class="skw-dbg-pill-dot<?php echo $sync_in_progress ? ' skw-dbg-pill-running' : ''; ?>" id="skwirrel-live-log-dot" aria-hidden="true"></span>
+						<span class="skw-dbg-pill-label" id="skwirrel-live-log-state"><?php echo $sync_in_progress ? esc_html__( 'Running', 'skwirrel-pim-sync' ) : esc_html__( 'Idle', 'skwirrel-pim-sync' ); ?></span>
+					</div>
+				</div>
+
+				<?php if ( ! $verbose_enabled ) : ?>
+					<div style="padding:0 24px 16px">
+						<?php
+						printf(
+							/* translators: %s: link to verbose logging setting */
+							esc_html__( 'Verbose logging is disabled. Enable it in %s to see per-product detail.', 'skwirrel-pim-sync' ),
+							'<a href="' . esc_url( $settings_url ) . '">' . esc_html__( 'Settings', 'skwirrel-pim-sync' ) . '</a>'
+						);
+						?>
+					</div>
+				<?php endif; ?>
+
+				<div class="skw-dbg-toolbar">
+					<div style="display:flex; align-items:center; gap:8px">
+						<button type="button" class="skw-dbg-btn" id="skwirrel-live-log-pause"><i class="ph ph-pause" aria-hidden="true"></i> <?php esc_html_e( 'Pause', 'skwirrel-pim-sync' ); ?></button>
+						<button type="button" class="skw-dbg-btn skw-dbg-btn-ghost" id="skwirrel-live-log-clear"><i class="ph ph-eraser" aria-hidden="true"></i> <?php esc_html_e( 'Clear', 'skwirrel-pim-sync' ); ?></button>
+					</div>
+					<span class="skw-dbg-toolbar-sep" aria-hidden="true"></span>
+					<div style="display:flex; align-items:center; gap:6px" id="skwirrel-live-log-filters">
+						<button type="button" class="skw-dbg-chip skw-dbg-chip-active" data-level="all"><?php esc_html_e( 'All', 'skwirrel-pim-sync' ); ?> <span class="skw-dbg-chip-count">0</span></button>
+						<button type="button" class="skw-dbg-chip" data-level="info"><?php esc_html_e( 'Info', 'skwirrel-pim-sync' ); ?> <span class="skw-dbg-chip-count">0</span></button>
+						<button type="button" class="skw-dbg-chip skw-dbg-chip-warning" data-level="warning"><?php esc_html_e( 'Warnings', 'skwirrel-pim-sync' ); ?> <span class="skw-dbg-chip-count">0</span></button>
+						<button type="button" class="skw-dbg-chip skw-dbg-chip-error" data-level="error"><?php esc_html_e( 'Errors', 'skwirrel-pim-sync' ); ?> <span class="skw-dbg-chip-count">0</span></button>
+					</div>
+					<label class="skw-dbg-autoscroll">
+						<input type="checkbox" id="skwirrel-live-log-autoscroll" checked>
+						<?php esc_html_e( 'Auto-scroll', 'skwirrel-pim-sync' ); ?>
+					</label>
+					<div class="skw-dbg-toolbar-fill"></div>
+					<span class="skw-dbg-filename" id="skwirrel-live-log-filename"><?php echo $active_log ? esc_html( $active_log ) : '—'; ?></span>
+					<span class="skw-log-progress" id="skwirrel-live-log-progress"></span>
+					<button type="button" class="skw-dbg-btn" id="skwirrel-live-log-download" <?php echo $active_log ? '' : 'disabled'; ?>><i class="ph ph-download-simple" aria-hidden="true"></i> <?php esc_html_e( 'Download', 'skwirrel-pim-sync' ); ?></button>
+				</div>
+
+				<div class="skw-dbg-log" id="skwirrel-live-log-content" data-filename="<?php echo esc_attr( $active_log ? $active_log : '' ); ?>"></div>
+
+				<div class="skw-dbg-log-footer">
+					<span id="skwirrel-live-log-summary"></span>
+					<span>
+						<?php
+						printf(
+							/* translators: %s: link to Settings */
+							esc_html__( 'Verbose logging can be switched off in %s once you are done.', 'skwirrel-pim-sync' ),
+							'<a href="' . esc_url( $settings_url ) . '">' . esc_html__( 'Settings', 'skwirrel-pim-sync' ) . '</a>'
+						);
+						?>
+					</span>
+				</div>
+			</div>
+
+			<div class="skw-dbg-section skw-dbg-section-body" id="skwirrel-health-check">
+				<div class="skw-dbg-section-head" style="padding:0">
+					<div class="skw-dbg-section-head-main">
+						<span class="skw-dbg-icon-tile"><i class="ph ph-pulse" aria-hidden="true"></i></span>
+						<div>
+							<h2><?php esc_html_e( 'Sync health check', 'skwirrel-pim-sync' ); ?></h2>
+							<p><?php esc_html_e( 'Checks whether WordPress can actually run a queued sync step — the usual cause when a sync starts but nothing happens.', 'skwirrel-pim-sync' ); ?></p>
+						</div>
+					</div>
+					<div style="display:flex; align-items:center; gap:12px">
+						<span id="skwirrel-health-check-run-label" style="color:var(--color-neutral-light); font-size:13px"><?php esc_html_e( 'Not run yet', 'skwirrel-pim-sync' ); ?></span>
+						<button type="button" class="skw-dbg-btn skw-dbg-btn-solid" id="skwirrel-health-check-run"><i class="ph ph-play" aria-hidden="true"></i> <?php esc_html_e( 'Run health check', 'skwirrel-pim-sync' ); ?></button>
+					</div>
+				</div>
+				<div id="skwirrel-health-check-results">
+					<div class="skw-dbg-health-empty"><?php esc_html_e( 'Not run yet. The check takes a few seconds and makes one request from your site to itself.', 'skwirrel-pim-sync' ); ?></div>
+				</div>
+			</div>
+
+			<div class="skw-dbg-section skw-dbg-section-body" id="skwirrel-troubleshoot">
+				<div class="skw-dbg-section-head-main">
+					<span class="skw-dbg-icon-tile skw-dbg-icon-tile-blue"><i class="ph ph-first-aid-kit" aria-hidden="true"></i></span>
+					<div>
+						<h2><?php esc_html_e( 'Sync not working? Check this first', 'skwirrel-pim-sync' ); ?></h2>
+						<p><?php esc_html_e( 'Most "nothing is happening" reports turn out to be one of these. Work through them in order before assuming the plugin itself is broken.', 'skwirrel-pim-sync' ); ?></p>
+					</div>
+				</div>
+				<ol class="skw-dbg-checklist">
+					<li>
+						<span class="skw-dbg-num">1</span>
+						<span>
+							<?php
+							printf(
+								/* translators: %s: link to the health check above */
+								esc_html__( 'Run the %s above — it tells you directly whether WordPress can run scheduled tasks and reach itself over HTTP.', 'skwirrel-pim-sync' ),
+								'<a href="#skwirrel-health-check">' . esc_html__( 'health check', 'skwirrel-pim-sync' ) . '</a>'
+							);
+							?>
+						</span>
+					</li>
+					<li>
+						<span class="skw-dbg-num">2</span>
+						<span>
+							<?php
+							printf(
+								/* translators: %s: link to WooCommerce's own log viewer */
+								esc_html__( 'Check %s (source "skwirrel-pim-sync") for the actual error — a failure always logs there, even when verbose logging is off.', 'skwirrel-pim-sync' ),
+								$wc_log_url ? '<a href="' . esc_url( $wc_log_url ) . '" target="_blank">' . esc_html__( 'WooCommerce → Status → Logs', 'skwirrel-pim-sync' ) . '</a>' : esc_html__( 'WooCommerce → Status → Logs', 'skwirrel-pim-sync' )
+							);
+							?>
+						</span>
+					</li>
+					<li>
+						<span class="skw-dbg-num">3</span>
+						<span>
+							<?php
+							printf(
+								/* translators: %s: link to the Scheduled Actions screen */
+								esc_html__( 'Look at %s for hooks starting with "skwirrel_wc_sync_". Pending for more than a few minutes means the queue is not being processed at all — see the next two steps.', 'skwirrel-pim-sync' ),
+								'<a href="' . esc_url( $scheduled_actions_url ) . '" target="_blank">' . esc_html__( 'Scheduled Actions', 'skwirrel-pim-sync' ) . '</a>'
+							);
+							?>
+						</span>
+					</li>
+					<li>
+						<span class="skw-dbg-num">4</span>
+						<span>
+							<?php
+							printf(
+								/* translators: %s: link to WordPress's Site Health screen */
+								esc_html__( 'Open %s and look for "A scheduled event has failed" or "Your site could not complete a loopback request" — both point at WP-Cron/loopback delivery, not this plugin.', 'skwirrel-pim-sync' ),
+								'<a href="' . esc_url( $site_health_url ) . '" target="_blank">' . esc_html__( 'Tools → Site Health', 'skwirrel-pim-sync' ) . '</a>'
+							);
+							?>
+						</span>
+					</li>
+					<li>
+						<span class="skw-dbg-num">5</span>
+						<span><?php esc_html_e( 'If WP-Cron looks broken: check whether DISABLE_WP_CRON is set in wp-config.php, and if so, confirm your host has a real server cron job calling wp-cron.php on a schedule.', 'skwirrel-pim-sync' ); ?></span>
+					</li>
+					<li>
+						<span class="skw-dbg-num">6</span>
+						<span><?php esc_html_e( 'If loopback requests fail: ask your host whether a firewall, WAF, or security plugin blocks the site from making HTTP requests to itself.', 'skwirrel-pim-sync' ); ?></span>
+					</li>
+				</ol>
+			</div>
+
+			<div class="skw-dbg-section skw-dbg-section-body" id="skwirrel-variations">
+				<div class="skw-dbg-section-head" style="padding:0">
+					<div class="skw-dbg-section-head-main">
+						<span class="skw-dbg-icon-tile skw-dbg-icon-tile-blue"><i class="ph ph-puzzle-piece" aria-hidden="true"></i></span>
+						<div>
+							<h2><?php esc_html_e( 'Variation attributes', 'skwirrel-pim-sync' ); ?></h2>
+							<p><?php esc_html_e( 'Use this when variations show "Any Colour" or "Any Number of cups" instead of real ETIM values.', 'skwirrel-pim-sync' ); ?></p>
+						</div>
+					</div>
+					<div style="display:flex; align-items:center; gap:10px; padding:6px 12px; border-radius:4px; background:hsl(220 100% 96%)">
+						<span style="font-family:var(--font-display); font-weight:600; font-size:13px"><?php esc_html_e( 'ETIM debug flag', 'skwirrel-pim-sync' ); ?></span>
+						<?php if ( $etim_debug_enabled ) : ?>
+							<span class="skw-dbg-badge skw-dbg-badge-success"><?php esc_html_e( 'On', 'skwirrel-pim-sync' ); ?></span>
+						<?php else : ?>
+							<span class="skw-dbg-badge skw-dbg-badge-light"><?php esc_html_e( 'Off', 'skwirrel-pim-sync' ); ?></span>
+						<?php endif; ?>
+					</div>
+				</div>
+
+				<div class="skw-dbg-cards">
+					<div class="skw-dbg-card">
+						<div class="skw-dbg-card-head">
+							<span class="skw-dbg-card-num">1</span>
+							<span class="skw-dbg-card-title"><?php esc_html_e( 'Enable the debug flag', 'skwirrel-pim-sync' ); ?></span>
+						</div>
+						<p>
+							<?php
+							printf(
+								/* translators: %s: wp-config.php */
+								esc_html__( 'Add this line to %s, then run "Sync now" from the dashboard.', 'skwirrel-pim-sync' ),
+								'<code>wp-config.php</code>'
+							);
+							?>
+						</p>
+						<div class="skw-dbg-code-row">
+							<code>define('SKWIRREL_WC_SYNC_DEBUG_ETIM', true);</code>
+							<button type="button" class="skw-dbg-copy-btn skw-dbg-copy" aria-label="<?php esc_attr_e( 'Copy', 'skwirrel-pim-sync' ); ?>" data-copy="define('SKWIRREL_WC_SYNC_DEBUG_ETIM', true);"><i class="ph ph-copy" aria-hidden="true"></i></button>
+						</div>
+					</div>
+
+					<div class="skw-dbg-card">
+						<div class="skw-dbg-card-head">
+							<span class="skw-dbg-card-num">2</span>
+							<span class="skw-dbg-card-title"><?php esc_html_e( 'Read the debug log', 'skwirrel-pim-sync' ); ?></span>
+						</div>
+						<p><?php esc_html_e( 'The run writes a separate file with the ETIM values it found per variation.', 'skwirrel-pim-sync' ); ?></p>
+						<div class="skw-dbg-code-row skw-dbg-code-row-blue">
+							<code>wp-content/uploads/skwirrel-pim-sync/skwirrel-variation-debug.log</code>
+							<button type="button" class="skw-dbg-copy-btn skw-dbg-copy" aria-label="<?php esc_attr_e( 'Copy', 'skwirrel-pim-sync' ); ?>" data-copy="wp-content/uploads/skwirrel-pim-sync/skwirrel-variation-debug.log"><i class="ph ph-copy" aria-hidden="true"></i></button>
+						</div>
+					</div>
+				</div>
+
+				<div class="skw-dbg-table">
+					<div class="skw-dbg-table-head">
+						<span><?php esc_html_e( 'What you see in the log', 'skwirrel-pim-sync' ); ?></span>
+						<span><?php esc_html_e( 'What to do', 'skwirrel-pim-sync' ); ?></span>
+					</div>
+					<div class="skw-dbg-table-row">
+						<code>etim_values_found: []</code>
+						<span>
+							<?php
+							printf(
+								/* translators: 1: 'en' language code example, 2: 'en-GB' language code example */
+								esc_html__( 'The API languages do not match. Make sure the plugin and the Skwirrel API use the same language code (e.g. %1$s vs %2$s).', 'skwirrel-pim-sync' ),
+								'<code>en</code>',
+								'<code>en-GB</code>'
+							);
+							?>
+						</span>
+					</div>
+					<div class="skw-dbg-table-row">
+						<code>ATTR VERIFY FAIL</code>
+						<span>
+							<?php
+							printf(
+								/* translators: 1: wp_postmeta, 2: attribute_pa_ */
+								esc_html__( 'The attribute never reached the variation. Check %1$s for %2$s entries on that variation ID.', 'skwirrel-pim-sync' ),
+								'<code>wp_postmeta</code>',
+								'<code>attribute_pa_</code>'
+							);
+							?>
+						</span>
+					</div>
+					<div class="skw-dbg-table-row">
+						<code>without_attributes: &gt; 0</code>
+						<span><?php esc_html_e( 'Those products synced without any variation attributes at all — they are listed by SKU at the end of the debug log.', 'skwirrel-pim-sync' ); ?></span>
+					</div>
+				</div>
+				<p style="margin:14px 0 0; color:var(--color-neutral-light); font-size:13px"><?php esc_html_e( 'Switch the flag back off when you are done — it writes one line per variation on every sync.', 'skwirrel-pim-sync' ); ?></p>
+			</div>
 		</div>
 		<?php
 	}
