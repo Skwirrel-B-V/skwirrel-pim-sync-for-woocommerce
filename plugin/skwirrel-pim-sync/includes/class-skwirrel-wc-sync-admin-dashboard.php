@@ -1129,7 +1129,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<?php wp_nonce_field( 'skwirrel_wc_sync_purge', '_wpnonce' ); ?>
 				<label class="skw-checkbox"><input type="checkbox" name="skwirrel_purge_empty_trash" value="1" id="skwirrel-purge-permanent" /> <?php esc_html_e( 'Also empty the trash (permanently delete)', 'skwirrel-pim-sync' ); ?></label>
 				<div class="skw-field-actions" style="margin-top: 12px;">
-					<button type="submit" class="skw-btn skw-btn-danger"><?php esc_html_e( 'Delete all Skwirrel products', 'skwirrel-pim-sync' ); ?></button>
+					<button type="submit" class="skw-btn skw-btn-danger-solid"><i class="ph ph-trash" aria-hidden="true"></i> <?php esc_html_e( 'Delete all Skwirrel products', 'skwirrel-pim-sync' ); ?></button>
 				</div>
 			</form>
 		</div>
@@ -1140,7 +1140,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<input type="hidden" name="action" value="skwirrel_wc_sync_reset_settings" />
 				<?php wp_nonce_field( 'skwirrel_wc_sync_reset_settings', '_wpnonce' ); ?>
 				<div class="skw-field-actions" style="margin-top: 12px;">
-					<button type="submit" class="skw-btn skw-btn-danger" id="skwirrel-reset-settings-btn"><?php esc_html_e( 'Reset Skwirrel sync settings', 'skwirrel-pim-sync' ); ?></button>
+					<button type="submit" class="skw-btn skw-btn-danger" id="skwirrel-reset-settings-btn"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i> <?php esc_html_e( 'Reset Skwirrel sync settings', 'skwirrel-pim-sync' ); ?></button>
 				</div>
 			</form>
 		</div>
@@ -1399,20 +1399,29 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<button type="submit" class="button button-primary button-large"><?php esc_html_e( 'Save settings', 'skwirrel-pim-sync' ); ?></button>
 				</div>
 			</form>
-		</div>
 
-		<?php if ( isset( $tabs['danger-zone'] ) ) : ?>
-			<div
-				class="skw-tabpanel skw-section skw-danger-zone"
-				role="tabpanel"
-				id="panel-danger-zone"
-				data-skw-panel="danger-zone"
-				aria-labelledby="tab-danger-zone"
-				tabindex="0"
-			>
-				<?php $this->render_settings_tab_panel( $tabs['danger-zone'], $context ); ?>
-			</div>
-		<?php endif; ?>
+			<?php if ( isset( $tabs['danger-zone'] ) ) : ?>
+				<?php
+				/*
+				 * Still outside the settings <form> — Danger zone's own two actions post to
+				 * admin-post.php, and a <form> nested inside another is invalid HTML (see the
+				 * render_settings_panel_danger_zone() docblock). It lives inside this shared
+				 * .skw-section card, though, so switching to it reads as an ordinary tab rather
+				 * than a second, separately-boxed panel.
+				 */
+				?>
+				<div
+					class="skw-tabpanel skw-danger-zone"
+					role="tabpanel"
+					id="panel-danger-zone"
+					data-skw-panel="danger-zone"
+					aria-labelledby="tab-danger-zone"
+					tabindex="0"
+				>
+					<?php $this->render_settings_tab_panel( $tabs['danger-zone'], $context ); ?>
+				</div>
+			<?php endif; ?>
+		</div>
 		</div>
 		<?php
 	}
@@ -1520,8 +1529,8 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<p class="skw-field-hint" id="context_id-hint"><?php esc_html_e( 'Optional. Leave this empty unless Skwirrel told you otherwise — an empty field uses the Skwirrel default context. Fill it in only if your Skwirrel instance serves several shops and you need the content of one specific context. Changing it re-imports your whole catalogue on the next synchronisation.', 'skwirrel-pim-sync' ); ?></p>
 				</div>
 			</div>
-			<div class="skw-field-actions">
-				<button type="button" id="skwirrel-test-connection" class="skw-btn skw-btn-secondary"><?php esc_html_e( 'Test connection', 'skwirrel-pim-sync' ); ?></button>
+			<div class="skw-field-actions skw-field-actions-connection">
+				<button type="button" id="skwirrel-test-connection" class="skw-btn skw-btn-secondary"><i class="ph ph-plugs" aria-hidden="true"></i> <?php esc_html_e( 'Test connection', 'skwirrel-pim-sync' ); ?></button>
 				<span id="skwirrel-test-result" class="skw-test-result" role="status" aria-live="polite" aria-atomic="true"></span>
 			</div>
 		</div>
@@ -1927,7 +1936,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					</select>
 					<p class="skw-field-hint"><?php esc_html_e( 'Applied to any status not mapped below, including newly discovered ones.', 'skwirrel-pim-sync' ); ?></p>
 				</div>
-				<table class="widefat skw-status-table" style="max-width: 680px;">
+				<table class="widefat skw-status-table" style="max-width: 900px;">
 					<thead>
 						<tr>
 							<th><?php esc_html_e( 'Skwirrel status', 'skwirrel-pim-sync' ); ?></th>
@@ -1950,7 +1959,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					</tbody>
 				</table>
 				<p class="skw-status-refresh">
-					<button type="button" id="skwirrel-refresh-statuses" class="button button-secondary"><?php esc_html_e( 'Refresh statuses from Skwirrel', 'skwirrel-pim-sync' ); ?></button>
+					<button type="button" id="skwirrel-refresh-statuses" class="skw-set-btn"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i> <?php esc_html_e( 'Refresh statuses from Skwirrel', 'skwirrel-pim-sync' ); ?></button>
 					<span id="skwirrel-refresh-statuses-msg" class="skw-field-hint"></span>
 				</p>
 			<div class="skw-field" style="margin-top: 12px;">

@@ -61,8 +61,10 @@
 	--color-neutral: hsl(220 10% 18%);
 	--color-neutral-light: hsl(220 8% 40%);
 	--color-mascot: hsl(217 40% 62%);
+	--color-lavender: hsl(245 55% 82%);
 	--color-error: hsl(354 65% 58%);
 	--color-error-soft: hsl(355 80% 95%);
+	--color-error-dark: hsl(354 60% 32%);
 	--radius-sm: 0.25rem;
 
 	/* Confirmed against the design system's own component source (Input/Select in
@@ -99,6 +101,8 @@
 .skw-settings-page .ph-arrow-left:before { content: '\e058'; }
 .skw-settings-page .ph-key:before { content: '\e2d6'; }
 .skw-settings-page .ph-plugs:before { content: '\eb56'; }
+.skw-settings-page .ph-trash:before { content: '\e4a6'; }
+.skw-settings-page .ph-arrow-counter-clockwise:before { content: '\e038'; }
 
 /* -- Header -- */
 
@@ -154,6 +158,32 @@
 }
 .skw-set-btn:hover { border-color: var(--color-neutral); color: var(--color-neutral); }
 .skw-set-btn .ph { font-size: 16px; }
+
+/* -- Tab strip -- */
+
+.skw-settings-page .skw-tabs {
+	gap: 28px;
+	border-bottom: 1px solid rgb(28 31 38 / .1);
+	margin: 0 0 24px;
+	padding: 0 4px;
+}
+.skw-settings-page .skw-tab {
+	padding: 0 0 14px;
+	margin-bottom: -1px;
+	border-radius: 0;
+	font-family: var(--font-display);
+	font-size: 15px;
+	font-weight: 500;
+	color: var(--color-neutral-light);
+}
+.skw-settings-page .skw-tab:hover {
+	background: transparent;
+	color: var(--color-neutral);
+}
+.skw-settings-page .skw-tab[aria-selected="true"] {
+	color: var(--color-primary);
+	border-bottom-color: var(--color-primary);
+}
 
 /* -- Fieldgroup header: icon tile + title + description -- */
 
@@ -246,8 +276,21 @@
 }
 .skw-settings-page .skw-input-prefix,
 .skw-settings-page .skw-input-suffix {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	padding: 0 12px;
 	font-family: var(--font-mono);
+	font-size: 14px;
 	color: var(--color-neutral-light);
+	background: hsl(220 100% 96%);
+	white-space: nowrap;
+}
+.skw-settings-page .skw-input-prefix {
+	border-right: 1px solid var(--border-color);
+}
+.skw-settings-page .skw-input-suffix {
+	border-left: 1px solid var(--border-color);
 }
 .skw-settings-page .skw-field-hint {
 	font-family: var(--font-body);
@@ -267,9 +310,35 @@
 	border-radius: 4px;
 }
 .skw-settings-page .skw-checkbox {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
 	font-family: var(--font-body);
 	font-size: 14px;
 	color: var(--color-neutral);
+	cursor: pointer;
+}
+/* Matches the design system's own Checkbox component: a checked box fills with
+   --sk-mascot (a muted blue-lavender, not the --color-lavender token itself — that
+   one is reserved for hover/soft surfaces). Native rendering (box, tick, sizing)
+   is kept as-is; accent-color only retints it, no custom-drawn checkmark.
+   wp-admin's own forms.css paints :checked with an explicit background/border-color
+   (var(--wp-admin-theme-color)) on top of that, which wins over plain accent-color
+   since it isn't the same property — both need !important here to actually beat it. */
+.skw-settings-page .skw-checkbox input[type="checkbox"] {
+	width: 18px;
+	height: 18px;
+	flex-shrink: 0;
+	accent-color: var(--color-mascot) !important;
+	cursor: pointer;
+}
+.skw-settings-page input[type="checkbox"]:checked {
+	background: var(--color-mascot) !important;
+	border-color: var(--color-mascot) !important;
+}
+.skw-settings-page .skw-checkbox input[type="checkbox"]:focus-visible {
+	outline: 2px solid var(--color-mascot);
+	outline-offset: 2px;
 }
 .skw-settings-page .skw-required,
 .skw-settings-page .skw-field-required-marker {
@@ -303,11 +372,170 @@
 	font-weight: 500;
 }
 
+/* -- Field actions row (Save settings / Test connection) -- */
+
+.skw-settings-page .skw-field-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+	margin-top: 16px;
+}
+/* Explicit override needed: an author-stylesheet display:flex above would otherwise
+   beat the UA stylesheet's [hidden]{display:none} regardless of specificity, since
+   normal author rules always win over normal user-agent rules. */
+.skw-settings-page .skw-field-actions[hidden] {
+	display: none;
+}
+/* "Test connection" lives inside the Connection panel; "Save settings" is the one
+   shared submit button rendered once after every tab panel (kept as a single control
+   on purpose — see SettingsTabsIntegrationTest — so a no-JS admin, who gets every
+   panel stacked and visible at once, still has exactly one working Save). The inline
+   script in class-skwirrel-wc-sync-admin-settings.php moves that same button node
+   into this row while the Connection tab is active, and back out otherwise; the rules
+   below cover both the JS-enhanced (nested) and no-JS (trailing sibling) layouts. */
+.skw-settings-page .skw-field-actions-connection {
+	padding-top: 16px;
+	border-top: 1px solid rgb(28 31 38 / .1);
+	margin-bottom: 0;
+}
+/* Once JS nests the shared button inside this row, it's a flex item, not a block —
+   drop the base .skw-field-actions top margin so it lines up with Test connection. */
+.skw-settings-page .skw-field-actions-connection > .skw-field-actions {
+	margin-top: 0;
+}
+/* No-JS fallback: the shared Save button trails the Connection panel as a normal
+   sibling instead of being nested in its row — still close, just stacked. */
+.skw-settings-page .skw-tabpanel[data-skw-panel="connection"] ~ .skw-field-actions {
+	margin-top: 24px;
+}
+.skw-settings-page .skw-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	font-family: var(--font-display);
+	font-weight: 700;
+	font-size: 16px;
+	height: 48px;
+	padding: 0 20px;
+	border-radius: var(--radius-sm);
+	cursor: pointer;
+}
+.skw-settings-page .skw-btn .ph {
+	font-size: 18px;
+}
+.skw-settings-page .skw-btn-secondary {
+	background: #fff;
+	border: 1px solid var(--color-neutral);
+	color: var(--color-neutral);
+}
+.skw-settings-page .skw-btn-secondary:hover {
+	background: hsl(220 100% 98%);
+}
+.skw-settings-page .skw-btn-danger {
+	background: #fff;
+	border: 1px solid var(--color-error);
+	color: var(--color-error);
+}
+.skw-settings-page .skw-btn-danger:hover {
+	background: var(--color-error-soft);
+}
+.skw-settings-page .skw-btn-danger-solid {
+	background: var(--color-error);
+	border: 1px solid var(--color-error);
+	color: #fff;
+}
+.skw-settings-page .skw-btn-danger-solid:hover {
+	background: var(--color-error-dark);
+	border-color: var(--color-error-dark);
+}
+.skw-settings-page .skw-test-result {
+	font-size: 13px;
+	color: var(--color-neutral-light);
+}
+
+/* -- Product status mapping table -- */
+/* Overrides WordPress core's .widefat (striped rows, grey chrome) with the design's
+   plain card: soft header band, hairline row dividers, generous row padding. */
+
+.skw-settings-page .skw-status-table {
+	border: 1px solid rgb(28 31 38 / .1);
+	border-radius: var(--radius-sm);
+	border-collapse: separate;
+	border-spacing: 0;
+	overflow: hidden;
+	background: #fff;
+}
+.skw-settings-page .skw-status-table thead th {
+	background: hsl(220 100% 98%);
+	border-bottom: 1px solid rgb(28 31 38 / .1);
+	padding: 10px 16px;
+	font-family: var(--font-display);
+	font-weight: 600;
+	font-size: 13px;
+	color: var(--color-neutral-light);
+	text-align: left;
+}
+.skw-settings-page .skw-status-table tbody tr {
+	background: #fff;
+}
+.skw-settings-page .skw-status-table tbody td {
+	padding: 10px 16px;
+	border-bottom: 1px solid rgb(28 31 38 / .06);
+	vertical-align: middle;
+}
+.skw-settings-page .skw-status-table tbody tr:last-child td {
+	border-bottom: 0;
+}
+.skw-settings-page .skw-status-table .skw-select {
+	width: 100%;
+	max-width: 320px;
+}
+.skw-settings-page .skw-status-table .skw-status-id {
+	display: inline-block;
+	min-width: 1.5em;
+	text-align: center;
+	background: transparent;
+	color: var(--color-neutral-light);
+	border-radius: 0;
+	padding: 0 4px 0 0;
+	font-size: 12px;
+	font-weight: 400;
+}
+.skw-settings-page .skw-status-table .skw-status-code {
+	background: var(--color-neutral);
+	color: #fff;
+	border-radius: 4px;
+	padding: 2px 7px;
+	font-size: 11px;
+	font-family: var(--font-mono);
+}
+.skw-settings-page .skw-status-table .skw-status-name {
+	margin-left: 4px;
+	font-size: 14px;
+}
+.skw-settings-page .skw-status-table .skw-status-row--pseudo td:first-child {
+	color: var(--color-neutral-light);
+	font-style: italic;
+	font-size: 14px;
+}
+.skw-settings-page .skw-status-refresh {
+	margin-top: 14px;
+}
+.skw-settings-page .skw-status-refresh .skw-field-hint {
+	margin-left: 10px;
+	display: inline;
+}
+
 /* -- Buttons -- */
 
 .skw-settings-page .button-primary {
 	font-family: var(--font-display);
-	font-weight: 600;
+	font-weight: 700;
+	font-size: 16px;
+	height: 48px;
+	padding: 0 20px;
+	line-height: 46px;
 	background: var(--color-neutral);
 	border-color: var(--color-neutral);
 	border-radius: var(--radius-sm);
@@ -328,10 +556,9 @@
 
 /* -- Danger zone -- */
 
-.skw-settings-page .skw-danger-zone {
-	border: 1px solid var(--color-error);
-	border-radius: 10px;
-}
+/* No border/card here on purpose: this panel now lives inside the same .skw-section
+   box as every other tab (see render_page_settings()), not in a separate red-bordered
+   card of its own — only the icon/heading keep the red "this is dangerous" accent. */
 .skw-settings-page .skw-danger-zone .skw-fg-head { padding: 20px 0 0; }
 .skw-settings-page .skw-danger-zone-title {
 	font-family: var(--font-display);

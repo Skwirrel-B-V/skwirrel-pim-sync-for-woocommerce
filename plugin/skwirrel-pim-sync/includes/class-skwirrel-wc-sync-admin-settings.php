@@ -2331,6 +2331,14 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '  for (var i = 0; i < tabs.length; i++) { if (tabs[i].getAttribute("data-skw-tab") === slug) return tabs[i]; }'
 			. '  return null;'
 			. ' }'
+			// The Connection tab wants "Save settings" beside its own "Test connection" button.
+			// Save stays the one real submit control the no-JS fallback relies on (see
+			// SettingsTabsIntegrationTest) — this only relocates that same node into the
+			// Connection panel\'s row while it is active, and puts it straight back afterwards.
+			. ' var saveActions = form ? form.querySelector(":scope > .skw-field-actions") : null;'
+			. ' var connTab = tabBySlug("connection");'
+			. ' var connPanel = connTab ? panelOf(connTab) : null;'
+			. ' var connActions = connPanel ? connPanel.querySelector(".skw-field-actions-connection") : null;'
 			. ' function activate(tab, opts) {'
 			. '  opts = opts || {};'
 			. '  tabs.forEach(function(t) {'
@@ -2341,6 +2349,17 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '   if (!p) return;'
 			. '   if (on) { p.removeAttribute("hidden"); } else { p.setAttribute("hidden", "hidden"); }'
 			. '  });'
+			. '  if (saveActions && connActions) {'
+			. '   if (tab.getAttribute("data-skw-tab") === "connection") { connActions.insertBefore(saveActions, connActions.firstChild); }'
+			. '   else if (saveActions.parentNode !== form) { form.appendChild(saveActions); }'
+			. '  }'
+			// Danger zone has its own two admin-post.php forms and buttons; the shared
+			// "Save settings" button belongs to the (now entirely hidden) settings form, so
+			// showing it there is a bare bar that saves nothing visible. Hide that one case.
+			. '  if (saveActions) {'
+			. '   if (tab.getAttribute("data-skw-tab") === "danger-zone") { saveActions.setAttribute("hidden", "hidden"); }'
+			. '   else { saveActions.removeAttribute("hidden"); }'
+			. '  }'
 			. '  if (opts.focus) { tab.focus(); }'
 			. '  var slug = tab.getAttribute("data-skw-tab");'
 			. '  if (opts.hash && slug && window.history && window.history.replaceState) {'
