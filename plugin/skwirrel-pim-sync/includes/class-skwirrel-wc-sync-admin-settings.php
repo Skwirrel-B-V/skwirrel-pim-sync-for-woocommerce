@@ -91,6 +91,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// scheduled events and loopback requests, so a stuck sync's actual cause — cron not running,
 		// or the site unable to call itself — is diagnosable without leaving the plugin's screen.
 		add_action( 'wp_ajax_skwirrel_wc_sync_health_check', [ $this, 'handle_health_check' ] );
+		// "Sync now" from the admin menu (any screen): starts the sync without navigating away.
+		// The in-page "Sync Now" button keeps using handle_sync_now() / admin-post.php.
+		add_action( 'wp_ajax_skwirrel_wc_sync_run_ajax', [ $this, 'handle_sync_now_ajax' ] );
 	}
 
 	/**
@@ -1282,14 +1285,71 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		return is_array( $products ) ? $products : [];
 	}
 
+	/**
+	 * Starts a manual sync: sets the "running" badge and either enqueues the resumable Action
+	 * Scheduler runner, or (no Action Scheduler) prepares a fire-and-forget loopback URL. Shared
+	 * by handle_sync_now() (full-page redirect — the in-page "Sync Now" button and the admin menu
+	 * link's no-JS fallback) and handle_sync_now_ajax() (stays on the current page).
+	 *
+	 * @return string Empty when Action Scheduler will run the sync; otherwise the loopback URL the
+	 *                caller must pass to fire_manual_sync_loopback() — after sending its own
+	 *                response — to actually trigger the fallback sync.
+	 */
+	private function begin_manual_sync(): string {
+		// Show the "sync running" badge from the moment the user clicks.
+		set_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS, (string) time(), 60 );
+
+		// Preferred path: enqueue the resumable batched runner via Action Scheduler. One bounded step
+		// per async action means no single server time limit (php-fpm request_terminate_timeout, nginx
+		// fastcgi_read_timeout, proxy gateway) can kill the whole run, and it resumes automatically —
+		// fixing manual full syncs that died part-way and had to be restarted by hand.
+		if ( function_exists( 'as_enqueue_async_action' ) ) {
+			Skwirrel_WC_Sync_Service::start_async( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
+			return '';
+		}
+
+		// Fallback (no Action Scheduler): detached loopback request that runs the sync synchronously.
+		$token = bin2hex( random_bytes( 16 ) );
+		set_transient( self::BG_SYNC_TRANSIENT . '_' . $token, '1', 120 );
+
+		return add_query_arg(
+			[
+				'action' => self::BG_SYNC_ACTION,
+				'token'  => $token,
+			],
+			admin_url( 'admin-ajax.php' )
+		);
+	}
+
+	/**
+	 * Fires the fallback loopback request begin_manual_sync() prepared, if any. Call only after
+	 * the caller's own response has been sent (and, where available, fastcgi_finish_request()
+	 * called) so the fire-and-forget dispatch can never delay what the user sees.
+	 *
+	 * @param string $loopback_url Return value of begin_manual_sync(); a no-op when empty.
+	 */
+	private function fire_manual_sync_loopback( string $loopback_url ): void {
+		if ( '' === $loopback_url ) {
+			return;
+		}
+		wp_remote_post(
+			$loopback_url,
+			[
+				'blocking'  => false,
+				'timeout'   => 0.01,
+				// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress core filter
+				'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
+			]
+		);
+	}
+
 	public function handle_sync_now(): void {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			wp_die( esc_html__( 'Access denied.', 'skwirrel-pim-sync' ) );
 		}
 		check_admin_referer( 'skwirrel_wc_sync_run', '_wpnonce' );
 
-		// Show the "sync running" badge from the moment the user clicks.
-		set_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS, (string) time(), 60 );
+		$loopback_url = $this->begin_manual_sync();
 
 		$redirect = add_query_arg(
 			[
@@ -1298,46 +1358,39 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			],
 			admin_url( 'admin.php' )
 		);
+		wp_safe_redirect( $redirect );
 
-		// Preferred path: enqueue the resumable batched runner via Action Scheduler. One bounded step
-		// per async action means no single server time limit (php-fpm request_terminate_timeout, nginx
-		// fastcgi_read_timeout, proxy gateway) can kill the whole run, and it resumes automatically —
-		// fixing manual full syncs that died part-way and had to be restarted by hand.
-		if ( function_exists( 'as_enqueue_async_action' ) ) {
-			Skwirrel_WC_Sync_Service::start_async( false, Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
-			wp_safe_redirect( $redirect );
+		if ( '' === $loopback_url ) {
 			exit;
 		}
-
-		// Fallback (no Action Scheduler): detached loopback request that runs the sync synchronously.
-		$token = bin2hex( random_bytes( 16 ) );
-		set_transient( self::BG_SYNC_TRANSIENT . '_' . $token, '1', 120 );
-
-		$url = add_query_arg(
-			[
-				'action' => self::BG_SYNC_ACTION,
-				'token'  => $token,
-			],
-			admin_url( 'admin-ajax.php' )
-		);
-
-		wp_safe_redirect( $redirect );
 
 		if ( function_exists( 'fastcgi_finish_request' ) ) {
 			fastcgi_finish_request();
 		}
 
-		wp_remote_post(
-			$url,
-			[
-				'blocking'  => false,
-				'timeout'   => 0.01,
-				// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress core filter
-				'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
-			]
-		);
+		$this->fire_manual_sync_loopback( $loopback_url );
 
 		exit;
+	}
+
+	/**
+	 * AJAX: trigger a manual sync without navigating away. Used by the "Sync now" admin menu
+	 * link, which appears on every admin screen and must leave the admin exactly where they were
+	 * — the existing status poller (already running globally) picks up the running sync and
+	 * shows the corner toast within its next tick, same as any other sync start.
+	 */
+	public function handle_sync_now_ajax(): void {
+		check_ajax_referer( 'skwirrel_wc_sync_run', '_nonce' );
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( 'Access denied', 403 );
+		}
+
+		// Fired before the response, unlike handle_sync_now(): wp_send_json_success() below always
+		// exits, so anything meant to run after it never would. The loopback is a non-blocking,
+		// 0.01s-timeout dispatch either way — firing it a moment earlier costs nothing perceptible.
+		$this->fire_manual_sync_loopback( $this->begin_manual_sync() );
+
+		wp_send_json_success();
 	}
 
 	public function handle_background_sync(): void {
@@ -1903,6 +1956,26 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '  btn.disabled = true; btn.textContent = cfg.stoppingLabel;'
 			. '  var fd = new FormData(); fd.append("action","skwirrel_wc_sync_abort"); fd.append("_nonce", cfg.abortNonce);'
 			. '  fetch(cfg.ajaxUrl, {method:"POST", body:fd}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.success){ btn.textContent = cfg.errorLabel; } }).catch(function(){});'
+			. ' });'
+			// "Sync now" in the WP admin menu: start the sync in place, never navigate — scoped to
+			// #adminmenu specifically so the in-page "Sync Now" button (which keeps navigating to
+			// the dashboard, deliberately) is never intercepted by this, even though both links
+			// point at the same admin-post.php action.
+			. ' document.addEventListener("click", function(e){'
+			. '  var adminMenu = document.getElementById("adminmenu");'
+			. '  if (!adminMenu) return;'
+			. '  var link = e.target.closest ? e.target.closest("a") : null;'
+			. '  if (!link || !adminMenu.contains(link) || link.href.indexOf("action=skwirrel_wc_sync_run") === -1) return;'
+			. '  e.preventDefault();'
+			. '  if (link.dataset.skwBusy) return;'
+			. '  link.dataset.skwBusy = "1";'
+			. '  var m = link.href.match(/[?&]_wpnonce=([^&]+)/);'
+			. '  var fd = new FormData();'
+			. '  fd.append("action", "skwirrel_wc_sync_run_ajax");'
+			. '  fd.append("_nonce", m ? m[1] : "");'
+			. '  fetch(cfg.ajaxUrl, {method:"POST", body:fd})'
+			. '   .catch(function(){})'
+			. '   .finally(function(){ delete link.dataset.skwBusy; });'
 			. ' });'
 			. ' function render(d){'
 			. '  if (banner) {'
