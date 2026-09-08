@@ -1706,7 +1706,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<option value="_custom" <?php selected( $is_custom ); ?>><?php esc_html_e( 'Other…', 'skwirrel-pim-sync' ); ?></option>
 					</select>
 					<span id="image_language_custom_wrap" style="display:<?php echo esc_attr( $is_custom ? 'inline-block' : 'none' ); ?>; margin-top: 6px;">
-						<input type="text" id="image_language_custom" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[image_language_custom]" value="<?php echo esc_attr( $is_custom ? $current_lang : '' ); ?>" class="skw-input skw-input-sm" pattern="[a-z]{2}(-[A-Z]{2})?" placeholder="e.g. es-ES" />
+						<input type="text" id="image_language_custom" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[image_language_custom]" value="<?php echo esc_attr( $is_custom ? $current_lang : '' ); ?>" class="skw-input skw-input-sm" pattern="[a-z]{2}(-[A-Z]{2})?" placeholder="<?php esc_attr_e( 'e.g. es-ES', 'skwirrel-pim-sync' ); ?>" />
 					</span>
 				</div>
 			</div>
