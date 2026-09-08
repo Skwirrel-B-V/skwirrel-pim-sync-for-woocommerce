@@ -87,6 +87,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// Inline "Test connection": autosaves the environment/connection settings, then tests them.
 		add_action( 'wp_ajax_skwirrel_wc_sync_test_connection', [ $this, 'handle_test_connection_ajax' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_refresh_statuses', [ $this, 'handle_refresh_statuses' ] );
+		// On-demand health check (Debug tab): reuses WordPress core's own Site Health tests for
+		// scheduled events and loopback requests, so a stuck sync's actual cause — cron not running,
+		// or the site unable to call itself — is diagnosable without leaving the plugin's screen.
+		add_action( 'wp_ajax_skwirrel_wc_sync_health_check', [ $this, 'handle_health_check' ] );
 	}
 
 	/**
@@ -1729,14 +1733,55 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			wp_send_json_error( 'Access denied', 403 );
 		}
 		$in_progress = (bool) get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
-		$summary     = Skwirrel_WC_Sync_Admin_Dashboard::get_current_step_summary();
+		// A stuck run (queued, never picked up by Action Scheduler) has no live heartbeat, so
+		// $in_progress is already false here — checked separately so the banner still shows it.
+		$stuck   = ! $in_progress ? Skwirrel_WC_Sync_Service::get_stuck_run_warning() : null;
+		$summary = Skwirrel_WC_Sync_Admin_Dashboard::get_current_step_summary();
 		wp_send_json_success(
 			[
 				'in_progress' => $in_progress,
+				'stuck'       => null !== $stuck,
 				// Full banner markup for the plugin's own pages; step/counter for the corner toast elsewhere.
-				'banner_html' => $in_progress ? Skwirrel_WC_Sync_Admin_Dashboard::get_sync_banner_html() : '',
+				'banner_html' => ( $in_progress || null !== $stuck ) ? Skwirrel_WC_Sync_Admin_Dashboard::get_sync_banner_html() : '',
 				'step'        => $in_progress ? $summary['label'] : '',
 				'counter'     => $in_progress ? $summary['counter'] : '',
+			]
+		);
+	}
+
+	/**
+	 * AJAX: on-demand cron/loopback health check for the Debug tab.
+	 *
+	 * Reuses WP_Site_Health's own tests rather than re-implementing them — same logic Tools →
+	 * Site Health uses, just surfaced where an admin is already looking for a sync problem.
+	 * get_test_loopback_requests() performs one live HTTP request to the site's own wp-cron.php
+	 * (10s timeout, core's own default), so this only runs on an explicit click, never on page load.
+	 */
+	public function handle_health_check(): void {
+		check_ajax_referer( 'skwirrel_health_check_nonce', '_nonce' );
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( 'Access denied', 403 );
+		}
+
+		if ( ! class_exists( 'WP_Site_Health' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/class-wp-site-health.php';
+		}
+		$health   = WP_Site_Health::get_instance();
+		$cron     = $health->get_test_scheduled_events();
+		$loopback = $health->get_test_loopback_requests();
+
+		wp_send_json_success(
+			[
+				'cron'     => [
+					'status'  => (string) ( $cron['status'] ?? 'good' ),
+					'label'   => wp_strip_all_tags( (string) ( $cron['label'] ?? '' ) ),
+					'message' => wp_strip_all_tags( (string) ( $cron['description'] ?? '' ) ),
+				],
+				'loopback' => [
+					'status'  => (string) ( $loopback['status'] ?? 'good' ),
+					'label'   => wp_strip_all_tags( (string) ( $loopback['label'] ?? '' ) ),
+					'message' => wp_strip_all_tags( (string) ( $loopback['description'] ?? '' ) ),
+				],
 			]
 		);
 	}
@@ -1830,7 +1875,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. ' var banner = document.getElementById("skwirrel-sync-banner");'
 			. ' var toast = document.getElementById("skwirrel-sync-toast");'
 			. ' if (!banner && !toast) return;'
-			. ' var active = banner ? !!banner.querySelector(".skw-progress-banner") : false;'
+			. ' var active = banner ? !!banner.querySelector(".skw-progress-banner, .skw-status-warning") : false;'
 			// Toast controls: position preference (persisted) + hide-for-session.
 			. ' function lsGet(k){ try { return window.localStorage.getItem(k); } catch(e){ return null; } }'
 			. ' function lsSet(k,v){ try { window.localStorage.setItem(k,v); } catch(e){} }'
@@ -1854,7 +1899,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. ' });'
 			. ' function render(d){'
 			. '  if (banner) {'
-			. '   if (d.in_progress) { banner.innerHTML = d.banner_html; active = true; }'
+			. '   if (d.in_progress || d.stuck) { banner.innerHTML = d.banner_html; active = true; }'
 			. '   else if (active) { active = false; banner.innerHTML = cfg.completedHtml; }'
 			. '   return;'
 			. '  }'
@@ -1926,6 +1971,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				'refreshStatusesLabel'   => __( 'Fetching…', 'skwirrel-pim-sync' ),
 				'refreshStatusesError'   => __( 'Could not refresh statuses.', 'skwirrel-pim-sync' ),
 				'refreshStatusesUnsaved' => __( 'Statuses updated. Save your changes to see the new rows — the page was not reloaded because this form has unsaved edits.', 'skwirrel-pim-sync' ),
+				'healthCheckNonce'       => wp_create_nonce( 'skwirrel_health_check_nonce' ),
+				'healthCheckRunning'     => __( 'Checking…', 'skwirrel-pim-sync' ),
+				'healthCheckError'       => __( 'Could not run the health check.', 'skwirrel-pim-sync' ),
 				/*
 				 * Contract with the settings tab strip: the IDs of the fields whose validation
 				 * failed on this request, in reported order. Each one also carries
@@ -2459,6 +2507,34 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				. '})();';
 
 			wp_add_inline_script( 'skwirrel-pim-sync-admin', $live_js );
+
+			$run_label = esc_js( __( 'Run health check', 'skwirrel-pim-sync' ) );
+			$health_js =
+				'(function() {'
+				. ' var btn = document.getElementById("skwirrel-health-check-run");'
+				. ' var out = document.getElementById("skwirrel-health-check-results");'
+				. ' if (!btn || !out) return;'
+				. ' function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}'
+				. ' function row(r){'
+				. '  return "<div class=\"skw-health-row skw-health-" + esc(r.status) + "\"><strong>" + esc(r.label) + "</strong><p>" + esc(r.message) + "</p></div>";'
+				. ' }'
+				. ' btn.addEventListener("click", function(){'
+				. '  btn.disabled = true; btn.textContent = skwirrelPimSync.healthCheckRunning;'
+				. '  var fd = new FormData();'
+				. '  fd.append("action", "skwirrel_wc_sync_health_check");'
+				. '  fd.append("_nonce", skwirrelPimSync.healthCheckNonce);'
+				. '  fetch(skwirrelPimSync.ajaxUrl, { method: "POST", body: fd })'
+				. '   .then(function(r){ return r.json(); })'
+				. '   .then(function(r){'
+				. '    if (!r || !r.success) { out.innerHTML = "<p class=\"skw-c-red\">" + esc(skwirrelPimSync.healthCheckError) + "</p>"; return; }'
+				. '    out.innerHTML = row(r.data.cron) + row(r.data.loopback);'
+				. '   })'
+				. '   .catch(function(){ out.innerHTML = "<p class=\"skw-c-red\">" + esc(skwirrelPimSync.healthCheckError) + "</p>"; })'
+				. '   .finally(function(){ btn.disabled = false; btn.textContent = "' . $run_label . '"; });'
+				. ' });'
+				. '})();';
+
+			wp_add_inline_script( 'skwirrel-pim-sync-admin', $health_js );
 		}
 	}
 

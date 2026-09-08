@@ -375,6 +375,17 @@ if (!function_exists('delete_option')) {
     }
 }
 
+// Minimal stub of core's human_time_diff() — just enough for messages that embed it;
+// tests assert on the surrounding message, not on exact WP phrasing.
+if (!function_exists('human_time_diff')) {
+    function human_time_diff(int $from, int $to = 0): string {
+        $to = $to ?: time();
+        $diff = max(0, $to - $from);
+        $minutes = (int) round($diff / 60);
+        return $minutes . ' minute' . (1 === $minutes ? '' : 's');
+    }
+}
+
 // Stub wp_trash_post()/wp_delete_post() — tests may set a hook to observe call-time state.
 if (!function_exists('wp_trash_post')) {
     function wp_trash_post(int $post_id = 0) {

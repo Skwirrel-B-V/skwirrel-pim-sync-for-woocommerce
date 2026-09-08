@@ -436,12 +436,39 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 * refresh the same banner in place on every admin screen.
 	 */
 	public static function get_sync_banner_html(): string {
-		if ( ! get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ) ) {
-			return '';
+		if ( get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ) ) {
+			ob_start();
+			self::render_sync_progress();
+			return (string) ob_get_clean();
 		}
-		ob_start();
-		self::render_sync_progress();
-		return (string) ob_get_clean();
+		$stuck_warning = Skwirrel_WC_Sync_Service::get_stuck_run_warning();
+		if ( null !== $stuck_warning ) {
+			ob_start();
+			self::render_stuck_warning( $stuck_warning );
+			return (string) ob_get_clean();
+		}
+		return '';
+	}
+
+	/**
+	 * Render the "sync queued but never started" warning shown in the shared banner slot —
+	 * present on every tab, since a stuck sync is just as relevant on Settings or Debug as on
+	 * the dashboard, and a manual "Sync Now" click looks synchronous but isn't.
+	 *
+	 * @param string $message Translated warning text from Skwirrel_WC_Sync_Service::get_stuck_run_warning().
+	 */
+	private static function render_stuck_warning( string $message ): void {
+		?>
+		<div class="skw-status-card skw-status-warning">
+			<div class="skw-status-icon">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
+			</div>
+			<div class="skw-status-body">
+				<p class="skw-status-title"><?php esc_html_e( 'Sync appears stuck', 'skwirrel-pim-sync' ); ?></p>
+				<p class="skw-status-meta"><?php echo esc_html( $message ); ?></p>
+			</div>
+		</div>
+		<?php
 	}
 
 	/**
@@ -1961,6 +1988,64 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</button>
 			</div>
 			<pre id="skwirrel-live-log-content" data-filename="<?php echo esc_attr( $active_log ? $active_log : '' ); ?>"></pre>
+		</div>
+
+		<?php
+		$scheduled_actions_url = admin_url( 'tools.php?page=action-scheduler&s=skwirrel&status=pending' );
+		$site_health_url       = admin_url( 'site-health.php' );
+		$logger_for_debug      = new Skwirrel_WC_Sync_Logger();
+		$wc_log_url            = $logger_for_debug->get_log_file_url();
+		?>
+		<div class="skw-section" id="skwirrel-health-check">
+			<h2 class="skw-section-title"><?php esc_html_e( 'Sync health check', 'skwirrel-pim-sync' ); ?></h2>
+			<p class="skw-section-desc"><?php esc_html_e( 'Checks whether WordPress can actually run a queued sync step — the usual cause when a sync starts but nothing happens.', 'skwirrel-pim-sync' ); ?></p>
+			<button type="button" class="button" id="skwirrel-health-check-run"><?php esc_html_e( 'Run health check', 'skwirrel-pim-sync' ); ?></button>
+			<div id="skwirrel-health-check-results" class="skw-health-results"></div>
+		</div>
+
+		<div class="skw-section">
+			<h2 class="skw-section-title"><?php esc_html_e( 'Sync not working? Check this first', 'skwirrel-pim-sync' ); ?></h2>
+			<p class="skw-section-desc"><?php esc_html_e( 'Most "nothing is happening" reports turn out to be one of these. Work through them in order before assuming the plugin itself is broken.', 'skwirrel-pim-sync' ); ?></p>
+			<ol class="skw-debug-steps">
+				<li>
+					<?php
+					printf(
+						/* translators: %s: link to the health check above */
+						esc_html__( 'Run the %s above — it tells you directly whether WordPress can run scheduled tasks and reach itself over HTTP.', 'skwirrel-pim-sync' ),
+						'<a href="#skwirrel-health-check">' . esc_html__( 'health check', 'skwirrel-pim-sync' ) . '</a>'
+					);
+					?>
+				</li>
+				<li>
+					<?php
+					printf(
+						/* translators: %s: link to WooCommerce's own log viewer */
+						esc_html__( 'Check %s (source "skwirrel-pim-sync") for the actual error — a failure always logs there, even when verbose logging is off.', 'skwirrel-pim-sync' ),
+						$wc_log_url ? '<a href="' . esc_url( $wc_log_url ) . '" target="_blank">' . esc_html__( 'WooCommerce → Status → Logs', 'skwirrel-pim-sync' ) . '</a>' : esc_html__( 'WooCommerce → Status → Logs', 'skwirrel-pim-sync' )
+					);
+					?>
+				</li>
+				<li>
+					<?php
+					printf(
+						/* translators: %s: link to the Scheduled Actions screen */
+						esc_html__( 'Look at %s for hooks starting with "skwirrel_wc_sync_". Pending for more than a few minutes means the queue is not being processed at all — see the next two steps.', 'skwirrel-pim-sync' ),
+						'<a href="' . esc_url( $scheduled_actions_url ) . '" target="_blank">' . esc_html__( 'Scheduled Actions', 'skwirrel-pim-sync' ) . '</a>'
+					);
+					?>
+				</li>
+				<li>
+					<?php
+					printf(
+						/* translators: %s: link to WordPress's Site Health screen */
+						esc_html__( 'Open %s and look for "A scheduled event has failed" or "Your site could not complete a loopback request" — both point at WP-Cron/loopback delivery, not this plugin.', 'skwirrel-pim-sync' ),
+						'<a href="' . esc_url( $site_health_url ) . '" target="_blank">' . esc_html__( 'Tools → Site Health', 'skwirrel-pim-sync' ) . '</a>'
+					);
+					?>
+				</li>
+				<li><?php esc_html_e( 'If WP-Cron looks broken: check whether DISABLE_WP_CRON is set in wp-config.php, and if so, confirm your host has a real server cron job calling wp-cron.php on a schedule.', 'skwirrel-pim-sync' ); ?></li>
+				<li><?php esc_html_e( 'If loopback requests fail: ask your host whether a firewall, WAF, or security plugin blocks the site from making HTTP requests to itself.', 'skwirrel-pim-sync' ); ?></li>
+			</ol>
 		</div>
 
 		<div class="skw-section">
