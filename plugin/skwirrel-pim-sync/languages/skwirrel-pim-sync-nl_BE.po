@@ -1256,6 +1256,9 @@ msgid ""
 "Most \"nothing is happening\" reports turn out to be one of these. Work "
 "through them in order before assuming the plugin itself is broken."
 msgstr ""
+"De meeste meldingen dat \"er niets gebeurt\" komen terug op een van deze "
+"oorzaken. Loop ze in volgorde na voordat je ervan uitgaat dat de plugin zelf "
+"stuk is."
 
 #. translators: %s: link to the health check above
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:2017
