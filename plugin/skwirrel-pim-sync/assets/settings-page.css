@@ -56,11 +56,16 @@
 	--font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
 	--color-primary: hsl(220 100% 66%);
+	--color-primary-darker: hsl(220 100% 90%);
 	--color-lime: hsl(74 100% 71%);
 	--color-neutral: hsl(220 10% 18%);
 	--color-neutral-light: hsl(220 8% 40%);
 	--color-error: hsl(354 65% 58%);
 	--color-error-soft: hsl(355 80% 95%);
+
+	/* Matches the design system's own --border-color / --input-border-color, both of which
+	   resolve to --color-primary-darker — a light blue-tinted border, not a neutral grey. */
+	--border-color: var(--color-primary-darker);
 
 	font-family: var(--font-body);
 	color: var(--color-neutral);
@@ -197,12 +202,21 @@
 .skw-settings-page .skw-input,
 .skw-settings-page .skw-select,
 .skw-settings-page select.skw-select {
+	box-sizing: border-box;
+	height: 40px;
 	font-family: var(--font-body);
 	font-size: 14px;
-	border: 1px solid rgb(28 31 38 / .18);
+	/* --input-border-color in the design system resolves to --border-color, i.e.
+	   --color-primary-darker — a light blue-tinted border, not a neutral grey. */
+	border: 1px solid var(--border-color);
 	border-radius: 6px;
-	padding: 8px 12px;
+	padding: 0 12px;
+	background: #fff;
 	color: var(--color-neutral);
+}
+.skw-settings-page textarea.skw-input {
+	height: auto;
+	padding: 8px 12px;
 }
 .skw-settings-page .skw-input:focus,
 .skw-settings-page .skw-select:focus {
@@ -211,8 +225,18 @@
 	outline-offset: 0;
 }
 .skw-settings-page .skw-input-affixed {
-	border: 1px solid rgb(28 31 38 / .18);
+	box-sizing: border-box;
+	height: 40px;
+	display: flex;
+	align-items: center;
+	border: 1px solid var(--border-color);
 	border-radius: 6px;
+	background: #fff;
+}
+.skw-settings-page .skw-input-affixed .skw-input {
+	height: 38px;
+	border: 0;
+	background: transparent;
 }
 .skw-settings-page .skw-input-prefix,
 .skw-settings-page .skw-input-suffix {
