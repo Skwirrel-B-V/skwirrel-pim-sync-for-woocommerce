@@ -2,9 +2,10 @@
 /**
  * Integration tests for the tabbed settings screen (Story 5.1).
  *
- * The settings screen groups its field groups into four tabs (Connection, What to sync, Field
- * mapping, Advanced — Media & Language and Permalinks were later folded into the latter two).
- * The refactor is only safe if the
+ * The settings screen groups its field groups into five tabs (Connection, What to sync, Field
+ * mapping, Advanced, Danger zone — Media & Language and Permalinks were later folded into the
+ * middle two, and Danger zone was later promoted from an always-visible section below the form
+ * into a tab of its own). The refactor is only safe if the
  * rendered form is unchanged as a *payload*: every input still present, still inside the one
  * `options.php` form, never disabled, never removed from the DOM. That cannot be judged from the
  * source alone — the markup is assembled from a registry, a panel loop and eight renderers — so
@@ -13,13 +14,17 @@
  * What is asserted is the OUTCOME the browser would submit, not the calls the plugin makes:
  *  - every input `name` the pre-tabs screen rendered is still rendered (fixture below, captured
  *    from the pre-change revision 0f7c3c4);
- *  - every panel sits between the form's open and close tags, with no `disabled` attribute;
+ *  - every settings panel sits between the form's open and close tags, with no `disabled`
+ *    attribute — except Danger zone, which is deliberately kept out of that form (its two actions
+ *    post to `admin-post.php`, and a `<form>` nested inside another is invalid HTML) while still
+ *    being wired into the same tab strip;
  *  - the tab strip is outside the form and its buttons are `type="button"` (a bare button inside
  *    a form submits it);
  *  - every `aria-controls` resolves to a panel that exists, and back via `aria-labelledby`;
  *  - the danger zone is still outside and below the form;
  *  - the element IDs the inline admin script binds to all still exist;
- *  - a full submit round-trips through `sanitize_settings()` with values from all four tabs intact;
+ *  - a full submit round-trips through `sanitize_settings()` with values from all four settings
+ *    tabs intact;
  *  - the AC 1 re-home map, the no-JS baseline, the error notice, and a tab registered from outside
  *    (added by the QA E2E-test pass — see the second block at the bottom of this file).
  *
@@ -221,14 +226,14 @@ test( 'every input name the pre-tabs settings form rendered is still rendered', 
 	}
 } );
 
-test( 'the four tabs each own a panel, and every panel lives inside the one settings form', function (): void {
+test( 'the five tabs each own a panel; four settings panels live inside the form, Danger zone lives outside it', function (): void {
 	$html = skwRenderSettingsScreen();
 
 	preg_match_all( '/<button\b[^>]*role="tab"[^>]*>/', $html, $tab_matches );
 	preg_match_all( '/<div\b[^>]*role="tabpanel"[^>]*>/', $html, $panel_matches );
 
-	expect( $tab_matches[0] )->toHaveCount( 4 );
-	expect( $panel_matches[0] )->toHaveCount( 4 );
+	expect( $tab_matches[0] )->toHaveCount( 5 );
+	expect( $panel_matches[0] )->toHaveCount( 5 );
 
 	$form_open  = strpos( $html, '<form method="post" action="options.php"' );
 	$form_close = strpos( $html, '</form>', (int) $form_open );
@@ -241,6 +246,12 @@ test( 'the four tabs each own a panel, and every panel lives inside the one sett
 		expect( $panel_at )->toBeGreaterThan( (int) $form_open );
 		expect( $panel_at )->toBeLessThan( (int) $form_close );
 	}
+
+	// Danger zone posts to admin-post.php, not options.php, so it is deliberately kept out of this
+	// form — a <form> nested inside another is invalid HTML and would break its own submission.
+	$danger_panel_at = strpos( $html, 'id="panel-danger-zone"' );
+	expect( $danger_panel_at )->not->toBeFalse();
+	expect( $danger_panel_at )->toBeGreaterThan( (int) $form_close );
 
 	// Hidden, never removed and never disabled — a dropped or disabled field is not submitted, and
 	// sanitize_settings() reads absent checkboxes as "off".
@@ -268,7 +279,7 @@ test( 'the ARIA wiring resolves in both directions and exactly one tab is select
 	expect( $html )->toContain( 'role="tablist"' );
 
 	preg_match_all( '/aria-controls="(panel-[^"]+)"/', $html, $controls );
-	expect( $controls[1] )->toHaveCount( 4 );
+	expect( $controls[1] )->toHaveCount( 5 );
 
 	foreach ( $controls[1] as $panel_id ) {
 		$slug = substr( $panel_id, strlen( 'panel-' ) );
@@ -278,16 +289,16 @@ test( 'the ARIA wiring resolves in both directions and exactly one tab is select
 	}
 
 	expect( substr_count( $html, 'aria-selected="true"' ) )->toBe( 1 );
-	expect( substr_count( $html, 'aria-selected="false"' ) )->toBe( 3 );
+	expect( substr_count( $html, 'aria-selected="false"' ) )->toBe( 4 );
 	expect( substr_count( $html, 'tabindex="0"' ) )->toBeGreaterThanOrEqual( 1 );
-	expect( substr_count( $html, 'tabindex="-1"' ) )->toBe( 3 );
+	expect( substr_count( $html, 'tabindex="-1"' ) )->toBe( 4 );
 } );
 
 test( 'the danger zone stays outside and below the settings form', function (): void {
 	$html = skwRenderSettingsScreen();
 
 	$form_close = strpos( $html, '</form>' );
-	$danger_at  = strpos( $html, 'id="skwirrel-danger-zone"' );
+	$danger_at  = strpos( $html, 'id="panel-danger-zone"' );
 
 	expect( $danger_at )->not->toBeFalse();
 	expect( $danger_at )->toBeGreaterThan( (int) $form_close );
@@ -484,7 +495,9 @@ test( 'the save button is inside the form but outside every panel, so it shows o
 	$buttons = $xpath->query( '//form[@id="skwirrel-sync-settings-form"]//button[@type="submit"]' );
 	expect( $buttons->length )->toBe( 1 );
 
-	$inside_panel = $xpath->query( '//div[@role="tabpanel"]//button[@type="submit"]' );
+	// Scoped to the settings form: Danger zone's own two submit buttons sit in their own
+	// admin-post.php forms outside it, so they are not "inside a panel" for this form's purposes.
+	$inside_panel = $xpath->query( '//form[@id="skwirrel-sync-settings-form"]//div[@role="tabpanel"]//button[@type="submit"]' );
 	expect( $inside_panel->length )->toBe( 0 );
 } );
 
@@ -492,9 +505,9 @@ test( 'with no JavaScript every panel is a visible sequential section', function
 	$xpath = skwSettingsXPath();
 
 	// AC 5: the collapse is applied by script. Server-side, nothing is hidden — otherwise a
-	// no-JS admin loses three quarters of the settings screen.
+	// no-JS admin loses four fifths of the settings screen.
 	$panels = $xpath->query( '//div[@role="tabpanel"]' );
-	expect( $panels->length )->toBe( 4 );
+	expect( $panels->length )->toBe( 5 );
 
 	foreach ( $panels as $panel ) {
 		expect( $panel->hasAttribute( 'hidden' ) )->toBeFalse(
@@ -509,7 +522,7 @@ test( 'the roving tabindex belongs to the selected tab, and only to it', functio
 	$xpath = skwSettingsXPath();
 
 	$tabs = $xpath->query( '//*[@role="tab"]' );
-	expect( $tabs->length )->toBe( 4 );
+	expect( $tabs->length )->toBe( 5 );
 
 	$selected = 0;
 	foreach ( $tabs as $tab ) {
@@ -580,7 +593,7 @@ test( 'a tab registered with a named external renderer renders in its order posi
 		$xpath = skwSettingsXPath();
 
 		$tabs = $xpath->query( '//*[@role="tab"]' );
-		expect( $tabs->length )->toBe( 5 );
+		expect( $tabs->length )->toBe( 6 );
 
 		$slugs = [];
 		foreach ( $tabs as $tab ) {
@@ -588,7 +601,7 @@ test( 'a tab registered with a named external renderer renders in its order posi
 		}
 
 		// AC 7: order comes from the registration, not from hash order.
-		expect( $slugs )->toBe( [ 'connection', 'what-to-sync', 'field-mapping', 'external-mapping', 'advanced' ] );
+		expect( $slugs )->toBe( [ 'connection', 'what-to-sync', 'field-mapping', 'external-mapping', 'advanced', 'danger-zone' ] );
 
 		// The panel exists, is wired to its tab, and holds what the outside renderer echoed.
 		$panel = $xpath->query( '//div[@role="tabpanel"][@id="panel-external-mapping"]' );

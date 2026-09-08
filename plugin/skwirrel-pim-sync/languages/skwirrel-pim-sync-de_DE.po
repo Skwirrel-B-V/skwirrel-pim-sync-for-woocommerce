@@ -470,6 +470,10 @@ msgstr "Einstellungen speichern"
 msgid "Danger zone"
 msgstr "Gefahrenzone"
 
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1118
+msgid "Delete all products"
+msgstr "Alle Produkte löschen"
+
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1328
 msgid ""
 "Delete all products created or synced by Skwirrel. This cannot be undone if "

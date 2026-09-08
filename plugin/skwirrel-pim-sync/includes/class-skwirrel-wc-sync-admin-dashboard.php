@@ -271,7 +271,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			</a>
 
 			<?php // -- Danger Zone -- ?>
-			<a href="<?php echo esc_url( add_query_arg( 'tab', 'settings', $base_url ) . '#skwirrel-danger-zone' ); ?>" class="skw-block skw-block-compact skw-block-danger">
+			<a href="<?php echo esc_url( add_query_arg( 'tab', 'settings', $base_url ) . '#tab-danger-zone' ); ?>" class="skw-block skw-block-compact skw-block-danger">
 				<div class="skw-block-icon skw-bg-red">
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
 				</div>
@@ -851,6 +851,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				'render' => 'render_settings_panel_advanced',
 				'fields' => array( 'sync_interval', 'log_retention' ),
 			),
+			'danger-zone'   => array(
+				'label'  => __( 'Danger zone', 'skwirrel-pim-sync' ),
+				'order'  => 50,
+				'render' => 'render_settings_panel_danger_zone',
+				'fields' => array(),
+			),
 		);
 
 		/**
@@ -1038,6 +1044,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			case 'render_settings_panel_advanced':
 				$this->render_settings_panel_advanced( $context );
 				return;
+			case 'render_settings_panel_danger_zone':
+				$this->render_settings_panel_danger_zone();
+				return;
 		}
 
 		if ( is_callable( $render ) ) {
@@ -1090,6 +1099,45 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		$this->render_fieldgroup_sync_logs( (array) $context['opts'] );
 		$this->render_fieldgroup_permalinks();
 		$this->render_fieldgroup_advanced( (array) $context['opts'] );
+	}
+
+	/**
+	 * Render the "Danger zone" tab panel.
+	 *
+	 * These two actions post to `admin-post.php`, not `options.php`, so this panel is kept
+	 * out of the one settings `<form>` the other tabs share — a `<form>` nested inside
+	 * another is invalid HTML and browsers silently break its submission. The panel is still
+	 * wired into the same tab strip: {@see render_page_settings()} renders it after the
+	 * settings form closes, carrying the same `role="tabpanel"`/`id`/`data-skw-panel`
+	 * attributes the tab-switching script looks up by ID, so showing and hiding it works
+	 * exactly like every other tab despite living outside the form.
+	 */
+	private function render_settings_panel_danger_zone(): void {
+		?>
+		<div class="skw-fieldgroup">
+			<h3 class="skw-block-title skw-c-red"><?php esc_html_e( 'Delete all products', 'skwirrel-pim-sync' ); ?></h3>
+			<p class="skw-section-desc"><?php esc_html_e( 'Delete all products created or synced by Skwirrel. This cannot be undone if you empty the trash.', 'skwirrel-pim-sync' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-purge-form">
+				<input type="hidden" name="action" value="skwirrel_wc_sync_purge" />
+				<?php wp_nonce_field( 'skwirrel_wc_sync_purge', '_wpnonce' ); ?>
+				<label class="skw-checkbox"><input type="checkbox" name="skwirrel_purge_empty_trash" value="1" id="skwirrel-purge-permanent" /> <?php esc_html_e( 'Also empty the trash (permanently delete)', 'skwirrel-pim-sync' ); ?></label>
+				<div class="skw-field-actions" style="margin-top: 12px;">
+					<button type="submit" class="skw-btn skw-btn-danger"><?php esc_html_e( 'Delete all Skwirrel products', 'skwirrel-pim-sync' ); ?></button>
+				</div>
+			</form>
+		</div>
+		<div class="skw-fieldgroup">
+			<h3 class="skw-block-title skw-c-red"><?php esc_html_e( 'Reset settings', 'skwirrel-pim-sync' ); ?></h3>
+			<p class="skw-section-desc"><?php esc_html_e( 'Delete all Skwirrel sync configuration (endpoint URL, API token, sync schedule, slug rules). Cancels all scheduled sync jobs and flushes the object cache. Products, media, categories and sync history are untouched — use this when your settings refuse to update because of an aggressive persistent cache.', 'skwirrel-pim-sync' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-reset-settings-form">
+				<input type="hidden" name="action" value="skwirrel_wc_sync_reset_settings" />
+				<?php wp_nonce_field( 'skwirrel_wc_sync_reset_settings', '_wpnonce' ); ?>
+				<div class="skw-field-actions" style="margin-top: 12px;">
+					<button type="submit" class="skw-btn skw-btn-danger" id="skwirrel-reset-settings-btn"><?php esc_html_e( 'Reset Skwirrel sync settings', 'skwirrel-pim-sync' ); ?></button>
+				</div>
+			</form>
+		</div>
+		<?php
 	}
 
 	/**
@@ -1303,13 +1351,22 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<?php wp_nonce_field( 'options-options' ); ?>
 				<?php settings_fields( 'skwirrel_wc_sync' ); ?>
 
-				<?php foreach ( $tabs as $slug => $tab ) : ?>
+				<?php
+				foreach ( $tabs as $slug => $tab ) :
+					$slug = (string) $slug;
+					// The Danger zone panel posts to admin-post.php, not options.php — a <form>
+					// nested inside this one is invalid HTML and browsers silently break its
+					// submission. It is rendered after this form closes instead, see below.
+					if ( 'danger-zone' === $slug ) {
+						continue;
+					}
+					?>
 					<div
 						class="skw-tabpanel"
 						role="tabpanel"
-						id="panel-<?php echo esc_attr( (string) $slug ); ?>"
-						data-skw-panel="<?php echo esc_attr( (string) $slug ); ?>"
-						aria-labelledby="tab-<?php echo esc_attr( (string) $slug ); ?>"
+						id="panel-<?php echo esc_attr( $slug ); ?>"
+						data-skw-panel="<?php echo esc_attr( $slug ); ?>"
+						aria-labelledby="tab-<?php echo esc_attr( $slug ); ?>"
 						tabindex="0"
 					>
 						<?php $this->render_settings_tab_panel( $tab, $context ); ?>
@@ -1322,31 +1379,18 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			</form>
 		</div>
 
-		<?php // -- Danger Zone -- ?>
-		<div id="skwirrel-danger-zone" class="skw-section skw-danger-zone">
-			<h2 class="skw-section-title skw-c-red"><?php esc_html_e( 'Danger zone', 'skwirrel-pim-sync' ); ?></h2>
-			<p class="skw-section-desc"><?php esc_html_e( 'Delete all products created or synced by Skwirrel. This cannot be undone if you empty the trash.', 'skwirrel-pim-sync' ); ?></p>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-purge-form">
-				<input type="hidden" name="action" value="skwirrel_wc_sync_purge" />
-				<?php wp_nonce_field( 'skwirrel_wc_sync_purge', '_wpnonce' ); ?>
-				<label class="skw-checkbox"><input type="checkbox" name="skwirrel_purge_empty_trash" value="1" id="skwirrel-purge-permanent" /> <?php esc_html_e( 'Also empty the trash (permanently delete)', 'skwirrel-pim-sync' ); ?></label>
-				<div class="skw-field-actions" style="margin-top: 12px;">
-					<button type="submit" class="skw-btn skw-btn-danger"><?php esc_html_e( 'Delete all Skwirrel products', 'skwirrel-pim-sync' ); ?></button>
-				</div>
-			</form>
-
-			<hr style="margin: 24px 0; border: 0; border-top: 1px solid rgba(220, 50, 50, 0.2);" />
-
-			<h3 class="skw-block-title"><?php esc_html_e( 'Reset settings', 'skwirrel-pim-sync' ); ?></h3>
-			<p class="skw-section-desc"><?php esc_html_e( 'Delete all Skwirrel sync configuration (endpoint URL, API token, sync schedule, slug rules). Cancels all scheduled sync jobs and flushes the object cache. Products, media, categories and sync history are untouched — use this when your settings refuse to update because of an aggressive persistent cache.', 'skwirrel-pim-sync' ); ?></p>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-reset-settings-form">
-				<input type="hidden" name="action" value="skwirrel_wc_sync_reset_settings" />
-				<?php wp_nonce_field( 'skwirrel_wc_sync_reset_settings', '_wpnonce' ); ?>
-				<div class="skw-field-actions" style="margin-top: 12px;">
-					<button type="submit" class="skw-btn skw-btn-danger" id="skwirrel-reset-settings-btn"><?php esc_html_e( 'Reset Skwirrel sync settings', 'skwirrel-pim-sync' ); ?></button>
-				</div>
-			</form>
-		</div>
+		<?php if ( isset( $tabs['danger-zone'] ) ) : ?>
+			<div
+				class="skw-tabpanel skw-section skw-danger-zone"
+				role="tabpanel"
+				id="panel-danger-zone"
+				data-skw-panel="danger-zone"
+				aria-labelledby="tab-danger-zone"
+				tabindex="0"
+			>
+				<?php $this->render_settings_tab_panel( $tabs['danger-zone'], $context ); ?>
+			</div>
+		<?php endif; ?>
 		<?php
 	}
 
