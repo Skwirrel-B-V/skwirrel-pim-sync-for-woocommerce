@@ -135,8 +135,12 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	 */
 	private static function tab_submenu_slugs(): array {
 		return [
-			'settings' => 'admin.php?page=' . self::PAGE_SLUG . '&tab=settings',
-			'debug'    => 'admin.php?page=' . self::PAGE_SLUG . '&tab=debug',
+			'settings'     => 'admin.php?page=' . self::PAGE_SLUG . '&tab=settings',
+			'debug'        => 'admin.php?page=' . self::PAGE_SLUG . '&tab=debug',
+			// Same tab as 'debug', anchored straight at the health check / troubleshooting
+			// checklist rather than the live log tail — a separate, more discoverable menu
+			// entry for "something's wrong, where do I even start" versus "show me the log".
+			'debug-health' => 'admin.php?page=' . self::PAGE_SLUG . '&tab=debug#skwirrel-health-check',
 		];
 	}
 
@@ -167,15 +171,18 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 		add_submenu_page( self::PAGE_SLUG, '', __( 'Settings', 'skwirrel-pim-sync' ), 'manage_woocommerce', $tabs['settings'] );
 		add_submenu_page( self::PAGE_SLUG, '', __( 'Sync logs', 'skwirrel-pim-sync' ), 'manage_woocommerce', $tabs['debug'] );
+		add_submenu_page( self::PAGE_SLUG, '', __( 'Debug', 'skwirrel-pim-sync' ), 'manage_woocommerce', $tabs['debug-health'] );
 
-		// Pure navigation: jumps to the "Sync Now" block on the status screen. It deliberately
-		// does not trigger a sync — an admin menu link must never perform a state change.
+		// Triggers the sync directly, the same nonced admin-post.php request the in-page "Sync Now"
+		// button uses (render_page_dashboard()) — not a navigation link. A menu click is a single,
+		// deliberate user action just like clicking that button; the nonce is what keeps it from
+		// being a bare, replayable GET that anything could trigger.
 		add_submenu_page(
 			self::PAGE_SLUG,
 			'',
 			__( 'Sync now', 'skwirrel-pim-sync' ),
 			'manage_woocommerce',
-			'admin.php?page=' . self::PAGE_SLUG . '#skwirrel-sync-now'
+			wp_nonce_url( admin_url( 'admin-post.php?action=skwirrel_wc_sync_run' ), 'skwirrel_wc_sync_run', '_wpnonce' )
 		);
 	}
 

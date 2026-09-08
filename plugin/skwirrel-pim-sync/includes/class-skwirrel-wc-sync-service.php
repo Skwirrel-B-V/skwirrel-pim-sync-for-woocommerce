@@ -1700,21 +1700,26 @@ class Skwirrel_WC_Sync_Service {
 	}
 
 	/**
-	 * Minimum time a queued-but-silent run must sit before the UI calls it stuck (seconds).
+	 * Minimum time a run must sit with no persisted progress before the UI calls it stuck (seconds).
 	 *
-	 * Well past HEARTBEAT_TTL (60s) and several resume cycles, so a run doing genuinely slow
-	 * work (a long API page, media downloads) is never mistaken for one whose Action Scheduler
-	 * step simply never got picked up.
+	 * Well past HEARTBEAT_TTL (60s) and a couple of resume cycles. Measured from `saved_at` — the
+	 * last time ANY step actually completed and persisted progress, not from `started_at` — so a
+	 * long-running sync doing genuinely slow work (a 120s API timeout plus retries inside one step,
+	 * a big membership sweep paging through many steps) is never mistaken for one whose Action
+	 * Scheduler step simply never got picked up. For a run that never got picked up even once,
+	 * `saved_at` equals `started_at` (both stamped by begin_run()'s own save), so the original
+	 * "queued but never started" case is still caught exactly as before.
 	 */
 	private const STUCK_RUN_WARNING_THRESHOLD = 300;
 
 	/**
-	 * Warn the admin when a run is queued but Action Scheduler / WP-Cron never picked it up.
+	 * Warn the admin when a run has made no persisted progress for a while — most often because
+	 * Action Scheduler / WP-Cron never picked up its next step at all.
 	 *
 	 * This is a different failure than MAX_STALL: a stalled run means steps *are* executing but
-	 * making no progress. A run stuck here never executes a single step after begin_run() saves
-	 * it — the heartbeat never goes fresh in the first place, so nothing in run_async_step() ever
-	 * runs to detect or recover it. Only the UI, checking independently, can surface it.
+	 * making no progress. A run stuck here may never have executed a single step after begin_run()
+	 * saved it — the heartbeat never goes fresh in the first place, so nothing in run_async_step()
+	 * ever runs to detect or recover it. Only the UI, checking independently, can surface it.
 	 *
 	 * @return string|null The translated warning, or null when no run is stuck.
 	 */
@@ -1726,15 +1731,17 @@ class Skwirrel_WC_Sync_Service {
 		if ( Skwirrel_WC_Sync_History::is_heartbeat_fresh() ) {
 			return null; // A step ran recently — progressing normally, not stuck.
 		}
-		$started_at = isset( $state['started_at'] ) && is_numeric( $state['started_at'] ) ? (int) $state['started_at'] : 0;
-		if ( $started_at <= 0 || ( time() - $started_at ) < self::STUCK_RUN_WARNING_THRESHOLD ) {
+		$saved_at = isset( $state['saved_at'] ) && is_numeric( $state['saved_at'] )
+			? (int) $state['saved_at']
+			: ( isset( $state['started_at'] ) && is_numeric( $state['started_at'] ) ? (int) $state['started_at'] : 0 );
+		if ( $saved_at <= 0 || ( time() - $saved_at ) < self::STUCK_RUN_WARNING_THRESHOLD ) {
 			return null;
 		}
 
 		$message = sprintf(
-			/* translators: %s: how long ago the sync was queued, e.g. "12 minutes" */
-			__( 'A sync has been queued for %s but has not started running. WordPress’s background task queue (Action Scheduler / WP-Cron) may not be executing on this server — check that WP-Cron is enabled and that the site can complete loopback requests to itself.', 'skwirrel-pim-sync' ),
-			human_time_diff( $started_at, time() )
+			/* translators: %s: how long since the sync last made progress, e.g. "12 minutes" */
+			__( 'A sync has made no progress for %s. WordPress’s background task queue (Action Scheduler / WP-Cron) may not be executing on this server — check that WP-Cron is enabled and that the site can complete loopback requests to itself.', 'skwirrel-pim-sync' ),
+			human_time_diff( $saved_at, time() )
 		);
 
 		if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) {

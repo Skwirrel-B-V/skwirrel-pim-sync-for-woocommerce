@@ -35,17 +35,35 @@ test('get_stuck_run_warning returns null just after a run starts', function () {
 	expect(Skwirrel_WC_Sync_Service::get_stuck_run_warning())->toBeNull();
 });
 
-test('get_stuck_run_warning warns once a queued run has sat silent past the threshold', function () {
-	Skwirrel_WC_Sync_Service::save_run_state([
+test('get_stuck_run_warning does not fire for a long-running sync still making progress', function () {
+	// An old run whose most recent step completed and saved progress recently — e.g. a big
+	// catalog on step 40, total age past the threshold, but not stuck. Heartbeat is stale here
+	// (this simulates the gap between two step actions, not mid-step), so detection falls
+	// through to saved_at, which must win over the old started_at.
+	update_option(Skwirrel_WC_Sync_Service::OPTION_RUN_STATE, [
+		'run_id'     => 'abc',
+		'step'       => 'products',
+		'started_at' => time() - 3600,
+		'saved_at'   => time() - 5,
+	], false);
+
+	expect(Skwirrel_WC_Sync_Service::get_stuck_run_warning())->toBeNull();
+});
+
+test('get_stuck_run_warning warns once a run has made no progress past the threshold', function () {
+	// Written directly rather than via save_run_state(), which always stamps saved_at to "now" —
+	// the point here is simulating state whose last persisted progress is 301s old.
+	update_option(Skwirrel_WC_Sync_Service::OPTION_RUN_STATE, [
 		'run_id'     => 'abc',
 		'step'       => 'init',
 		'started_at' => time() - 301,
-	]);
+		'saved_at'   => time() - 301,
+	], false);
 
 	$warning = Skwirrel_WC_Sync_Service::get_stuck_run_warning();
 
 	expect($warning)->toBeString();
-	expect($warning)->toContain('queued');
+	expect($warning)->toContain('no progress');
 });
 
 test('get_stuck_run_warning returns null once the run is marked done', function () {
@@ -62,11 +80,12 @@ test('get_stuck_run_warning names DISABLE_WP_CRON when it is set', function () {
 	if (!defined('DISABLE_WP_CRON')) {
 		define('DISABLE_WP_CRON', true);
 	}
-	Skwirrel_WC_Sync_Service::save_run_state([
+	update_option(Skwirrel_WC_Sync_Service::OPTION_RUN_STATE, [
 		'run_id'     => 'abc',
 		'step'       => 'init',
 		'started_at' => time() - 301,
-	]);
+		'saved_at'   => time() - 301,
+	], false);
 
 	$warning = Skwirrel_WC_Sync_Service::get_stuck_run_warning();
 

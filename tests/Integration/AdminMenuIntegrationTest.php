@@ -13,7 +13,7 @@
  *  - the resolved position of our entry in `$menu`, and its order relative to the WooCommerce
  *    cluster and to core's separator2/Appearance, AFTER `custom_menu_order`/`menu_order` have run
  *    (WooCommerce reorders the top level, so the raw positions are not the rendered order);
- *  - the four submenu rows core ends up with, including that the first one is the RENAMED parent;
+ *  - the five submenu rows core ends up with, including that the first one is the RENAMED parent;
  *  - that `get_admin_page_parent()` — what core actually calls to decide which top-level menu owns
  *    the current screen — resolves to our menu;
  *  - that `highlight_active_tab()` returns a value that is genuinely present in `$submenu`, which
@@ -22,7 +22,7 @@
  * NOT covered here (browser-only, deliberately left out rather than faked):
  *  - that the menu renders, that the dashicon paints, and that the `.current` class ends up on the
  *    right row: that needs `_wp_menu_output()` against a real request with an admin header.
- *  - the `#skwirrel-sync-now` fragment actually scrolling to the Sync Now block.
+ *  - the `#skwirrel-health-check` fragment actually scrolling to the health check block.
  */
 
 declare(strict_types=1);
@@ -302,7 +302,7 @@ test( 'the menu icon css is not printed for users without the capability', funct
 |--------------------------------------------------------------------------
 */
 
-test('the Skwirrel menu has exactly the four expected submenu rows, in order', function () {
+test('the Skwirrel menu has exactly the five expected submenu rows, in order', function () {
 	skwAdminMenuBuild();
 
 	$rows = array_map(
@@ -310,12 +310,18 @@ test('the Skwirrel menu has exactly the four expected submenu rows, in order', f
 		$GLOBALS['submenu']['skwirrel-pim-sync'] ?? []
 	);
 
-	expect( $rows )->toBe( [
-		[ 'Status', 'skwirrel-pim-sync' ],
-		[ 'Settings', 'admin.php?page=skwirrel-pim-sync&tab=settings' ],
-		[ 'Sync logs', 'admin.php?page=skwirrel-pim-sync&tab=debug' ],
-		[ 'Sync now', 'admin.php?page=skwirrel-pim-sync#skwirrel-sync-now' ],
-	] );
+	expect( $rows )->toHaveCount( 5 );
+
+	expect( $rows[0] )->toBe( [ 'Status', 'skwirrel-pim-sync' ] );
+	expect( $rows[1] )->toBe( [ 'Settings', 'admin.php?page=skwirrel-pim-sync&tab=settings' ] );
+	expect( $rows[2] )->toBe( [ 'Sync logs', 'admin.php?page=skwirrel-pim-sync&tab=debug' ] );
+	expect( $rows[3] )->toBe( [ 'Debug', 'admin.php?page=skwirrel-pim-sync&tab=debug#skwirrel-health-check' ] );
+
+	// "Sync now" triggers the sync directly via a nonced admin-post.php request rather than
+	// navigating to an anchor; the nonce itself differs per request, so match structurally.
+	expect( $rows[4][0] )->toBe( 'Sync now' );
+	expect( $rows[4][1] )->toContain( 'admin-post.php?action=skwirrel_wc_sync_run' );
+	expect( $rows[4][1] )->toContain( '_wpnonce=' );
 });
 
 test('the first submenu row is the renamed parent, not a second "Skwirrel"', function () {
@@ -344,8 +350,24 @@ test('the tab links do not steal ownership of the page from our own top-level me
 
 	expect( get_admin_page_parent() )->toBe( 'skwirrel-pim-sync' );
 
-	// The link-only rows are parented to us, not registered as pages under someone else.
-	foreach ( [ 'admin.php?page=skwirrel-pim-sync&tab=settings', 'admin.php?page=skwirrel-pim-sync&tab=debug', 'admin.php?page=skwirrel-pim-sync#skwirrel-sync-now' ] as $slug ) {
+	// The link-only rows are parented to us, not registered as pages under someone else. "Sync
+	// now"'s slug carries a per-request nonce, so its exact string is read off the built menu
+	// rather than hardcoded.
+	$sync_now_slug = null;
+	foreach ( $GLOBALS['submenu']['skwirrel-pim-sync'] as $item ) {
+		if ( 'Sync now' === $item[0] ) {
+			$sync_now_slug = $item[2];
+		}
+	}
+	expect( $sync_now_slug )->not->toBeNull();
+
+	$slugs = [
+		'admin.php?page=skwirrel-pim-sync&tab=settings',
+		'admin.php?page=skwirrel-pim-sync&tab=debug',
+		'admin.php?page=skwirrel-pim-sync&tab=debug#skwirrel-health-check',
+		$sync_now_slug,
+	];
+	foreach ( $slugs as $slug ) {
 		expect( $GLOBALS['_parent_pages'][ $slug ] ?? null )->toBe( 'skwirrel-pim-sync' );
 	}
 
