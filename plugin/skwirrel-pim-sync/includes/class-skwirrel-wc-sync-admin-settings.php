@@ -2509,14 +2509,22 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			wp_add_inline_script( 'skwirrel-pim-sync-admin', $live_js );
 
 			$run_label = esc_js( __( 'Run health check', 'skwirrel-pim-sync' ) );
+			// Same icon glyphs used elsewhere on this screen (skw-status-card success/error, the stuck-run
+			// warning) — reused here rather than introducing a third icon set for the same three meanings.
 			$health_js =
 				'(function() {'
 				. ' var btn = document.getElementById("skwirrel-health-check-run");'
 				. ' var out = document.getElementById("skwirrel-health-check-results");'
 				. ' if (!btn || !out) return;'
+				. ' var ICONS = {'
+				. '  good: "<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' width=\'20\' height=\'20\'><path d=\'M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z\' stroke-linecap=\'round\' stroke-linejoin=\'round\' /></svg>",'
+				. '  recommended: "<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' width=\'20\' height=\'20\'><path d=\'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z\' stroke-linecap=\'round\' stroke-linejoin=\'round\' /></svg>",'
+				. '  critical: "<svg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' width=\'20\' height=\'20\'><path d=\'M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z\' stroke-linecap=\'round\' stroke-linejoin=\'round\' /></svg>"'
+				. ' };'
 				. ' function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}'
 				. ' function row(r){'
-				. '  return "<div class=\"skw-health-row skw-health-" + esc(r.status) + "\"><strong>" + esc(r.label) + "</strong><p>" + esc(r.message) + "</p></div>";'
+				. '  var icon = ICONS[r.status] || ICONS.recommended;'
+				. '  return "<div class=\"skw-health-row skw-health-" + esc(r.status) + "\"><div class=\"skw-health-icon\">" + icon + "</div><div class=\"skw-health-body\"><strong>" + esc(r.label) + "</strong><p>" + esc(r.message) + "</p></div></div>";'
 				. ' }'
 				. ' btn.addEventListener("click", function(){'
 				. '  btn.disabled = true; btn.textContent = skwirrelPimSync.healthCheckRunning;'

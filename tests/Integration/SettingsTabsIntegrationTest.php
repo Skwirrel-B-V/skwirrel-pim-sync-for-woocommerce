@@ -2,7 +2,9 @@
 /**
  * Integration tests for the tabbed settings screen (Story 5.1).
  *
- * The settings screen groups nine field groups into five tabs. The refactor is only safe if the
+ * The settings screen groups its field groups into four tabs (Connection, What to sync, Field
+ * mapping, Advanced — Media & Language and Permalinks were later folded into the latter two).
+ * The refactor is only safe if the
  * rendered form is unchanged as a *payload*: every input still present, still inside the one
  * `options.php` form, never disabled, never removed from the DOM. That cannot be judged from the
  * source alone — the markup is assembled from a registry, a panel loop and eight renderers — so
@@ -17,7 +19,7 @@
  *  - every `aria-controls` resolves to a panel that exists, and back via `aria-labelledby`;
  *  - the danger zone is still outside and below the form;
  *  - the element IDs the inline admin script binds to all still exist;
- *  - a full submit round-trips through `sanitize_settings()` with values from all five tabs intact;
+ *  - a full submit round-trips through `sanitize_settings()` with values from all four tabs intact;
  *  - the AC 1 re-home map, the no-JS baseline, the error notice, and a tab registered from outside
  *    (added by the QA E2E-test pass — see the second block at the bottom of this file).
  *
@@ -276,9 +278,9 @@ test( 'the ARIA wiring resolves in both directions and exactly one tab is select
 	}
 
 	expect( substr_count( $html, 'aria-selected="true"' ) )->toBe( 1 );
-	expect( substr_count( $html, 'aria-selected="false"' ) )->toBe( 4 );
+	expect( substr_count( $html, 'aria-selected="false"' ) )->toBe( 3 );
 	expect( substr_count( $html, 'tabindex="0"' ) )->toBeGreaterThanOrEqual( 1 );
-	expect( substr_count( $html, 'tabindex="-1"' ) )->toBe( 4 );
+	expect( substr_count( $html, 'tabindex="-1"' ) )->toBe( 3 );
 } );
 
 test( 'the danger zone stays outside and below the settings form', function (): void {
