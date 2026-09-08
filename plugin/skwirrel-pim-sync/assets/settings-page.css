@@ -60,12 +60,16 @@
 	--color-lime: hsl(74 100% 71%);
 	--color-neutral: hsl(220 10% 18%);
 	--color-neutral-light: hsl(220 8% 40%);
+	--color-mascot: hsl(217 40% 62%);
 	--color-error: hsl(354 65% 58%);
 	--color-error-soft: hsl(355 80% 95%);
+	--radius-sm: 0.25rem;
 
-	/* Matches the design system's own --border-color / --input-border-color, both of which
-	   resolve to --color-primary-darker — a light blue-tinted border, not a neutral grey. */
-	--border-color: var(--color-primary-darker);
+	/* Confirmed against the design system's own component source (Input/Select in
+	   _ds_bundle.js): controls border with --sk-neutral (solid, full-opacity dark),
+	   not the legacy --input-border-color role token (which resolves to a light
+	   blue-tinted --color-primary-darker and is unused by the actual components). */
+	--border-color: var(--color-neutral);
 
 	font-family: var(--font-body);
 	color: var(--color-neutral);
@@ -140,8 +144,8 @@
 	font-size: 13px;
 	padding: 0 14px;
 	height: 34px;
-	border-radius: 6px;
-	border: 1px solid rgb(28 31 38 / .18);
+	border-radius: var(--radius-sm);
+	border: 1px solid var(--color-neutral);
 	background: #fff;
 	color: var(--color-neutral);
 	cursor: pointer;
@@ -206,10 +210,8 @@
 	height: 40px;
 	font-family: var(--font-body);
 	font-size: 14px;
-	/* --input-border-color in the design system resolves to --border-color, i.e.
-	   --color-primary-darker — a light blue-tinted border, not a neutral grey. */
 	border: 1px solid var(--border-color);
-	border-radius: 6px;
+	border-radius: var(--radius-sm);
 	padding: 0 12px;
 	background: #fff;
 	color: var(--color-neutral);
@@ -220,9 +222,9 @@
 }
 .skw-settings-page .skw-input:focus,
 .skw-settings-page .skw-select:focus {
-	border-color: var(--color-primary);
-	outline: 2px solid hsl(220 100% 66% / .25);
-	outline-offset: 0;
+	border-color: var(--color-mascot);
+	outline: none;
+	box-shadow: 0 0 0 1px var(--color-mascot);
 }
 .skw-settings-page .skw-input-affixed {
 	box-sizing: border-box;
@@ -230,8 +232,12 @@
 	display: flex;
 	align-items: center;
 	border: 1px solid var(--border-color);
-	border-radius: 6px;
+	border-radius: var(--radius-sm);
 	background: #fff;
+}
+.skw-settings-page .skw-input-affixed:focus-within {
+	border-color: var(--color-mascot);
+	box-shadow: 0 0 0 1px var(--color-mascot);
 }
 .skw-settings-page .skw-input-affixed .skw-input {
 	height: 38px;
@@ -282,6 +288,20 @@
 	background: hsl(220 100% 96%);
 }
 .skw-settings-page .skw-token-status .ph { font-size: 18px; color: var(--color-primary); }
+.skw-settings-page .skw-token-status .skw-label { font-size: 14px; }
+.skw-settings-page .skw-token-status-sep {
+	width: 1px;
+	height: 18px;
+	background: rgb(28 31 38 / .12);
+}
+.skw-settings-page .skw-token-status span:last-child {
+	font-size: 14px;
+	color: var(--color-neutral-light);
+}
+.skw-settings-page .skw-token-status span:last-child strong {
+	color: var(--color-neutral);
+	font-weight: 500;
+}
 
 /* -- Buttons -- */
 
@@ -290,7 +310,7 @@
 	font-weight: 600;
 	background: var(--color-neutral);
 	border-color: var(--color-neutral);
-	border-radius: 6px;
+	border-radius: var(--radius-sm);
 	box-shadow: none;
 	text-shadow: none;
 }
@@ -302,7 +322,7 @@
 .skw-settings-page .button:not(.button-primary) {
 	font-family: var(--font-display);
 	font-weight: 600;
-	border-radius: 6px;
+	border-radius: var(--radius-sm);
 	box-shadow: none;
 }
 

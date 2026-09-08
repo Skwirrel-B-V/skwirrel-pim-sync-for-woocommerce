@@ -1449,9 +1449,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			</div>
 			<input type="hidden" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[auth_type]" value="token" />
 			<?php if ( class_exists( 'Skwirrel_WC_Sync_Connectors' ) && Skwirrel_WC_Sync_Connectors::is_registered() ) : ?>
-				<div class="skw-field">
-					<label class="skw-label"><?php esc_html_e( 'API Token', 'skwirrel-pim-sync' ); ?></label>
-					<p class="skw-field-hint">
+				<div class="skw-field skw-token-status">
+					<i class="ph ph-key" aria-hidden="true"></i>
+					<span class="skw-label"><?php esc_html_e( 'API token', 'skwirrel-pim-sync' ); ?></span>
+					<span class="skw-token-status-sep" aria-hidden="true"></span>
+					<span>
 						<?php
 						$has_token      = '' !== Skwirrel_WC_Sync_Admin_Settings::get_auth_token();
 						$connectors_url = admin_url( 'options-connectors.php' );
@@ -1465,7 +1467,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							'<a href="' . esc_url( $connectors_url ) . '">' . esc_html__( 'Settings → Connectors', 'skwirrel-pim-sync' ) . '</a>'
 						);
 						?>
-					</p>
+					</span>
 				</div>
 			<?php else : ?>
 				<div class="skw-field">
