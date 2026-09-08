@@ -64,7 +64,14 @@ _Curated long-term knowledge. Structured so a cold start is immediately useful._
   (my first guess, wrong; core registers it via `$submenu['tools.php'][20]` in `wp-admin/menu.php`).
 
 ## Verified API Facts
-- **Upstream checked 2026-08-18:** WordPress 7.0.4, WooCommerce 11.0.1. Next run starts here.
+- **Upstream checked 2026-09-08:** WordPress 7.1 (via field guide, make.wordpress.org, 2026-08-05), WooCommerce 11.1.0 (not yet checked — see Watch List). Next run starts here.
+- **WordPress 7.1 does not affect this plugin.** Checked every dev note in the field guide:
+  - Iframed-editor completion (all post types now edit inside an iframe) — only affects plugins injecting JS/CSS across the editor iframe boundary. `Skwirrel_WC_Sync_Product_Sync_Meta_Box` is a plain server-rendered classic meta box with no enqueued JS crossing that boundary (metaboxes render outside the editor iframe, unaffected). Not affected.
+  - Media REST API changes (image dimension validation, size-aware encode quality on `/wp/v2/media` sideload) — `class-skwirrel-wc-sync-media-importer.php` calls `wp_insert_attachment()` directly (`:123,229`), never the REST media endpoint. Not affected.
+  - jQuery UI bumped to 1.14.2 — no jQuery usage anywhere in the plugin's admin JS (verified by grep; all inline JS is vanilla `fetch`/DOM). Not affected.
+  - Abilities API additions, `notify_post_author` filter change, theme.json coercion fix, XML-RPC/REST multisite fixes, privacy-request cron change, comments fix — none touch code this plugin runs (no Abilities API use, no post-author-notification filtering, no theme.json, no XML-RPC, no privacy-erasure hooks, no custom comment types).
+  - `readme.txt` `Tested up to` raised 7.0 → 7.1 on this basis (2026-09-08, on `feature/stuck-sync-warning`).
+- **Upstream checked 2026-08-18:** WordPress 7.0.4, WooCommerce 11.0.1.
 - **WooCommerce 11.0 (2026-08-04) does not affect this plugin.** All developer-facing changes ruled out with evidence:
   - Action Scheduler 4.0.0 `$unique` now includes args — plugin never passes `$unique` (5-arg calls only, `class-skwirrel-wc-sync-action-scheduler.php:58,221`). Not affected.
   - AS 4.0.0 purges failed actions after 3 months — plugin never queries action status or failed actions. Not affected.
@@ -82,7 +89,7 @@ _Curated long-term knowledge. Structured so a cold start is immediately useful._
 {None. Nothing upstream is currently scheduled to break this plugin.}
 
 ## Watch List
-- **WordPress 7.1** — the WC 11.0.1 changelog carries order-list fixes explicitly for WP 7.1 compatibility, so 7.1 is close. Next real upstream event.
+- **WooCommerce 10.6 → 11.1.0 — not yet checked.** `wc_tested_up_to` still says 10.6; upstream is now 11.1.0 (three point releases past the last check, which only covered 11.0.1). `upstream-versions.py` flags this "major" severity. Needs its own upstream-watch pass — not done as part of the 2026-09-08 WP 7.1 check.
 
 ## Open Questions
 - CHANGELOG.md / readme.txt `= 3.14.0 =` document Epic 5 only; Epic 6 (stories 6.1-6.5, committed on release/3.14.0) has no entry. Raised 2026-08-27, not actioned.

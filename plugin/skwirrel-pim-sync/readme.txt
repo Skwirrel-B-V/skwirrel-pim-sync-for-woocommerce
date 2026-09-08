@@ -2,7 +2,7 @@
 Contributors: jkoomen
 Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 8.3
 Stable tag: 3.14.0
 License: GPLv2 or later
@@ -115,6 +115,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * Fix: the Custom class collection ID is no longer labelled "(optional)" while saving can reject it as missing.
 * Fix: restored the translated delete-protection hint to the wording the plugin actually displays.
 * Maintenance: the temporary WooCommerce-menu pointer used during the top-level-menu migration has now expired and been removed.
+* Maintenance: verified compatible with and raised "Tested up to" to WordPress 7.1.
 * Note: with JavaScript disabled the settings screen still shows every setting, exactly as before.
 
 = 3.13.1 =
