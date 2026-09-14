@@ -1799,9 +1799,9 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 	/**
 	 * AJAX: manually release a stuck run's delete-lock (called from the "Clear stuck sync lock"
-	 * button on the delete-protection banner). Re-checks get_stuck_run_warning() server-side
-	 * before clearing anything, so this can never cut a genuinely live run's lock short — only
-	 * one the plugin itself has already concluded made no progress for a while.
+	 * button on the delete-protection banner). Only releases a run the plugin itself has concluded
+	 * made no progress for a while and that no worker is still executing — see
+	 * Skwirrel_WC_Sync_Service::force_clear_stuck_run().
 	 */
 	public function handle_clear_stuck_run(): void {
 		check_ajax_referer( 'skwirrel_clear_stuck_run_nonce', '_nonce' );
@@ -1809,11 +1809,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			wp_send_json_error( 'Access denied', 403 );
 		}
 
-		if ( null === Skwirrel_WC_Sync_Service::get_stuck_run_warning() ) {
+		if ( ! Skwirrel_WC_Sync_Service::force_clear_stuck_run() ) {
 			wp_send_json_error( 'Not stuck', 409 );
 		}
 
-		Skwirrel_WC_Sync_Service::force_clear_stuck_run();
 		( new Skwirrel_WC_Sync_Logger() )->info( 'Stuck sync delete-lock cleared manually via admin action.' );
 
 		wp_send_json_success();
@@ -2814,15 +2813,21 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 			wp_add_inline_script( 'skwirrel-pim-sync-admin', $copy_js );
 
+			// The active pill follows the URL fragment, not just clicks: the Debug submenu deep-links
+			// to #skwirrel-health-check, and back/forward navigation changes the fragment too.
+			// Clicking a pill changes the fragment, so hashchange covers clicks as well.
 			$nav_js =
 				'(function() {'
-				. ' document.addEventListener("click", function(e){'
-				. '  var link = e.target.closest ? e.target.closest(".skw-dbg-nav a") : null;'
-				. '  if (!link) return;'
-				. '  link.parentNode.querySelectorAll("a").forEach(function(a){'
-				. '   a.classList.toggle("skw-dbg-nav-active", a === link);'
-				. '  });'
-				. ' });'
+				. ' function sync(){'
+				. '  var nav = document.querySelector(".skw-dbg-nav");'
+				. '  if (!nav) return;'
+				. '  var links = nav.querySelectorAll("a");'
+				. '  var active = links[0] || null;'
+				. '  links.forEach(function(a){ if (location.hash && a.getAttribute("href") === location.hash) { active = a; } });'
+				. '  links.forEach(function(a){ a.classList.toggle("skw-dbg-nav-active", a === active); });'
+				. ' }'
+				. ' window.addEventListener("hashchange", sync);'
+				. ' if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", sync); } else { sync(); }'
 				. '})();';
 
 			wp_add_inline_script( 'skwirrel-pim-sync-admin', $nav_js );

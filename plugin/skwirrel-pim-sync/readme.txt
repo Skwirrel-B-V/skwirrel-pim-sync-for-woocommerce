@@ -83,9 +83,9 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * Redesigned Overview page: last-sync summary with counts, quick actions and a clearer Recent syncs table.
 * New "Sync ETIM features" setting (on by default). Turn it off to stop adding ETIM features as product attributes and stop requesting ETIM data. Grouped products still use ETIM for their variation axes.
 * Old attributes are now removed from simple products when a sync no longer produces any.
-* A stuck sync lock can now be cleared from the delete-protection notice.
+* A stuck sync lock can now be cleared from the delete-protection notice. It can't be cleared while a sync step is still running, and clearing it also removes the stuck run's leftover queue data.
 * The sync duration shown on the Overview is now accurate.
-* Debug page header and navigation match the new design.
+* Debug page header and navigation match the new design; the highlighted section follows the link you opened.
 * The "Sync completed" message now looks like a standard WordPress notice.
 
 = 3.15.0 =
