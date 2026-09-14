@@ -64,3 +64,19 @@ test('update_last_result clears both the badge and the mutex', function () {
 	expect(get_transient(Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS))->toBeFalse();
 	expect(get_transient(Skwirrel_WC_Sync_History::SYNC_MUTEX))->toBeFalse();
 });
+
+test('update_last_result records the run start so the overview can show its duration', function () {
+	$started = time() - 90;
+
+	Skwirrel_WC_Sync_History::update_last_result(true, 0, 2, 0, '', 0, 0, 0, 0, Skwirrel_WC_Sync_History::TRIGGER_MANUAL, '', 0, 0, 'run-1', '', $started);
+
+	$result = $GLOBALS['_test_options'][Skwirrel_WC_Sync_History::OPTION_LAST_SYNC_RESULT];
+	expect($result['started_at'])->toBe($started);
+	expect($result['timestamp'])->toBeGreaterThanOrEqual($started);
+});
+
+test('update_last_result defaults started_at to 0 when the caller does not know it', function () {
+	Skwirrel_WC_Sync_History::update_last_result(true, 0, 0, 0);
+
+	expect($GLOBALS['_test_options'][Skwirrel_WC_Sync_History::OPTION_LAST_SYNC_RESULT]['started_at'])->toBe(0);
+});
