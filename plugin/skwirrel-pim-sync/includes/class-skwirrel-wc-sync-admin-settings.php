@@ -2777,6 +2777,19 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				. '})();';
 
 			wp_add_inline_script( 'skwirrel-pim-sync-admin', $copy_js );
+
+			$nav_js =
+				'(function() {'
+				. ' document.addEventListener("click", function(e){'
+				. '  var link = e.target.closest ? e.target.closest(".skw-dbg-nav a") : null;'
+				. '  if (!link) return;'
+				. '  link.parentNode.querySelectorAll("a").forEach(function(a){'
+				. '   a.classList.toggle("skw-dbg-nav-active", a === link);'
+				. '  });'
+				. ' });'
+				. '})();';
+
+			wp_add_inline_script( 'skwirrel-pim-sync-admin', $nav_js );
 		}
 	}
 

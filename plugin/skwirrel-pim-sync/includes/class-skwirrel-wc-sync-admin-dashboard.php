@@ -2096,14 +2096,14 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<h1><?php esc_html_e( 'Debug', 'skwirrel-pim-sync' ); ?></h1>
 					<p><?php esc_html_e( 'Live sync log, health checks and variation attribute diagnostics. Start at the top and work down.', 'skwirrel-pim-sync' ); ?></p>
 				</div>
-				<div style="display:flex; align-items:center; gap:8px">
+				<div class="skw-dbg-header-actions">
 					<a href="<?php echo esc_url( $dashboard_url ); ?>" class="skw-dbg-btn"><i class="ph ph-arrow-left" aria-hidden="true"></i> <?php esc_html_e( 'Back to dashboard', 'skwirrel-pim-sync' ); ?></a>
 					<a href="https://skwirrel.eu" target="_blank" rel="noopener noreferrer" class="skw-dbg-btn"><i class="ph ph-lifebuoy" aria-hidden="true"></i> <?php esc_html_e( 'Contact support', 'skwirrel-pim-sync' ); ?></a>
 				</div>
 			</div>
 
 			<div class="skw-dbg-nav">
-				<a href="#skwirrel-live-log"><?php esc_html_e( 'Live sync log', 'skwirrel-pim-sync' ); ?></a>
+				<a href="#skwirrel-live-log" class="skw-dbg-nav-active"><?php esc_html_e( 'Live sync log', 'skwirrel-pim-sync' ); ?></a>
 				<a href="#skwirrel-health-check"><?php esc_html_e( 'Health check', 'skwirrel-pim-sync' ); ?></a>
 				<a href="#skwirrel-troubleshoot"><?php esc_html_e( 'Sync not working?', 'skwirrel-pim-sync' ); ?></a>
 				<a href="#skwirrel-variations"><?php esc_html_e( 'Variation attributes', 'skwirrel-pim-sync' ); ?></a>
