@@ -1,25 +1,27 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-02",
+  "generated_at": "2026-09-14",
   "workflow": "bmad-testarch-trace",
   "repo": "wordpress",
   "collection_mode": "contract_static",
   "collection_status": "COLLECTED",
   "coverage_basis": "acceptance_criteria",
-  "source_sha": "4044e22",
+  "source_sha": "20eaf3f",
+  "working_tree": "dirty — uncommitted changes in admin-dashboard (1 class attr on the sync banner), admin-settings, delete-protection, sync-service, CSS and translations; none touch Epic 5 behaviour",
   "summary_confidence": "high",
   "target": {
     "type": "epic",
     "id": "5",
     "label": "A settings screen you can navigate, trust, and verify"
   },
-  "gate_status": "CONCERNS",
-  "rationale": "P0 coverage is 100% and overall coverage is 91% (minimum 80%), but P1 coverage is 86% against a 90% target. Both shortfalls are in Story 5.1 (5.1-AC4 deep link, 5.1-AC6 keyboard operation and focus ring), verified by asserting strings in JS/CSS source rather than by exercising behaviour. Unlike the 2026-08-27 trace, this decision carries no evidence caveat: the integration suite is now deterministic (two consecutive full runs, 233/233 identical) and runs in CI. The remaining shortfall is a written, closed decision recorded in deferred-work.md, which names CONCERNS as the accepted cost.",
+  "gate_status": "FAIL",
+  "rationale": "P1 coverage is 71% (minimum 80%). P0 100%, overall 82%. Four P1 criteria are partial: 5.1-AC4 and 5.1-AC6 (accepted E2E ceiling, unchanged) and, new since 2026-09-02, 5.3-AC1 and 5.3-AC5 — e8332bf hid the Context ID field, so the AC outcomes are no longer true while their DOM-level tests stay green. Scored against epics.md as written, by owner decision on 2026-09-14.",
   "oracle": {
     "resolution_mode": "formal_requirements",
     "confidence": "high",
     "synthetic": false,
     "external_pointer_status": "not_used",
+    "interpretation": "epics.md as written (owner decision)",
     "sources": [
       "_bmad-output/planning-artifacts/epics.md#epic-5",
       "_bmad-output/implementation-artifacts/5-1-tabbed-settings-navigation.md",
@@ -30,13 +32,13 @@
   },
   "coverage_statistics": {
     "total_requirements": 22,
-    "fully_covered": 20,
-    "partially_covered": 2,
+    "fully_covered": 18,
+    "partially_covered": 4,
     "uncovered": 0,
-    "overall_coverage_pct": 91,
+    "overall_coverage_pct": 82,
     "priority_breakdown": {
       "P0": { "total": 5, "covered": 5, "percentage": 100 },
-      "P1": { "total": 14, "covered": 12, "percentage": 86 },
+      "P1": { "total": 14, "covered": 10, "percentage": 71 },
       "P2": { "total": 3, "covered": 3, "percentage": 100 },
       "P3": { "total": 0, "covered": 0, "percentage": 100 }
     },
@@ -50,26 +52,27 @@
     "pending_cases": 0
   },
   "suite_status": {
-    "unit": { "command": "vendor/bin/pest", "passed": 664, "failed": 0, "assertions": 1590 },
-    "integration_run_a": { "command": "npm run test:integration", "passed": 233, "failed": 0, "assertions": 1767, "duration_s": 127.9 },
-    "integration_run_b": { "command": "npm run test:integration", "passed": 233, "failed": 0, "assertions": 1767, "duration_s": 92.3 },
+    "unit": { "command": "vendor/bin/pest", "passed": 675, "failed": 0, "assertions": 1749 },
+    "integration_run_a": { "command": "npm run test:integration", "passed": 233, "failed": 0, "deprecated": 1, "assertions": 1755, "duration_s": 58.6 },
+    "integration_run_b": { "command": "npm run test:integration", "passed": 233, "failed": 0, "deprecated": 1, "assertions": 1755, "duration_s": 50.4 },
+    "deprecation_note": "SyncSafetyIntegrationTest (queue test) — outside Epic 5",
     "deterministic": true,
     "phpstan": "clean",
     "phpcs": "clean"
   },
-  "gap_analysis": { "critical_gaps": 0, "high_gaps": 0, "medium_gaps": 2, "low_gaps": 2 },
+  "gap_analysis": { "critical_gaps": 0, "high_gaps": 0, "medium_gaps": 0, "low_gaps": 0, "partial_items": 4 },
   "heuristics": {
-    "endpoint_gaps": 1,
-    "auth_negative_path_status": "covered",
-    "error_path_status": "covered",
-    "ui_state_status": "covered",
+    "endpoint_gaps": 0,
+    "auth_negative_path_status": "present",
+    "error_path_status": "present",
+    "ui_state_status": "partial",
     "e2e_layer_status": "absent_by_accepted_decision",
     "suite_reliability_status": "deterministic"
   },
   "gate_criteria": {
     "p0_coverage_required": "100%", "p0_coverage_actual": "100%", "p0_status": "MET",
-    "p1_coverage_target": "90%", "p1_coverage_minimum": "80%", "p1_coverage_actual": "86%", "p1_status": "PARTIAL",
-    "overall_coverage_minimum": "80%", "overall_coverage_actual": "91%", "overall_status": "MET"
+    "p1_coverage_target": "90%", "p1_coverage_minimum": "80%", "p1_coverage_actual": "71%", "p1_status": "NOT_MET",
+    "overall_coverage_minimum": "80%", "overall_coverage_actual": "82%", "overall_status": "MET"
   },
   "blockers": [],
   "uncovered_requirements": [
@@ -77,34 +80,48 @@
       "id": "5.1-AC4",
       "priority": "P1",
       "status": "PARTIAL",
-      "gap": "#tab-{slug} deep link asserted as a source substring in the enqueued JS; the link is never followed",
+      "gap": "#tab-{slug} deep link asserted as a source substring; never followed. Now has a real in-product consumer (#tab-danger-zone quick link, c346a07).",
       "disposition": "accepted_ceiling"
     },
     {
       "id": "5.1-AC6",
       "priority": "P1",
       "status": "PARTIAL",
-      "gap": "Keyboard operation ('ArrowRight') and focus ring ('.skw-tab:focus-visible') asserted as strings in JS/CSS source; no key is pressed. ARIA wiring and roving tabindex ARE verified against real markup.",
+      "gap": "Keyboard operation and focus ring asserted as JS/CSS source strings; no key is pressed. ARIA wiring and roving tabindex verified against real markup.",
       "disposition": "accepted_ceiling"
+    },
+    {
+      "id": "5.3-AC1",
+      "priority": "P1",
+      "status": "PARTIAL",
+      "gap": "Field wrapper carries `hidden` since e8332bf. Tests assert presence, placeholder and hint in the DOM, never visibility.",
+      "disposition": "product_contradicts_oracle"
+    },
+    {
+      "id": "5.3-AC5",
+      "priority": "P1",
+      "status": "PARTIAL",
+      "gap": "Rejection without coercion is exercised; the inline error renders inside the hidden wrapper, so the owner cannot see or correct the field.",
+      "disposition": "product_contradicts_oracle"
     }
   ],
   "findings": [
-    { "id": "PRIOR-1", "severity": "high", "status": "closed", "summary": "Integration suite order-dependence (retro action 4) fixed by 14c07bd: teardown-based isolation in Skwirrel_Integration_TestCase. Two full runs here, 233/233 identical." },
-    { "id": "PRIOR-2", "severity": "medium", "status": "closed", "summary": "CI integration job added by 3e2a833; integration regressions can now fail a build." },
-    { "id": "PRIOR-3", "severity": "medium", "status": "closed", "summary": "E2E question closed by written decision (deferred-work.md, Epic 6 retro 2026-08-27): source-string assertion is the accepted ceiling, and CONCERNS is the accepted cost." },
-    { "id": "DOC-1", "severity": "medium", "status": "open", "summary": "epics.md drift: 5.1-AC1 says four tabs (product has five, via 5.1-AC7's registry); 5.2-AC1 names the 'subdomain' field (now skwirrel_base_url, 4044e22). Tests track the product; the epic text is stale." },
-    { "id": "CONTRACT-1", "severity": "low", "status": "narrowed", "summary": "gh#46 closed; include_contexts was already hardcoded at six call sites pre-story, so the API accepts it. Residual is one site: the upserter's sync_grouped_products_first(), which never sent it before. sprint-status.yaml:118 still carries the broader stale marker." },
-    { "id": "ENFORCE-1", "severity": "low", "status": "open", "summary": "skwirrel_base_url is marked required (registry, aria-required, client-side block) but sanitize_settings() raises no error for it; same for the auth token. Carried from the previous trace under the old field name skwirrel_subdomain. Epic 5 retro action 6; deferred-work.md:54 still uses the old name." }
+    { "id": "CTX-1", "severity": "high", "status": "open", "summary": "Hidden-field error trap: a rejected context_id is stored as typed and round-trips through the hidden input, so every later save re-raises the error, opens and badges the Connection tab, and points at a field the owner cannot see. Derived from code (admin-settings sanitize_settings context_id branch; admin-dashboard.php:1505-1528) and the existing integration test at ContextIdIntegrationTest.php:340; not reproduced in a browser." },
+    { "id": "CTX-2", "severity": "medium", "status": "open", "summary": "False-green evidence: ContextIdIntegrationTest asserts the field renders and that a rejected value 'comes back in the field ... so they can correct it', but nothing checks visibility, so e8332bf passed every gate while breaking both ACs." },
+    { "id": "DOC-1", "severity": "medium", "status": "open", "summary": "epics.md drift, grown from 2 to 4 ACs: 5.1-AC1 (four tabs, 'How it looks', Danger Zone outside the tab set — now five tabs incl. Danger zone), 5.1-AC2 rationale and 5.2-AC2 (custom_collection_id conditionally required — never required since 86bc9c6), 5.2-AC1 ('subdomain' — now skwirrel_base_url). Scored FULL because tests exercise each AC's invariant; a strict literal reading of 5.1-AC1 would drop P1 to 64% — same gate." },
+    { "id": "CONTRACT-1", "severity": "low", "status": "carried", "summary": "sprint-status.yaml:123-126 still carries the narrowed include_contexts residual on the upserter's sync_grouped_products_first(); clear after one real multi-context grouped sync." },
+    { "id": "ENFORCE-1", "severity": "low", "status": "carried", "summary": "skwirrel_base_url marked required but not enforced by sanitize_settings(); deferred-work.md:54 still says skwirrel_subdomain. Epic 5 retro action 6." }
   ],
   "recommendations": [
-    { "priority": "medium", "action": "Amend 5.1-AC1 (five tabs) and 5.2-AC1 (skwirrel_base_url) in epics.md, the way FR-3 was amended for the fifth tab", "requirements": ["5.1-AC1", "5.2-AC1"] },
-    { "priority": "low", "action": "Narrow sprint-status.yaml:118 to the single upserter call site, or clear it after one real multi-context grouped sync", "requirements": ["5.3-AC2"] },
-    { "priority": "low", "action": "Epic 5 retro action 6: decide what an unconfigured connection does on save, then mark and enforce it in one place; update deferred-work.md:54 to the new field name", "requirements": ["5.2-AC1", "5.2-AC2"] }
+    { "priority": "high", "action": "Decide the Context ID field: unhide it, or retire 5.3-AC1 and amend 5.3-AC5 in epics.md. Either path lifts the gate to CONCERNS.", "requirements": ["5.3-AC1", "5.3-AC5"] },
+    { "priority": "high", "action": "Fix the hidden-field error trap (CTX-1) regardless of that decision, and add an assertion that a field carrying an error is not inside a hidden wrapper.", "requirements": ["5.3-AC5", "5.2-AC4"] },
+    { "priority": "medium", "action": "Amend epics.md for 5.1-AC1, 5.1-AC2, 5.2-AC1, 5.2-AC2 (carried from 2026-09-02, grown)", "requirements": ["5.1-AC1", "5.1-AC2", "5.2-AC1", "5.2-AC2"] },
+    { "priority": "low", "action": "Update deferred-work.md:54 to skwirrel_base_url; clear the sprint-status include_contexts marker after a real multi-context grouped sync", "requirements": ["5.2-AC1", "5.3-AC2"] }
   ],
   "links": {
     "trace_report_path": "_bmad-output/test-artifacts/traceability/traceability-matrix-epic-5.md",
     "trace_report_url": "",
     "artifact_url": "",
-    "supersedes": "traceability-matrix.md @ db22f76 (2026-08-27)"
+    "supersedes": "traceability-matrix-epic-5.md @ 4044e22 (2026-09-02)"
   }
 }
