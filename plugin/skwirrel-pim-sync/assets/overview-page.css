@@ -143,35 +143,38 @@
 	gap: 8px;
 }
 
+/* Design-system Button: variant "outline" size "sm", and variant "primary" size "md". */
 .skw-overview-page .skw-ov-btn {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
-	height: 34px;
-	padding: 0 14px;
+	justify-content: center;
+	gap: 8px;
+	padding: 8px 20px;
 	border: 1px solid var(--color-neutral);
 	border-radius: var(--radius-sm);
 	background: transparent;
 	font-family: var(--font-display);
 	font-weight: 600;
-	font-size: 13px;
-	line-height: 1;
+	font-size: 14px;
+	line-height: 1.25;
 	color: var(--color-neutral);
 	white-space: nowrap;
 	text-decoration: none;
 	cursor: pointer;
+	transition: background-color .15s ease, color .15s ease;
 }
-.skw-overview-page .skw-ov-btn:hover { background: #fff; color: var(--color-neutral); text-decoration: none; }
+.skw-overview-page .skw-ov-btn:hover,
+.skw-overview-page .skw-ov-btn:focus { background: var(--color-neutral); color: #fff; text-decoration: none; box-shadow: none; }
 .skw-overview-page .skw-ov-btn .ph { font-size: 16px; }
 .skw-overview-page .skw-ov-btn.skw-ov-btn-solid {
-	height: 40px;
-	padding: 0 20px;
+	padding: 10px 24px;
 	background: var(--color-neutral);
 	color: #fff;
-	font-size: 14px;
+	font-size: 16px;
 }
-.skw-overview-page .skw-ov-btn.skw-ov-btn-solid:hover { background: var(--color-neutral); color: #fff; opacity: .9; }
-.skw-overview-page .skw-ov-btn.skw-ov-btn-disabled { opacity: .6; cursor: default; }
+.skw-overview-page .skw-ov-btn.skw-ov-btn-solid:hover { background: hsl(220 10% 18% / .9); color: #fff; }
+.skw-overview-page .skw-ov-btn.skw-ov-btn-disabled,
+.skw-overview-page .skw-ov-btn.skw-ov-btn-disabled:hover { opacity: .5; cursor: default; background: var(--color-neutral); }
 
 /* -- Last sync status (WP-notice style) -- */
 

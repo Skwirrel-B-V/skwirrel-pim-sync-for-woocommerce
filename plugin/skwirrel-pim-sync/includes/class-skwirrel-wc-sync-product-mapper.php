@@ -799,7 +799,8 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		if ( ! empty( $gtin ) ) {
 			$attrs['GTIN'] = $gtin;
 		}
-		$etim = $this->etim->get_etim_attributes( $product );
+		// sync_etim off: no ETIM attributes, even when grouped products still fetch `_etim` for axes.
+		$etim = ! empty( $options['sync_etim'] ?? true ) ? $this->etim->get_etim_attributes( $product ) : [];
 		foreach ( $etim as $name => $value ) {
 			if ( '' !== $value && null !== $value ) {
 				$attrs[ $name ] = (string) $value;

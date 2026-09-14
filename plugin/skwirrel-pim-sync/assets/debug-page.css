@@ -74,6 +74,7 @@
 	--color-error-dark: hsl(354 60% 32%);
 	--radius-sm: 0.25rem;
 
+	max-width: 1180px;
 	font-family: var(--font-body);
 	color: var(--color-neutral);
 }
@@ -111,9 +112,8 @@
 	margin-bottom: 6px;
 	font-size: 13px;
 	color: var(--color-neutral-light);
-	padding-left: 24px;
 }
-.skw-debug-page .skw-dbg-crumbs a { color: var(--color-primary); text-decoration: none; }
+.skw-debug-page .skw-dbg-crumbs a { color: hsl(220 100% 40%); text-decoration: none; }
 .skw-debug-page .skw-dbg-crumbs a:hover { text-decoration: underline; }
 .skw-debug-page .skw-dbg-crumbs span:last-child { color: var(--color-neutral); }
 
@@ -124,7 +124,6 @@
 	justify-content: space-between;
 	gap: 16px;
 	margin-bottom: 0;
-	padding: 0 24px;
 }
 .skw-debug-page .skw-dbg-header-actions {
 	display: flex;
@@ -147,31 +146,36 @@
 	max-width: 58ch;
 }
 
+/* Design-system Button, variant "outline", size "sm" (solid = variant "primary"). */
 .skw-dbg-btn {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
+	justify-content: center;
+	gap: 8px;
 	font-family: var(--font-display);
 	font-weight: 600;
-	font-size: 13px;
-	padding: 0 14px;
-	height: 34px;
+	font-size: 14px;
+	line-height: 1.25;
+	padding: 8px 20px;
 	border-radius: var(--radius-sm);
 	border: 1px solid var(--color-neutral);
-	background: #f0f0f1;
+	background: transparent;
 	color: var(--color-neutral);
 	cursor: pointer;
 	text-decoration: none;
 	white-space: nowrap;
+	transition: background-color .15s ease, color .15s ease;
 }
-.skw-dbg-btn:hover { border-color: var(--color-neutral); background: #fff; color: var(--color-neutral); }
+.skw-dbg-btn:hover,
+.skw-dbg-btn:focus { border-color: var(--color-neutral); background: var(--color-neutral); color: #fff; box-shadow: none; text-decoration: none; }
 .skw-dbg-btn.skw-dbg-btn-solid {
 	border-color: var(--color-neutral);
 	background: var(--color-neutral);
 	color: #fff;
 }
-.skw-dbg-btn.skw-dbg-btn-solid:hover { color: #fff; opacity: .9; }
+.skw-dbg-btn.skw-dbg-btn-solid:hover { background: hsl(220 10% 18% / .9); color: #fff; }
 .skw-dbg-btn.skw-dbg-btn-ghost { border-color: transparent; background: transparent; }
+.skw-dbg-btn.skw-dbg-btn-ghost:hover { background: hsl(245 55% 82% / .4); color: var(--color-neutral); }
 .skw-dbg-btn .ph { font-size: 16px; }
 
 /* Pill-style jump-links: lavender fill marks the active (and hovered) section. */
@@ -180,7 +184,7 @@
 	flex-wrap: wrap;
 	gap: 4px;
 	border-bottom: 1px solid rgb(28 31 38 / .1);
-	margin: 0 24px 20px;
+	margin: 0 0 20px;
 	padding: 24px 0 8px;
 }
 .skw-dbg-nav a {

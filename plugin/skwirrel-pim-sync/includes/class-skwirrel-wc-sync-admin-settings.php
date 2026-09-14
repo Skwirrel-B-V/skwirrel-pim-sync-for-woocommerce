@@ -434,10 +434,17 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// Context ID: optional. Empty means "use the Skwirrel default context". An invalid value is
 		// reported and stored verbatim so the user sees what they typed, but get_context_ids() refuses
 		// to resolve it, so it never reaches the API.
-		$out['context_id'] = isset( $input['context_id'] ) && is_scalar( $input['context_id'] )
-			? sanitize_text_field( trim( (string) $input['context_id'] ) )
-			: '';
-		if ( '' === $out['context_id'] || null !== self::resolve_context_ids( $out['context_id'] ) ) {
+		if ( ! array_key_exists( 'context_id', $input ) ) {
+			// Absent is not cleared. The field is not rendered while it is hidden
+			// ({@see Skwirrel_WC_Sync_Admin_Dashboard::is_context_id_field_visible()}), so a save carries
+			// no context_id at all. Reading that as "empty" would move a shop with a configured context
+			// onto the Skwirrel default and schedule a full re-sync from an unrelated save. Keep both
+			// stored keys exactly as they are, unvalidated: nothing was submitted, so nothing is rejected.
+			$stored                             = get_option( self::OPTION_KEY, [] );
+			$stored                             = is_array( $stored ) ? $stored : [];
+			$out['context_id']                  = is_scalar( $stored['context_id'] ?? null ) ? (string) $stored['context_id'] : '';
+			$out[ self::CONTEXT_EFFECTIVE_KEY ] = self::effective_context_raw( $stored );
+		} elseif ( ! is_scalar( $input['context_id'] ) || '' === ( $out['context_id'] = sanitize_text_field( trim( (string) $input['context_id'] ) ) ) || null !== self::resolve_context_ids( $out['context_id'] ) ) {
 			// Valid, or deliberately cleared to mean "the Skwirrel default context". Either way it
 			// is now what the plugin syncs with.
 			$out[ self::CONTEXT_EFFECTIVE_KEY ] = $out['context_id'];
@@ -543,6 +550,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// this is missing (see Sync_Service::run_sync()), so nagging at save time would only
 		// block configuring the other, unrelated settings on this tab first.
 		$out['custom_collection_id'] = isset( $input['custom_collection_id'] ) ? sanitize_text_field( trim( $input['custom_collection_id'] ) ) : '';
+		$out['sync_etim']            = ! empty( $input['sync_etim'] );
 		// Custom classes
 		$out['sync_custom_classes']            = ! empty( $input['sync_custom_classes'] );
 		$out['sync_trade_item_custom_classes'] = ! empty( $input['sync_trade_item_custom_classes'] );
@@ -1940,14 +1948,14 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		wp_register_script( 'skwirrel-pim-sync-status', false, [], SKWIRREL_WC_SYNC_VERSION, true );
 		wp_enqueue_script( 'skwirrel-pim-sync-status' );
 
-		$dashboard_url  = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		$dashboard_url = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		// Core admin notice markup, so the finished state reads like every other WordPress message.
+		// `inline` keeps common.js from relocating it below the page heading.
 		$completed_html =
-			'<div class="skw-progress-banner skw-progress-done">'
-			. '<div class="skw-progress-header">'
-			. '<svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" /></svg>'
-			. '<span>' . esc_html__( 'Sync completed.', 'skwirrel-pim-sync' ) . '</span>'
-			. '<a href="' . esc_url( $dashboard_url ) . '" class="skw-btn skw-btn-live-log">' . esc_html__( 'View results', 'skwirrel-pim-sync' ) . '</a>'
-			. '</div></div>';
+			'<div class="notice notice-success inline skw-progress-done"><p>'
+			. esc_html__( 'Sync completed.', 'skwirrel-pim-sync' )
+			. ' <a href="' . esc_url( $dashboard_url ) . '">' . esc_html__( 'View results', 'skwirrel-pim-sync' ) . '</a>'
+			. '</p></div>';
 
 		wp_localize_script(
 			'skwirrel-pim-sync-status',

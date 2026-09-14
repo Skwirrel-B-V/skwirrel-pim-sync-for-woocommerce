@@ -1,33 +1,22 @@
 {
   "schema_version": "0.1.0",
-  "evaluated_at": "2026-09-14",
+  "evaluated_at": "2026-09-14T12:10:32.275088+00:00",
   "repo": "wordpress",
-  "target": { "type": "epic", "id": "5", "label": "A settings screen you can navigate, trust, and verify" },
-  "source_sha": "20eaf3f (+ uncommitted working tree; no Epic 5 surface touched)",
+  "target": {
+    "type": "epic",
+    "id": "5",
+    "label": "Epic 5 \u2014 A settings screen you can navigate, trust, and verify"
+  },
   "collection_status": "COLLECTED",
   "gate_basis": "priority_thresholds",
-  "gate_status": "FAIL",
-  "rationale": "P1 coverage is 71% (minimum: 80%). P0 is 100% and overall is 82%, but four P1 criteria are partial. Two are the accepted E2E ceiling (5.1-AC4, 5.1-AC6), unchanged. Two are new: e8332bf hid the Context ID field, so 5.3-AC1 (the field is present) and 5.3-AC5 (an inline error the owner can correct) are no longer true of the product, while their tests stay green because they assert DOM presence, not visibility. Scored against epics.md as written, by owner decision.",
-  "waiver_considered": false,
+  "gate_status": "CONCERNS",
+  "rationale": "P0 coverage is 100% and overall coverage is 91% (minimum: 80%), but P1 coverage is 86% (target: 90%).",
   "p0_status": "MET",
-  "p1_status": "NOT_MET",
+  "p1_status": "PARTIAL",
   "overall_status": "MET",
   "critical_open": 0,
-  "blockers": [],
-  "unblock_paths": [
-    "Unhide the Context ID field → 5.3-AC1/AC5 FULL → P1 86% → CONCERNS",
-    "Retire 5.3-AC1 and amend 5.3-AC5 in epics.md → P1 11/13 (85%) → CONCERNS"
-  ],
-  "delta_since_previous": {
-    "previous_evaluated_at": "2026-09-02",
-    "previous_source_sha": "4044e22",
-    "previous_gate_status": "CONCERNS",
-    "coverage_change": "22 ACs: 20 full / 2 partial → 18 full / 4 partial. 5.3-AC1 and 5.3-AC5 FULL → PARTIAL (e8332bf).",
-    "evidence_change": "Suites still deterministic (two integration runs, 233/233 identical). Test counts unchanged (200 cases in 9 files); assertions were edited to follow 86bc9c6, c346a07 and e7c51da. None of the three next actions from 2026-09-02 were done; epics.md drift grew from 2 ACs to 4."
-  },
   "links": {
     "trace_report_path": "_bmad-output/test-artifacts/traceability/traceability-matrix-epic-5.md",
-    "summary_path": "_bmad-output/test-artifacts/traceability/e2e-trace-summary-epic-5.json",
     "trace_report_url": "",
     "artifact_url": "",
     "journey_evidence_url": ""

@@ -205,6 +205,8 @@ test( 'every input name the pre-tabs settings form rendered is still rendered', 
 	$expected[] = 'skwirrel_wc_sync_settings[title_feature_id]';
 	$expected[] = 'skwirrel_wc_sync_settings[short_description_feature_id]';
 	$expected[] = 'skwirrel_wc_sync_settings[long_description_feature_id]';
+	// Added to the Sync Options group by the sync_etim toggle.
+	$expected[] = 'skwirrel_wc_sync_settings[sync_etim]';
 	$expected   = array_values( array_unique( $expected ) );
 	sort( $expected );
 

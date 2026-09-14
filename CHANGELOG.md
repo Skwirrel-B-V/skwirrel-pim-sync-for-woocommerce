@@ -2,6 +2,24 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [4.0.0]
+
+Further UX improvements and a redesign of the admin screens for faster day-to-day use.
+
+### Added
+
+* **Overview page redesigned** to the Skwirrel design system: breadcrumb header with Sync now / Settings actions, a WP-notice style last-sync summary with count chips, action cards (Sync now, Danger zone) and a restyled Recent syncs table. Styles live in `assets/overview-page.css`, scoped to `.skw-overview-page` and loaded only on the Overview view.
+* **Clear a stuck sync lock from the delete-protection notice.** When the delete-lock is only held by a stale run state, the notice says so and offers a "Clear stuck sync lock" button, backed by an AJAX handler that re-checks the stuck state server-side before clearing.
+* **ETIM can now be switched off** with a new "Sync ETIM features" checkbox under Settings → Sync Options (`sync_etim`, on by default, so existing sites don't change). When it's off, no ETIM features are added as product attributes, and `getProducts` / `getProductsByFilter` are called with `include_etim: false`. The one exception is grouped products: when they're on, ETIM data is still requested, because variation axis values are read from each member product's ETIM features. It's just not turned into attributes.
+
+### Fixed
+
+* **Old attributes stayed on simple products after a sync stopped producing them.** Symptom: after turning off `sync_etim`, a product with no GTIN and no manufacturer attribute kept its old ETIM attributes and still showed up under those values in layered-nav filters. Cause: both attribute save paths (`Product_Upserter::upsert_product()` and `assign_attributes()`) replaced the attribute set only when there was something to write, and skipped the write entirely when the list was empty. Fix: the new `clear_stale_attributes()` resets the attributes to empty. `WC_Product::set_attributes()` nulls every omitted key, and WooCommerce's product data store then removes the product's terms for those taxonomies. Only simple products are affected, so variable parents keep their variation axes, and nothing is cleared when term creation fails for a non-empty list. Covered by `tests/Integration/SyncEtimAttributesIntegrationTest.php`.
+* **Sync duration on the Overview summary** now comes from the run's recorded `started_at`. It used to be derived from the delta checkpoint, which is held back on partial commits and produced durations like "~1 month".
+* **Debug page header and section nav** now match the design: breadcrumb link in primary blue, header actions aligned with the description, and pill jump-links with an active state.
+* **The "Sync completed" message** shown when a running sync finishes now uses WordPress's own success notice (`notice notice-success inline`) instead of a custom rounded green card, so it looks like every other admin message.
+* **CI installs gettext**, so `TranslationCompletenessTest` can run `msgfmt` on the Unit test runner.
+
 ## [3.15.0]
 
 ### Added

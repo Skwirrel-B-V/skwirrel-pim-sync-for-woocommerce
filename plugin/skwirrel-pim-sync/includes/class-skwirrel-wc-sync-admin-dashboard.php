@@ -819,6 +819,21 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	}
 
 	/**
+	 * Whether the Context ID field is shown on the Connection tab.
+	 */
+	public static function is_context_id_field_visible(): bool {
+		/**
+		 * Filters whether the Context ID field is shown on the Connection tab.
+		 *
+		 * Hidden by default until multi-context instances are generally available. The stored
+		 * value and every API path behind it work either way.
+		 *
+		 * @param bool $visible Whether to show the field. Default false.
+		 */
+		return (bool) apply_filters( 'skwirrel_wc_sync_context_id_field_visible', false );
+	}
+
+	/**
 	 * Settings tab registry.
 	 *
 	 * The settings screen renders one panel per entry, in ascending `order` (ties keep
@@ -1149,27 +1164,23 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<p class="skw-fg-desc"><?php esc_html_e( 'Both actions below take effect immediately.', 'skwirrel-pim-sync' ); ?></p>
 			</div>
 		</div>
-		<div class="skw-fieldgroup">
-			<h3 class="skw-block-title skw-c-red"><?php esc_html_e( 'Delete all products', 'skwirrel-pim-sync' ); ?></h3>
-			<p class="skw-section-desc"><?php esc_html_e( 'Delete all products created or synced by Skwirrel. This cannot be undone if you empty the trash.', 'skwirrel-pim-sync' ); ?></p>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-purge-form">
+		<div class="skw-dz-action">
+			<h3 class="skw-dz-title"><?php esc_html_e( 'Delete all products', 'skwirrel-pim-sync' ); ?></h3>
+			<p class="skw-dz-desc"><?php esc_html_e( 'Delete all products created or synced by Skwirrel. This cannot be undone if you empty the trash.', 'skwirrel-pim-sync' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-purge-form" class="skw-dz-row">
 				<input type="hidden" name="action" value="skwirrel_wc_sync_purge" />
 				<?php wp_nonce_field( 'skwirrel_wc_sync_purge', '_wpnonce' ); ?>
 				<label class="skw-checkbox"><input type="checkbox" name="skwirrel_purge_empty_trash" value="1" id="skwirrel-purge-permanent" /> <?php esc_html_e( 'Also empty the trash (permanently delete)', 'skwirrel-pim-sync' ); ?></label>
-				<div class="skw-field-actions" style="margin-top: 12px;">
-					<button type="submit" class="skw-btn skw-btn-danger-solid"><i class="ph ph-trash" aria-hidden="true"></i> <?php esc_html_e( 'Delete all Skwirrel products', 'skwirrel-pim-sync' ); ?></button>
-				</div>
+				<button type="submit" class="skw-btn skw-btn-danger-solid"><i class="ph ph-trash" aria-hidden="true"></i> <?php esc_html_e( 'Delete all Skwirrel products', 'skwirrel-pim-sync' ); ?></button>
 			</form>
 		</div>
-		<div class="skw-fieldgroup">
-			<h3 class="skw-block-title skw-c-red"><?php esc_html_e( 'Reset settings', 'skwirrel-pim-sync' ); ?></h3>
-			<p class="skw-section-desc"><?php esc_html_e( 'Delete all Skwirrel sync configuration (endpoint URL, API token, sync schedule, slug rules). Cancels all scheduled sync jobs and flushes the object cache. Products, media, categories and sync history are untouched — use this when your settings refuse to update because of an aggressive persistent cache.', 'skwirrel-pim-sync' ); ?></p>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-reset-settings-form">
+		<div class="skw-dz-action">
+			<h3 class="skw-dz-title"><?php esc_html_e( 'Reset settings', 'skwirrel-pim-sync' ); ?></h3>
+			<p class="skw-dz-desc"><?php esc_html_e( 'Delete all Skwirrel sync configuration (endpoint URL, API token, sync schedule, slug rules). Cancels all scheduled sync jobs and flushes the object cache. Products, media, categories and sync history are untouched — use this when your settings refuse to update because of an aggressive persistent cache.', 'skwirrel-pim-sync' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-reset-settings-form" class="skw-dz-row">
 				<input type="hidden" name="action" value="skwirrel_wc_sync_reset_settings" />
 				<?php wp_nonce_field( 'skwirrel_wc_sync_reset_settings', '_wpnonce' ); ?>
-				<div class="skw-field-actions" style="margin-top: 12px;">
-					<button type="submit" class="skw-btn skw-btn-danger" id="skwirrel-reset-settings-btn"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i> <?php esc_html_e( 'Reset Skwirrel sync settings', 'skwirrel-pim-sync' ); ?></button>
-				</div>
+				<button type="submit" class="skw-btn skw-btn-danger" id="skwirrel-reset-settings-btn"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i> <?php esc_html_e( 'Reset Skwirrel sync settings', 'skwirrel-pim-sync' ); ?></button>
 			</form>
 		</div>
 		<?php
@@ -1318,7 +1329,17 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 
 		$tabs   = self::get_settings_tabs();
 		$errors = self::current_settings_errors();
-		$codes  = array();
+		if ( ! self::is_context_id_field_visible() ) {
+			// A hidden field can neither show an inline error nor be corrected, so its error neither
+			// badges nor opens a tab; the page-level notice still reports it.
+			$errors = array_values(
+				array_filter(
+					$errors,
+					static fn( $error ): bool => 'context_id' !== ( $error['code'] ?? '' )
+				)
+			);
+		}
+		$codes = array();
 		foreach ( $errors as $error ) {
 			if ( isset( $error['code'] ) && is_string( $error['code'] ) ) {
 				$codes[] = $error['code'];
@@ -1353,7 +1374,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<h1><?php esc_html_e( 'Settings', 'skwirrel-pim-sync' ); ?></h1>
 					<p><?php esc_html_e( 'Configure your Skwirrel PIM API connection and synchronization options.', 'skwirrel-pim-sync' ); ?></p>
 				</div>
-				<div style="display:flex; align-items:center; gap:8px">
+				<div class="skw-set-header-actions">
 					<a href="<?php echo esc_url( $settings_debug_url ); ?>" class="skw-set-btn"><i class="ph ph-bug" aria-hidden="true"></i> <?php esc_html_e( 'Debug', 'skwirrel-pim-sync' ); ?></a>
 					<a href="https://skwirrel.eu" target="_blank" rel="noopener noreferrer" class="skw-set-btn"><i class="ph ph-lifebuoy" aria-hidden="true"></i> <?php esc_html_e( 'Contact support', 'skwirrel-pim-sync' ); ?></a>
 				</div>
@@ -1530,7 +1551,16 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<label for="retries" class="skw-label"><?php esc_html_e( 'Retries', 'skwirrel-pim-sync' ); ?></label>
 					<input type="number" id="retries" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[retries]" value="<?php echo esc_attr( (string) ( $opts['retries'] ?? 2 ) ); ?>" min="0" max="5" class="skw-input skw-input-sm" />
 				</div>
-				<div class="skw-field" hidden<?php $this->render_field_wrapper_attr( 'context_id' ); ?>>
+				<?php
+				/*
+				 * While the field is hidden it carries the context the plugin actually syncs with,
+				 * never a rejected value: a hidden input still submits, so a rejected value would
+				 * re-raise its error on every save, pointing at a field nobody can see or correct.
+				 */
+				$context_visible = self::is_context_id_field_visible();
+				$context_value   = $context_visible ? (string) ( $opts['context_id'] ?? '' ) : Skwirrel_WC_Sync_Admin_Settings::effective_context_raw( $opts );
+				?>
+				<div class="skw-field"<?php echo $context_visible ? '' : ' hidden'; ?><?php $this->render_field_wrapper_attr( 'context_id' ); ?>>
 					<label for="context_id" class="skw-label"><?php esc_html_e( 'Context ID', 'skwirrel-pim-sync' ); ?></label>
 					<?php
 					/*
@@ -1552,7 +1582,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					 * enforce it, report it and keep the value visible for correction.
 					 */
 					?>
-					<input type="text" inputmode="numeric" id="context_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[context_id]" value="<?php echo esc_attr( (string) ( $opts['context_id'] ?? '' ) ); ?>" placeholder="1" class="skw-input skw-input-sm"<?php $this->render_field_state_attrs( 'context_id', 'context_id-hint' ); ?> />
+					<input type="text" inputmode="numeric" id="context_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[context_id]" value="<?php echo esc_attr( $context_value ); ?>" placeholder="1" class="skw-input skw-input-sm"<?php $this->render_field_state_attrs( 'context_id', 'context_id-hint' ); ?> />
 					<?php $this->render_field_error( 'context_id' ); ?>
 					<p class="skw-field-hint" id="context_id-hint"><?php esc_html_e( 'Optional. Leave this empty unless Skwirrel told you otherwise — an empty field uses the Skwirrel default context. Fill it in only if your Skwirrel instance serves several shops and you need the content of one specific context. Changing it re-imports your whole catalogue on the next synchronisation.', 'skwirrel-pim-sync' ); ?></p>
 				</div>
@@ -1648,11 +1678,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<label class="skw-checkbox skw-checkbox-indent"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[use_virtual_product_content]" value="1" <?php checked( ! empty( $opts['use_virtual_product_content'] ) ); ?> /> <?php esc_html_e( 'Use virtual product content for variable products', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_related_products]" value="1" <?php checked( ! empty( $opts['sync_related_products'] ) ); ?> /> <?php esc_html_e( 'Sync related products', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_manufacturers]" value="1" <?php checked( ! empty( $opts['sync_manufacturers'] ) ); ?> /> <?php esc_html_e( 'Sync manufacturers', 'skwirrel-pim-sync' ); ?></label>
+				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_etim]" value="1" <?php checked( ! empty( $opts['sync_etim'] ?? true ) ); ?> /> <?php esc_html_e( 'Sync ETIM features', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_custom_classes]" value="1" <?php checked( ! empty( $opts['sync_custom_classes'] ) ); ?> /> <?php esc_html_e( 'Sync custom classes', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox skw-checkbox-indent"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_trade_item_custom_classes]" value="1" <?php checked( ! empty( $opts['sync_trade_item_custom_classes'] ) ); ?> /> <?php esc_html_e( 'Include trade item custom classes', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_gtin_attribute]" value="1" <?php checked( ! empty( $opts['show_gtin_attribute'] ) ); ?> /> <?php esc_html_e( 'Show GTIN as product attribute', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_variant_attribute]" value="1" <?php checked( ! empty( $opts['show_variant_attribute'] ) ); ?> /> <?php esc_html_e( 'Show Variant as product attribute', 'skwirrel-pim-sync' ); ?></label>
 			</div>
+			<p class="skw-field-hint"><?php esc_html_e( 'Sync ETIM features: adds ETIM features as product attributes. When off, ETIM data is not requested — unless grouped products are on, which need it for their variation axes.', 'skwirrel-pim-sync' ); ?></p>
 			<div class="skw-field-row">
 				<div class="skw-field">
 					<label for="batch_size" class="skw-label"><?php esc_html_e( 'Batch size', 'skwirrel-pim-sync' ); ?></label>

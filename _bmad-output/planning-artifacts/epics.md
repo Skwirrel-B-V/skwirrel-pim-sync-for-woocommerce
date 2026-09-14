@@ -825,12 +825,14 @@ So that I can find the setting I need without scrolling past forty I don't.
 
 **Given** the settings screen
 **When** it renders
-**Then** every existing field belongs to exactly one of four tabs — **Connection** · **What to sync** · **How it looks** · **Advanced** — built from the existing `.skw-*` components.
-**And** the current eight groups re-home as: *API Connection* → Connection; *Sync Options* + *Product status handling* → What to sync; *Media & Language* + *Permalinks* → How it looks; *Scheduling* + *Sync Logs* + *Advanced* → Advanced. The Danger Zone stays outside the tab set, where it is today.
+**Then** every existing field belongs to exactly one of the settings tabs — **Connection** · **What to sync** · **Field mapping** · **Advanced** — built from the existing `.skw-*` components.
+**And** the field groups re-home as: *API Connection* → Connection; *Sync Options* + *Product status handling* + *Media & Language* → What to sync; *Field mapping* → Field mapping (Epic 6); *Permalinks* + *Scheduling* + *Sync Logs* + *Advanced* → Advanced. The **Danger zone** is a fifth tab in the same strip, but its panel stays outside the settings form: its two actions post to their own forms and submit nothing with the settings.
+
+> _Amended 2026-09-14 to match the shipped screen: "How it looks" was folded into What to sync / Advanced (`e7c51da`), Field mapping joined through the extensible registry (Epic 6), and the Danger zone moved into the tab strip (`c346a07`)._
 
 **Given** the tabbed screen
 **When** I save
-**Then** all fields submit in a single request exactly as before — fields on inactive tabs remain in the DOM and are **not** split into per-tab option writes, because `sanitize_settings()` validates across groups (`custom_collection_id` is required based on `sync_custom_classes`).
+**Then** all fields submit in a single request exactly as before — fields on inactive tabs remain in the DOM and are **not** split into per-tab option writes, because `sanitize_settings()` validates across groups (`super_category_id` is required based on `sync_categories`).
 **And** saving from any tab leaves every other tab's stored values unchanged.
 
 **Given** a save that produced validation errors
@@ -861,11 +863,13 @@ So that I'm not hunting through a long form guessing what went wrong.
 
 **Given** the settings screen
 **When** it renders
-**Then** every unconditionally required field shows a `*` next to its label and carries `aria-required`, and the three fields that already use the bare HTML5 `required` attribute (`subdomain`, `super_category_id`, `collection_ids`) are brought into that same treatment rather than left inconsistent.
+**Then** every unconditionally required field shows a `*` next to its label and carries `aria-required`, and the three fields that already use the bare HTML5 `required` attribute (`skwirrel_base_url`, `super_category_id`, `collection_ids`) are brought into that same treatment rather than left inconsistent.
 
-**Given** a conditionally required field (`custom_collection_id`, `super_category_id`)
+**Given** a conditionally required field (`super_category_id`)
 **When** the condition that makes it required is not met
 **Then** it shows no marker; **when** the condition is met, the marker appears — matching the rule `sanitize_settings()` will actually enforce on save.
+
+> _Amended 2026-09-14: the connection field is `skwirrel_base_url` (a full address, formerly `subdomain`, `4044e22`). `custom_collection_id` is no longer conditionally required (`86bc9c6`) — the sync run fails fast when a feature needs it and it is missing — so it carries no marker at all._
 
 **Given** a save that fails validation
 **When** the screen re-renders
@@ -885,9 +889,13 @@ So that I import the content intended for this shop.
 
 **Acceptance Criteria:**
 
-**Given** the Connection tab
-**When** it renders
-**Then** an optional **Context ID** field is present with placeholder `1` and help text stating that leaving it empty uses the Skwirrel default.
+~~**Given** the Connection tab **When** it renders **Then** an optional **Context ID** field is present with placeholder `1` and help text stating that leaving it empty uses the Skwirrel default.~~
+
+> _Retired 2026-09-14 (owner decision): the field is **hidden** until multi-context Skwirrel instances are generally available — no shop used it (`e8332bf`). The markup, stored value and every API path remain, so re-showing it is a one-line filter (`skwirrel_wc_sync_context_id_field_visible`). When the field is shown again, reinstate this criterion._
+
+**Given** the Context ID field is hidden
+**When** the settings are saved
+**Then** the hidden input carries the context the plugin syncs with, so a save never re-raises a rejected value and never schedules a full re-sync.
 
 **Given** a Context ID is set
 **When** any JSON-RPC call is made
@@ -904,7 +912,9 @@ So that I import the content intended for this shop.
 
 **Given** a non-numeric or negative value
 **When** the settings are saved
-**Then** it is rejected with an inline error (Story 5.2), not silently coerced.
+**Then** it is rejected — reported, stored as typed and never moving the context the plugin syncs with — not silently coerced. **While the field is shown**, the rejection is an inline error at the field (Story 5.2); while it is hidden, the page-level notice reports it and no tab is flagged for a field nobody can see.
+
+> _Amended 2026-09-14 alongside the retirement of the field-present criterion above._
 
 > ⚠️ **BLOCKED UNTIL CONFIRMED:** the exact API parameter name is unverified. Jos to confirm against the Skwirrel API docs before this story starts. Known: optional API parameter, API-side default `1`.
 

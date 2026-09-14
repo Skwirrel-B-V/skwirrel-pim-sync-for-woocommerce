@@ -312,8 +312,8 @@ class Skwirrel_WC_Sync_Service {
 		// The old design fetched them one product at a time (1 + N API round-trips) to avoid holding a
 		// fully-included catalogue in memory — but the DB queue now caps memory at one page at a time,
 		// so including them in the page fetch is safe and turns N+1 calls into ~N/batch_size calls.
-		$api_includes['include_etim']              = true;
-		$api_includes['include_etim_translations'] = true;
+		$api_includes['include_etim']              = self::needs_etim_payload( $options );
+		$api_includes['include_etim_translations'] = $api_includes['include_etim'];
 		if ( ! empty( $options['sync_grouped_products'] ) ) {
 			// Grouped products may use custom features as variation axes — ensure they are present even
 			// when neither custom-class sync toggle is on.
@@ -1931,8 +1931,8 @@ class Skwirrel_WC_Sync_Service {
 			'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
 			'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
 			'include_related_products'     => ! empty( $options['sync_related_products'] ),
-			'include_etim'                 => true,
-			'include_etim_translations'    => true,
+			'include_etim'                 => self::needs_etim_payload( $options ),
+			'include_etim_translations'    => self::needs_etim_payload( $options ),
 			'include_languages'            => $this->get_include_languages(),
 			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ],
 		];
@@ -2534,6 +2534,20 @@ class Skwirrel_WC_Sync_Service {
 		];
 		$saved = get_option( 'skwirrel_wc_sync_settings', [] );
 		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );
+	}
+
+	/**
+	 * Whether getProducts / getProductsByFilter must request ETIM data.
+	 *
+	 * `sync_etim` (default on) controls ETIM attributes on products. Grouped products still need
+	 * the payload even when it is off: variation axis VALUES are read from each member product's
+	 * own `_etim` (Product_Upserter::upsert_product_as_variation()), so dropping it would leave
+	 * every ETIM-based variation without axis values.
+	 *
+	 * @param array<string, mixed> $options Plugin settings.
+	 */
+	public static function needs_etim_payload( array $options ): bool {
+		return ! empty( $options['sync_etim'] ?? true ) || ! empty( $options['sync_grouped_products'] );
 	}
 
 	/**

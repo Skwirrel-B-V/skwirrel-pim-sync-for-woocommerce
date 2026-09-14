@@ -405,14 +405,10 @@
 	margin: 24px 24px 0 4px;
 }
 
-/* Completed state shown by the poller when a running sync finishes (no reload). */
-.skw-progress-banner.skw-progress-done {
-	background: #f0fdf4;
-	border-color: #bbf7d0;
-}
-
-.skw-progress-done .skw-progress-header svg {
-	color: #16a34a;
+/* Completed state shown by the poller when a running sync finishes (no reload): a core
+   .notice-success, only spaced like the progress banner it replaces. */
+.skw-dashboard #skwirrel-sync-banner .skw-progress-done {
+	margin: 24px 24px 0 4px;
 }
 
 /* Inline "Test connection" result */
