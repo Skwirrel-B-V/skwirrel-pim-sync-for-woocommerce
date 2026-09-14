@@ -83,6 +83,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		add_action( 'wp_ajax_skwirrel_wc_sync_tail_log', [ $this, 'handle_tail_log' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_download_log', [ $this, 'handle_download_log' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_abort', [ $this, 'handle_abort_sync' ] );
+		add_action( 'wp_ajax_skwirrel_wc_sync_clear_stuck_run', [ $this, 'handle_clear_stuck_run' ] );
 		// Reactive sync status: a status endpoint + a poller everywhere. The full banner lives only on
 		// the plugin's own pages; other admin pages get a compact, movable, dismissible corner toast.
 		add_action( 'wp_ajax_skwirrel_wc_sync_status', [ $this, 'handle_sync_status' ] );
@@ -1789,6 +1790,28 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	}
 
 	/**
+	 * AJAX: manually release a stuck run's delete-lock (called from the "Clear stuck sync lock"
+	 * button on the delete-protection banner). Re-checks get_stuck_run_warning() server-side
+	 * before clearing anything, so this can never cut a genuinely live run's lock short — only
+	 * one the plugin itself has already concluded made no progress for a while.
+	 */
+	public function handle_clear_stuck_run(): void {
+		check_ajax_referer( 'skwirrel_clear_stuck_run_nonce', '_nonce' );
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( 'Access denied', 403 );
+		}
+
+		if ( null === Skwirrel_WC_Sync_Service::get_stuck_run_warning() ) {
+			wp_send_json_error( 'Not stuck', 409 );
+		}
+
+		Skwirrel_WC_Sync_Service::force_clear_stuck_run();
+		( new Skwirrel_WC_Sync_Logger() )->info( 'Stuck sync delete-lock cleared manually via admin action.' );
+
+		wp_send_json_success();
+	}
+
+	/**
 	 * AJAX: report whether a sync is in progress + the current banner markup, for the reactive poller.
 	 */
 	public function handle_sync_status(): void {
@@ -2051,6 +2074,11 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tab parameter only selects which stylesheet loads
 		if ( isset( $_GET['tab'] ) && 'debug' === $_GET['tab'] ) {
 			wp_enqueue_style( 'skwirrel-pim-sync-debug-page', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/debug-page.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
+		}
+		// Overview (no tab, or one that falls back to it): same self-hosted fonts/icons, scoped to .skw-overview-page.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tab parameter only selects which stylesheet loads
+		if ( ! isset( $_GET['tab'] ) || ! in_array( $_GET['tab'], [ 'history', 'settings', 'debug' ], true ) ) {
+			wp_enqueue_style( 'skwirrel-pim-sync-overview-page', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/overview-page.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
 		}
 		// Settings tab: same self-hosted fonts/icons, scoped to .skw-settings-page.
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tab parameter only selects which stylesheet loads

@@ -395,6 +395,28 @@ class Skwirrel_WC_Sync_Delete_Protection {
 			}
 		}
 
+		// The lock can be active purely from a stale run-state (no live heartbeat, no progress
+		// in a while) — is_run_active() trusts it for up to 15 minutes so a genuinely slow step
+		// never loses the lock mid-work. Tell the admin which case this actually is instead of
+		// blindly claiming a sync is running, and let them release a truly stuck one by hand.
+		$stuck_warning = Skwirrel_WC_Sync_Service::get_stuck_run_warning();
+		if ( null !== $stuck_warning ) {
+			?>
+			<div class="notice notice-warning">
+				<p>
+					<strong>Skwirrel Sync:</strong>
+					<?php esc_html_e( 'A previous Skwirrel sync appears stuck and has made no progress in a while, but the delete-lock it started is still active — deleting Skwirrel-managed products stays disabled until it is cleared.', 'skwirrel-pim-sync' ); ?>
+				</p>
+				<p><?php echo esc_html( $stuck_warning ); ?></p>
+				<p>
+					<button type="button" class="button skwirrel-clear-stuck-run-lock"><?php esc_html_e( 'Clear stuck sync lock', 'skwirrel-pim-sync' ); ?></button>
+				</p>
+			</div>
+			<?php
+			$this->enqueue_clear_stuck_run_lock_script();
+			return;
+		}
+
 		?>
 		<div class="notice notice-info">
 			<p>
@@ -403,6 +425,36 @@ class Skwirrel_WC_Sync_Delete_Protection {
 			</p>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Wires the "Clear stuck sync lock" button: AJAX call + reload on success so the page's own
+	 * row-actions/notices (which read the lock at render time) pick up the released state.
+	 */
+	private function enqueue_clear_stuck_run_lock_script(): void {
+		$msg = __( 'Could not clear the sync lock. Please try again.', 'skwirrel-pim-sync' );
+		wp_register_script( 'skwirrel-pim-sync-clear-stuck-run-lock', false, [], SKWIRREL_WC_SYNC_VERSION, true );
+		wp_enqueue_script( 'skwirrel-pim-sync-clear-stuck-run-lock' );
+		wp_add_inline_script(
+			'skwirrel-pim-sync-clear-stuck-run-lock',
+			'(function() {'
+			. ' var ajaxUrl = ' . wp_json_encode( admin_url( 'admin-ajax.php' ) ) . ';'
+			. ' var nonce = ' . wp_json_encode( wp_create_nonce( 'skwirrel_clear_stuck_run_nonce' ) ) . ';'
+			. ' var errorMsg = ' . wp_json_encode( $msg ) . ';'
+			. ' document.addEventListener("click", function(e) {'
+			. '  var btn = e.target.closest ? e.target.closest(".skwirrel-clear-stuck-run-lock") : null;'
+			. '  if (!btn) return;'
+			. '  btn.disabled = true;'
+			. '  var fd = new FormData();'
+			. '  fd.append("action", "skwirrel_wc_sync_clear_stuck_run");'
+			. '  fd.append("_nonce", nonce);'
+			. '  fetch(ajaxUrl, { method: "POST", body: fd })'
+			. '   .then(function(r) { return r.json(); })'
+			. '   .then(function(d) { if (d && d.success) { window.location.reload(); } else { btn.disabled = false; alert(errorMsg); } })'
+			. '   .catch(function() { btn.disabled = false; alert(errorMsg); });'
+			. ' }, true);'
+			. '})();'
+		);
 	}
 
 	/**

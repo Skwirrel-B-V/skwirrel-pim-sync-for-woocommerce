@@ -2186,7 +2186,22 @@ msgstr ""
 "prochaine synchronisation.\\n\\nÊtes-vous sûr de vouloir supprimer cette "
 "catégorie ?"
 
-#: includes/class-skwirrel-wc-sync-delete-protection.php:402
+#: includes/class-skwirrel-wc-sync-delete-protection.php:408
+msgid ""
+"A previous Skwirrel sync appears stuck and has made no progress in a "
+"while, but the delete-lock it started is still active — deleting "
+"Skwirrel-managed products stays disabled until it is cleared."
+msgstr ""
+"Une synchronisation Skwirrel précédente semble bloquée et n'a fait aucun "
+"progrès depuis un moment, mais le verrou de suppression qu'elle a "
+"déclenché reste actif — la suppression des produits gérés par Skwirrel "
+"reste désactivée tant qu'il n'est pas levé."
+
+#: includes/class-skwirrel-wc-sync-delete-protection.php:412
+msgid "Clear stuck sync lock"
+msgstr "Lever le verrou de synchronisation bloqué"
+
+#: includes/class-skwirrel-wc-sync-delete-protection.php:424
 msgid ""
 "A Skwirrel sync is running. Deleting Skwirrel-managed products is "
 "temporarily disabled to prevent conflicts. You can delete them again once "
@@ -2195,6 +2210,10 @@ msgstr ""
 "Une synchronisation Skwirrel est en cours. La suppression des produits gérés "
 "par Skwirrel est temporairement désactivée pour éviter les conflits. Vous "
 "pourrez les supprimer à nouveau une fois la synchronisation terminée."
+
+#: includes/class-skwirrel-wc-sync-delete-protection.php:435
+msgid "Could not clear the sync lock. Please try again."
+msgstr "Impossible de lever le verrou de synchronisation. Veuillez réessayer."
 
 #: includes/class-skwirrel-wc-sync-deprecated-status.php:51
 msgctxt "product status"
@@ -2659,6 +2678,43 @@ msgstr ""
 msgid "Install WooCommerce"
 msgstr "Installer WooCommerce"
 
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Overview"
+msgstr "Aperçu"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Sync status, the actions you need most often, and the last five runs."
+msgstr "État de la synchronisation, les actions les plus utilisées et les cinq dernières exécutions."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "manual run"
+msgstr "exécution manuelle"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "scheduled run"
+msgstr "exécution planifiée"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "purge"
+msgstr "purge"
+
+#. translators: %s = human-readable duration, e.g. "1 min"
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "took ~%s"
+msgstr "a duré ~%s"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Sync history"
+msgstr "Historique de synchronisation"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Configure API connection, sync options and scheduling."
+msgstr "Configurer la connexion API, les options de synchronisation et la planification."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "View log"
+msgstr "Voir le journal"
+
 #~ msgid "e.g. 1234 or STOCK_QTY"
 #~ msgstr "p. ex. 1234 ou STOCK_QTY"
 
@@ -2897,8 +2953,6 @@ msgstr "Installer WooCommerce"
 #~ "Aucune synchronisation effectuée. Cliquez sur \"Synchroniser les "
 #~ "produits\" pour commencer."
 
-#~ msgid "Sync history"
-#~ msgstr "Historique de synchronisation"
 
 #~ msgid "Date & Time"
 #~ msgstr "Date et heure"

@@ -1298,7 +1298,7 @@ class Skwirrel_WC_Sync_Service {
 			update_option( 'skwirrel_wc_sync_last_sync_sig', $ctx['sync_sig'] );
 		}
 
-		Skwirrel_WC_Sync_History::update_last_result( true, $ctx['created'], $ctx['updated'], $ctx['failed'], '', $ctx['with_attrs'], $ctx['without_attrs'], $trashed, $categories_removed, $ctx['trigger'], $ctx['log_file'], $ctx['unchanged'], $deprecated, (string) $ctx['run_id'], (string) ( $ctx['removal_warning'] ?? '' ) );
+		Skwirrel_WC_Sync_History::update_last_result( true, $ctx['created'], $ctx['updated'], $ctx['failed'], '', $ctx['with_attrs'], $ctx['without_attrs'], $trashed, $categories_removed, $ctx['trigger'], $ctx['log_file'], $ctx['unchanged'], $deprecated, (string) $ctx['run_id'], (string) ( $ctx['removal_warning'] ?? '' ), (int) $ctx['started_at'] );
 		$ctx['trashed']            = $trashed;
 		$ctx['deprecated']         = $deprecated;
 		$ctx['categories_removed'] = $categories_removed;
@@ -1436,7 +1436,7 @@ class Skwirrel_WC_Sync_Service {
 		// them under Created/Updated. So the accumulated tally wins.
 		$deprecated = Skwirrel_WC_Sync_Run_Links::count_for_run( (string) $ctx['run_id'], Skwirrel_WC_Sync_Deprecated_Status::STATUS );
 		$trashed    = (int) ( $ctx['trashed'] ?? 0 );
-		Skwirrel_WC_Sync_History::update_last_result( false, $ctx['created'], $ctx['updated'], $ctx['failed'], $message, 0, 0, $trashed, 0, $ctx['trigger'], $ctx['log_file'], $ctx['unchanged'], $deprecated, (string) $ctx['run_id'] );
+		Skwirrel_WC_Sync_History::update_last_result( false, $ctx['created'], $ctx['updated'], $ctx['failed'], $message, 0, 0, $trashed, 0, $ctx['trigger'], $ctx['log_file'], $ctx['unchanged'], $deprecated, (string) $ctx['run_id'], '', (int) $ctx['started_at'] );
 		$ctx['step'] = 'failed';
 		$this->finish_run();
 		return 'failed';
@@ -1697,6 +1697,19 @@ class Skwirrel_WC_Sync_Service {
 	/** Remove the persisted run state. */
 	public static function clear_run_state(): void {
 		delete_option( self::OPTION_RUN_STATE );
+	}
+
+	/**
+	 * Manually release a stuck run: clears the persisted run state plus the heartbeat/mutex
+	 * transients, so is_run_active() drops immediately instead of waiting out the remainder of
+	 * RUN_STATE_ACTIVE_TTL. Only ever clears a run get_stuck_run_warning() itself confirms is
+	 * stuck — callers must check that first (the admin action re-checks it server-side too) so
+	 * this can never be used to cut a genuinely live run's delete-lock short.
+	 */
+	public static function force_clear_stuck_run(): void {
+		self::clear_run_state();
+		Skwirrel_WC_Sync_History::clear_sync_in_progress();
+		Skwirrel_WC_Sync_History::release_sync_mutex();
 	}
 
 	/**
