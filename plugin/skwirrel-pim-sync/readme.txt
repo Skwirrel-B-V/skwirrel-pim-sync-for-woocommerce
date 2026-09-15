@@ -87,6 +87,8 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * An invalid Context ID submission can no longer switch the sync to a different context.
 * Changing settings while a sync is running no longer mixes attribute settings within that run.
 * The sync duration shown on the Overview is now accurate.
+* Confirm dialogs show proper line breaks instead of a literal "\n\n".
+* All remaining English-only error messages are now translated, and translations in all seven languages were reviewed and corrected.
 * Debug page header and navigation match the new design; the highlighted section follows the link you opened.
 * The "Sync completed" message now looks like a standard WordPress notice.
 

@@ -254,7 +254,7 @@ class Skwirrel_WC_Sync_Delete_Protection {
 		}
 
 		if ( 'edit-product' === $screen->id ) {
-			$msg = __( 'This product is managed by Skwirrel and will be recreated during the next sync.\n\nAre you sure you want to trash this product?', 'skwirrel-pim-sync' );
+			$msg = __( "This product is managed by Skwirrel and will be recreated during the next sync.\n\nAre you sure you want to trash this product?", 'skwirrel-pim-sync' );
 			wp_register_script( 'skwirrel-pim-sync-delete-protection', false, [], SKWIRREL_WC_SYNC_VERSION, true );
 			wp_enqueue_script( 'skwirrel-pim-sync-delete-protection' );
 			wp_add_inline_script(
@@ -271,7 +271,7 @@ class Skwirrel_WC_Sync_Delete_Protection {
 		}
 
 		if ( 'product_cat' === $screen->taxonomy ) {
-			$msg = __( 'This category was created by Skwirrel Sync and will be recreated during the next sync.\n\nAre you sure you want to delete this category?', 'skwirrel-pim-sync' );
+			$msg = __( "This category was created by Skwirrel Sync and will be recreated during the next sync.\n\nAre you sure you want to delete this category?", 'skwirrel-pim-sync' );
 			wp_register_script( 'skwirrel-pim-sync-delete-protection-cat', false, [], SKWIRREL_WC_SYNC_VERSION, true );
 			wp_enqueue_script( 'skwirrel-pim-sync-delete-protection-cat' );
 			wp_add_inline_script(

@@ -1403,7 +1403,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_sync_now_ajax(): void {
 		check_ajax_referer( 'skwirrel_wc_sync_run', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 
 		// Fired before the response, unlike handle_sync_now(): wp_send_json_success() below always
@@ -1418,10 +1418,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- uses transient-based token instead of nonce
 		$token = isset( $_REQUEST['token'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['token'] ) ) : '';
 		if ( empty( $token ) || 32 !== strlen( $token ) || ! ctype_xdigit( $token ) ) {
-			wp_die( 'Invalid request', 403 );
+			wp_die( esc_html__( 'Invalid request.', 'skwirrel-pim-sync' ), 403 );
 		}
 		if ( '1' !== get_transient( self::BG_SYNC_TRANSIENT . '_' . $token ) ) {
-			wp_die( 'Invalid or expired token', 403 );
+			wp_die( esc_html__( 'Invalid or expired token.', 'skwirrel-pim-sync' ), 403 );
 		}
 		delete_transient( self::BG_SYNC_TRANSIENT . '_' . $token );
 
@@ -1486,11 +1486,11 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- uses transient-based token instead of nonce
 		$token = isset( $_REQUEST['token'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['token'] ) ) : '';
 		if ( empty( $token ) || 32 !== strlen( $token ) || ! ctype_xdigit( $token ) ) {
-			wp_die( 'Invalid request', 403 );
+			wp_die( esc_html__( 'Invalid request.', 'skwirrel-pim-sync' ), 403 );
 		}
 		$mode = get_transient( self::BG_PURGE_TRANSIENT . '_' . $token );
 		if ( false === $mode ) {
-			wp_die( 'Invalid or expired token', 403 );
+			wp_die( esc_html__( 'Invalid or expired token.', 'skwirrel-pim-sync' ), 403 );
 		}
 		delete_transient( self::BG_PURGE_TRANSIENT . '_' . $token );
 
@@ -1625,7 +1625,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_save_slug_resync(): void {
 		check_ajax_referer( 'skwirrel_slug_resync_nonce', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 		$enabled                       = ! empty( $_POST['enabled'] );
 		$opts                          = get_option( Skwirrel_WC_Sync_Permalink_Settings::OPTION_KEY, [] );
@@ -1640,18 +1640,18 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_view_log(): void {
 		check_ajax_referer( 'skwirrel_view_log_nonce', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified above
 		$filename = isset( $_POST['filename'] ) ? sanitize_text_field( wp_unslash( $_POST['filename'] ) ) : '';
 		if ( ! preg_match( '/^sync-(manual|scheduled)-[\d-]+\.log$/', $filename ) ) {
-			wp_send_json_error( 'Invalid filename' );
+			wp_send_json_error( __( 'Invalid filename.', 'skwirrel-pim-sync' ) );
 		}
 
 		$path = Skwirrel_WC_Sync_Logger::get_log_directory() . $filename;
 		if ( ! file_exists( $path ) ) {
-			wp_send_json_error( 'Log file not found' );
+			wp_send_json_error( __( 'Log file not found.', 'skwirrel-pim-sync' ) );
 		}
 
 		$chunk_size = 100 * 1024; // 100 KB per chunk
@@ -1661,7 +1661,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Direct read of log file
 		$fh = fopen( $path, 'r' );
 		if ( ! $fh ) {
-			wp_send_json_error( 'Could not open log file' );
+			wp_send_json_error( __( 'Could not open log file.', 'skwirrel-pim-sync' ) );
 		}
 
 		if ( $offset > 0 ) {
@@ -1697,7 +1697,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_tail_log(): void {
 		check_ajax_referer( 'skwirrel_view_log_nonce', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 
 		$filename = Skwirrel_WC_Sync_Logger::get_active_or_latest_log_filename();
@@ -1716,7 +1716,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 		$path = Skwirrel_WC_Sync_Logger::get_log_directory() . $filename;
 		if ( ! file_exists( $path ) ) {
-			wp_send_json_error( 'Log file not found' );
+			wp_send_json_error( __( 'Log file not found.', 'skwirrel-pim-sync' ) );
 		}
 
 		$chunk_size = 256 * 1024;
@@ -1737,7 +1737,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Direct read of log file
 		$fh = fopen( $path, 'r' );
 		if ( ! $fh ) {
-			wp_send_json_error( 'Could not open log file' );
+			wp_send_json_error( __( 'Could not open log file.', 'skwirrel-pim-sync' ) );
 		}
 
 		if ( $offset > 0 ) {
@@ -1798,7 +1798,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_abort_sync(): void {
 		check_ajax_referer( 'skwirrel_abort_sync_nonce', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 
 		Skwirrel_WC_Sync_History::request_abort();
@@ -1814,11 +1814,11 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_clear_stuck_run(): void {
 		check_ajax_referer( 'skwirrel_clear_stuck_run_nonce', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 
 		if ( ! Skwirrel_WC_Sync_Service::force_clear_stuck_run() ) {
-			wp_send_json_error( 'Not stuck', 409 );
+			wp_send_json_error( __( 'The sync is not stuck, or a sync step is still running.', 'skwirrel-pim-sync' ), 409 );
 		}
 
 		( new Skwirrel_WC_Sync_Logger() )->info( 'Stuck sync delete-lock cleared manually via admin action.' );
@@ -1832,7 +1832,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_sync_status(): void {
 		check_ajax_referer( 'skwirrel_sync_status_nonce', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 		$in_progress = (bool) get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
 		// A stuck run (queued, never picked up by Action Scheduler) has no live heartbeat, so
@@ -1862,7 +1862,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_health_check(): void {
 		check_ajax_referer( 'skwirrel_health_check_nonce', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 
 		if ( ! class_exists( 'WP_Site_Health' ) ) {
@@ -2111,10 +2111,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			'skwirrel-pim-sync-admin',
 			'skwirrelPimSync',
 			[
-				'purgeConfirmPermanent'  => __( 'WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be undone!\n\nAre you sure?', 'skwirrel-pim-sync' ),
-				'purgeConfirmTrash'      => __( 'All Skwirrel products will be moved to the trash.\n\nAre you sure?', 'skwirrel-pim-sync' ),
+				'purgeConfirmPermanent'  => __( "WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be undone!\n\nAre you sure?", 'skwirrel-pim-sync' ),
+				'purgeConfirmTrash'      => __( "All Skwirrel products will be moved to the trash.\n\nAre you sure?", 'skwirrel-pim-sync' ),
 				'clearHistoryConfirm'    => __( 'Delete all sync history?', 'skwirrel-pim-sync' ),
-				'resetSettingsConfirm'   => __( 'Reset all Skwirrel sync settings? Endpoint URL, API token, sync schedule and slug rules will be deleted, and all scheduled syncs will be cancelled. Products, media, categories and sync history are kept.\n\nAre you sure?', 'skwirrel-pim-sync' ),
+				'resetSettingsConfirm'   => __( "Reset all Skwirrel sync settings? Endpoint URL, API token, sync schedule and slug rules will be deleted, and all scheduled syncs will be cancelled. Products, media, categories and sync history are kept.\n\nAre you sure?", 'skwirrel-pim-sync' ),
 				'ajaxUrl'                => admin_url( 'admin-ajax.php' ),
 				'slugResyncNonce'        => wp_create_nonce( 'skwirrel_slug_resync_nonce' ),
 				'viewLogNonce'           => wp_create_nonce( 'skwirrel_view_log_nonce' ),
