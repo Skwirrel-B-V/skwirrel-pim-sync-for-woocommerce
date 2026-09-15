@@ -1330,8 +1330,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		$tabs   = self::get_settings_tabs();
 		$errors = self::current_settings_errors();
 		if ( ! self::is_context_id_field_visible() ) {
-			// A hidden field can neither show an inline error nor be corrected, so its error neither
-			// badges nor opens a tab; the page-level notice still reports it.
+			// No field is rendered to show the error at or to correct, so a context_id error (only
+			// reachable through a crafted POST) neither badges nor opens a tab; the page-level notice
+			// still reports it.
 			$errors = array_values(
 				array_filter(
 					$errors,
@@ -1553,14 +1554,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</div>
 				<?php
 				/*
-				 * While the field is hidden it carries the context the plugin actually syncs with,
-				 * never a rejected value: a hidden input still submits, so a rejected value would
-				 * re-raise its error on every save, pointing at a field nobody can see or correct.
+				 * Not rendered at all until the field is shown. A save then carries no context_id,
+				 * which sanitize_settings() reads as "keep the stored context", not "clear it".
 				 */
-				$context_visible = self::is_context_id_field_visible();
-				$context_value   = $context_visible ? (string) ( $opts['context_id'] ?? '' ) : Skwirrel_WC_Sync_Admin_Settings::effective_context_raw( $opts );
 				?>
-				<div class="skw-field"<?php echo $context_visible ? '' : ' hidden'; ?><?php $this->render_field_wrapper_attr( 'context_id' ); ?>>
+				<?php if ( self::is_context_id_field_visible() ) : ?>
+				<div class="skw-field"<?php $this->render_field_wrapper_attr( 'context_id' ); ?>>
 					<label for="context_id" class="skw-label"><?php esc_html_e( 'Context ID', 'skwirrel-pim-sync' ); ?></label>
 					<?php
 					/*
@@ -1582,10 +1581,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					 * enforce it, report it and keep the value visible for correction.
 					 */
 					?>
-					<input type="text" inputmode="numeric" id="context_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[context_id]" value="<?php echo esc_attr( $context_value ); ?>" placeholder="1" class="skw-input skw-input-sm"<?php $this->render_field_state_attrs( 'context_id', 'context_id-hint' ); ?> />
+					<input type="text" inputmode="numeric" id="context_id" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[context_id]" value="<?php echo esc_attr( (string) ( $opts['context_id'] ?? '' ) ); ?>" placeholder="1" class="skw-input skw-input-sm"<?php $this->render_field_state_attrs( 'context_id', 'context_id-hint' ); ?> />
 					<?php $this->render_field_error( 'context_id' ); ?>
 					<p class="skw-field-hint" id="context_id-hint"><?php esc_html_e( 'Optional. Leave this empty unless Skwirrel told you otherwise — an empty field uses the Skwirrel default context. Fill it in only if your Skwirrel instance serves several shops and you need the content of one specific context. Changing it re-imports your whole catalogue on the next synchronisation.', 'skwirrel-pim-sync' ); ?></p>
 				</div>
+				<?php endif; ?>
 			</div>
 			<div class="skw-field-actions skw-field-actions-connection">
 				<button type="button" id="skwirrel-test-connection" class="skw-btn skw-btn-secondary"><i class="ph ph-plugs" aria-hidden="true"></i> <?php esc_html_e( 'Test connection', 'skwirrel-pim-sync' ); ?></button>

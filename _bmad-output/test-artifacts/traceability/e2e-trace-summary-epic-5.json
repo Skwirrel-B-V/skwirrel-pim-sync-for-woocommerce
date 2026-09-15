@@ -1,13 +1,13 @@
 {
   "schema_version": "0.1.0",
-  "snapshot_at": "2026-09-14T12:10:32.275088+00:00",
+  "snapshot_at": "2026-09-14T12:33:54.972321+00:00",
   "repo": "wordpress",
   "collection_mode": "contract_static",
   "collection_status": "COLLECTED",
   "inventory_basis": "acceptance_criteria",
   "gate_basis": "priority_thresholds",
-  "source_sha": "fa9ed8efe5cfa317c333db525a0c87cae306484b",
-  "source_tree": "dirty \u2014 Epic 5 Context ID fix + tab-strip restyle + sync_etim field uncommitted",
+  "source_sha": "8f85600a425c5da9a3288237578631e649b06d63",
+  "source_tree": "dirty \u2014 Epic 5 Context ID fix (input removed) + tab-strip restyle + sync_etim field uncommitted",
   "target": {
     "type": "epic",
     "id": "5",
@@ -71,7 +71,7 @@
         "criteria_covered": 0
       },
       "unit": {
-        "tests": 122,
+        "tests": 124,
         "criteria_covered": 16
       },
       "other": {
@@ -82,7 +82,7 @@
   },
   "tests": {
     "files": 9,
-    "cases": 204,
+    "cases": 206,
     "skipped_cases": 0,
     "fixme_cases": 0,
     "pending_cases": 0
@@ -112,7 +112,7 @@
     },
     {
       "priority": "HIGH",
-      "action": "Commit the Epic 5 working-tree changes (Context ID hidden-field fix + its tests) and ship them through /release. HEAD moved 4 commits past the last trace without them",
+      "action": "Commit the Epic 5 working-tree changes (Context ID fix (input removed, absent = unchanged) + its tests) and ship them through /release. HEAD moved 4 commits past the last trace without them",
       "requirements": [
         "5.3-AC1",
         "5.3-AC5",

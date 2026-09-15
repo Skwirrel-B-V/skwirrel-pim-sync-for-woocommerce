@@ -17,6 +17,7 @@ _Curated long-term knowledge. Structured so a cold start is immediately useful._
 - **Integration suite reality (verified 2026-08-19):** `tests/Pest.php`'s `uses(WP_UnitTestCase::class)->in('Integration')` binding does NOT take effect — integration tests run as plain `PHPUnit\Framework\TestCase`, so there are **no DB transactions**; `tests/Integration/README.md` claims there are and is wrong. Hence the manual purge helpers in `tests/Integration/bootstrap.php`. wp-env pins WP 7.0 + WC 10.8.
 - **Admin-menu testing recipe:** `wp-admin/menu.php` (+ `wp-admin/includes/menu.php`) can only be loaded once per PHP process (function declarations), and must be required with the menu globals imported via `global`. Snapshot core's baseline from an `admin_menu` callback at `-PHP_INT_MAX`, then restore + re-fire per scenario. Rendered top-level order ≠ raw `$menu` keys: WooCommerce opts into `custom_menu_order` and rewrites the list. See `tests/Integration/AdminMenuIntegrationTest.php`.
 - **State at 2026-08-18:** version 3.12.2, fully consistent across all five locations.
+- **State at 2026-09-14:** 4.0.0 committed on release/4.0.0 (8f85600), untagged, unpushed. Adds `sync_etim` + simple-product stale-attribute clearing.
 - **State at 2026-09-08:** PR #54 (`feature/stuck-sync-warning` → `release/3.14.0`) merged via merge
   commit `91324cc`. Carries: the stuck-sync warning, on-demand health check + Debug checklist, WP
   7.1 compat verification, admin-menu "Debug" row + non-navigating "Sync now", and an i18n sweep of

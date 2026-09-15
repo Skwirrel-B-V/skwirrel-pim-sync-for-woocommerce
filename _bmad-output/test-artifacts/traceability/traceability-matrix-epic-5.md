@@ -5,7 +5,7 @@ lastStep: 'step-05-gate-decision'
 lastSaved: '2026-09-14'
 scope: 'Epic 5 — A settings screen you can navigate, trust, and verify'
 tracedAtCommit: 'fa9ed8e'
-workingTree: 'dirty — Epic 5 Context ID hidden-field fix, tab-strip restyle and sync_etim field are uncommitted; not yet released'
+workingTree: 'dirty — Epic 5 Context ID fix (input removed; absent = unchanged), tab-strip restyle and sync_etim field are uncommitted; not yet released'
 coverageBasis: 'acceptance_criteria'
 oracleConfidence: 'high'
 oracleResolutionMode: 'formal_requirements'
@@ -28,6 +28,8 @@ gateDecision: 'CONCERNS'
 
 _Re-trace at `fa9ed8e` + working tree (2026-09-14, run 2). Supersedes this morning's trace at `20eaf3f`._
 
+> **Updated the same day (owner decision):** the hidden Context ID input is now **removed from the form**, not rendered with `hidden`. `sanitize_settings()` reads a missing `context_id` as "unchanged", never "cleared". Without that rule, removing the input would move every shop with a configured context onto the Skwirrel default and force a full re-import from any unrelated save. `5.3-AC1` and `5.3-AC5` in `epics.md` are amended to match, and the tests below were rewritten and re-run.
+
 ## Gate Decision: ⚠️ CONCERNS
 
 **Rationale (deterministic rule 5):** P0 coverage is 100% and overall coverage is 91% (minimum 80%),
@@ -38,8 +40,8 @@ E2E decision in `deferred-work.md` holds them at CONCERNS.
 **Unchanged from this morning.** No criterion changed status, and no test was lost.
 
 **But the release picture changed.** Four commits landed after the last trace (`9fe8fd2`, `7ffb2d8`,
-`46ed276`, `fa9ed8e`), and none of them carries the Epic 5 fix. The Context ID hidden-field fix, its
-three tests and the visibility guard are **still uncommitted**. The green evidence for `5.3-AC1`,
+`46ed276`, `fa9ed8e`), and none of them carries the Epic 5 fix. The Context ID fix (now: input removed,
+absence reads as unchanged), its tests and the visibility guard are **still uncommitted**. The green evidence for `5.3-AC1`,
 `5.3-AC5` and `5.2-AC4` exists only in the working tree. Committed `HEAD` alone still has the
 hidden-field trap from Finding 1 of the previous trace. See Finding 1.
 
@@ -72,20 +74,20 @@ and replaced, 5.3-AC5) all still apply.
 | **Tab strip restyle** (uncommitted) | `assets/settings-page.css` | Visual only. The focus ring still comes from `dashboard.css` `.skw-tab:focus-visible`. The restyle sets no `box-shadow`, so the ring survives. `.skw-settings-page .skw-tab:hover { background: transparent }` still beats the focus tint when a tab is both hovered and focused. `5.1-AC6` stays PARTIAL. |
 | **Danger zone restyle** (uncommitted) | `render_danger_zone`: `.skw-dz-*` | Both forms still sit outside the settings form. *the danger zone stays outside and below the settings form* is green. |
 | **`sync_etim` checkbox** (uncommitted) | Sync Options group → What to sync tab | New control inside an existing group. Covered by the input-name census and group map. Test hygiene fixed in this trace (Finding 2). |
-| **Context ID hidden-field fix** (uncommitted) | dashboard + 3 tests + guard | Unchanged since this morning. Still not committed. |
+| **Context ID fix, revised** (uncommitted) | dashboard: field rendered only when `skwirrel_wc_sync_context_id_field_visible` is true · `sanitize_settings()`: missing `context_id` keeps the stored `context_id` + `context_id_effective` | The input is removed, not hidden. 3 integration tests rewritten, 2 unit tests added, census no longer expects `context_id`. |
 
 ## Test Inventory
 
 | Level                          | Files | Cases | Notes                                           |
 | ------------------------------ | ----: | ----: | ----------------------------------------------- |
-| Unit                           |     5 |   122 | Stub bootstrap, no Docker                       |
+| Unit                           |     5 |   124 | Stub bootstrap, no Docker                       |
 | Integration (real WP + WC)     |     4 |    82 | wp-env. Counted as `other` in the JSON schema   |
 | Component                      |     0 |     0 | No component layer in this stack                |
 | E2E                            |     0 |     0 | No browser layer: **accepted ceiling**, closed  |
 
 - `tests/Unit/SettingsTabsTest.php` (27) · `tests/Integration/SettingsTabsIntegrationTest.php` (19)
 - `tests/Unit/AdminSettingsRequiredFieldsTest.php` (14) · `tests/Integration/SettingsRequiredFieldsIntegrationTest.php` (26)
-- `tests/Unit/ContextIdTest.php` (37) · `tests/Integration/ContextIdIntegrationTest.php` (17)
+- `tests/Unit/ContextIdTest.php` (39) · `tests/Integration/ContextIdIntegrationTest.php` (17)
 - `tests/Unit/TestConnectionMetricsTest.php` (28) · `tests/Integration/TestConnectionMetricsIntegrationTest.php` (20)
 - `tests/Unit/AdminSettingsEndpointUrlTest.php` (16)
 
@@ -97,9 +99,10 @@ ships a compiled catalogue next to its source* lives in `AdminSettingsRequiredFi
 
 | Suite | Result |
 | --- | --- |
-| `vendor/bin/pest` (unit, whole repo) | ✅ **686 passed**, 1779 assertions |
+| `vendor/bin/pest` (unit, whole repo) | ✅ **688 passed**, 1785 assertions |
 | `npm run test:integration` (sole run on the test DB) | ✅ **240 passed**, 1 deprecated, 1786 assertions |
 | Census test re-run after the Finding 2 edit | ✅ 1 passed, 48 assertions |
+| Integration re-run after removing the input | ✅ **240 passed**, 1 deprecated · the 3 rewritten Context ID tests re-run by filter: 3 passed, 10 assertions |
 | `vendor/bin/phpstan analyse` | ✅ No errors |
 | `vendor/bin/phpcs` | ✅ Clean |
 
@@ -136,11 +139,11 @@ Legend: **FULL** = behaviour exercised · **PARTIAL** = asserted indirectly (sou
 
 | AC | Pri | Status | Evidence |
 | --- | --- | --- | --- |
-| **5.3-AC1** _(amended)_: while hidden, a save carries the effective context, never re-raises a rejected value, never schedules a full re-sync | P1 | ✅ FULL 🔧 | I: *the Context ID field is hidden by default, and a configured context still round-trips on save* · *while hidden, a stored rejected Context ID is not sent back, so the next save clears its error* |
+| **5.3-AC1** _(amended twice)_: while not rendered, a save carries no Context ID and its absence reads as unchanged; no re-raised rejection, no full re-sync | P1 | ✅ FULL 🔧 | I: *the Context ID field is not rendered by default, and a save keeps the configured context* · *while not rendered, a stored rejected Context ID raises no error on the next save and keeps the context in use* · U: *an omitted Context ID field keeps the stored context, and arms no full sync* · *an omitted Context ID field keeps a stored rejected value inert, without re-raising it* |
 | **5.3-AC2**: value sent on every JSON-RPC call | **P0** | ✅ FULL | U: *no call site is left on a hardcoded context literal* · *getGroupedProducts carries the configured context* · I: *a configured Context ID reaches the product fetch of a real sync run* · *categories are fetched from the same context as the products* |
 | **5.3-AC3**: empty ⇒ parameter omitted | **P0** | ✅ FULL | U: *an unset, empty or invalid Context ID resolves to null* · *getGroupedProducts sends no context parameter at all when none is configured* · I: *an unconfigured Context ID leaves the product fetch on the default context* |
 | **5.3-AC4**: a changed Context ID arms `force_full_sync` and tells the admin | **P0** | ✅ FULL | U: *a changed effective context sets the force-full-sync flag and tells the admin* · *a rejected value arms no full sync* · I: *saving a changed effective context through update_option really sets the flag* · *a test-connection click preserves the Context ID and does not schedule a full re-sync* |
-| **5.3-AC5** _(amended)_: rejected, not coerced; inline while shown, page notice only while hidden | P1 | ✅ FULL 🔧 | U: *an invalid Context ID raises a settings error and is stored exactly as typed* · I (shown): *a rejected Context ID comes back in the field with its message, and flags the Connection tab* · I (hidden) 🔧: *while hidden, a rejected Context ID neither renders an inline error nor flags the Connection tab* |
+| **5.3-AC5** _(amended)_: rejected, not coerced; inline while shown, page notice only while not rendered | P1 | ✅ FULL 🔧 | U: *an invalid Context ID raises a settings error and is stored exactly as typed* · I (shown): *a rejected Context ID comes back in the field with its message, and flags the Connection tab* · I (not rendered) 🔧: *while not rendered, a rejected Context ID neither renders an inline error nor flags the Connection tab* |
 
 ### Story 5.4 — Test Connection reports what came back
 
@@ -158,7 +161,7 @@ Legend: **FULL** = behaviour exercised · **PARTIAL** = asserted indirectly (sou
 | --- | --- | --- |
 | Error paths | ✅ Strong | Transport, HTTP ≥400, JSON-RPC rejection, non-JSON, absent pagination, corrupt option. |
 | Auth / authz | ✅ Strong | Denied-path tests on Test Connection. The new stuck-lock AJAX action is outside Epic 5. |
-| UI state | ✅ Strong | Hidden-field state for `context_id` covered in both directions 🔧. |
+| UI state | ✅ Strong | Shown and not-rendered states for `context_id` covered, including the save that carries no `context_id` 🔧. |
 | Visibility guard | 🟢 In place 🔧 | Green, but only in the working tree. |
 | Back-compat | ✅ Strong | The input-name census stays green through the restyles and the new `sync_etim` control. |
 | Per-control tab membership | 🟡 Advisory | "Every field in exactly one tab" is checked per group (9 groups). A control rendered outside any group but inside the form would show on every tab, and no test would notice. |
@@ -174,11 +177,15 @@ the working tree, mixed with unrelated changes: `sync_etim`, the Danger zone and
 and the progress-banner notice.
 
 - **Committed `HEAD` alone** would fail the 5.3-AC1 and 5.3-AC5 evidence. A rejected Context ID round-trips
-  through the hidden input and re-raises its error on every save.
+  through the hidden input and re-raises its error on every save. Also do not commit the dashboard change
+  without the sanitiser change: removing the input without the "missing means unchanged" rule resets
+  every configured context on the next save.
 - **Risk:** a partial commit or stash before the 4.0.0 tag ships 4.0.0 with the trap.
-- **Action:** commit the Epic 5 files (`class-skwirrel-wc-sync-admin-dashboard.php` context-id hunks,
-  `ContextIdIntegrationTest.php`, `SettingsRequiredFieldsIntegrationTest.php`, `SkwirrelIntegrationTestCase.php`,
-  `tests/Integration/bootstrap.php`) before the release.
+- **Action:** commit the Epic 5 files before the release, together:
+  - the context-id hunks in `class-skwirrel-wc-sync-admin-dashboard.php` and `class-skwirrel-wc-sync-admin-settings.php`
+  - `ContextIdIntegrationTest.php`, `tests/Unit/ContextIdTest.php`
+  - `SettingsRequiredFieldsIntegrationTest.php`, `SettingsTabsIntegrationTest.php`
+  - `SkwirrelIntegrationTestCase.php`, `tests/Integration/bootstrap.php`
 
 This does not move the gate, which traces the tree as it is. It is the highest-priority item on the list.
 

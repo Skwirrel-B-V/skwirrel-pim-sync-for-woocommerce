@@ -196,9 +196,9 @@ test( 'every input name the pre-tabs settings form rendered is still rendered', 
 
 	$expected   = skwSettingsBaselineInputNames();
 	$expected[] = 'skwirrel_wc_sync_settings[status_mapping][*]';
-	// Added to the API Connection group after the pre-tabs baseline was captured: Story 5.3's
-	// optional Context ID. The baseline list stays a record of what the pre-tabs form rendered.
-	$expected[] = 'skwirrel_wc_sync_settings[context_id]';
+	// Story 5.3's Context ID is not listed: it is not rendered until the field is shown again
+	// (skwirrel_wc_sync_context_id_field_visible). The baseline list stays a record of what the
+	// pre-tabs form rendered.
 	// Added to the What to sync group by Story 6.1: the FR-18 stock quantity field mapping,
 	// and by Story 6.3: the three FR-19 content field mappings.
 	$expected[] = 'skwirrel_wc_sync_settings[stock_quantity_feature]';

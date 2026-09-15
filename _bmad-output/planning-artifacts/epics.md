@@ -891,11 +891,13 @@ So that I import the content intended for this shop.
 
 ~~**Given** the Connection tab **When** it renders **Then** an optional **Context ID** field is present with placeholder `1` and help text stating that leaving it empty uses the Skwirrel default.~~
 
-> _Retired 2026-09-14 (owner decision): the field is **hidden** until multi-context Skwirrel instances are generally available — no shop used it (`e8332bf`). The markup, stored value and every API path remain, so re-showing it is a one-line filter (`skwirrel_wc_sync_context_id_field_visible`). When the field is shown again, reinstate this criterion._
+> _Retired 2026-09-14 (owner decision): the field is **not rendered** until multi-context Skwirrel instances are generally available — no shop used it (`e8332bf`). The stored value and every API path remain, so re-showing it is a one-line filter (`skwirrel_wc_sync_context_id_field_visible`). When the field is shown again, reinstate this criterion._
 
-**Given** the Context ID field is hidden
+**Given** the Context ID field is not rendered
 **When** the settings are saved
-**Then** the hidden input carries the context the plugin syncs with, so a save never re-raises a rejected value and never schedules a full re-sync.
+**Then** the save carries no Context ID, and `sanitize_settings()` reads its absence as "unchanged", not "cleared" — the stored context stays in use, a stored rejected value is not re-raised, and no full re-sync is scheduled.
+
+> _Amended 2026-09-14 (second pass, owner decision): the input is removed from the form rather than rendered with `hidden`._
 
 **Given** a Context ID is set
 **When** any JSON-RPC call is made
@@ -912,7 +914,7 @@ So that I import the content intended for this shop.
 
 **Given** a non-numeric or negative value
 **When** the settings are saved
-**Then** it is rejected — reported, stored as typed and never moving the context the plugin syncs with — not silently coerced. **While the field is shown**, the rejection is an inline error at the field (Story 5.2); while it is hidden, the page-level notice reports it and no tab is flagged for a field nobody can see.
+**Then** it is rejected — reported, stored as typed and never moving the context the plugin syncs with — not silently coerced. **While the field is shown**, the rejection is an inline error at the field (Story 5.2); while it is not rendered, a rejection can only come from a crafted request — the page-level notice reports it and no tab is flagged for a field that is not there.
 
 > _Amended 2026-09-14 alongside the retirement of the field-present criterion above._
 
