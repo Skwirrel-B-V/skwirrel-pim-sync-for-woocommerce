@@ -22,6 +22,7 @@ Applies to `includes/class-admin-settings.php`.
 | `sync_categories` | bool | `false` | — | Create/assign WC categories |
 | `sync_grouped_products` | bool | `false` | — | Enable getGroupedProducts |
 | `sync_images` | bool | `true` | — | Download images to media library |
+| `sync_etim` | bool | `true` | missing key = on | ETIM features as attributes + `include_etim` on getProducts/getProductsByFilter (kept on for grouped products) |
 | `image_language` | string | `'nl'` | dropdown + custom | Language for image labels |
 | `include_languages` | array | `['nl-NL', 'nl']` | checkboxes + custom | API include_languages param |
 | `collection_ids` | string | `''` | comma-separated numeric | Collection filter |

@@ -432,7 +432,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$this->apply_stock_mapping( $wc_product, $product );
 		}
 
-		$attrs = $this->mapper->get_attributes( $product );
+		$attrs = $this->mapper->get_attributes( $product, $this->run_options );
 
 		// Merge custom class attributes (if enabled)
 		$cc_options    = $this->get_options();
@@ -602,6 +602,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 					'names'      => array_keys( $attrs ),
 				]
 			);
+		} else {
+			$this->clear_stale_attributes( $wc_product, $id );
 		}
 
 		// Publish a held-draft product AND stamp the change-gate timestamp ONLY when every aspect
@@ -943,7 +945,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$this->category_sync->assign_categories( $wc_variable_id, $product );
 
 		// Collect non-variation ETIM + custom class attributes for parent product
-		$non_var_attrs = $this->mapper->get_attributes( $product );
+		$non_var_attrs = $this->mapper->get_attributes( $product, $this->run_options );
 		if ( ! empty( $cc_options['sync_custom_classes'] ) || ! empty( $cc_options['sync_trade_item_custom_classes'] ) ) {
 			$cc_filter_mode = $cc_options['custom_class_filter_mode'] ?? '';
 			$cc_parsed      = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_options['custom_class_filter_ids'] ?? '' );
@@ -2308,7 +2310,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			return 0;
 		}
 
-		$attrs         = $this->mapper->get_attributes( $product );
+		$attrs         = $this->mapper->get_attributes( $product, $this->run_options );
 		$cc_options    = $this->get_options();
 		$cc_text_meta  = [];
 		$cc_visibility = [];
@@ -2428,12 +2430,13 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			}
 		}
 
-		if ( empty( $attrs ) ) {
+		$wc_product = wc_get_product( $wc_id );
+		if ( ! $wc_product ) {
 			return 0;
 		}
 
-		$wc_product = wc_get_product( $wc_id );
-		if ( ! $wc_product ) {
+		if ( empty( $attrs ) ) {
+			$this->clear_stale_attributes( $wc_product, $wc_id );
 			return 0;
 		}
 
@@ -2469,6 +2472,46 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 
 		return count( $wc_attrs );
+	}
+
+	/**
+	 * Drop every attribute from a simple product whose sync produced none.
+	 *
+	 * The save paths replace the attribute set wholesale when there is something to write, but used
+	 * to skip the write when there was nothing — so attributes from an earlier sync (e.g. ETIM
+	 * features after `sync_etim` was turned off) stayed forever. Only call this when the mapped
+	 * attribute list itself is empty, never when term creation failed for a non-empty list.
+	 *
+	 * WC_Product::set_attributes() nulls every omitted key, and the CPT data store then unsets the
+	 * product's terms for those taxonomies, so layered-nav filters are cleaned up too.
+	 *
+	 * @param WC_Product $wc_product Simple product being synced.
+	 * @param int        $id         Its post ID.
+	 */
+	private function clear_stale_attributes( WC_Product $wc_product, int $id ): void {
+		// Variable parents carry their variation axes as attributes — never wipe those here.
+		if ( ! $wc_product->is_type( 'simple' ) ) {
+			return;
+		}
+		$existing = $wc_product->get_attributes();
+		if ( empty( $existing ) ) {
+			return;
+		}
+
+		$wc_product->set_attributes( [] );
+		$wc_product->save();
+		clean_post_cache( $id );
+		if ( function_exists( 'wc_delete_product_transients' ) ) {
+			wc_delete_product_transients( $id );
+		}
+
+		$this->logger->verbose(
+			'Stale attributes removed: sync produced none',
+			[
+				'wc_id' => $id,
+				'names' => array_keys( $existing ),
+			]
+		);
 	}
 
 	/**

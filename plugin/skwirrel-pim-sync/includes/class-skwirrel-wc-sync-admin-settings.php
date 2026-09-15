@@ -83,6 +83,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		add_action( 'wp_ajax_skwirrel_wc_sync_tail_log', [ $this, 'handle_tail_log' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_download_log', [ $this, 'handle_download_log' ] );
 		add_action( 'wp_ajax_skwirrel_wc_sync_abort', [ $this, 'handle_abort_sync' ] );
+		add_action( 'wp_ajax_skwirrel_wc_sync_clear_stuck_run', [ $this, 'handle_clear_stuck_run' ] );
 		// Reactive sync status: a status endpoint + a poller everywhere. The full banner lives only on
 		// the plugin's own pages; other admin pages get a compact, movable, dismissible corner toast.
 		add_action( 'wp_ajax_skwirrel_wc_sync_status', [ $this, 'handle_sync_status' ] );
@@ -433,32 +434,47 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// Context ID: optional. Empty means "use the Skwirrel default context". An invalid value is
 		// reported and stored verbatim so the user sees what they typed, but get_context_ids() refuses
 		// to resolve it, so it never reaches the API.
-		$out['context_id'] = isset( $input['context_id'] ) && is_scalar( $input['context_id'] )
-			? sanitize_text_field( trim( (string) $input['context_id'] ) )
-			: '';
-		if ( '' === $out['context_id'] || null !== self::resolve_context_ids( $out['context_id'] ) ) {
-			// Valid, or deliberately cleared to mean "the Skwirrel default context". Either way it
-			// is now what the plugin syncs with.
-			$out[ self::CONTEXT_EFFECTIVE_KEY ] = $out['context_id'];
+		if ( ! array_key_exists( 'context_id', $input ) ) {
+			// Absent is not cleared. The field is not rendered while it is hidden
+			// ({@see Skwirrel_WC_Sync_Admin_Dashboard::is_context_id_field_visible()}), so a save carries
+			// no context_id at all. Reading that as "empty" would move a shop with a configured context
+			// onto the Skwirrel default and schedule a full re-sync from an unrelated save. Keep both
+			// stored keys exactly as they are, unvalidated: nothing was submitted, so nothing is rejected.
+			$stored                             = get_option( self::OPTION_KEY, [] );
+			$stored                             = is_array( $stored ) ? $stored : [];
+			$out['context_id']                  = is_scalar( $stored['context_id'] ?? null ) ? (string) $stored['context_id'] : '';
+			$out[ self::CONTEXT_EFFECTIVE_KEY ] = self::effective_context_raw( $stored );
 		} else {
-			// Rejected. The typed value is still stored so it can be seen and corrected, but the
-			// context the plugin actually syncs with does not move: falling back to the Skwirrel
-			// default here would silently retarget a shop that had a valid context configured, and
-			// with stale purging on, that run would trash the whole catalogue it just stopped
-			// matching. "Reported and inert" has to mean inert.
-			$out[ self::CONTEXT_EFFECTIVE_KEY ] = self::effective_context_raw( is_array( get_option( self::OPTION_KEY, [] ) ) ? (array) get_option( self::OPTION_KEY, [] ) : [] );
-			add_settings_error(
-				self::OPTION_KEY,
-				'context_id',
-				'' === $out[ self::CONTEXT_EFFECTIVE_KEY ]
-					? __( 'The context ID must be a whole number greater than 0. Leave it empty to use the Skwirrel default context.', 'skwirrel-pim-sync' )
-					: sprintf(
-						/* translators: %s: the context ID that stays in use. */
-						__( 'The context ID must be a whole number greater than 0. Synchronisation keeps using context %s until you correct this.', 'skwirrel-pim-sync' ),
-						$out[ self::CONTEXT_EFFECTIVE_KEY ]
-					),
-				'error'
-			);
+			$previous = get_option( self::OPTION_KEY, [] );
+			$previous = is_array( $previous ) ? $previous : [];
+			// A non-scalar submission (e.g. `context_id[]=7`) has no text to keep, so the stored value
+			// stays what it was; it is still rejected below rather than read as "cleared".
+			$typed             = is_scalar( $input['context_id'] ) ? sanitize_text_field( trim( (string) $input['context_id'] ) ) : null;
+			$out['context_id'] = $typed ?? ( is_scalar( $previous['context_id'] ?? null ) ? (string) $previous['context_id'] : '' );
+			if ( null !== $typed && ( '' === $typed || null !== self::resolve_context_ids( $typed ) ) ) {
+				// Valid, or deliberately cleared to mean "the Skwirrel default context". Either way it
+				// is now what the plugin syncs with.
+				$out[ self::CONTEXT_EFFECTIVE_KEY ] = $typed;
+			} else {
+				// Rejected. The typed value is still stored so it can be seen and corrected, but the
+				// context the plugin actually syncs with does not move: falling back to the Skwirrel
+				// default here would silently retarget a shop that had a valid context configured, and
+				// with stale purging on, that run would trash the whole catalogue it just stopped
+				// matching. "Reported and inert" has to mean inert.
+				$out[ self::CONTEXT_EFFECTIVE_KEY ] = self::effective_context_raw( $previous );
+				add_settings_error(
+					self::OPTION_KEY,
+					'context_id',
+					'' === $out[ self::CONTEXT_EFFECTIVE_KEY ]
+						? __( 'The context ID must be a whole number greater than 0. Leave it empty to use the Skwirrel default context.', 'skwirrel-pim-sync' )
+						: sprintf(
+							/* translators: %s: the context ID that stays in use. */
+							__( 'The context ID must be a whole number greater than 0. Synchronisation keeps using context %s until you correct this.', 'skwirrel-pim-sync' ),
+							$out[ self::CONTEXT_EFFECTIVE_KEY ]
+						),
+					'error'
+				);
+			}
 		}
 		// Enforce the dynamic minimum rest window server-side: a too-short interval (e.g. forced via a
 		// crafted POST) is bumped up to the smallest recurrence that still leaves a full hour of rest.
@@ -542,6 +558,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// this is missing (see Sync_Service::run_sync()), so nagging at save time would only
 		// block configuring the other, unrelated settings on this tab first.
 		$out['custom_collection_id'] = isset( $input['custom_collection_id'] ) ? sanitize_text_field( trim( $input['custom_collection_id'] ) ) : '';
+		$out['sync_etim']            = ! empty( $input['sync_etim'] );
 		// Custom classes
 		$out['sync_custom_classes']            = ! empty( $input['sync_custom_classes'] );
 		$out['sync_trade_item_custom_classes'] = ! empty( $input['sync_trade_item_custom_classes'] );
@@ -1386,7 +1403,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_sync_now_ajax(): void {
 		check_ajax_referer( 'skwirrel_wc_sync_run', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 
 		// Fired before the response, unlike handle_sync_now(): wp_send_json_success() below always
@@ -1401,10 +1418,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- uses transient-based token instead of nonce
 		$token = isset( $_REQUEST['token'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['token'] ) ) : '';
 		if ( empty( $token ) || 32 !== strlen( $token ) || ! ctype_xdigit( $token ) ) {
-			wp_die( 'Invalid request', 403 );
+			wp_die( esc_html__( 'Invalid request.', 'skwirrel-pim-sync' ), 403 );
 		}
 		if ( '1' !== get_transient( self::BG_SYNC_TRANSIENT . '_' . $token ) ) {
-			wp_die( 'Invalid or expired token', 403 );
+			wp_die( esc_html__( 'Invalid or expired token.', 'skwirrel-pim-sync' ), 403 );
 		}
 		delete_transient( self::BG_SYNC_TRANSIENT . '_' . $token );
 
@@ -1469,11 +1486,11 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- uses transient-based token instead of nonce
 		$token = isset( $_REQUEST['token'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['token'] ) ) : '';
 		if ( empty( $token ) || 32 !== strlen( $token ) || ! ctype_xdigit( $token ) ) {
-			wp_die( 'Invalid request', 403 );
+			wp_die( esc_html__( 'Invalid request.', 'skwirrel-pim-sync' ), 403 );
 		}
 		$mode = get_transient( self::BG_PURGE_TRANSIENT . '_' . $token );
 		if ( false === $mode ) {
-			wp_die( 'Invalid or expired token', 403 );
+			wp_die( esc_html__( 'Invalid or expired token.', 'skwirrel-pim-sync' ), 403 );
 		}
 		delete_transient( self::BG_PURGE_TRANSIENT . '_' . $token );
 
@@ -1608,7 +1625,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_save_slug_resync(): void {
 		check_ajax_referer( 'skwirrel_slug_resync_nonce', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 		$enabled                       = ! empty( $_POST['enabled'] );
 		$opts                          = get_option( Skwirrel_WC_Sync_Permalink_Settings::OPTION_KEY, [] );
@@ -1623,18 +1640,18 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_view_log(): void {
 		check_ajax_referer( 'skwirrel_view_log_nonce', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified above
 		$filename = isset( $_POST['filename'] ) ? sanitize_text_field( wp_unslash( $_POST['filename'] ) ) : '';
 		if ( ! preg_match( '/^sync-(manual|scheduled)-[\d-]+\.log$/', $filename ) ) {
-			wp_send_json_error( 'Invalid filename' );
+			wp_send_json_error( __( 'Invalid filename.', 'skwirrel-pim-sync' ) );
 		}
 
 		$path = Skwirrel_WC_Sync_Logger::get_log_directory() . $filename;
 		if ( ! file_exists( $path ) ) {
-			wp_send_json_error( 'Log file not found' );
+			wp_send_json_error( __( 'Log file not found.', 'skwirrel-pim-sync' ) );
 		}
 
 		$chunk_size = 100 * 1024; // 100 KB per chunk
@@ -1644,7 +1661,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Direct read of log file
 		$fh = fopen( $path, 'r' );
 		if ( ! $fh ) {
-			wp_send_json_error( 'Could not open log file' );
+			wp_send_json_error( __( 'Could not open log file.', 'skwirrel-pim-sync' ) );
 		}
 
 		if ( $offset > 0 ) {
@@ -1680,7 +1697,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_tail_log(): void {
 		check_ajax_referer( 'skwirrel_view_log_nonce', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 
 		$filename = Skwirrel_WC_Sync_Logger::get_active_or_latest_log_filename();
@@ -1699,7 +1716,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 		$path = Skwirrel_WC_Sync_Logger::get_log_directory() . $filename;
 		if ( ! file_exists( $path ) ) {
-			wp_send_json_error( 'Log file not found' );
+			wp_send_json_error( __( 'Log file not found.', 'skwirrel-pim-sync' ) );
 		}
 
 		$chunk_size = 256 * 1024;
@@ -1720,7 +1737,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Direct read of log file
 		$fh = fopen( $path, 'r' );
 		if ( ! $fh ) {
-			wp_send_json_error( 'Could not open log file' );
+			wp_send_json_error( __( 'Could not open log file.', 'skwirrel-pim-sync' ) );
 		}
 
 		if ( $offset > 0 ) {
@@ -1781,10 +1798,31 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_abort_sync(): void {
 		check_ajax_referer( 'skwirrel_abort_sync_nonce', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 
 		Skwirrel_WC_Sync_History::request_abort();
+		wp_send_json_success();
+	}
+
+	/**
+	 * AJAX: manually release a stuck run's delete-lock (called from the "Clear stuck sync lock"
+	 * button on the delete-protection banner). Only releases a run the plugin itself has concluded
+	 * made no progress for a while and that no worker is still executing — see
+	 * Skwirrel_WC_Sync_Service::force_clear_stuck_run().
+	 */
+	public function handle_clear_stuck_run(): void {
+		check_ajax_referer( 'skwirrel_clear_stuck_run_nonce', '_nonce' );
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
+		}
+
+		if ( ! Skwirrel_WC_Sync_Service::force_clear_stuck_run() ) {
+			wp_send_json_error( __( 'The sync is not stuck, or a sync step is still running.', 'skwirrel-pim-sync' ), 409 );
+		}
+
+		( new Skwirrel_WC_Sync_Logger() )->info( 'Stuck sync delete-lock cleared manually via admin action.' );
+
 		wp_send_json_success();
 	}
 
@@ -1794,7 +1832,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_sync_status(): void {
 		check_ajax_referer( 'skwirrel_sync_status_nonce', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 		$in_progress = (bool) get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
 		// A stuck run (queued, never picked up by Action Scheduler) has no live heartbeat, so
@@ -1824,7 +1862,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	public function handle_health_check(): void {
 		check_ajax_referer( 'skwirrel_health_check_nonce', '_nonce' );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( 'Access denied', 403 );
+			wp_send_json_error( __( 'Access denied.', 'skwirrel-pim-sync' ), 403 );
 		}
 
 		if ( ! class_exists( 'WP_Site_Health' ) ) {
@@ -1916,15 +1954,17 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 		wp_register_script( 'skwirrel-pim-sync-status', false, [], SKWIRREL_WC_SYNC_VERSION, true );
 		wp_enqueue_script( 'skwirrel-pim-sync-status' );
+		// The stuck-run banner the poller can swap in carries a "Clear stuck sync lock" button.
+		Skwirrel_WC_Sync_Delete_Protection::enqueue_clear_stuck_run_lock_script();
 
-		$dashboard_url  = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		$dashboard_url = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		// Core admin notice markup, so the finished state reads like every other WordPress message.
+		// `inline` keeps common.js from relocating it below the page heading.
 		$completed_html =
-			'<div class="skw-progress-banner skw-progress-done">'
-			. '<div class="skw-progress-header">'
-			. '<svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" /></svg>'
-			. '<span>' . esc_html__( 'Sync completed.', 'skwirrel-pim-sync' ) . '</span>'
-			. '<a href="' . esc_url( $dashboard_url ) . '" class="skw-btn skw-btn-live-log">' . esc_html__( 'View results', 'skwirrel-pim-sync' ) . '</a>'
-			. '</div></div>';
+			'<div class="notice notice-success inline skw-progress-done"><p>'
+			. esc_html__( 'Sync completed.', 'skwirrel-pim-sync' )
+			. ' <a href="' . esc_url( $dashboard_url ) . '">' . esc_html__( 'View results', 'skwirrel-pim-sync' ) . '</a>'
+			. '</p></div>';
 
 		wp_localize_script(
 			'skwirrel-pim-sync-status',
@@ -2052,6 +2092,11 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		if ( isset( $_GET['tab'] ) && 'debug' === $_GET['tab'] ) {
 			wp_enqueue_style( 'skwirrel-pim-sync-debug-page', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/debug-page.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
 		}
+		// Overview (no tab, or one that falls back to it): same self-hosted fonts/icons, scoped to .skw-overview-page.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tab parameter only selects which stylesheet loads
+		if ( ! isset( $_GET['tab'] ) || ! in_array( $_GET['tab'], [ 'history', 'settings', 'debug' ], true ) ) {
+			wp_enqueue_style( 'skwirrel-pim-sync-overview-page', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/overview-page.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
+		}
 		// Settings tab: same self-hosted fonts/icons, scoped to .skw-settings-page.
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tab parameter only selects which stylesheet loads
 		if ( isset( $_GET['tab'] ) && 'settings' === $_GET['tab'] ) {
@@ -2066,10 +2111,10 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			'skwirrel-pim-sync-admin',
 			'skwirrelPimSync',
 			[
-				'purgeConfirmPermanent'  => __( 'WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be undone!\n\nAre you sure?', 'skwirrel-pim-sync' ),
-				'purgeConfirmTrash'      => __( 'All Skwirrel products will be moved to the trash.\n\nAre you sure?', 'skwirrel-pim-sync' ),
+				'purgeConfirmPermanent'  => __( "WARNING: All Skwirrel products will be PERMANENTLY deleted. This cannot be undone!\n\nAre you sure?", 'skwirrel-pim-sync' ),
+				'purgeConfirmTrash'      => __( "All Skwirrel products will be moved to the trash.\n\nAre you sure?", 'skwirrel-pim-sync' ),
 				'clearHistoryConfirm'    => __( 'Delete all sync history?', 'skwirrel-pim-sync' ),
-				'resetSettingsConfirm'   => __( 'Reset all Skwirrel sync settings? Endpoint URL, API token, sync schedule and slug rules will be deleted, and all scheduled syncs will be cancelled. Products, media, categories and sync history are kept.\n\nAre you sure?', 'skwirrel-pim-sync' ),
+				'resetSettingsConfirm'   => __( "Reset all Skwirrel sync settings? Endpoint URL, API token, sync schedule and slug rules will be deleted, and all scheduled syncs will be cancelled. Products, media, categories and sync history are kept.\n\nAre you sure?", 'skwirrel-pim-sync' ),
 				'ajaxUrl'                => admin_url( 'admin-ajax.php' ),
 				'slugResyncNonce'        => wp_create_nonce( 'skwirrel_slug_resync_nonce' ),
 				'viewLogNonce'           => wp_create_nonce( 'skwirrel_view_log_nonce' ),
@@ -2777,6 +2822,25 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				. '})();';
 
 			wp_add_inline_script( 'skwirrel-pim-sync-admin', $copy_js );
+
+			// The active pill follows the URL fragment, not just clicks: the Debug submenu deep-links
+			// to #skwirrel-health-check, and back/forward navigation changes the fragment too.
+			// Clicking a pill changes the fragment, so hashchange covers clicks as well.
+			$nav_js =
+				'(function() {'
+				. ' function sync(){'
+				. '  var nav = document.querySelector(".skw-dbg-nav");'
+				. '  if (!nav) return;'
+				. '  var links = nav.querySelectorAll("a");'
+				. '  var active = links[0] || null;'
+				. '  links.forEach(function(a){ if (location.hash && a.getAttribute("href") === location.hash) { active = a; } });'
+				. '  links.forEach(function(a){ a.classList.toggle("skw-dbg-nav-active", a === active); });'
+				. ' }'
+				. ' window.addEventListener("hashchange", sync);'
+				. ' if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", sync); } else { sync(); }'
+				. '})();';
+
+			wp_add_inline_script( 'skwirrel-pim-sync-admin', $nav_js );
 		}
 	}
 

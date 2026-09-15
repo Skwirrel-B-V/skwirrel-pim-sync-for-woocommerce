@@ -145,6 +145,7 @@ Authentication: Bearer token or `X-Skwirrel-Api-Token` header.
 | `sync_grouped_products` | bool | `false` | Enable `getGroupedProducts` (variable products) |
 | `sync_manufacturers` | bool | `false` | Register + sync `product_manufacturer` taxonomy |
 | `sync_images` | bool | `true` | Download images to media library |
+| `sync_etim` | bool | `true` | Request ETIM (`include_etim`) and add ETIM features as product attributes. When off, ETIM is still requested if `sync_grouped_products` is on (variation axes need it) but never added as attributes |
 | `use_sku_field` | string | `internal_product_code` | `internal_product_code` or `manufacturer_product_code` |
 | `collection_ids` | string | `''` | Comma-separated collection IDs filter |
 | `purge_stale_products` | bool | `false` | Trash products not in Skwirrel after full sync |

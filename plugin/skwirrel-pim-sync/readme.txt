@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 3.15.0
+Stable tag: 4.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,20 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 4.0.0 =
+* Further UX improvements and a redesign of the admin screens for faster day-to-day use.
+* Redesigned Overview page: last-sync summary with counts, quick actions and a clearer Recent syncs table.
+* New "Sync ETIM features" setting (on by default). Turn it off to stop adding ETIM features as product attributes and stop requesting ETIM data. Grouped products still use ETIM for their variation axes.
+* Old attributes are now removed from simple products when a sync no longer produces any.
+* A stuck sync lock can now be cleared from the delete-protection notice. It can't be cleared while a sync step is still running, and clearing it also removes the stuck run's leftover queue data. The button is also on the "Sync appears stuck" banner.
+* An invalid Context ID submission can no longer switch the sync to a different context.
+* Changing settings while a sync is running no longer mixes attribute settings within that run.
+* The sync duration shown on the Overview is now accurate.
+* Confirm dialogs show proper line breaks instead of a literal "\n\n".
+* All remaining English-only error messages are now translated, and translations in all seven languages were reviewed and corrected.
+* Debug page header and navigation match the new design; the highlighted section follows the link you opened.
+* The "Sync completed" message now looks like a standard WordPress notice.
 
 = 3.15.0 =
 * Redesigned the Settings page to Skwirrel's own visual design system (same look as the 3.14.2 Debug tab redesign) — visual layer only, no field or behaviour changes.

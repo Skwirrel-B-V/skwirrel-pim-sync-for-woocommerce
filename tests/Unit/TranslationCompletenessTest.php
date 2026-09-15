@@ -104,3 +104,53 @@ test('every locale catalogue has no fatal format-string mismatches', function ()
         expect($exitCode)->toBe(0, basename($file) . ': ' . implode("\n", $output));
     }
 });
+
+test('every POT msgid is present in every locale catalogue', function () {
+    $languages = dirname(__DIR__, 2) . '/plugin/skwirrel-pim-sync/languages';
+    $pot = array_filter(array_column(skwParsePoEntries($languages . '/skwirrel-pim-sync.pot'), 'msgid'));
+
+    foreach (glob($languages . '/skwirrel-pim-sync-*.po') ?: [] as $file) {
+        $missing = array_values(array_diff($pot, array_column(skwParsePoEntries($file), 'msgid')));
+        expect($missing)->toBe([], basename($file) . ' is missing POT msgid(s), e.g.: ' . ($missing[0] ?? ''));
+    }
+});
+
+/**
+ * @return array<string, string> Relative path => source, for every PHP file in the plugin.
+ */
+function skwPluginPhpSources(): array
+{
+    $root  = dirname(__DIR__, 2) . '/plugin/skwirrel-pim-sync';
+    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+    $out   = [];
+    foreach ($files as $file) {
+        if ('php' === $file->getExtension()) {
+            $out[substr($file->getPathname(), strlen($root) + 1)] = (string) file_get_contents($file->getPathname());
+        }
+    }
+    return $out;
+}
+
+test('no translatable string uses a single-quoted \n, which renders as a literal backslash-n', function () {
+    $offenders = [];
+    foreach (skwPluginPhpSources() as $path => $source) {
+        if (preg_match_all("/\b(?:__|_e|esc_html__|esc_html_e|esc_attr__|esc_attr_e|_x|_n)\(\s*'(?:[^'\\\\]|\\\\.)*\\\\n(?:[^'\\\\]|\\\\.)*'/", $source, $m)) {
+            foreach ($m[0] as $hit) {
+                $offenders[] = $path . ': ' . substr($hit, 0, 80);
+            }
+        }
+    }
+    expect($offenders)->toBe([]);
+});
+
+test('AJAX error and wp_die responses carry no hardcoded, untranslated text', function () {
+    $offenders = [];
+    foreach (skwPluginPhpSources() as $path => $source) {
+        if (preg_match_all("/\b(?:wp_send_json_error|wp_die)\(\s*'[^']*[A-Za-z][^']*'/", $source, $m)) {
+            foreach ($m[0] as $hit) {
+                $offenders[] = $path . ': ' . $hit;
+            }
+        }
+    }
+    expect($offenders)->toBe([]);
+});

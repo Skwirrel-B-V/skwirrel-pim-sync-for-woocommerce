@@ -274,12 +274,14 @@ afterEach(
 test(
 	'the Context ID renders as an optional whole-number field on the Connection tab',
 	function (): void {
+		add_filter( 'skwirrel_wc_sync_context_id_field_visible', '__return_true' );
 		skwContextSetSettings( array( 'context_id' => '7' ) );
 
 		$xpath = skwContextXPath( skwContextRenderScreen() );
 		$input = skwContextElementById( $xpath, 'context_id' );
 
 		expect( $input )->not->toBeNull( 'the Context ID field is not rendered' );
+		expect( skwHiddenAncestor( $input ) )->toBeNull( 'the Context ID field is rendered but hidden' );
 		// Deliberately not type="number": that input's value-sanitization algorithm reports a
 		// non-numeric value as the empty string, which would hide the rejected value the sanitiser
 		// keeps verbatim so it can be corrected. Numeric hints give the keypad without the loss.
@@ -312,6 +314,7 @@ test(
 test(
 	'the Context ID has a label and a hint that explains what leaving it empty does',
 	function (): void {
+		add_filter( 'skwirrel_wc_sync_context_id_field_visible', '__return_true' );
 		$xpath = skwContextXPath( skwContextRenderScreen() );
 
 		$label = $xpath->query( '//label[@for="context_id"]' );
@@ -340,6 +343,7 @@ test(
 test(
 	'a rejected Context ID comes back in the field with its message, and flags the Connection tab',
 	function (): void {
+		add_filter( 'skwirrel_wc_sync_context_id_field_visible', '__return_true' );
 		$stored = Skwirrel_WC_Sync_Admin_Settings::instance()->sanitize_settings(
 			array(
 				'context_id'     => 'abc',
@@ -353,6 +357,7 @@ test(
 		$input = skwContextElementById( $xpath, 'context_id' );
 
 		// The user sees what they typed, so they can correct it — the save is not blocked.
+		expect( skwHiddenAncestor( $input ) )->toBeNull( 'the rejected Context ID sits in a hidden field' );
 		expect( $input->getAttribute( 'value' ) )->toBe( 'abc' );
 		expect( $input->getAttribute( 'aria-invalid' ) )->toBe( 'true' );
 
@@ -375,6 +380,7 @@ test(
 test(
 	'a valid Context ID round-trips through the screen with no error',
 	function (): void {
+		add_filter( 'skwirrel_wc_sync_context_id_field_visible', '__return_true' );
 		$stored = Skwirrel_WC_Sync_Admin_Settings::instance()->sanitize_settings(
 			array(
 				'context_id'     => ' 12 ',
@@ -389,6 +395,73 @@ test(
 		expect( $input->getAttribute( 'value' ) )->toBe( '12' );
 		expect( $input->hasAttribute( 'aria-invalid' ) )->toBeFalse();
 		expect( skwContextElementById( $xpath, 'context_id-error' ) )->toBeNull();
+	}
+);
+
+/*
+ * ---------------------------------------------------------------------------
+ * Not rendered by default — the field waits until multi-context instances are available
+ * ---------------------------------------------------------------------------
+ */
+
+test(
+	'the Context ID field is not rendered by default, and a save keeps the configured context',
+	function (): void {
+		$settings = Skwirrel_WC_Sync_Admin_Settings::instance();
+		update_option( 'skwirrel_wc_sync_settings', $settings->sanitize_settings( array( 'context_id' => '7', 'collection_ids' => '1' ) ) );
+		delete_option( 'skwirrel_wc_sync_force_full_sync' );
+
+		$html = skwContextRenderScreen();
+
+		expect( skwContextElementById( skwContextXPath( $html ), 'context_id' ) )->toBeNull( 'the Context ID field is rendered by default' );
+		expect( $html )->not->toContain( 'skwirrel_wc_sync_settings[context_id]' );
+
+		// What the form submits carries no context_id. That is "unchanged", never "cleared": a shop
+		// on context 7 must not drop to the default context and re-import from an unrelated save.
+		update_option( 'skwirrel_wc_sync_settings', $settings->sanitize_settings( array( 'collection_ids' => '1' ) ) );
+
+		expect( Skwirrel_WC_Sync_Admin_Settings::get_context_ids() )->toBe( array( 7 ) );
+		expect( get_option( 'skwirrel_wc_sync_force_full_sync' ) )->toBeFalsy();
+	}
+);
+
+test(
+	'while not rendered, a stored rejected Context ID raises no error on the next save and keeps the context in use',
+	function (): void {
+		$settings = Skwirrel_WC_Sync_Admin_Settings::instance();
+		update_option( 'skwirrel_wc_sync_settings', $settings->sanitize_settings( array( 'context_id' => '7', 'collection_ids' => '1' ) ) );
+		update_option( 'skwirrel_wc_sync_settings', $settings->sanitize_settings( array( 'context_id' => 'abc', 'collection_ids' => '1' ) ) );
+		delete_option( 'skwirrel_wc_sync_force_full_sync' );
+		$GLOBALS['wp_settings_errors'] = array();
+
+		// Saving what the screen submits (no context_id) raises no error and schedules no full re-sync.
+		$resaved = $settings->sanitize_settings( array( 'collection_ids' => '1' ) );
+		$codes   = array_column( get_settings_errors( 'skwirrel_wc_sync_settings' ), 'code' );
+		expect( $codes )->not->toContain( 'context_id' );
+		update_option( 'skwirrel_wc_sync_settings', $resaved );
+
+		expect( Skwirrel_WC_Sync_Admin_Settings::get_context_ids() )->toBe( array( 7 ) );
+		expect( get_option( 'skwirrel_wc_sync_force_full_sync' ) )->toBeFalsy();
+	}
+);
+
+test(
+	'while not rendered, a rejected Context ID neither renders an inline error nor flags the Connection tab',
+	function (): void {
+		$stored = Skwirrel_WC_Sync_Admin_Settings::instance()->sanitize_settings(
+			array(
+				'context_id'     => 'abc',
+				'collection_ids' => '1',
+			)
+		);
+		update_option( 'skwirrel_wc_sync_settings', $stored );
+
+		$html  = skwContextRenderScreen();
+		$xpath = skwContextXPath( $html );
+
+		expect( skwContextElementById( $xpath, 'context_id' ) )->toBeNull();
+		expect( skwContextElementById( $xpath, 'context_id-error' ) )->toBeNull();
+		expect( $html )->not->toMatch( '/id="tab-connection"[^>]*skw-tab-error|skw-tab-error[^>]*id="tab-connection"/s' );
 	}
 );
 

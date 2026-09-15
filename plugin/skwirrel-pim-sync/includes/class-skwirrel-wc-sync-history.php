@@ -202,6 +202,7 @@ class Skwirrel_WC_Sync_History {
 	 * @param string $run_id             Run uuid, for run-scoped product deep-links from the overview.
 	 * @param string $warning            Non-fatal advisory for a successful run that deliberately
 	 *                                   withheld an action (e.g. a refused mass removal).
+	 * @param int    $started_at         Unix time the run started (0 if unknown), for the run duration.
 	 *
 	 * @return void
 	 */
@@ -220,7 +221,8 @@ class Skwirrel_WC_Sync_History {
 		int $unchanged = 0,
 		int $deprecated = 0,
 		string $run_id = '',
-		string $warning = ''
+		string $warning = '',
+		int $started_at = 0
 	): void {
 		$result = [
 			'success'            => $ok,
@@ -238,6 +240,7 @@ class Skwirrel_WC_Sync_History {
 			'with_attributes'    => $with_attrs,
 			'without_attributes' => $without_attrs,
 			'trigger'            => $trigger,
+			'started_at'         => $started_at,
 			'timestamp'          => time(),
 			'log_file'           => $log_file,
 			'run_id'             => $run_id,

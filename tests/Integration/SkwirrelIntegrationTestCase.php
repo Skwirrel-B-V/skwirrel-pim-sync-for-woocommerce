@@ -34,6 +34,9 @@ class Skwirrel_Integration_TestCase extends \PHPUnit\Framework\TestCase {
 		if ( function_exists( 'skwPurgeSkwirrelOptions' ) ) {
 			skwPurgeSkwirrelOptions();
 		}
+		if ( function_exists( 'remove_all_filters' ) ) {
+			remove_all_filters( 'skwirrel_wc_sync_context_id_field_visible' );
+		}
 
 		parent::tearDown();
 	}

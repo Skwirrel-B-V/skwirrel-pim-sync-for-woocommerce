@@ -786,11 +786,14 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	/**
 	 * Get attributes/specs for product (custom attributes, no taxonomy needed).
 	 * Includes Manufacturer, GTIN, and ETIM features from _product_groups._etim._etim_features.
+	 *
+	 * @param array<string, mixed>      $product Skwirrel product data.
+	 * @param array<string, mixed>|null $options The run's frozen settings; null reads the live option.
 	 */
-	public function get_attributes( array $product ): array {
+	public function get_attributes( array $product, ?array $options = null ): array {
 		$attrs = [];
 		// Only include manufacturer as attribute if not synced as taxonomy
-		$options      = get_option( 'skwirrel_wc_sync_settings', [] );
+		$options      = $options ?? get_option( 'skwirrel_wc_sync_settings', [] );
 		$manufacturer = $product['manufacturer_name'] ?? '';
 		if ( ! empty( $manufacturer ) && empty( $options['sync_manufacturers'] ) ) {
 			$attrs['Manufacturer'] = $manufacturer;
@@ -799,7 +802,8 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		if ( ! empty( $gtin ) ) {
 			$attrs['GTIN'] = $gtin;
 		}
-		$etim = $this->etim->get_etim_attributes( $product );
+		// sync_etim off: no ETIM attributes, even when grouped products still fetch `_etim` for axes.
+		$etim = ! empty( $options['sync_etim'] ?? true ) ? $this->etim->get_etim_attributes( $product ) : [];
 		foreach ( $etim as $name => $value ) {
 			if ( '' !== $value && null !== $value ) {
 				$attrs[ $name ] = (string) $value;

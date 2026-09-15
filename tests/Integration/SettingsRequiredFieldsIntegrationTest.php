@@ -440,6 +440,37 @@ test( 'no field that validation can reject calls itself optional in its label', 
 } );
 
 /**
+ * AC1 / AC3 — DOM presence is not presence to the store owner. A field that is required or
+ * carries an error must be one the owner can see, or the screen demands a fix nobody can make.
+ * Asserted with the default configuration, so a newly hidden field fails here, not in a trace.
+ */
+test( 'no required or invalid field, and no inline error, sits inside a hidden element', function (): void {
+	$opts = (array) get_option( 'skwirrel_wc_sync_settings' );
+	foreach ( [ 'sync_categories', 'sync_custom_classes', 'sync_trade_item_custom_classes', 'sync_grouped_products' ] as $key ) {
+		$opts[ $key ] = true;
+	}
+	update_option( 'skwirrel_wc_sync_settings', $opts );
+
+	Skwirrel_WC_Sync_Admin_Settings::instance()->sanitize_settings(
+		[
+			'sync_categories'   => '1',
+			'super_category_id' => '',
+			'collection_ids'    => '',
+			'context_id'        => 'abc',
+		]
+	);
+
+	$xpath    = skwRequiredFieldsXPath( skwRenderRequiredFieldsScreen() );
+	$elements = $xpath->query( '//*[@aria-required="true"] | //*[@aria-invalid="true"] | //*[@data-skw-error-field]' );
+
+	expect( $elements->length )->toBeGreaterThan( 0 );
+	foreach ( $elements as $element ) {
+		$hidden = skwHiddenAncestor( $element );
+		expect( $hidden )->toBeNull( ( $element->getAttribute( 'id' ) ?: $element->getAttribute( 'data-skw-error-field' ) ) . ' is required or invalid but hidden' );
+	}
+} );
+
+/**
  * AC2 — the off state is the full off state: no marker, no `required`, and no `aria-required`
  * either. custom_collection_id is never required, whatever else is configured (the sync run
  * itself fails fast with a clear message when a feature that needs it is on and it is missing).
@@ -504,6 +535,8 @@ test( 'an inline message is added to the field description, not swapped in for t
  * All three mapped codes must land at their own field, not just the two that were sampled.
  */
 test( 'every mapped error code renders at the field it names', function (): void {
+	// Context ID is hidden by default; its inline error only exists while the field is shown.
+	add_filter( 'skwirrel_wc_sync_context_id_field_visible', '__return_true' );
 	Skwirrel_WC_Sync_Admin_Settings::instance()->sanitize_settings(
 		[
 			'sync_categories'       => '1',
@@ -527,6 +560,7 @@ test( 'every mapped error code renders at the field it names', function (): void
 
 		$input = skwRequiredFieldsElementById( $xpath, $field );
 		expect( $input->getAttribute( 'aria-invalid' ) )->toBe( 'true', $field . ' is not marked invalid' );
+		expect( skwHiddenAncestor( $input ) )->toBeNull( $field . ' carries an error inside a hidden element' );
 
 		$block = $xpath->query( '//*[@data-skw-error-field="' . $field . '"]' );
 		expect( $block->length )->toBe( 1, $field . ' has no marked field block' );

@@ -94,6 +94,22 @@ require_once __DIR__ . '/SkwirrelIntegrationTestCase.php';
 uses( Skwirrel_Integration_TestCase::class )->in( __DIR__ );
 
 /**
+ * The nearest element, the given one included, that carries the `hidden` attribute.
+ *
+ * DOM presence is not presence to the store owner: a field inside a `hidden` wrapper renders,
+ * submits and satisfies every attribute assertion while nobody can see or correct it.
+ */
+function skwHiddenAncestor( DOMElement $element ): ?DOMElement {
+	for ( $node = $element; $node instanceof DOMElement; $node = $node->parentNode ) {
+		if ( $node->hasAttribute( 'hidden' ) ) {
+			return $node;
+		}
+	}
+
+	return null;
+}
+
+/**
  * Is this JSON-RPC call the sync run's membership sweep?
  *
  * The sweep (Story 2.6) asks `getProductsByFilter` for the complete product-id membership of a

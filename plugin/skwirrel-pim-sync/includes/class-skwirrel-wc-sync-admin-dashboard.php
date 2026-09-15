@@ -76,7 +76,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<div id="skwirrel-notices" class="skw-notices"></div>
 
 			<?php // -- Sync Progress Banner (reactive; the status poller refreshes this in place) -- ?>
-			<div id="skwirrel-sync-banner">
+			<div id="skwirrel-sync-banner" class="skw-content">
 				<?php
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted plugin-generated markup; dynamic values are escaped inside the renderer.
 				echo self::get_sync_banner_html();
@@ -126,181 +126,209 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	}
 
 	/**
-	 * Render the dashboard grid with action blocks.
+	 * Render the Overview page: header, last-sync summary, action cards and the last five runs.
 	 *
 	 * @param bool $sync_in_progress Whether a sync is currently running.
 	 */
 	private function render_page_dashboard( bool $sync_in_progress ): void {
-		$base_url    = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
-		$last_sync   = Skwirrel_WC_Sync_History::get_last_sync();
-		$last_result = Skwirrel_WC_Sync_History::get_last_result();
-		$history     = Skwirrel_WC_Sync_History::get_sync_history();
+		$base_url     = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		$settings_url = add_query_arg( 'tab', 'settings', $base_url );
+		$history_url  = add_query_arg( 'tab', 'history', $base_url );
+		$sync_url     = wp_nonce_url( admin_url( 'admin-post.php?action=skwirrel_wc_sync_run' ), 'skwirrel_wc_sync_run', '_wpnonce' );
+		$last_sync    = Skwirrel_WC_Sync_History::get_last_sync();
+		$last_result  = Skwirrel_WC_Sync_History::get_last_result();
+		$history      = Skwirrel_WC_Sync_History::get_sync_history();
+		$logger       = new Skwirrel_WC_Sync_Logger();
+		$log_url      = $logger->get_log_file_url();
 
-		// Last sync status summary.
-		if ( $last_result ) {
-			$created   = (int) ( $last_result['created'] ?? 0 );
-			$updated   = (int) ( $last_result['updated'] ?? 0 );
-			$unchanged = (int) ( $last_result['unchanged'] ?? 0 );
-			$failed    = (int) ( $last_result['failed'] ?? 0 );
-			$total     = $created + $updated + $unchanged + $failed;
-		}
-
+		/* translators: %d = number of history entries */
+		$runs_recorded = sprintf( __( '%d sync runs recorded.', 'skwirrel-pim-sync' ), count( $history ) );
 		?>
-		<?php // -- Last sync result card -- ?>
-		<?php if ( ! $sync_in_progress && $last_result ) : ?>
-			<div class="skw-status-card <?php echo esc_attr( $last_result['success'] ? 'skw-status-success' : 'skw-status-error' ); ?>">
-				<div class="skw-status-icon">
-					<?php if ( $last_result['success'] ) : ?>
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
-					<?php else : ?>
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
-					<?php endif; ?>
+		<div class="skw-overview-page">
+			<div class="skw-ov-crumbs">
+				<a href="<?php echo esc_url( $base_url ); ?>"><?php esc_html_e( 'Skwirrel PIM Sync', 'skwirrel-pim-sync' ); ?></a>
+				<span aria-hidden="true">/</span>
+				<span><?php esc_html_e( 'Overview', 'skwirrel-pim-sync' ); ?></span>
+			</div>
+			<div class="skw-ov-header">
+				<div>
+					<h1><?php esc_html_e( 'Overview', 'skwirrel-pim-sync' ); ?></h1>
+					<p><?php esc_html_e( 'Sync status, the actions you need most often, and the last five runs.', 'skwirrel-pim-sync' ); ?></p>
 				</div>
-				<div class="skw-status-body">
-					<p class="skw-status-title">
-						<?php echo $last_result['success'] ? esc_html__( 'Last sync successful', 'skwirrel-pim-sync' ) : esc_html__( 'Last sync failed', 'skwirrel-pim-sync' ); ?>
-					</p>
-					<p class="skw-status-meta">
-						<?php if ( $last_result['success'] ) : ?>
-							<?php echo $last_sync ? esc_html( $this->format_datetime( $last_sync ) ) : ''; ?>
-							&mdash;
-							<span class="skw-c-green"><?php echo esc_html( (string) $created ); ?> <?php esc_html_e( 'created', 'skwirrel-pim-sync' ); ?></span>,
-							<span class="skw-c-blue"><?php echo esc_html( (string) $updated ); ?> <?php esc_html_e( 'updated', 'skwirrel-pim-sync' ); ?></span>,
-							<span class="skw-c-muted"><?php echo esc_html( (string) $unchanged ); ?> <?php esc_html_e( 'unchanged', 'skwirrel-pim-sync' ); ?></span>,
-							<span class="skw-c-red"><?php echo esc_html( (string) $failed ); ?> <?php esc_html_e( 'failed', 'skwirrel-pim-sync' ); ?></span>
-						<?php else : ?>
-							<?php echo ! empty( $last_result['timestamp'] ) ? esc_html( $this->format_datetime( $last_result['timestamp'] ) ) : ''; ?>
-							<?php if ( ! empty( $last_result['error'] ) ) : ?>
-								&mdash; <?php echo esc_html( $last_result['error'] ); ?>
-							<?php endif; ?>
-							<?php if ( $last_sync ) : ?>
-								<br><small><?php esc_html_e( 'Last successful sync:', 'skwirrel-pim-sync' ); ?> <?php echo esc_html( $this->format_datetime( $last_sync ) ); ?></small>
-							<?php endif; ?>
-						<?php endif; ?>
-					</p>
-					<?php // A successful run can still have withheld something (e.g. a refused mass removal). ?>
-					<?php if ( ! empty( $last_result['warning'] ) ) : ?>
-						<p class="skw-status-meta skw-c-yellow"><?php echo esc_html( (string) $last_result['warning'] ); ?></p>
+				<div class="skw-ov-header-actions">
+					<?php if ( $sync_in_progress ) : ?>
+						<span class="skw-ov-btn skw-ov-btn-solid skw-ov-btn-disabled" aria-disabled="true"><i class="ph ph-arrows-clockwise skw-spin" aria-hidden="true"></i> <?php esc_html_e( 'Sync in progress…', 'skwirrel-pim-sync' ); ?></span>
+					<?php else : ?>
+						<a href="<?php echo esc_url( $sync_url ); ?>" class="skw-ov-btn skw-ov-btn-solid"><i class="ph ph-play" aria-hidden="true"></i> <?php esc_html_e( 'Sync now', 'skwirrel-pim-sync' ); ?></a>
 					<?php endif; ?>
+					<a href="<?php echo esc_url( $settings_url ); ?>" class="skw-ov-btn skw-ov-btn-sm"><i class="ph ph-gear" aria-hidden="true"></i> <?php esc_html_e( 'Settings', 'skwirrel-pim-sync' ); ?></a>
 				</div>
 			</div>
-		<?php endif; ?>
 
-		<?php // -- Action Blocks Grid -- ?>
-		<div class="skw-grid">
-
-			<?php // -- Sync Now -- ?>
-			<?php if ( $sync_in_progress ) : ?>
-				<div id="skwirrel-sync-now" class="skw-block skw-block-disabled">
-					<div class="skw-block-icon skw-bg-blue">
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="24" height="24" class="skw-spin"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182M21.015 4.356v4.992" stroke-linecap="round" stroke-linejoin="round" /></svg>
+			<?php // -- Last sync result -- ?>
+			<?php if ( ! $sync_in_progress && $last_result ) : ?>
+				<?php
+				$success   = ! empty( $last_result['success'] );
+				$finished  = (int) ( $last_result['timestamp'] ?? 0 );
+				$started   = (int) ( $last_result['started_at'] ?? 0 );
+				$trigger   = (string) ( $last_result['trigger'] ?? Skwirrel_WC_Sync_History::TRIGGER_MANUAL );
+				$trigger_l = array(
+					Skwirrel_WC_Sync_History::TRIGGER_MANUAL    => __( 'manual run', 'skwirrel-pim-sync' ),
+					Skwirrel_WC_Sync_History::TRIGGER_SCHEDULED => __( 'scheduled run', 'skwirrel-pim-sync' ),
+					Skwirrel_WC_Sync_History::TRIGGER_PURGE     => __( 'purge', 'skwirrel-pim-sync' ),
+				);
+				$meta      = array();
+				if ( $success ) {
+					if ( $finished ) {
+						$meta[] = $this->format_datetime( $finished );
+					}
+					$meta[] = $trigger_l[ $trigger ] ?? $trigger_l[ Skwirrel_WC_Sync_History::TRIGGER_MANUAL ];
+					// Results recorded before started_at existed have no duration to show.
+					if ( $started > 0 && $finished >= $started ) {
+						/* translators: %s = human-readable duration, e.g. "1 min" */
+						$meta[] = sprintf( __( 'took ~%s', 'skwirrel-pim-sync' ), human_time_diff( $started, $finished ) );
+					}
+				} else {
+					if ( $finished ) {
+						$meta[] = $this->format_datetime( $finished );
+					}
+					if ( ! empty( $last_result['error'] ) ) {
+						$meta[] = (string) $last_result['error'];
+					}
+				}
+				$chips = array(
+					__( 'created', 'skwirrel-pim-sync' )   => (int) ( $last_result['created'] ?? 0 ),
+					__( 'updated', 'skwirrel-pim-sync' )   => (int) ( $last_result['updated'] ?? 0 ),
+					__( 'unchanged', 'skwirrel-pim-sync' ) => (int) ( $last_result['unchanged'] ?? 0 ),
+					__( 'failed', 'skwirrel-pim-sync' )    => (int) ( $last_result['failed'] ?? 0 ),
+				);
+				?>
+				<div class="skw-ov-status <?php echo esc_attr( $success ? 'skw-ov-status-success' : 'skw-ov-status-error' ); ?>">
+					<i class="ph <?php echo esc_attr( $success ? 'ph-check-circle' : 'ph-warning-circle' ); ?>" aria-hidden="true"></i>
+					<div class="skw-ov-status-body">
+						<div class="skw-ov-status-title">
+							<?php echo $success ? esc_html__( 'Last sync successful', 'skwirrel-pim-sync' ) : esc_html__( 'Last sync failed', 'skwirrel-pim-sync' ); ?>
+						</div>
+						<div class="skw-ov-status-meta"><?php echo esc_html( implode( ' · ', array_filter( $meta ) ) ); ?></div>
+						<?php if ( ! $success && $last_sync ) : ?>
+							<div class="skw-ov-status-meta"><?php esc_html_e( 'Last successful sync:', 'skwirrel-pim-sync' ); ?> <?php echo esc_html( $this->format_datetime( $last_sync ) ); ?></div>
+						<?php endif; ?>
+						<?php // A successful run can still have withheld something (e.g. a refused mass removal). ?>
+						<?php if ( ! empty( $last_result['warning'] ) ) : ?>
+							<div class="skw-ov-status-meta skw-ov-status-warning"><?php echo esc_html( (string) $last_result['warning'] ); ?></div>
+						<?php endif; ?>
 					</div>
-					<div class="skw-block-body">
-						<h3 class="skw-block-title"><?php esc_html_e( 'Sync in progress…', 'skwirrel-pim-sync' ); ?></h3>
-						<p class="skw-block-desc"><?php esc_html_e( 'Products are being synchronized. Progress updates live below.', 'skwirrel-pim-sync' ); ?></p>
-					</div>
+					<?php if ( $success ) : ?>
+						<div class="skw-ov-chips">
+							<?php foreach ( $chips as $chip_label => $chip_count ) : ?>
+								<span class="skw-ov-chip"><strong><?php echo esc_html( (string) $chip_count ); ?></strong> <?php echo esc_html( $chip_label ); ?></span>
+							<?php endforeach; ?>
+						</div>
+					<?php endif; ?>
 				</div>
-			<?php else : ?>
-				<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skwirrel_wc_sync_run' ), 'skwirrel_wc_sync_run', '_wpnonce' ) ); ?>" id="skwirrel-sync-now" class="skw-block">
-					<div class="skw-block-icon skw-bg-blue">
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="24" height="24"><path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
-					</div>
-					<div class="skw-block-body">
-						<h3 class="skw-block-title"><?php esc_html_e( 'Sync Now', 'skwirrel-pim-sync' ); ?></h3>
-						<p class="skw-block-desc"><?php esc_html_e( 'Start a full product synchronization from Skwirrel PIM.', 'skwirrel-pim-sync' ); ?></p>
-					</div>
-					<span class="skw-block-arrow"><svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M20 4h1a1 1 0 00-1-1v1zm-1 12a1 1 0 102 0h-2zM8 3a1 1 0 000 2V3zM3.293 19.293a1 1 0 101.414 1.414l-1.414-1.414zM19 4v12h2V4h-2zm1-1H8v2h12V3zm-.707.293l-16 16 1.414 1.414 16-16-1.414-1.414z" /></svg></span>
-				</a>
 			<?php endif; ?>
 
-			<?php // -- Sync History -- ?>
-			<a href="<?php echo esc_url( add_query_arg( 'tab', 'history', $base_url ) ); ?>" class="skw-block">
-				<div class="skw-block-icon skw-bg-teal">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="24" height="24"><path d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
-				</div>
-				<div class="skw-block-body">
-					<h3 class="skw-block-title"><?php esc_html_e( 'Sync History', 'skwirrel-pim-sync' ); ?></h3>
-					<p class="skw-block-desc">
-						<?php
-						/* translators: %d = number of history entries */
-						echo esc_html( sprintf( __( '%d sync runs recorded.', 'skwirrel-pim-sync' ), count( $history ) ) );
-						?>
-					</p>
-				</div>
-				<span class="skw-block-arrow"><svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M20 4h1a1 1 0 00-1-1v1zm-1 12a1 1 0 102 0h-2zM8 3a1 1 0 000 2V3zM3.293 19.293a1 1 0 101.414 1.414l-1.414-1.414zM19 4v12h2V4h-2zm1-1H8v2h12V3zm-.707.293l-16 16 1.414 1.414 16-16-1.414-1.414z" /></svg></span>
-			</a>
+			<?php // -- Action cards -- ?>
+			<div class="skw-ov-cards">
+				<?php if ( $sync_in_progress ) : ?>
+					<div id="skwirrel-sync-now" class="skw-ov-card skw-ov-card-primary skw-ov-card-disabled">
+						<div class="skw-ov-card-top">
+							<span class="skw-ov-tile"><i class="ph ph-arrows-clockwise skw-spin" aria-hidden="true"></i></span>
+						</div>
+						<div>
+							<div class="skw-ov-card-title"><?php esc_html_e( 'Sync in progress…', 'skwirrel-pim-sync' ); ?></div>
+							<p><?php esc_html_e( 'Products are being synchronized. Progress updates live below.', 'skwirrel-pim-sync' ); ?></p>
+						</div>
+					</div>
+				<?php else : ?>
+					<a href="<?php echo esc_url( $sync_url ); ?>" id="skwirrel-sync-now" class="skw-ov-card skw-ov-card-primary">
+						<div class="skw-ov-card-top">
+							<span class="skw-ov-tile"><i class="ph ph-play" aria-hidden="true"></i></span>
+							<i class="ph ph-arrow-up-right skw-ov-card-arrow" aria-hidden="true"></i>
+						</div>
+						<div>
+							<div class="skw-ov-card-title"><?php esc_html_e( 'Sync now', 'skwirrel-pim-sync' ); ?></div>
+							<p><?php esc_html_e( 'Start a full product synchronization from Skwirrel PIM.', 'skwirrel-pim-sync' ); ?></p>
+						</div>
+					</a>
+				<?php endif; ?>
 
-			<?php // -- Settings -- ?>
-			<a href="<?php echo esc_url( add_query_arg( 'tab', 'settings', $base_url ) ); ?>" class="skw-block">
-				<div class="skw-block-icon skw-bg-slate">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="24" height="24"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.431.992a7.723 7.723 0 0 1 0 .255c-.007.378.138.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
-				</div>
-				<div class="skw-block-body">
-					<h3 class="skw-block-title"><?php esc_html_e( 'Settings', 'skwirrel-pim-sync' ); ?></h3>
-					<p class="skw-block-desc"><?php esc_html_e( 'Configure API connection, sync options, and scheduling.', 'skwirrel-pim-sync' ); ?></p>
-				</div>
-				<span class="skw-block-arrow"><svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M20 4h1a1 1 0 00-1-1v1zm-1 12a1 1 0 102 0h-2zM8 3a1 1 0 000 2V3zM3.293 19.293a1 1 0 101.414 1.414l-1.414-1.414zM19 4v12h2V4h-2zm1-1H8v2h12V3zm-.707.293l-16 16 1.414 1.414 16-16-1.414-1.414z" /></svg></span>
-			</a>
+				<a href="<?php echo esc_url( $history_url ); ?>" class="skw-ov-card">
+					<div class="skw-ov-card-top">
+						<span class="skw-ov-tile"><i class="ph ph-clock" aria-hidden="true"></i></span>
+						<i class="ph ph-arrow-up-right skw-ov-card-arrow" aria-hidden="true"></i>
+					</div>
+					<div>
+						<div class="skw-ov-card-title"><?php esc_html_e( 'Sync history', 'skwirrel-pim-sync' ); ?></div>
+						<p><?php echo esc_html( $runs_recorded ); ?></p>
+					</div>
+				</a>
 
-			<?php
-			// -- Sync Logs (direct link to WooCommerce logs) -- .
-			$logger  = new Skwirrel_WC_Sync_Logger();
-			$log_url = $logger->get_log_file_url();
-			?>
-			<a href="<?php echo esc_url( $log_url ? $log_url : '#' ); ?>" class="skw-block" <?php echo $log_url ? 'target="_blank"' : ''; ?>>
-				<div class="skw-block-icon skw-bg-yellow">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="24" height="24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
-				</div>
-				<div class="skw-block-body">
-					<h3 class="skw-block-title"><?php esc_html_e( 'Sync Logs', 'skwirrel-pim-sync' ); ?></h3>
-					<p class="skw-block-desc"><?php esc_html_e( 'View detailed sync log files in WooCommerce.', 'skwirrel-pim-sync' ); ?></p>
-				</div>
-				<span class="skw-block-arrow"><svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M20 4h1a1 1 0 00-1-1v1zm-1 12a1 1 0 102 0h-2zM8 3a1 1 0 000 2V3zM3.293 19.293a1 1 0 101.414 1.414l-1.414-1.414zM19 4v12h2V4h-2zm1-1H8v2h12V3zm-.707.293l-16 16 1.414 1.414 16-16-1.414-1.414z" /></svg></span>
-			</a>
+				<a href="<?php echo esc_url( $settings_url ); ?>" class="skw-ov-card">
+					<div class="skw-ov-card-top">
+						<span class="skw-ov-tile"><i class="ph ph-gear" aria-hidden="true"></i></span>
+						<i class="ph ph-arrow-up-right skw-ov-card-arrow" aria-hidden="true"></i>
+					</div>
+					<div>
+						<div class="skw-ov-card-title"><?php esc_html_e( 'Settings', 'skwirrel-pim-sync' ); ?></div>
+						<p><?php esc_html_e( 'Configure API connection, sync options and scheduling.', 'skwirrel-pim-sync' ); ?></p>
+					</div>
+				</a>
 
-			<?php // -- Debug -- ?>
-			<a href="<?php echo esc_url( add_query_arg( 'tab', 'debug', $base_url ) ); ?>" class="skw-block skw-block-compact">
-				<div class="skw-block-icon skw-bg-rose">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M12 12.75c1.148 0 2.278.08 3.383.237 1.037.146 1.866.966 1.866 2.013 0 3.728-2.35 6.75-5.25 6.75S6.75 18.728 6.75 15c0-1.046.83-1.867 1.866-2.013A24.204 24.204 0 0 1 12 12.75Zm0 0c2.883 0 5.647.508 8.207 1.44a23.91 23.91 0 0 1-1.152-6.135 3.24 3.24 0 0 0-.399-1.003 3.278 3.278 0 0 0-.755-.89 3.245 3.245 0 0 0-1.614-.637 23.834 23.834 0 0 0-8.574 0 3.245 3.245 0 0 0-2.37 1.527 3.24 3.24 0 0 0-.398 1.003 23.91 23.91 0 0 1-1.152 6.135A23.856 23.856 0 0 1 12 12.75ZM2.695 18.678a25.076 25.076 0 0 1 3.197-7.8c.07-.116.145-.229.225-.34A3 3 0 0 1 8.46 9.15a24.795 24.795 0 0 1 7.078 0 3 3 0 0 1 2.345 1.388c.08.111.155.224.225.34a25.076 25.076 0 0 1 3.197 7.8 24.237 24.237 0 0 1-9.305 1.822 24.237 24.237 0 0 1-9.305-1.822Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
-				</div>
-				<div class="skw-block-body">
-					<h3 class="skw-block-title"><?php esc_html_e( 'Debug', 'skwirrel-pim-sync' ); ?></h3>
-					<p class="skw-block-desc"><?php esc_html_e( 'Live sync log and variation attribute debugging.', 'skwirrel-pim-sync' ); ?></p>
-				</div>
-				<span class="skw-block-arrow"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M20 4h1a1 1 0 00-1-1v1zm-1 12a1 1 0 102 0h-2zM8 3a1 1 0 000 2V3zM3.293 19.293a1 1 0 101.414 1.414l-1.414-1.414zM19 4v12h2V4h-2zm1-1H8v2h12V3zm-.707.293l-16 16 1.414 1.414 16-16-1.414-1.414z" /></svg></span>
-			</a>
+				<a href="<?php echo esc_url( $log_url ? $log_url : '#' ); ?>" class="skw-ov-card" <?php echo $log_url ? 'target="_blank" rel="noopener noreferrer"' : ''; ?>>
+					<div class="skw-ov-card-top">
+						<span class="skw-ov-tile"><i class="ph ph-file-text" aria-hidden="true"></i></span>
+						<i class="ph ph-arrow-up-right skw-ov-card-arrow" aria-hidden="true"></i>
+					</div>
+					<div>
+						<div class="skw-ov-card-title"><?php esc_html_e( 'Sync logs', 'skwirrel-pim-sync' ); ?></div>
+						<p><?php esc_html_e( 'View detailed sync log files in WooCommerce.', 'skwirrel-pim-sync' ); ?></p>
+					</div>
+				</a>
 
-			<?php // -- Danger Zone -- ?>
-			<a href="<?php echo esc_url( add_query_arg( 'tab', 'settings', $base_url ) . '#tab-danger-zone' ); ?>" class="skw-block skw-block-compact skw-block-danger">
-				<div class="skw-block-icon skw-bg-red">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
-				</div>
-				<div class="skw-block-body">
-					<h3 class="skw-block-title"><?php esc_html_e( 'Danger Zone', 'skwirrel-pim-sync' ); ?></h3>
-					<p class="skw-block-desc"><?php esc_html_e( 'Delete all synced products and start fresh.', 'skwirrel-pim-sync' ); ?></p>
-				</div>
-				<span class="skw-block-arrow"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M20 4h1a1 1 0 00-1-1v1zm-1 12a1 1 0 102 0h-2zM8 3a1 1 0 000 2V3zM3.293 19.293a1 1 0 101.414 1.414l-1.414-1.414zM19 4v12h2V4h-2zm1-1H8v2h12V3zm-.707.293l-16 16 1.414 1.414 16-16-1.414-1.414z" /></svg></span>
-			</a>
+				<a href="<?php echo esc_url( add_query_arg( 'tab', 'debug', $base_url ) ); ?>" class="skw-ov-card">
+					<div class="skw-ov-card-top">
+						<span class="skw-ov-tile skw-ov-tile-blue"><i class="ph ph-bug" aria-hidden="true"></i></span>
+						<i class="ph ph-arrow-up-right skw-ov-card-arrow" aria-hidden="true"></i>
+					</div>
+					<div>
+						<div class="skw-ov-card-title"><?php esc_html_e( 'Debug', 'skwirrel-pim-sync' ); ?></div>
+						<p><?php esc_html_e( 'Live sync log and variation attribute debugging.', 'skwirrel-pim-sync' ); ?></p>
+					</div>
+				</a>
 
-		</div>
-
-		<?php // -- Quick History (last 5 entries) -- ?>
-		<?php if ( ! empty( $history ) ) : ?>
-			<?php $recent = array_slice( $history, 0, 5 ); ?>
-			<div class="skw-section">
-				<div class="skw-section-header">
-					<h2 class="skw-section-title"><?php esc_html_e( 'Recent syncs', 'skwirrel-pim-sync' ); ?></h2>
-					<a href="<?php echo esc_url( add_query_arg( 'tab', 'history', $base_url ) ); ?>" class="skw-link"><?php esc_html_e( 'View all', 'skwirrel-pim-sync' ); ?> &rarr;</a>
-				</div>
-				<?php $this->render_history_table( $recent ); ?>
+				<a href="<?php echo esc_url( $settings_url . '#tab-danger-zone' ); ?>" class="skw-ov-card skw-ov-card-danger">
+					<div class="skw-ov-card-top">
+						<span class="skw-ov-tile skw-ov-tile-red"><i class="ph ph-warning-octagon" aria-hidden="true"></i></span>
+						<i class="ph ph-arrow-up-right skw-ov-card-arrow" aria-hidden="true"></i>
+					</div>
+					<div>
+						<div class="skw-ov-card-title"><?php esc_html_e( 'Danger zone', 'skwirrel-pim-sync' ); ?></div>
+						<p><?php esc_html_e( 'Delete all synced products and start fresh.', 'skwirrel-pim-sync' ); ?></p>
+					</div>
+				</a>
 			</div>
-		<?php endif; ?>
+
+			<?php // -- Recent syncs (last 5 entries) -- ?>
+			<?php if ( ! empty( $history ) ) : ?>
+				<section class="skw-ov-section">
+					<div class="skw-ov-section-head">
+						<div class="skw-ov-section-head-main">
+							<span class="skw-ov-tile"><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i></span>
+							<div>
+								<h2><?php esc_html_e( 'Recent syncs', 'skwirrel-pim-sync' ); ?></h2>
+								<p><?php echo esc_html( $runs_recorded ); ?></p>
+							</div>
+						</div>
+						<a href="<?php echo esc_url( $history_url ); ?>" class="skw-ov-link"><?php esc_html_e( 'View all', 'skwirrel-pim-sync' ); ?> &rarr;</a>
+					</div>
+					<?php $this->render_history_table( array_slice( $history, 0, 5 ) ); ?>
+				</section>
+			<?php endif; ?>
+		</div>
 		<?php
 	}
 
-	/**
-	 * Render sync progress banner.
-	 */
 	/**
 	 * WooCommerce state labels shown in the product-status-handling selects.
 	 *
@@ -466,6 +494,8 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<div class="skw-status-body">
 				<p class="skw-status-title"><?php esc_html_e( 'Sync appears stuck', 'skwirrel-pim-sync' ); ?></p>
 				<p class="skw-status-meta"><?php echo esc_html( $message ); ?></p>
+				<?php // Offered here too, not only on the delete-lock notice: that one stops rendering once the run state is older than the delete-lock TTL, while this warning has no age limit. ?>
+				<p><button type="button" class="button skwirrel-clear-stuck-run-lock"><?php esc_html_e( 'Clear stuck sync lock', 'skwirrel-pim-sync' ); ?></button></p>
 			</div>
 		</div>
 		<?php
@@ -769,7 +799,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							<td class="skw-td-right skw-td-bold"><?php echo esc_html( (string) $total ); ?></td>
 							<td class="skw-td-left">
 								<?php if ( $log_exists ) : ?>
-									<button type="button" class="skw-btn skw-btn-secondary skw-btn-log-view" data-log-file="<?php echo esc_attr( $log_file ); ?>"><?php esc_html_e( 'View', 'skwirrel-pim-sync' ); ?></button>
+									<button type="button" class="skw-btn skw-btn-secondary skw-btn-log-view" data-log-file="<?php echo esc_attr( $log_file ); ?>"><?php esc_html_e( 'View log', 'skwirrel-pim-sync' ); ?></button>
 								<?php endif; ?>
 							</td>
 						</tr>
@@ -788,6 +818,21 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<?php endif; ?>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Whether the Context ID field is shown on the Connection tab.
+	 */
+	public static function is_context_id_field_visible(): bool {
+		/**
+		 * Filters whether the Context ID field is shown on the Connection tab.
+		 *
+		 * Hidden by default until multi-context instances are generally available. The stored
+		 * value and every API path behind it work either way.
+		 *
+		 * @param bool $visible Whether to show the field. Default false.
+		 */
+		return (bool) apply_filters( 'skwirrel_wc_sync_context_id_field_visible', false );
 	}
 
 	/**
@@ -1121,27 +1166,23 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<p class="skw-fg-desc"><?php esc_html_e( 'Both actions below take effect immediately.', 'skwirrel-pim-sync' ); ?></p>
 			</div>
 		</div>
-		<div class="skw-fieldgroup">
-			<h3 class="skw-block-title skw-c-red"><?php esc_html_e( 'Delete all products', 'skwirrel-pim-sync' ); ?></h3>
-			<p class="skw-section-desc"><?php esc_html_e( 'Delete all products created or synced by Skwirrel. This cannot be undone if you empty the trash.', 'skwirrel-pim-sync' ); ?></p>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-purge-form">
+		<div class="skw-dz-action">
+			<h3 class="skw-dz-title"><?php esc_html_e( 'Delete all products', 'skwirrel-pim-sync' ); ?></h3>
+			<p class="skw-dz-desc"><?php esc_html_e( 'Delete all products created or synced by Skwirrel. This cannot be undone if you empty the trash.', 'skwirrel-pim-sync' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-purge-form" class="skw-dz-row">
 				<input type="hidden" name="action" value="skwirrel_wc_sync_purge" />
 				<?php wp_nonce_field( 'skwirrel_wc_sync_purge', '_wpnonce' ); ?>
 				<label class="skw-checkbox"><input type="checkbox" name="skwirrel_purge_empty_trash" value="1" id="skwirrel-purge-permanent" /> <?php esc_html_e( 'Also empty the trash (permanently delete)', 'skwirrel-pim-sync' ); ?></label>
-				<div class="skw-field-actions" style="margin-top: 12px;">
-					<button type="submit" class="skw-btn skw-btn-danger-solid"><i class="ph ph-trash" aria-hidden="true"></i> <?php esc_html_e( 'Delete all Skwirrel products', 'skwirrel-pim-sync' ); ?></button>
-				</div>
+				<button type="submit" class="skw-btn skw-btn-danger-solid"><i class="ph ph-trash" aria-hidden="true"></i> <?php esc_html_e( 'Delete all Skwirrel products', 'skwirrel-pim-sync' ); ?></button>
 			</form>
 		</div>
-		<div class="skw-fieldgroup">
-			<h3 class="skw-block-title skw-c-red"><?php esc_html_e( 'Reset settings', 'skwirrel-pim-sync' ); ?></h3>
-			<p class="skw-section-desc"><?php esc_html_e( 'Delete all Skwirrel sync configuration (endpoint URL, API token, sync schedule, slug rules). Cancels all scheduled sync jobs and flushes the object cache. Products, media, categories and sync history are untouched — use this when your settings refuse to update because of an aggressive persistent cache.', 'skwirrel-pim-sync' ); ?></p>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-reset-settings-form">
+		<div class="skw-dz-action">
+			<h3 class="skw-dz-title"><?php esc_html_e( 'Reset settings', 'skwirrel-pim-sync' ); ?></h3>
+			<p class="skw-dz-desc"><?php esc_html_e( 'Delete all Skwirrel sync configuration (endpoint URL, API token, sync schedule, slug rules). Cancels all scheduled sync jobs and flushes the object cache. Products, media, categories and sync history are untouched — use this when your settings refuse to update because of an aggressive persistent cache.', 'skwirrel-pim-sync' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="skwirrel-reset-settings-form" class="skw-dz-row">
 				<input type="hidden" name="action" value="skwirrel_wc_sync_reset_settings" />
 				<?php wp_nonce_field( 'skwirrel_wc_sync_reset_settings', '_wpnonce' ); ?>
-				<div class="skw-field-actions" style="margin-top: 12px;">
-					<button type="submit" class="skw-btn skw-btn-danger" id="skwirrel-reset-settings-btn"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i> <?php esc_html_e( 'Reset Skwirrel sync settings', 'skwirrel-pim-sync' ); ?></button>
-				</div>
+				<button type="submit" class="skw-btn skw-btn-danger" id="skwirrel-reset-settings-btn"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i> <?php esc_html_e( 'Reset Skwirrel sync settings', 'skwirrel-pim-sync' ); ?></button>
 			</form>
 		</div>
 		<?php
@@ -1290,7 +1331,18 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 
 		$tabs   = self::get_settings_tabs();
 		$errors = self::current_settings_errors();
-		$codes  = array();
+		if ( ! self::is_context_id_field_visible() ) {
+			// No field is rendered to show the error at or to correct, so a context_id error (only
+			// reachable through a crafted POST) neither badges nor opens a tab; the page-level notice
+			// still reports it.
+			$errors = array_values(
+				array_filter(
+					$errors,
+					static fn( $error ): bool => 'context_id' !== ( $error['code'] ?? '' )
+				)
+			);
+		}
+		$codes = array();
 		foreach ( $errors as $error ) {
 			if ( isset( $error['code'] ) && is_string( $error['code'] ) ) {
 				$codes[] = $error['code'];
@@ -1325,7 +1377,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<h1><?php esc_html_e( 'Settings', 'skwirrel-pim-sync' ); ?></h1>
 					<p><?php esc_html_e( 'Configure your Skwirrel PIM API connection and synchronization options.', 'skwirrel-pim-sync' ); ?></p>
 				</div>
-				<div style="display:flex; align-items:center; gap:8px">
+				<div class="skw-set-header-actions">
 					<a href="<?php echo esc_url( $settings_debug_url ); ?>" class="skw-set-btn"><i class="ph ph-bug" aria-hidden="true"></i> <?php esc_html_e( 'Debug', 'skwirrel-pim-sync' ); ?></a>
 					<a href="https://skwirrel.eu" target="_blank" rel="noopener noreferrer" class="skw-set-btn"><i class="ph ph-lifebuoy" aria-hidden="true"></i> <?php esc_html_e( 'Contact support', 'skwirrel-pim-sync' ); ?></a>
 				</div>
@@ -1502,7 +1554,14 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<label for="retries" class="skw-label"><?php esc_html_e( 'Retries', 'skwirrel-pim-sync' ); ?></label>
 					<input type="number" id="retries" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[retries]" value="<?php echo esc_attr( (string) ( $opts['retries'] ?? 2 ) ); ?>" min="0" max="5" class="skw-input skw-input-sm" />
 				</div>
-				<div class="skw-field" hidden<?php $this->render_field_wrapper_attr( 'context_id' ); ?>>
+				<?php
+				/*
+				 * Not rendered at all until the field is shown. A save then carries no context_id,
+				 * which sanitize_settings() reads as "keep the stored context", not "clear it".
+				 */
+				?>
+				<?php if ( self::is_context_id_field_visible() ) : ?>
+				<div class="skw-field"<?php $this->render_field_wrapper_attr( 'context_id' ); ?>>
 					<label for="context_id" class="skw-label"><?php esc_html_e( 'Context ID', 'skwirrel-pim-sync' ); ?></label>
 					<?php
 					/*
@@ -1528,6 +1587,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<?php $this->render_field_error( 'context_id' ); ?>
 					<p class="skw-field-hint" id="context_id-hint"><?php esc_html_e( 'Optional. Leave this empty unless Skwirrel told you otherwise — an empty field uses the Skwirrel default context. Fill it in only if your Skwirrel instance serves several shops and you need the content of one specific context. Changing it re-imports your whole catalogue on the next synchronisation.', 'skwirrel-pim-sync' ); ?></p>
 				</div>
+				<?php endif; ?>
 			</div>
 			<div class="skw-field-actions skw-field-actions-connection">
 				<button type="button" id="skwirrel-test-connection" class="skw-btn skw-btn-secondary"><i class="ph ph-plugs" aria-hidden="true"></i> <?php esc_html_e( 'Test connection', 'skwirrel-pim-sync' ); ?></button>
@@ -1620,11 +1680,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<label class="skw-checkbox skw-checkbox-indent"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[use_virtual_product_content]" value="1" <?php checked( ! empty( $opts['use_virtual_product_content'] ) ); ?> /> <?php esc_html_e( 'Use virtual product content for variable products', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_related_products]" value="1" <?php checked( ! empty( $opts['sync_related_products'] ) ); ?> /> <?php esc_html_e( 'Sync related products', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_manufacturers]" value="1" <?php checked( ! empty( $opts['sync_manufacturers'] ) ); ?> /> <?php esc_html_e( 'Sync manufacturers', 'skwirrel-pim-sync' ); ?></label>
+				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_etim]" value="1" <?php checked( ! empty( $opts['sync_etim'] ?? true ) ); ?> /> <?php esc_html_e( 'Sync ETIM features', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_custom_classes]" value="1" <?php checked( ! empty( $opts['sync_custom_classes'] ) ); ?> /> <?php esc_html_e( 'Sync custom classes', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox skw-checkbox-indent"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_trade_item_custom_classes]" value="1" <?php checked( ! empty( $opts['sync_trade_item_custom_classes'] ) ); ?> /> <?php esc_html_e( 'Include trade item custom classes', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_gtin_attribute]" value="1" <?php checked( ! empty( $opts['show_gtin_attribute'] ) ); ?> /> <?php esc_html_e( 'Show GTIN as product attribute', 'skwirrel-pim-sync' ); ?></label>
 				<label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_variant_attribute]" value="1" <?php checked( ! empty( $opts['show_variant_attribute'] ) ); ?> /> <?php esc_html_e( 'Show Variant as product attribute', 'skwirrel-pim-sync' ); ?></label>
 			</div>
+			<p class="skw-field-hint"><?php esc_html_e( 'Sync ETIM features: adds ETIM features as product attributes. When off, ETIM data is not requested — unless grouped products are on, which need it for their variation axes.', 'skwirrel-pim-sync' ); ?></p>
 			<div class="skw-field-row">
 				<div class="skw-field">
 					<label for="batch_size" class="skw-label"><?php esc_html_e( 'Batch size', 'skwirrel-pim-sync' ); ?></label>
@@ -2096,14 +2158,14 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<h1><?php esc_html_e( 'Debug', 'skwirrel-pim-sync' ); ?></h1>
 					<p><?php esc_html_e( 'Live sync log, health checks and variation attribute diagnostics. Start at the top and work down.', 'skwirrel-pim-sync' ); ?></p>
 				</div>
-				<div style="display:flex; align-items:center; gap:8px">
+				<div class="skw-dbg-header-actions">
 					<a href="<?php echo esc_url( $dashboard_url ); ?>" class="skw-dbg-btn"><i class="ph ph-arrow-left" aria-hidden="true"></i> <?php esc_html_e( 'Back to dashboard', 'skwirrel-pim-sync' ); ?></a>
 					<a href="https://skwirrel.eu" target="_blank" rel="noopener noreferrer" class="skw-dbg-btn"><i class="ph ph-lifebuoy" aria-hidden="true"></i> <?php esc_html_e( 'Contact support', 'skwirrel-pim-sync' ); ?></a>
 				</div>
 			</div>
 
 			<div class="skw-dbg-nav">
-				<a href="#skwirrel-live-log"><?php esc_html_e( 'Live sync log', 'skwirrel-pim-sync' ); ?></a>
+				<a href="#skwirrel-live-log" class="skw-dbg-nav-active"><?php esc_html_e( 'Live sync log', 'skwirrel-pim-sync' ); ?></a>
 				<a href="#skwirrel-health-check"><?php esc_html_e( 'Health check', 'skwirrel-pim-sync' ); ?></a>
 				<a href="#skwirrel-troubleshoot"><?php esc_html_e( 'Sync not working?', 'skwirrel-pim-sync' ); ?></a>
 				<a href="#skwirrel-variations"><?php esc_html_e( 'Variation attributes', 'skwirrel-pim-sync' ); ?></a>

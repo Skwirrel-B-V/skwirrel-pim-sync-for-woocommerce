@@ -62,6 +62,8 @@
 	--color-neutral-light: hsl(220 8% 40%);
 	--color-mascot: hsl(217 40% 62%);
 	--color-lavender: hsl(245 55% 82%);
+	--color-link: hsl(220 100% 40%);
+	--color-link-hover: hsl(220 100% 32%);
 	--color-error: hsl(354 65% 58%);
 	--color-error-soft: hsl(355 80% 95%);
 	--color-error-dark: hsl(354 60% 32%);
@@ -73,6 +75,7 @@
 	   blue-tinted --color-primary-darker and is unused by the actual components). */
 	--border-color: var(--color-neutral);
 
+	max-width: 1180px;
 	font-family: var(--font-body);
 	color: var(--color-neutral);
 }
@@ -104,7 +107,7 @@
 .skw-settings-page .ph-trash:before { content: '\e4a6'; }
 .skw-settings-page .ph-arrow-counter-clockwise:before { content: '\e038'; }
 
-/* -- Header -- */
+/* -- Header -- (same layout as the Overview and Debug headers: flush with the cards) */
 
 .skw-settings-page .skw-set-crumbs {
 	display: flex;
@@ -113,26 +116,26 @@
 	margin-bottom: 6px;
 	font-size: 13px;
 	color: var(--color-neutral-light);
-	padding-left: 24px;
 }
-.skw-settings-page .skw-set-crumbs a { color: inherit; text-decoration: none; }
-.skw-settings-page .skw-set-crumbs a:hover { text-decoration: underline; }
+.skw-settings-page .skw-set-crumbs a { color: var(--color-link); text-decoration: none; }
+.skw-settings-page .skw-set-crumbs a:hover { color: var(--color-link-hover); text-decoration: underline; }
 
 .skw-settings-page .skw-set-header {
 	display: flex;
 	flex-wrap: wrap;
-	align-items: flex-start;
+	align-items: flex-end;
 	justify-content: space-between;
 	gap: 16px;
 	margin-bottom: 20px;
-	padding: 0 24px;
 }
 .skw-settings-page .skw-set-header h1 {
 	margin: 0;
+	padding: 0;
 	font-family: var(--font-display);
 	font-weight: 500;
 	font-size: 28px;
 	line-height: 1.2;
+	color: var(--color-neutral);
 }
 .skw-settings-page .skw-set-header p {
 	margin: 6px 0 0;
@@ -140,51 +143,78 @@
 	font-size: 14px;
 	max-width: 62ch;
 }
+.skw-settings-page .skw-set-header-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
 
-.skw-set-btn {
+/* Design-system Button, variant "outline", size "sm". */
+.skw-settings-page .skw-set-btn {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
+	justify-content: center;
+	gap: 8px;
+	padding: 8px 20px;
+	border: 1px solid var(--color-neutral);
+	border-radius: var(--radius-sm);
+	background: transparent;
 	font-family: var(--font-display);
 	font-weight: 600;
-	font-size: 13px;
-	padding: 0 14px;
-	height: 34px;
-	border-radius: var(--radius-sm);
-	border: 1px solid var(--color-neutral);
-	background: #fff;
+	font-size: 14px;
+	line-height: 1.25;
 	color: var(--color-neutral);
 	cursor: pointer;
 	text-decoration: none;
 	white-space: nowrap;
+	transition: background-color .15s ease, color .15s ease;
 }
-.skw-set-btn:hover { border-color: var(--color-neutral); color: var(--color-neutral); }
-.skw-set-btn .ph { font-size: 16px; }
+.skw-settings-page .skw-set-btn:hover,
+.skw-settings-page .skw-set-btn:focus {
+	background: var(--color-neutral);
+	border-color: var(--color-neutral);
+	color: #fff;
+	text-decoration: none;
+	box-shadow: none;
+}
+.skw-settings-page .skw-set-btn:focus-visible { outline: 2px solid var(--color-mascot); outline-offset: 2px; }
+.skw-settings-page .skw-set-btn .ph { font-size: 16px; }
 
-/* -- Tab strip -- */
+/* -- Card -- design: plain white card, 10px radius, no border. */
+
+.skw-settings-page .skw-section {
+	border: 0;
+	border-radius: 10px;
+}
+
+/* -- Tab strip -- design-system Tabs: full-width hairline across the card top. */
 
 .skw-settings-page .skw-tabs {
-	gap: 28px;
+	gap: 0;
 	border-bottom: 1px solid rgb(28 31 38 / .1);
-	margin: 0 0 24px;
-	padding: 0 4px;
+	margin: -24px -24px 24px;
+	padding: 6px 20px 0;
 }
 .skw-settings-page .skw-tab {
-	padding: 0 0 14px;
+	padding: 10.4px 16px;
 	margin-bottom: -1px;
 	border-radius: 0;
+	border-bottom: 2px solid transparent;
 	font-family: var(--font-display);
-	font-size: 15px;
+	font-size: 16px;
 	font-weight: 500;
+	line-height: 1.25;
 	color: var(--color-neutral-light);
+	transition: color .15s ease, border-color .15s ease;
 }
 .skw-settings-page .skw-tab:hover {
 	background: transparent;
 	color: var(--color-neutral);
 }
 .skw-settings-page .skw-tab[aria-selected="true"] {
-	color: var(--color-primary);
-	border-bottom-color: var(--color-primary);
+	font-weight: 600;
+	color: var(--color-mascot);
+	border-bottom-color: var(--color-mascot);
 }
 
 /* -- Fieldgroup header: icon tile + title + description -- */
@@ -411,36 +441,48 @@
 .skw-settings-page .skw-tabpanel[data-skw-panel="connection"] ~ .skw-field-actions {
 	margin-top: 24px;
 }
+/* Design-system Button, size "md" (danger-zone actions use "sm", below). */
 .skw-settings-page .skw-btn {
 	display: inline-flex;
 	align-items: center;
+	justify-content: center;
 	gap: 8px;
-	font-family: var(--font-display);
-	font-weight: 700;
-	font-size: 16px;
-	height: 48px;
-	padding: 0 20px;
+	height: auto;
+	padding: 10px 24px;
 	border-radius: var(--radius-sm);
+	font-family: var(--font-display);
+	font-weight: 600;
+	font-size: 16px;
+	line-height: 1.25;
+	white-space: nowrap;
 	cursor: pointer;
+	transition: background-color .15s ease, color .15s ease;
 }
 .skw-settings-page .skw-btn .ph {
-	font-size: 18px;
+	font-size: 16px;
 }
 .skw-settings-page .skw-btn-secondary {
-	background: #fff;
+	background: transparent;
 	border: 1px solid var(--color-neutral);
 	color: var(--color-neutral);
 }
 .skw-settings-page .skw-btn-secondary:hover {
-	background: hsl(220 100% 98%);
+	background: var(--color-neutral);
+	color: #fff;
+}
+.skw-settings-page .skw-btn-danger,
+.skw-settings-page .skw-btn-danger-solid {
+	padding: 8px 20px;
+	font-size: 14px;
 }
 .skw-settings-page .skw-btn-danger {
-	background: #fff;
+	background: transparent;
 	border: 1px solid var(--color-error);
 	color: var(--color-error);
 }
 .skw-settings-page .skw-btn-danger:hover {
-	background: var(--color-error-soft);
+	background: var(--color-error);
+	color: #fff;
 }
 .skw-settings-page .skw-btn-danger-solid {
 	background: var(--color-error);
@@ -448,8 +490,8 @@
 	color: #fff;
 }
 .skw-settings-page .skw-btn-danger-solid:hover {
-	background: var(--color-error-dark);
-	border-color: var(--color-error-dark);
+	background: hsl(354 65% 58% / .9);
+	border-color: var(--color-error);
 }
 .skw-settings-page .skw-test-result {
 	font-size: 13px;
@@ -531,23 +573,27 @@
 
 /* -- Buttons -- */
 
-.skw-settings-page .button-primary {
+.skw-settings-page .button.button-primary,
+.skw-settings-page .button.button-primary.button-large {
 	font-family: var(--font-display);
-	font-weight: 700;
+	font-weight: 600;
 	font-size: 16px;
-	height: 48px;
-	padding: 0 20px;
-	line-height: 46px;
+	height: auto;
+	min-height: 0;
+	padding: 10px 24px;
+	line-height: 1.25;
 	background: var(--color-neutral);
-	border-color: var(--color-neutral);
+	border: 1px solid var(--color-neutral);
 	border-radius: var(--radius-sm);
 	box-shadow: none;
 	text-shadow: none;
+	transition: background-color .15s ease;
 }
-.skw-settings-page .button-primary:hover,
-.skw-settings-page .button-primary:focus {
-	background: hsl(220 10% 28%);
-	border-color: hsl(220 10% 28%);
+.skw-settings-page .button.button-primary:hover,
+.skw-settings-page .button.button-primary:focus {
+	background: hsl(220 10% 18% / .9);
+	border-color: var(--color-neutral);
+	box-shadow: none;
 }
 .skw-settings-page .button:not(.button-primary) {
 	font-family: var(--font-display);
@@ -561,6 +607,30 @@
 /* No border/card here on purpose: this panel now lives inside the same .skw-section
    box as every other tab (see render_page_settings()), not in a separate red-bordered
    card of its own — only the icon/heading keep the red "this is dangerous" accent. */
+/* Each action is indented under the zone title (36px tile + 14px gap), with a hairline between. */
+.skw-settings-page .skw-dz-action { padding: 20px 0 20px 50px; }
+.skw-settings-page .skw-dz-action + .skw-dz-action { border-top: 1px solid rgb(28 31 38 / .1); padding-bottom: 4px; }
+.skw-settings-page .skw-dz-title {
+	margin: 0;
+	font-family: var(--font-display);
+	font-weight: 600;
+	font-size: 15px;
+	line-height: 1.4;
+	color: var(--color-neutral);
+}
+.skw-settings-page .skw-dz-desc {
+	margin: 4px 0 12px;
+	max-width: 80ch;
+	font-size: 14px;
+	color: var(--color-neutral-light);
+}
+.skw-settings-page .skw-dz-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 16px;
+}
+.skw-settings-page .skw-dz-row .skw-checkbox { margin: 0; }
 .skw-settings-page .skw-danger-zone .skw-fg-head { padding: 20px 0 0; }
 .skw-settings-page .skw-danger-zone-title {
 	font-family: var(--font-display);

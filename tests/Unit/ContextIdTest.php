@@ -216,11 +216,39 @@ test('an empty or valid Context ID raises no settings error', function ($typed, 
     'padded' => [' 4 ', '4'],
 ]);
 
-test('an omitted Context ID field stores an empty string and raises no error', function () {
+test('an omitted Context ID field on an unconfigured install stores an empty string and raises no error', function () {
     $out = skw_sanitize([]);
 
     expect($out['context_id'])->toBe('');
     expect(Skwirrel_WC_Sync_Admin_Settings::failing_field_ids())->toBe([]);
+});
+
+test('an omitted Context ID field keeps the stored context, and arms no full sync', function () {
+    // The field is not rendered while hidden, so a save carries no context_id at all. Reading that
+    // as "cleared" would move this shop to the default context and re-import the catalogue.
+    $before = skw_sanitize(['context_id' => '5']);
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = $before;
+
+    $after = skw_sanitize([]);
+
+    expect($after['context_id'])->toBe('5');
+    expect($after[Skwirrel_WC_Sync_Admin_Settings::CONTEXT_EFFECTIVE_KEY])->toBe('5');
+    expect(Skwirrel_WC_Sync_Admin_Settings::failing_field_ids())->toBe([]);
+
+    Skwirrel_WC_Sync_Admin_Settings::instance()->on_settings_updated($before, $after);
+    expect(array_key_exists('skwirrel_wc_sync_force_full_sync', $GLOBALS['_test_options']))->toBeFalse();
+});
+
+test('an omitted Context ID field keeps a stored rejected value inert, without re-raising it', function () {
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = skw_sanitize(['context_id' => '5']);
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = skw_sanitize(['context_id' => 'abc']);
+    $GLOBALS['wp_settings_errors'] = [];
+
+    $out = skw_sanitize([]);
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = $out;
+
+    expect(Skwirrel_WC_Sync_Admin_Settings::failing_field_ids())->toBe([]);
+    expect(Skwirrel_WC_Sync_Admin_Settings::get_context_ids())->toBe([5]);
 });
 
 test('the Context ID is optional — it is not in the required-field registry', function () {
@@ -603,6 +631,16 @@ test('an install saved before the effective key existed keeps its stored context
     $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = ['context_id' => '8'];
 
     expect(Skwirrel_WC_Sync_Admin_Settings::get_context_ids())->toBe([8]);
+});
+
+test('a non-scalar Context ID is rejected and keeps the configured context', function () {
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = ['context_id' => '8', 'context_id_effective' => '8'];
+
+    $out = skw_sanitize(['context_id' => ['7']]);
+
+    expect($out['context_id'])->toBe('8');
+    expect($out['context_id_effective'])->toBe('8');
+    expect(Skwirrel_WC_Sync_Admin_Settings::failing_field_ids())->toBe(['context_id']);
 });
 
 test('a legacy install carrying an invalid stored value reads as the default context', function () {
