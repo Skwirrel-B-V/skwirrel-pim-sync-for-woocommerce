@@ -444,29 +444,37 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			$stored                             = is_array( $stored ) ? $stored : [];
 			$out['context_id']                  = is_scalar( $stored['context_id'] ?? null ) ? (string) $stored['context_id'] : '';
 			$out[ self::CONTEXT_EFFECTIVE_KEY ] = self::effective_context_raw( $stored );
-		} elseif ( ! is_scalar( $input['context_id'] ) || '' === ( $out['context_id'] = sanitize_text_field( trim( (string) $input['context_id'] ) ) ) || null !== self::resolve_context_ids( $out['context_id'] ) ) {
-			// Valid, or deliberately cleared to mean "the Skwirrel default context". Either way it
-			// is now what the plugin syncs with.
-			$out[ self::CONTEXT_EFFECTIVE_KEY ] = $out['context_id'];
 		} else {
-			// Rejected. The typed value is still stored so it can be seen and corrected, but the
-			// context the plugin actually syncs with does not move: falling back to the Skwirrel
-			// default here would silently retarget a shop that had a valid context configured, and
-			// with stale purging on, that run would trash the whole catalogue it just stopped
-			// matching. "Reported and inert" has to mean inert.
-			$out[ self::CONTEXT_EFFECTIVE_KEY ] = self::effective_context_raw( is_array( get_option( self::OPTION_KEY, [] ) ) ? (array) get_option( self::OPTION_KEY, [] ) : [] );
-			add_settings_error(
-				self::OPTION_KEY,
-				'context_id',
-				'' === $out[ self::CONTEXT_EFFECTIVE_KEY ]
-					? __( 'The context ID must be a whole number greater than 0. Leave it empty to use the Skwirrel default context.', 'skwirrel-pim-sync' )
-					: sprintf(
-						/* translators: %s: the context ID that stays in use. */
-						__( 'The context ID must be a whole number greater than 0. Synchronisation keeps using context %s until you correct this.', 'skwirrel-pim-sync' ),
-						$out[ self::CONTEXT_EFFECTIVE_KEY ]
-					),
-				'error'
-			);
+			$previous = get_option( self::OPTION_KEY, [] );
+			$previous = is_array( $previous ) ? $previous : [];
+			// A non-scalar submission (e.g. `context_id[]=7`) has no text to keep, so the stored value
+			// stays what it was; it is still rejected below rather than read as "cleared".
+			$typed             = is_scalar( $input['context_id'] ) ? sanitize_text_field( trim( (string) $input['context_id'] ) ) : null;
+			$out['context_id'] = $typed ?? ( is_scalar( $previous['context_id'] ?? null ) ? (string) $previous['context_id'] : '' );
+			if ( null !== $typed && ( '' === $typed || null !== self::resolve_context_ids( $typed ) ) ) {
+				// Valid, or deliberately cleared to mean "the Skwirrel default context". Either way it
+				// is now what the plugin syncs with.
+				$out[ self::CONTEXT_EFFECTIVE_KEY ] = $typed;
+			} else {
+				// Rejected. The typed value is still stored so it can be seen and corrected, but the
+				// context the plugin actually syncs with does not move: falling back to the Skwirrel
+				// default here would silently retarget a shop that had a valid context configured, and
+				// with stale purging on, that run would trash the whole catalogue it just stopped
+				// matching. "Reported and inert" has to mean inert.
+				$out[ self::CONTEXT_EFFECTIVE_KEY ] = self::effective_context_raw( $previous );
+				add_settings_error(
+					self::OPTION_KEY,
+					'context_id',
+					'' === $out[ self::CONTEXT_EFFECTIVE_KEY ]
+						? __( 'The context ID must be a whole number greater than 0. Leave it empty to use the Skwirrel default context.', 'skwirrel-pim-sync' )
+						: sprintf(
+							/* translators: %s: the context ID that stays in use. */
+							__( 'The context ID must be a whole number greater than 0. Synchronisation keeps using context %s until you correct this.', 'skwirrel-pim-sync' ),
+							$out[ self::CONTEXT_EFFECTIVE_KEY ]
+						),
+					'error'
+				);
+			}
 		}
 		// Enforce the dynamic minimum rest window server-side: a too-short interval (e.g. forced via a
 		// crafted POST) is bumped up to the smallest recurrence that still leaves a full hour of rest.
@@ -1946,6 +1954,8 @@ class Skwirrel_WC_Sync_Admin_Settings {
 
 		wp_register_script( 'skwirrel-pim-sync-status', false, [], SKWIRREL_WC_SYNC_VERSION, true );
 		wp_enqueue_script( 'skwirrel-pim-sync-status' );
+		// The stuck-run banner the poller can swap in carries a "Clear stuck sync lock" button.
+		Skwirrel_WC_Sync_Delete_Protection::enqueue_clear_stuck_run_lock_script();
 
 		$dashboard_url = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
 		// Core admin notice markup, so the finished state reads like every other WordPress message.

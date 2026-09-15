@@ -605,6 +605,16 @@ test('an install saved before the effective key existed keeps its stored context
     expect(Skwirrel_WC_Sync_Admin_Settings::get_context_ids())->toBe([8]);
 });
 
+test('a non-scalar Context ID is rejected and keeps the configured context', function () {
+    $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = ['context_id' => '8', 'context_id_effective' => '8'];
+
+    $out = skw_sanitize(['context_id' => ['7']]);
+
+    expect($out['context_id'])->toBe('8');
+    expect($out['context_id_effective'])->toBe('8');
+    expect(Skwirrel_WC_Sync_Admin_Settings::failing_field_ids())->toBe(['context_id']);
+});
+
 test('a legacy install carrying an invalid stored value reads as the default context', function () {
     $GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = ['context_id' => 'abc'];
 

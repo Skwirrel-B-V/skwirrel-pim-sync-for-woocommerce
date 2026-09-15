@@ -97,7 +97,7 @@ class Skwirrel_WC_Sync_Service {
 	 */
 	private const RUN_STATE_ACTIVE_TTL = 900;
 
-	/** Advisory-lock name (prefixed with the table prefix) held while a worker executes a step. */
+	/** Advisory-lock key (namespaced per installation) held while a worker executes a step. */
 	private const STEP_LOCK = 'skwirrel_sync_step';
 
 	/** Seconds a starting step waits for the step lock before assuming another worker owns the run. */
@@ -120,6 +120,26 @@ class Skwirrel_WC_Sync_Service {
 	 * @return array{success: bool, created: int, updated: int, failed: int, error?: string, warning?: string}
 	 */
 	public function run_sync( bool $delta = false, string $trigger = Skwirrel_WC_Sync_History::TRIGGER_MANUAL ): array {
+		// The synchronous driver persists run state between steps just like the async one, so it
+		// holds the same step lock for the whole run: otherwise force_clear_stuck_run() could clear
+		// a manual loopback sync whose single step outlasts the stuck-run threshold.
+		$lock = self::acquire_step_lock( self::STEP_LOCK_WAIT );
+		if ( false === $lock ) {
+			return self::already_running_result();
+		}
+		try {
+			return $this->run_sync_locked( $delta, $trigger );
+		} finally {
+			self::db_unlock( $lock );
+		}
+	}
+
+	/**
+	 * Body of run_sync(), run while holding the step lock.
+	 *
+	 * @return array{success: bool, created: int, updated: int, failed: int, error?: string, warning?: string}
+	 */
+	private function run_sync_locked( bool $delta, string $trigger ): array {
 		$begin = $this->begin_run( $delta, $trigger );
 		if ( ! $begin['ok'] ) {
 			return $begin['result'];
@@ -160,6 +180,21 @@ class Skwirrel_WC_Sync_Service {
 	}
 
 	/**
+	 * Result returned when a sync start is refused because another run is live.
+	 *
+	 * @return array{success: false, error: string, created: int, updated: int, failed: int}
+	 */
+	private static function already_running_result(): array {
+		return [
+			'success' => false,
+			'error'   => __( 'Another sync is already running; refusing to start a second concurrent run.', 'skwirrel-pim-sync' ),
+			'created' => 0,
+			'updated' => 0,
+			'failed'  => 0,
+		];
+	}
+
+	/**
 	 * Initialise a new run: validate configuration, compute the change-gate signature,
 	 * build API include flags, prepare the queue, and persist the initial state.
 	 *
@@ -173,13 +208,7 @@ class Skwirrel_WC_Sync_Service {
 		if ( ! Skwirrel_WC_Sync_History::acquire_sync_mutex() ) {
 			return [
 				'ok'     => false,
-				'result' => [
-					'success' => false,
-					'error'   => __( 'Another sync is already running; refusing to start a second concurrent run.', 'skwirrel-pim-sync' ),
-					'created' => 0,
-					'updated' => 0,
-					'failed'  => 0,
-				],
+				'result' => self::already_running_result(),
 			];
 		}
 
@@ -1915,7 +1944,7 @@ class Skwirrel_WC_Sync_Service {
 	 */
 	private static function db_lock(): string {
 		global $wpdb;
-		$name = $wpdb->prefix . 'skwirrel_sync_start';
+		$name = self::advisory_lock_name( 'skwirrel_sync_start' );
 		// 0s timeout: if another request holds it we proceed without it (the heartbeat check still guards).
 		$got = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $name, 0 ) );
 		return ( '1' === (string) $got ) ? $name : '';
@@ -1931,12 +1960,26 @@ class Skwirrel_WC_Sync_Service {
 	 */
 	private static function acquire_step_lock( int $timeout ): string|false {
 		global $wpdb;
-		$name = $wpdb->prefix . self::STEP_LOCK;
+		$name = self::advisory_lock_name( self::STEP_LOCK );
 		$got  = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $name, $timeout ) );
 		if ( '1' === (string) $got ) {
 			return $name;
 		}
 		return '0' === (string) $got ? false : '';
+	}
+
+	/**
+	 * Advisory-lock names are server-wide in MySQL, so two installations sharing a database server
+	 * with the same table prefix would otherwise contend for — and strand each other on — one lock.
+	 * The database name plus table prefix identifies the installation; hashed to stay well inside
+	 * MySQL's 64-character lock-name limit.
+	 *
+	 * @param string $key Lock purpose.
+	 */
+	private static function advisory_lock_name( string $key ): string {
+		global $wpdb;
+		$db = defined( 'DB_NAME' ) ? (string) DB_NAME : '';
+		return $key . '_' . md5( $db . '|' . $wpdb->prefix );
 	}
 
 	/** Release a MySQL advisory lock acquired by db_lock() or acquire_step_lock(). */
