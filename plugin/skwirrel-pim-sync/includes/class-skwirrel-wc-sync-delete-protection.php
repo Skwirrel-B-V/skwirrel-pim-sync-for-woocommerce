@@ -431,8 +431,13 @@ class Skwirrel_WC_Sync_Delete_Protection {
 	 * Wires the "Clear stuck sync lock" button: AJAX call + reload on success so the page's own
 	 * row-actions/notices (which read the lock at render time) pick up the released state.
 	 * Also enqueued with the status poller, whose stuck-run banner carries the same button.
+	 * Idempotent: both callers can run on one screen, and a second inline copy of the delegated
+	 * click handler would fire two clear requests per click — the loser's 409 raising a false alert.
 	 */
 	public static function enqueue_clear_stuck_run_lock_script(): void {
+		if ( wp_script_is( 'skwirrel-pim-sync-clear-stuck-run-lock', 'enqueued' ) ) {
+			return;
+		}
 		$msg = __( 'Could not clear the sync lock. Please try again.', 'skwirrel-pim-sync' );
 		wp_register_script( 'skwirrel-pim-sync-clear-stuck-run-lock', false, [], SKWIRREL_WC_SYNC_VERSION, true );
 		wp_enqueue_script( 'skwirrel-pim-sync-clear-stuck-run-lock' );
