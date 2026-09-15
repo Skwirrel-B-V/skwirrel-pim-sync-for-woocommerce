@@ -69,6 +69,14 @@ test('get_attributes skips ETIM features when sync_etim is off, even if the payl
 	expect($attrs)->toBe(['GTIN' => '8711893004885']);
 });
 
+test('get_attributes follows the run\'s frozen sync_etim, not a live option saved mid-run', function () {
+	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = ['sync_etim' => true];
+
+	$attrs = (new Skwirrel_WC_Sync_Product_Mapper())->get_attributes(skw_etim_product(), ['sync_etim' => false]);
+
+	expect($attrs)->toBe([]);
+});
+
 test('sanitize_settings stores sync_etim from the checkbox', function () {
 	$settings = Skwirrel_WC_Sync_Admin_Settings::instance();
 

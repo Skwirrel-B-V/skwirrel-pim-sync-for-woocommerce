@@ -97,6 +97,12 @@ class Skwirrel_WC_Sync_Service {
 	 */
 	private const RUN_STATE_ACTIVE_TTL = 900;
 
+	/** Advisory-lock key (namespaced per installation) held while a worker executes a step. */
+	private const STEP_LOCK = 'skwirrel_sync_step';
+
+	/** Seconds a starting step waits for the step lock before assuming another worker owns the run. */
+	private const STEP_LOCK_WAIT = 10;
+
 	/** Consecutive no-progress step actions tolerated before a run is declared failed (poison-loop guard). */
 	private const MAX_STALL = 6;
 
@@ -114,6 +120,26 @@ class Skwirrel_WC_Sync_Service {
 	 * @return array{success: bool, created: int, updated: int, failed: int, error?: string, warning?: string}
 	 */
 	public function run_sync( bool $delta = false, string $trigger = Skwirrel_WC_Sync_History::TRIGGER_MANUAL ): array {
+		// The synchronous driver persists run state between steps just like the async one, so it
+		// holds the same step lock for the whole run: otherwise force_clear_stuck_run() could clear
+		// a manual loopback sync whose single step outlasts the stuck-run threshold.
+		$lock = self::acquire_step_lock( self::STEP_LOCK_WAIT );
+		if ( false === $lock ) {
+			return self::already_running_result();
+		}
+		try {
+			return $this->run_sync_locked( $delta, $trigger );
+		} finally {
+			self::db_unlock( $lock );
+		}
+	}
+
+	/**
+	 * Body of run_sync(), run while holding the step lock.
+	 *
+	 * @return array{success: bool, created: int, updated: int, failed: int, error?: string, warning?: string}
+	 */
+	private function run_sync_locked( bool $delta, string $trigger ): array {
 		$begin = $this->begin_run( $delta, $trigger );
 		if ( ! $begin['ok'] ) {
 			return $begin['result'];
@@ -154,6 +180,21 @@ class Skwirrel_WC_Sync_Service {
 	}
 
 	/**
+	 * Result returned when a sync start is refused because another run is live.
+	 *
+	 * @return array{success: false, error: string, created: int, updated: int, failed: int}
+	 */
+	private static function already_running_result(): array {
+		return [
+			'success' => false,
+			'error'   => __( 'Another sync is already running; refusing to start a second concurrent run.', 'skwirrel-pim-sync' ),
+			'created' => 0,
+			'updated' => 0,
+			'failed'  => 0,
+		];
+	}
+
+	/**
 	 * Initialise a new run: validate configuration, compute the change-gate signature,
 	 * build API include flags, prepare the queue, and persist the initial state.
 	 *
@@ -167,13 +208,7 @@ class Skwirrel_WC_Sync_Service {
 		if ( ! Skwirrel_WC_Sync_History::acquire_sync_mutex() ) {
 			return [
 				'ok'     => false,
-				'result' => [
-					'success' => false,
-					'error'   => __( 'Another sync is already running; refusing to start a second concurrent run.', 'skwirrel-pim-sync' ),
-					'created' => 0,
-					'updated' => 0,
-					'failed'  => 0,
-				],
+				'result' => self::already_running_result(),
 			];
 		}
 
@@ -1577,6 +1612,30 @@ class Skwirrel_WC_Sync_Service {
 	 * @param string $run_id The run this step belongs to.
 	 */
 	public static function run_async_step( string $run_id ): void {
+		// Held for the whole step — including its API calls, which can outlast both the heartbeat
+		// and the stuck-run threshold — so force_clear_stuck_run() can tell a quiet-but-live worker
+		// from a dead one. MySQL drops the lock with the connection, so a worker that dies fatally
+		// never leaves it behind. The wait covers the brief window where a chained step starts
+		// before its predecessor has released the lock.
+		$lock = self::acquire_step_lock( self::STEP_LOCK_WAIT );
+		if ( false === $lock ) {
+			// Another worker is mid-step (e.g. a duplicate action from a resume while a long step
+			// was still running) — it chains the next step itself.
+			return;
+		}
+		try {
+			self::run_async_step_locked( $run_id );
+		} finally {
+			self::db_unlock( $lock );
+		}
+	}
+
+	/**
+	 * Body of run_async_step(), run while holding the step lock.
+	 *
+	 * @param string $run_id The run this step belongs to.
+	 */
+	private static function run_async_step_locked( string $run_id ): void {
 		$state = self::load_run_state();
 		if ( ! is_array( $state ) || ( $state['run_id'] ?? '' ) !== $run_id ) {
 			// Stale/duplicate action for a run that already finished or was superseded.
@@ -1700,16 +1759,44 @@ class Skwirrel_WC_Sync_Service {
 	}
 
 	/**
-	 * Manually release a stuck run: clears the persisted run state plus the heartbeat/mutex
-	 * transients, so is_run_active() drops immediately instead of waiting out the remainder of
-	 * RUN_STATE_ACTIVE_TTL. Only ever clears a run get_stuck_run_warning() itself confirms is
-	 * stuck — callers must check that first (the admin action re-checks it server-side too) so
-	 * this can never be used to cut a genuinely live run's delete-lock short.
+	 * Manually release a stuck run: removes the run's queue rows, group map, membership sweep and
+	 * persisted state plus the heartbeat/mutex transients, so is_run_active() drops immediately
+	 * instead of waiting out the remainder of RUN_STATE_ACTIVE_TTL.
+	 *
+	 * The stuck-run warning alone is not proof the run is dead: one step's API work can outlast
+	 * STUCK_RUN_WARNING_THRESHOLD without persisting anything. So this takes the step lock first —
+	 * if a worker holds it, the run is alive and nothing is cleared — and re-checks
+	 * get_stuck_run_warning() under it. A step that starts afterwards waits for the lock, then
+	 * finds no state and exits.
+	 *
+	 * @return bool True when a stuck run was released; false when there was nothing stuck to release
+	 *              or a worker is still executing a step.
 	 */
-	public static function force_clear_stuck_run(): void {
-		self::clear_run_state();
-		Skwirrel_WC_Sync_History::clear_sync_in_progress();
-		Skwirrel_WC_Sync_History::release_sync_mutex();
+	public static function force_clear_stuck_run(): bool {
+		$lock = self::acquire_step_lock( 0 );
+		if ( false === $lock ) {
+			return false;
+		}
+		try {
+			if ( null === self::get_stuck_run_warning() ) {
+				return false;
+			}
+			$state  = self::load_run_state();
+			$run_id = (string) ( $state['run_id'] ?? '' );
+			if ( '' !== $run_id ) {
+				// Same per-run teardown as fail_run()/finish_run(): nothing else will ever reach it,
+				// because every queued step for this run exits once the state is gone.
+				Skwirrel_WC_Sync_Queue::delete_run( $run_id );
+			}
+			self::clear_group_map();
+			self::clear_sweep_set();
+			self::clear_run_state();
+			Skwirrel_WC_Sync_History::clear_sync_in_progress();
+			Skwirrel_WC_Sync_History::release_sync_mutex();
+			return true;
+		} finally {
+			self::db_unlock( $lock );
+		}
 	}
 
 	/**
@@ -1857,13 +1944,45 @@ class Skwirrel_WC_Sync_Service {
 	 */
 	private static function db_lock(): string {
 		global $wpdb;
-		$name = $wpdb->prefix . 'skwirrel_sync_start';
+		$name = self::advisory_lock_name( 'skwirrel_sync_start' );
 		// 0s timeout: if another request holds it we proceed without it (the heartbeat check still guards).
 		$got = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $name, 0 ) );
 		return ( '1' === (string) $got ) ? $name : '';
 	}
 
-	/** Release a MySQL advisory lock acquired by db_lock(). */
+	/**
+	 * Acquire the step lock: a MySQL advisory lock held by whichever worker is executing a step.
+	 *
+	 * @param int $timeout Seconds to wait for another holder to release it.
+	 * @return string|false The lock name when acquired, '' when advisory locks are unavailable
+	 *                      (callers proceed unguarded, as before this lock existed), or false
+	 *                      when another connection holds it.
+	 */
+	private static function acquire_step_lock( int $timeout ): string|false {
+		global $wpdb;
+		$name = self::advisory_lock_name( self::STEP_LOCK );
+		$got  = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $name, $timeout ) );
+		if ( '1' === (string) $got ) {
+			return $name;
+		}
+		return '0' === (string) $got ? false : '';
+	}
+
+	/**
+	 * Advisory-lock names are server-wide in MySQL, so two installations sharing a database server
+	 * with the same table prefix would otherwise contend for — and strand each other on — one lock.
+	 * The database name plus table prefix identifies the installation; hashed to stay well inside
+	 * MySQL's 64-character lock-name limit.
+	 *
+	 * @param string $key Lock purpose.
+	 */
+	private static function advisory_lock_name( string $key ): string {
+		global $wpdb;
+		$db = defined( 'DB_NAME' ) ? (string) DB_NAME : '';
+		return $key . '_' . md5( $db . '|' . $wpdb->prefix );
+	}
+
+	/** Release a MySQL advisory lock acquired by db_lock() or acquire_step_lock(). */
 	private static function db_unlock( string $name ): void {
 		if ( '' === $name ) {
 			return;

@@ -486,11 +486,6 @@ parameters:
 			count: 1
 			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-mapper.php
 
-		-
-			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_attributes\(\) has parameter \$product with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-mapper.php
 
 		-
 			message: '#^Method Skwirrel_WC_Sync_Product_Mapper\:\:get_attributes\(\) return type has no value type specified in iterable type array\.$#'

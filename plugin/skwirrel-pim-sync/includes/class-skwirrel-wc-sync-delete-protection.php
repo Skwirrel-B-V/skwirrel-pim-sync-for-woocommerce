@@ -413,7 +413,7 @@ class Skwirrel_WC_Sync_Delete_Protection {
 				</p>
 			</div>
 			<?php
-			$this->enqueue_clear_stuck_run_lock_script();
+			self::enqueue_clear_stuck_run_lock_script();
 			return;
 		}
 
@@ -430,8 +430,9 @@ class Skwirrel_WC_Sync_Delete_Protection {
 	/**
 	 * Wires the "Clear stuck sync lock" button: AJAX call + reload on success so the page's own
 	 * row-actions/notices (which read the lock at render time) pick up the released state.
+	 * Also enqueued with the status poller, whose stuck-run banner carries the same button.
 	 */
-	private function enqueue_clear_stuck_run_lock_script(): void {
+	public static function enqueue_clear_stuck_run_lock_script(): void {
 		$msg = __( 'Could not clear the sync lock. Please try again.', 'skwirrel-pim-sync' );
 		wp_register_script( 'skwirrel-pim-sync-clear-stuck-run-lock', false, [], SKWIRREL_WC_SYNC_VERSION, true );
 		wp_enqueue_script( 'skwirrel-pim-sync-clear-stuck-run-lock' );

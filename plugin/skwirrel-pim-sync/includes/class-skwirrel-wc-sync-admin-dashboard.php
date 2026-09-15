@@ -494,6 +494,8 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<div class="skw-status-body">
 				<p class="skw-status-title"><?php esc_html_e( 'Sync appears stuck', 'skwirrel-pim-sync' ); ?></p>
 				<p class="skw-status-meta"><?php echo esc_html( $message ); ?></p>
+				<?php // Offered here too, not only on the delete-lock notice: that one stops rendering once the run state is older than the delete-lock TTL, while this warning has no age limit. ?>
+				<p><button type="button" class="button skwirrel-clear-stuck-run-lock"><?php esc_html_e( 'Clear stuck sync lock', 'skwirrel-pim-sync' ); ?></button></p>
 			</div>
 		</div>
 		<?php

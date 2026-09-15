@@ -432,7 +432,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$this->apply_stock_mapping( $wc_product, $product );
 		}
 
-		$attrs = $this->mapper->get_attributes( $product );
+		$attrs = $this->mapper->get_attributes( $product, $this->run_options );
 
 		// Merge custom class attributes (if enabled)
 		$cc_options    = $this->get_options();
@@ -945,7 +945,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		$this->category_sync->assign_categories( $wc_variable_id, $product );
 
 		// Collect non-variation ETIM + custom class attributes for parent product
-		$non_var_attrs = $this->mapper->get_attributes( $product );
+		$non_var_attrs = $this->mapper->get_attributes( $product, $this->run_options );
 		if ( ! empty( $cc_options['sync_custom_classes'] ) || ! empty( $cc_options['sync_trade_item_custom_classes'] ) ) {
 			$cc_filter_mode = $cc_options['custom_class_filter_mode'] ?? '';
 			$cc_parsed      = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_options['custom_class_filter_ids'] ?? '' );
@@ -2310,7 +2310,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			return 0;
 		}
 
-		$attrs         = $this->mapper->get_attributes( $product );
+		$attrs         = $this->mapper->get_attributes( $product, $this->run_options );
 		$cc_options    = $this->get_options();
 		$cc_text_meta  = [];
 		$cc_visibility = [];
