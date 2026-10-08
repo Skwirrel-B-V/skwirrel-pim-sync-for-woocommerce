@@ -82,6 +82,7 @@ All class files follow `class-skwirrel-wc-sync-{slug}.php` (the WordPress coding
 | `Skwirrel_WC_Sync_Variation_Permalinks` | `class-skwirrel-wc-sync-variation-permalinks.php` | Variation-specific slug/permalink handling |
 | `Skwirrel_WC_Sync_Variation_Attributes_Fix` | `class-skwirrel-wc-sync-variation-attributes-fix.php` | Patches WooCommerce variation attribute bugs (static) |
 | `Skwirrel_WC_Sync_Product_Documents` | `class-skwirrel-wc-sync-product-documents.php` | Frontend documents tab + admin meta box |
+| `Skwirrel_WC_Sync_Attribute_Groups` | `class-skwirrel-wc-sync-attribute-groups.php` | Attribute groups (Products → Attribute groups): hide groups or show them as product tabs |
 | `Skwirrel_WC_Sync_Product_Sync_Meta_Box` | `class-skwirrel-wc-sync-product-sync-meta-box.php` | Admin meta box on product edit screen |
 | `Skwirrel_WC_Sync_Delete_Protection` | `class-skwirrel-wc-sync-delete-protection.php` | Delete warnings + force full sync after WC deletion |
 | `Skwirrel_WC_Sync_Theme_API` | `class-skwirrel-wc-sync-theme-api.php` (+ `theme-api-functions.php`) | Public theme helper API |
@@ -132,6 +133,7 @@ Authentication: Bearer token or `X-Skwirrel-Api-Token` header.
 | `skwirrel_wc_sync_history` | Array of last 20 sync results |
 | `skwirrel_wc_sync_permalinks` | Slug settings (slug_source_field, slug_suffix_field, update_slug_on_resync) — configured via Settings → Permalinks |
 | `skwirrel_wc_sync_force_full_sync` | Flag: next scheduled sync runs as full sync (set after WC deletion) |
+| `skwirrel_wc_sync_attribute_groups` | Attribute groups `{groups: {id: {name, position, as_tab, hidden}}, assignments: {attribute slug: group id}}` |
 
 ## Sync Flow
 

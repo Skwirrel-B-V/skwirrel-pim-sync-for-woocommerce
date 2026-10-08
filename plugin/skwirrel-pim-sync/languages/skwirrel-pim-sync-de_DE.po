@@ -2806,3 +2806,87 @@ msgstr "z.B. SHORT_DESCRIPTION"
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "e.g. LONG_DESCRIPTION"
 msgstr "z.B. LONG_DESCRIPTION"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attribute groups"
+msgstr "Attributgruppen"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Group global product attributes. A hidden group is not shown on the product page. A group shown as a tab gets its own product tab; other groups stay in \"Additional information\", listed per group."
+msgstr "Gruppieren Sie globale Produktattribute. Eine ausgeblendete Gruppe wird auf der Produktseite nicht angezeigt. Eine als Tab angezeigte Gruppe erhält einen eigenen Produkt-Tab; andere Gruppen bleiben unter \"Zusätzliche Informationen\", nach Gruppe aufgelistet."
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attribute groups saved."
+msgstr "Attributgruppen gespeichert."
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Groups"
+msgstr "Gruppen"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Name"
+msgstr "Name"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Order"
+msgstr "Reihenfolge"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Show as tab"
+msgstr "Als Tab anzeigen"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Hidden"
+msgstr "Ausgeblendet"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attributes"
+msgstr "Attribute"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Delete"
+msgstr "Löschen"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "New group name"
+msgstr "Name der neuen Gruppe"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "No global product attributes yet."
+msgstr "Noch keine globalen Produktattribute."
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Add a group first, then assign attributes to it."
+msgstr "Fügen Sie zuerst eine Gruppe hinzu und weisen Sie ihr dann Attribute zu."
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Filter attributes"
+msgstr "Attribute filtern"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attribute"
+msgstr "Attribut"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Slug"
+msgstr "Titelform"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Group"
+msgstr "Gruppe"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Save attribute groups"
+msgstr "Attributgruppen speichern"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "— No group —"
+msgstr "— Keine Gruppe —"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "You do not have permission to do this."
+msgstr "Sie haben keine Berechtigung, dies zu tun."
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attribute group used on the product page (Products → Attribute groups)."
+msgstr "Attributgruppe, die auf der Produktseite verwendet wird (Produkte → Attributgruppen)."

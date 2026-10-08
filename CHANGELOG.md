@@ -2,6 +2,23 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [4.2.0]
+
+Product attributes can be managed in groups. Each group can be hidden on the product page or shown as its own product tab.
+
+### Added
+
+* **Attribute groups** (`Skwirrel_WC_Sync_Attribute_Groups`, option `skwirrel_wc_sync_attribute_groups`). A new screen under Products → Attribute groups creates, orders, renames and deletes groups and assigns global attributes (`pa_*`) to them, with a filter box for long ETIM attribute lists. The WooCommerce add/edit attribute form under Products → Attributes gets a "Group" field that writes the same assignment; it only acts when that form field is submitted, so `wc_create_attribute()` during a sync and the REST API never touch groups. Renaming an attribute slug keeps its group, deleting an attribute removes its assignment, and deleting a group releases its attributes.
+* **Hide a group on the product page.** A hidden group's attributes are removed from `woocommerce_display_product_attributes`, so they disappear from "Additional information", group tabs and any block or theme that uses that WooCommerce filter. This is display only: terms, layered-nav filters and the synced data stay as they are.
+* **Show a group as a product tab.** A tab group gets its own tab (key `skwirrel_attr_group_{id}`), placed right after "Additional information" in group order and only on products that have a visible attribute from that group. The tab renders WooCommerce's own attribute table, filtered to the group. "Additional information" is dropped when nothing is left in it (no ungrouped attributes, no weight or dimensions). Filters: `skwirrel_wc_sync_attribute_group_tab` (tab definition) and `skwirrel_wc_sync_attribute_group_tab_heading` (tab heading, '' for none).
+* **Grouped "Additional information".** Groups that are neither hidden nor tabs stay in "Additional information", listed after the ungrouped rows in group order.
+* **Theme API:** `skwirrel_get_attribute_groups( int $product_id )` returns the product's visible groups with label and value per attribute.
+* Covered by `tests/Unit/AttributeGroupsTest.php`.
+
+### Notes
+
+* Only global attributes can be grouped. Custom attributes defined on a single product always stay in "Additional information".
+
 ## [4.1.0]
 
 Field mappings can now pick the custom class a feature is read from — needed when the same feature lives in several classes, such as one stock class per location.

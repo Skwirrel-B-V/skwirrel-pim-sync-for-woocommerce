@@ -63,6 +63,7 @@ final class Skwirrel_WC_Sync_Plugin {
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-admin-settings.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-admin-dashboard.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-product-documents.php';
+		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-attribute-groups.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-variation-attributes-fix.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-variation-permalinks.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-theme-api.php';
@@ -105,6 +106,7 @@ final class Skwirrel_WC_Sync_Plugin {
 		Skwirrel_WC_Sync_Permalink_Settings::instance();
 		Skwirrel_WC_Sync_Action_Scheduler::instance();
 		Skwirrel_WC_Sync_Product_Documents::instance();
+		Skwirrel_WC_Sync_Attribute_Groups::instance();
 		Skwirrel_WC_Sync_Variation_Attributes_Fix::init();
 		Skwirrel_WC_Sync_Variation_Permalinks::instance();
 		Skwirrel_WC_Sync_Deprecated_Status::instance();

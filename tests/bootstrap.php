@@ -616,6 +616,7 @@ require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-variation-permalinks.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-pim-link.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-run-links.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-attribute-groups.php';
 
 if (!function_exists('wp_parse_url')) {
     function wp_parse_url(string $url, int $component = -1) {
