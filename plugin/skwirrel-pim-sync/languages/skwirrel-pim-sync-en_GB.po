@@ -2709,9 +2709,9 @@ msgid "The custom class is optional. Set it when the same feature appears in mor
 msgstr "The custom class is optional. Set it when the same feature appears in more than one class — for example one class per stock location — to choose which class the value is read from. Without a class, the first class that has a value is used."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid "e.g. SHORT_DESCRIPTION"
-msgstr "e.g. SHORT_DESCRIPTION"
+msgid "e.g. PRODUCT_SHORT_DESC"
+msgstr "e.g. PRODUCT_SHORT_DESC"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid "e.g. LONG_DESCRIPTION"
-msgstr "e.g. LONG_DESCRIPTION"
+msgid "e.g. PRODUCT_LONG_DESC"
+msgstr "e.g. PRODUCT_LONG_DESC"

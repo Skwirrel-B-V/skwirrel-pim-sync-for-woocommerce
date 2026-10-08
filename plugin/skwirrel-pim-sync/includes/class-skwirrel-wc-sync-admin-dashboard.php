@@ -2068,13 +2068,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				),
 				'short_description_feature_id' => array(
 					'label'       => __( 'Short description', 'skwirrel-pim-sync' ),
-					'placeholder' => __( 'e.g. SHORT_DESCRIPTION', 'skwirrel-pim-sync' ),
+					'placeholder' => __( 'e.g. PRODUCT_SHORT_DESC', 'skwirrel-pim-sync' ),
 					'type_note'   => __( 'Must be a long text feature.', 'skwirrel-pim-sync' ),
 					'hint'        => __( 'The code of the custom feature holding the short description. Leave empty to keep using the product translations. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
 				),
 				'long_description_feature_id'  => array(
 					'label'       => __( 'Long description', 'skwirrel-pim-sync' ),
-					'placeholder' => __( 'e.g. LONG_DESCRIPTION', 'skwirrel-pim-sync' ),
+					'placeholder' => __( 'e.g. PRODUCT_LONG_DESC', 'skwirrel-pim-sync' ),
 					'type_note'   => __( 'Must be a long text feature.', 'skwirrel-pim-sync' ),
 					'hint'        => __( 'The code of the custom feature holding the long description. Leave empty to keep using the normal source. Formatting is kept; unsafe markup is removed. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
 				),
