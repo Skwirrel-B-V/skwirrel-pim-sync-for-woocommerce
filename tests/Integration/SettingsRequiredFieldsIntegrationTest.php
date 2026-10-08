@@ -547,6 +547,11 @@ test( 'every mapped error code renders at the field it names', function (): void
 			// Not a required field, but a validated one (Story 5.3) — the map covers every code
 			// that can be raised, so every code must be raised here.
 			'context_id'            => 'abc',
+			// 4.1.0: a class code without a feature code is rejected at the feature field.
+			'stock_quantity_class'       => 'WAREHOUSE_A',
+			'title_class_id'             => 'WAREHOUSE_A',
+			'short_description_class_id' => 'WAREHOUSE_A',
+			'long_description_class_id'  => 'WAREHOUSE_A',
 		]
 	);
 
