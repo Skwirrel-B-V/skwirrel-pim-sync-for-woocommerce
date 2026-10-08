@@ -230,7 +230,8 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		$id   = $base;
 		$n    = 2;
 		while ( in_array( $id, $existing, true ) ) {
-			$id = $base . '-' . $n++;
+			$id = $base . '-' . $n;
+			++$n;
 		}
 		return $id;
 	}
