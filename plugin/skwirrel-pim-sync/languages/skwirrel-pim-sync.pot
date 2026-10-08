@@ -2291,9 +2291,9 @@ msgid "The custom class is optional. Set it when the same feature appears in mor
 msgstr ""
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid "e.g. PRODUCT_SHORT_DESC"
+msgid "e.g. SHORT_DESCRIPTION"
 msgstr ""
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid "e.g. PRODUCT_LONG_DESC"
+msgid "e.g. LONG_DESCRIPTION"
 msgstr ""

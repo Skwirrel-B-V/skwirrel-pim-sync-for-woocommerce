@@ -2800,9 +2800,9 @@ msgid "The custom class is optional. Set it when the same feature appears in mor
 msgstr "Die benutzerdefinierte Klasse ist optional. Setzen Sie sie, wenn dasselbe Feature in mehr als einer Klasse vorkommt – zum Beispiel eine Klasse pro Lagerstandort –, um zu wählen, aus welcher Klasse der Wert gelesen wird. Ohne Klasse wird die erste Klasse mit einem Wert verwendet."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid "e.g. PRODUCT_SHORT_DESC"
-msgstr "z.B. PRODUCT_SHORT_DESC"
+msgid "e.g. SHORT_DESCRIPTION"
+msgstr "z.B. SHORT_DESCRIPTION"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid "e.g. PRODUCT_LONG_DESC"
-msgstr "z.B. PRODUCT_LONG_DESC"
+msgid "e.g. LONG_DESCRIPTION"
+msgstr "z.B. LONG_DESCRIPTION"
