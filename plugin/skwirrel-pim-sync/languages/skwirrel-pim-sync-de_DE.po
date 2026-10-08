@@ -860,7 +860,7 @@ msgstr "z.B. 5"
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1754
 msgid "Only needed when syncing custom classes or grouped products."
 msgstr ""
-"Nur beim Synchronisieren Custom Klassen oder gruppierter Produkte "
+"Nur beim Synchronisieren von Custom Klassen oder gruppierter Produkte "
 "erforderlich."
 
 #. translators: %s = link to Skwirrel groups page

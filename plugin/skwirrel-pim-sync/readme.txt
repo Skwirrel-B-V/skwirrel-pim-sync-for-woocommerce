@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 4.0.0
+Stable tag: 4.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,12 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 4.1.0 =
+* Field mappings can now choose the custom class a feature is read from. Use it when the same feature appears in more than one class, for example one stock class per location. Leave the class empty to keep the current behaviour.
+* A warning is written to the sync log when a mapping without a class finds its feature in more than one class.
+* Saving a class without a feature now shows an error instead of being silently ignored.
+* Improved Dutch, German and French wording for custom classes and features.
 
 = 4.0.0 =
 * Further UX improvements and a redesign of the admin screens for faster day-to-day use.
