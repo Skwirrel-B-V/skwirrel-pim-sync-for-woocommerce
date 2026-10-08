@@ -2784,8 +2784,8 @@ msgid "Install WooCommerce"
 msgstr "WooCommerce installieren"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid "Custom class (optional)"
-msgstr "Benutzerdefinierte Klasse (optional)"
+msgid "Class code (optional)"
+msgstr "Klassencode (optional)"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "Feature"

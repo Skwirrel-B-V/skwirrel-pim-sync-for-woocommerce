@@ -2087,7 +2087,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<legend class="skw-label"><?php echo esc_html( $field['label'] ); ?></legend>
 					<div class="skw-field-row">
 						<div>
-							<label for="<?php echo esc_attr( $class_id ); ?>" class="skw-sublabel"><?php esc_html_e( 'Custom class (optional)', 'skwirrel-pim-sync' ); ?></label>
+							<label for="<?php echo esc_attr( $class_id ); ?>" class="skw-sublabel"><?php esc_html_e( 'Class code (optional)', 'skwirrel-pim-sync' ); ?></label>
 							<input type="text" id="<?php echo esc_attr( $class_id ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $class_id ); ?>]" value="<?php echo esc_attr( (string) ( $opts[ $class_id ] ?? '' ) ); ?>" class="skw-input" placeholder="YOUR_WP_CUSTOM_CLASS_NAME" aria-describedby="skw-mapping-class-hint" />
 						</div>
 						<div>

@@ -2693,8 +2693,8 @@ msgid "Install WooCommerce"
 msgstr "Install WooCommerce"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid "Custom class (optional)"
-msgstr "Custom class (optional)"
+msgid "Class code (optional)"
+msgstr "Class code (optional)"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "Feature"

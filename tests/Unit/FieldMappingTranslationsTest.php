@@ -84,7 +84,7 @@ function skw_field_mapping_strings(): array
         'Field mapping',
         'Drive WooCommerce fields from a Skwirrel custom class feature, so you no longer maintain the same value in two systems.',
         'Find your feature IDs and codes at %s — open a class to see its features, or check a product\'s own custom class values on its edit page.',
-        'Custom class (optional)',
+        'Class code (optional)',
         'Feature',
         'e.g. SHORT_DESCRIPTION',
         'e.g. LONG_DESCRIPTION',
