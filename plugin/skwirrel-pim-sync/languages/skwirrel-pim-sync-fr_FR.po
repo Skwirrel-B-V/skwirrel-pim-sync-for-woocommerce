@@ -740,11 +740,11 @@ msgstr "Synchroniser les caractéristiques ETIM"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1684
 msgid "Sync custom classes"
-msgstr "Synchroniser les classes personnalisées"
+msgstr "Synchroniser les classes"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1685
 msgid "Include trade item custom classes"
-msgstr "Inclure les classes personnalisées des articles commerciaux"
+msgstr "Inclure les classes des articles commerciaux"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1686
 msgid "Show GTIN as product attribute"
@@ -856,7 +856,7 @@ msgstr "Trouvez vos identifiants de sélection sur %s."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1750
 msgid "Custom class collection ID"
-msgstr "ID de collection de classes personnalisées"
+msgstr "ID de collection de classes"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1751
 msgid "e.g. 5"
@@ -865,7 +865,7 @@ msgstr "ex. 5"
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1754
 msgid "Only needed when syncing custom classes or grouped products."
 msgstr ""
-"Nécessaire uniquement pour synchroniser des classes personnalisées ou des "
+"Nécessaire uniquement pour synchroniser des classes ou des "
 "produits groupés."
 
 #. translators: %s = link to Skwirrel groups page
@@ -876,7 +876,7 @@ msgstr "Trouvez vos ID de collection sur %s."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1768
 msgid "Custom class filter"
-msgstr "Filtre de classes personnalisées"
+msgstr "Filtre de classes"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1770
 msgid "No filter"
@@ -1166,7 +1166,7 @@ msgid ""
 "longer maintain the same value in two systems."
 msgstr ""
 "Pilotez les champs WooCommerce à partir d’une caractéristique de classe "
-"personnalisée Skwirrel, pour ne plus maintenir la même valeur dans deux "
+"Skwirrel, pour ne plus maintenir la même valeur dans deux "
 "systèmes."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:2056
@@ -1264,7 +1264,7 @@ msgid ""
 msgstr ""
 "Retrouvez vos ID et codes de caractéristiques sur %s — ouvrez une classe "
 "pour voir ses caractéristiques, ou consultez les valeurs de classe "
-"personnalisée propres à un produit sur sa page de modification."
+"propres à un produit sur sa page de modification."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:2101
 msgid ""
@@ -1274,8 +1274,8 @@ msgid ""
 "mapping off again, and the next synchronisation then returns that field to "
 "its default value."
 msgstr ""
-"Les correspondances de champs lisent les classes personnalisées au niveau du "
-"produit. Définir un ID de collection de classes personnalisées sous « Quoi "
+"Les correspondances de champs lisent les classes au niveau du "
+"produit. Définir un ID de collection de classes sous « Quoi "
 "synchroniser » limite la collection dans laquelle elles sont recherchées ; "
 "sans cela, toutes les collections sont parcourues. Vider un champ désactive "
 "à nouveau sa correspondance, et la synchronisation suivante ramène alors ce "
@@ -2797,11 +2797,11 @@ msgstr "Code de la fonction"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "A custom class is set but the feature is empty. Enter the feature this class should be read from, or clear the class."
-msgstr "Une classe personnalisée est définie, mais la caractéristique est vide. Saisissez la caractéristique à lire dans cette classe, ou videz la classe."
+msgstr "Une classe est définie, mais la caractéristique est vide. Saisissez la caractéristique à lire dans cette classe, ou videz la classe."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "The custom class is optional. Set it when the same feature appears in more than one class — for example one class per stock location — to choose which class the value is read from. Without a class, the first class that has a value is used."
-msgstr "La classe personnalisée est facultative. Renseignez-la lorsque la même caractéristique figure dans plusieurs classes — par exemple une classe par site de stock — pour choisir la classe dans laquelle la valeur est lue. Sans classe, la première classe qui a une valeur est utilisée."
+msgstr "La classe est facultative. Renseignez-la lorsque la même caractéristique figure dans plusieurs classes — par exemple une classe par site de stock — pour choisir la classe dans laquelle la valeur est lue. Sans classe, la première classe qui a une valeur est utilisée."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "e.g. SHORT_DESCRIPTION"
