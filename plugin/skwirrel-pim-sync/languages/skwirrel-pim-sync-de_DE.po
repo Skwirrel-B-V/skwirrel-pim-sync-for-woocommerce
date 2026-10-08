@@ -851,7 +851,7 @@ msgstr "Finden Sie Ihre Auswahl-IDs unter %s."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1750
 msgid "Custom class collection ID"
-msgstr "Benutzerdefinierte Klassen-Sammlungs-ID"
+msgstr "Custom Klassen-Sammlungs-ID"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1751
 msgid "e.g. 5"
@@ -860,7 +860,7 @@ msgstr "z.B. 5"
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:1754
 msgid "Only needed when syncing custom classes or grouped products."
 msgstr ""
-"Nur beim Synchronisieren eigener Klassen oder gruppierter Produkte "
+"Nur beim Synchronisieren von Custom Klassen oder gruppierter Produkte "
 "erforderlich."
 
 #. translators: %s = link to Skwirrel groups page
@@ -1158,7 +1158,7 @@ msgid ""
 "longer maintain the same value in two systems."
 msgstr ""
 "Steuern Sie WooCommerce-Felder über ein Skwirrel-Merkmal einer "
-"benutzerdefinierten Klasse, damit Sie denselben Wert nicht mehr in zwei "
+"Custom Klasse, damit Sie denselben Wert nicht mehr in zwei "
 "Systemen pflegen müssen."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:2056
@@ -1171,7 +1171,7 @@ msgstr "z.B. STOCK_QTY"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:2060
 msgid "Must be a numeric feature."
-msgstr "Muss ein numerisches Feature sein."
+msgstr "Muss ein numerisches Merkmal sein."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:2060
 msgid ""
@@ -1254,9 +1254,9 @@ msgid ""
 "Find your feature IDs and codes at %s — open a class to see its features, or "
 "check a product's own custom class values on its edit page."
 msgstr ""
-"Ihre Feature-IDs und -Codes finden Sie unter %s — öffnen Sie eine Klasse, um "
-"ihre Features zu sehen, oder prüfen Sie die eigenen Werte der "
-"benutzerdefinierten Klasse eines Produkts auf dessen Bearbeitungsseite."
+"Ihre Merkmal-IDs und -Codes finden Sie unter %s — öffnen Sie eine Klasse, um "
+"ihre Merkmale zu sehen, oder prüfen Sie die eigenen Werte der "
+"Custom Klasse eines Produkts auf dessen Bearbeitungsseite."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:2101
 msgid ""
@@ -1266,8 +1266,8 @@ msgid ""
 "mapping off again, and the next synchronisation then returns that field to "
 "its default value."
 msgstr ""
-"Feldzuordnungen lesen benutzerdefinierte Klassen auf Produktebene. Das "
-"Festlegen einer Sammlungs-ID für benutzerdefinierte Klassen unter „Was "
+"Feldzuordnungen lesen Custom Klassen auf Produktebene. Das "
+"Festlegen einer Sammlungs-ID für Custom Klassen unter „Was "
 "synchronisiert wird“ schränkt ein, aus welcher Sammlung sie gelesen werden; "
 "ohne sie wird in allen Sammlungen gesucht. Wird ein Feld geleert, ist dessen "
 "Zuordnung wieder aus, und die nächste Synchronisierung setzt dieses Feld "
@@ -2782,3 +2782,27 @@ msgstr ""
 #: skwirrel-pim-sync.php:52
 msgid "Install WooCommerce"
 msgstr "WooCommerce installieren"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Class code (optional)"
+msgstr "Klassencode (optional)"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Feature code"
+msgstr "Merkmalcode"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "A custom class is set but the feature is empty. Enter the feature this class should be read from, or clear the class."
+msgstr "Eine Custom Klasse ist gesetzt, aber das Merkmal ist leer. Geben Sie das Merkmal ein, das aus dieser Klasse gelesen werden soll, oder leeren Sie die Klasse."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "The custom class is optional. Set it when the same feature appears in more than one class — for example one class per stock location — to choose which class the value is read from. Without a class, the first class that has a value is used."
+msgstr "Die Custom Klasse ist optional. Setzen Sie sie, wenn dasselbe Merkmal in mehr als einer Klasse vorkommt – zum Beispiel eine Klasse pro Lagerstandort –, um zu wählen, aus welcher Klasse der Wert gelesen wird. Ohne Klasse wird die erste Klasse mit einem Wert verwendet."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "e.g. SHORT_DESCRIPTION"
+msgstr "z.B. SHORT_DESCRIPTION"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "e.g. LONG_DESCRIPTION"
+msgstr "z.B. LONG_DESCRIPTION"

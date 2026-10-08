@@ -318,3 +318,92 @@ test('the mapper delegates the resolver to the extractor', function () {
     expect($this->mapper->get_stock_quantity($product, '1234'))->toBe(88.0);
     expect($this->mapper->get_stock_quantity($product, ''))->toBeNull();
 });
+
+// ------------------------------------------------------------------
+// Class qualifier — the same feature in more than one class
+// ------------------------------------------------------------------
+
+/**
+ * Build a product with one stock class per location, all carrying the same quantity feature.
+ *
+ * @return array<string,mixed>
+ */
+function two_location_product(): array
+{
+    $class = fn (int $id, string $code, mixed $qty) => [
+        'custom_class_id'   => $id,
+        'custom_class_code' => $code,
+        '_custom_features'  => [
+            [
+                'custom_feature_id'   => 4,
+                'custom_feature_code' => 'FUSE5_QTY_ONHAND',
+                'custom_feature_type' => 'N',
+                'numeric_value'       => $qty,
+            ],
+        ],
+    ];
+
+    return [
+        'product_id'      => 42,
+        '_custom_classes' => [
+            $class(3, 'USPC_FUSE5_HENDRIK_IDO_AMBACHT', 7),
+            $class(2, 'USPC_FUSE5_DALLAS', 25),
+        ],
+    ];
+}
+
+test('without a class, a feature shared by several classes resolves from the first class', function () {
+    expect($this->extractor->resolve_numeric_feature_value(two_location_product(), 'FUSE5_QTY_ONHAND'))->toBe(7.0);
+});
+
+test('a class selects which class the feature is read from', function () {
+    expect($this->extractor->resolve_numeric_feature_value(two_location_product(), 'FUSE5_QTY_ONHAND', 'USPC_FUSE5_DALLAS'))->toBe(25.0);
+});
+
+test('a class matches by ID or by code, case-insensitively', function (string $class, string $feature, float $expected) {
+    expect($this->extractor->resolve_numeric_feature_value(two_location_product(), $feature, $class))->toBe($expected);
+})->with([
+    'class ID'              => ['2', 'FUSE5_QTY_ONHAND', 25.0],
+    'lowercase class code'  => ['uspc_fuse5_dallas', 'FUSE5_QTY_ONHAND', 25.0],
+    'class code, feature ID'=> ['USPC_FUSE5_DALLAS', '4', 25.0],
+    'class ID, feature ID'  => ['3', '4', 7.0],
+    'padded class'          => ['  USPC_FUSE5_DALLAS ', 'FUSE5_QTY_ONHAND', 25.0],
+]);
+
+test('a chosen class never falls back to another class', function () {
+    $product = two_location_product();
+    $product['_custom_classes'][1]['_custom_features'][0]['not_applicable'] = true;
+
+    expect($this->extractor->resolve_numeric_feature_value($product, 'FUSE5_QTY_ONHAND', 'USPC_FUSE5_DALLAS'))->toBeNull();
+});
+
+test('a class the product does not have resolves to null', function (string $class) {
+    expect($this->extractor->resolve_numeric_feature_value(two_location_product(), 'FUSE5_QTY_ONHAND', $class))->toBeNull();
+})->with(['NOWHERE', '99', '0', '-2', '2.5']);
+
+test('the mapper reads stock from the chosen class', function () {
+    expect($this->mapper->get_stock_quantity(two_location_product(), 'FUSE5_QTY_ONHAND', 'USPC_FUSE5_DALLAS'))->toBe(25.0);
+});
+
+test('the extractor lists every class that holds a feature, in payload order', function () {
+    expect($this->extractor->classes_with_feature(two_location_product(), 'FUSE5_QTY_ONHAND'))
+        ->toBe(['USPC_FUSE5_HENDRIK_IDO_AMBACHT', 'USPC_FUSE5_DALLAS']);
+});
+
+test('the ambiguity warning goes through the logger the mapper was given', function () {
+    $logger = new class () extends Skwirrel_WC_Sync_Logger {
+        /** @var array<int, array{0: string, 1: array<string, mixed>}> */
+        public array $warnings = [];
+
+        public function warning(string $message, array $context = []): void
+        {
+            $this->warnings[] = [$message, $context];
+        }
+    };
+    $mapper = new Skwirrel_WC_Sync_Product_Mapper($logger);
+
+    $mapper->get_stock_quantity(two_location_product(), 'FUSE5_QTY_ONHAND');
+
+    expect($logger->warnings)->toHaveCount(1);
+    expect($logger->warnings[0][1]['classes'])->toBe(['USPC_FUSE5_HENDRIK_IDO_AMBACHT', 'USPC_FUSE5_DALLAS']);
+});

@@ -2,6 +2,20 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [4.1.0]
+
+Field mappings can now pick the custom class a feature is read from — needed when the same feature lives in several classes, such as one stock class per location.
+
+### Added
+
+* **Optional class code per field mapping.** Stock quantity, title, short description and long description each get a "Class code (optional)" input next to their "Feature code" (`stock_quantity_class`, `title_class_id`, `short_description_class_id`, `long_description_class_id`, all empty by default). Symptom it solves: a shop with two location classes that both carry `FUSE5_QTY_ONHAND` always got the first class's quantity, with no way to select the other. Cause: `Custom_Class_Extractor::matching_features()` matched on feature ID/code only and returned the first match across all classes. Fix: an optional class (ID or case-insensitive code) narrows the search to that one class, with no fallback to the others; an unknown or malformed class resolves nothing: existing stock stays untouched, and titles and descriptions fall back to their normal source exactly as an unresolved feature does (they are never blanked). An empty class keeps the previous behaviour. Covered by `tests/Unit/StockMappingTest.php`, `tests/Unit/ContentMappingTest.php` and `tests/Unit/FieldMappingClassSettingsTest.php`.
+* **Sync-log warning for ambiguous mappings.** When a mapping without a class finds its feature in more than one class on a product, `Product_Mapper` logs a warning listing the classes (once per field per mapper), so "first class wins" is never silent.
+
+### Changed
+
+* **Saving a class without a feature is rejected** with an inline error at the feature field (`{feature_key}_required` in `error_field_map()`); both values are kept so the form shows what was typed.
+* **Translation terminology.** Dutch now uses "klasse/klassen", "kenmerk" and "Klassecode"/"Kenmerkcode"; German uses "Custom Klasse(n)", "Merkmal" and "Klassencode"/"Merkmalcode"; French uses "classe(s)", "Code de la classe" and "Code de la fonction".
+
 ## [4.0.0]
 
 Further UX improvements and a redesign of the admin screens for faster day-to-day use.

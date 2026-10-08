@@ -267,3 +267,35 @@ test('an I-type value picks the language through the existing chain', function (
     expect($this->extractor->resolve_text_feature_value($product, '812', 'nl'))->toBe('Nederlandse titel');
     expect($this->extractor->resolve_text_feature_value($product, '812', 'de'))->toBe('Deutscher Titel');
 });
+
+/**
+ * A product with the same content features in two classes — one class per webshop.
+ *
+ * @return array<string,mixed>
+ */
+function two_class_content_product(): array
+{
+    $class = fn (int $id, string $code, string $suffix) => [
+        'custom_class_id'   => $id,
+        'custom_class_code' => $code,
+        '_custom_features'  => [
+            ['custom_feature_code' => 'TITLE', 'custom_feature_type' => 'T', 'text_value' => 'Title ' . $suffix],
+            ['custom_feature_code' => 'SHORT', 'custom_feature_type' => 'B', 'big_text_value' => 'Short ' . $suffix],
+            ['custom_feature_code' => 'LONG', 'custom_feature_type' => 'B', 'big_text_value' => 'Long ' . $suffix],
+        ],
+    ];
+
+    $product                    = content_product();
+    $product['_custom_classes'] = [ $class(1, 'WEBSHOP_A', 'A'), $class(2, 'WEBSHOP_B', 'B') ];
+
+    return $product;
+}
+
+test('each content mapping reads from its own chosen class', function () {
+    $this->mapper->set_content_mapping('TITLE', 'SHORT', 'LONG', 'WEBSHOP_B', '1', 'webshop_b');
+    $product = two_class_content_product();
+
+    expect($this->mapper->get_name($product))->toBe('Title B');
+    expect($this->mapper->get_short_description($product))->toBe('Short A');
+    expect($this->mapper->get_long_description($product))->toBe('Long B');
+});

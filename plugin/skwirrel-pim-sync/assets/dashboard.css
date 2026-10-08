@@ -1008,6 +1008,29 @@
 	margin-bottom: 6px;
 }
 
+/* Field mapping: a class + feature pair under one legend. */
+.skw-mapping {
+	border: 0;
+	padding: 0;
+	margin: 0 0 14px;
+	min-width: 0;
+}
+
+.skw-mapping > legend.skw-label {
+	padding: 0;
+}
+
+.skw-mapping .skw-field-row {
+	margin-bottom: 6px;
+}
+
+.skw-sublabel {
+	display: block;
+	font-size: 12px;
+	color: #6b7280;
+	margin-bottom: 4px;
+}
+
 .skw-input {
 	display: block;
 	width: 100%;

@@ -888,7 +888,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				'label'  => __( 'Field mapping', 'skwirrel-pim-sync' ),
 				'order'  => 25,
 				'render' => 'render_settings_panel_field_mapping',
-				'fields' => array( 'stock_quantity_feature', 'title_feature_id', 'short_description_feature_id', 'long_description_feature_id' ),
+				'fields' => self::field_mapping_field_ids(),
 			),
 			'advanced'      => array(
 				'label'  => __( 'Advanced', 'skwirrel-pim-sync' ),
@@ -2052,43 +2052,57 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</div>
 			</div>
 			<p class="skw-field-hint"><?php esc_html_e( 'Drive WooCommerce fields from a Skwirrel custom class feature, so you no longer maintain the same value in two systems.', 'skwirrel-pim-sync' ); ?></p>
-			<div class="skw-field">
-				<label for="stock_quantity_feature" class="skw-label"><?php esc_html_e( 'Stock quantity', 'skwirrel-pim-sync' ); ?></label>
-				<input type="text" id="stock_quantity_feature" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[stock_quantity_feature]" value="<?php echo esc_attr( (string) ( $opts['stock_quantity_feature'] ?? '' ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. STOCK_QTY', 'skwirrel-pim-sync' ); ?>"
-				<?php $this->render_field_state_attrs( 'stock_quantity_feature', 'stock_quantity_feature-hint' ); ?> />
-				<?php $this->render_field_error( 'stock_quantity_feature' ); ?>
-				<p class="skw-field-hint" id="stock_quantity_feature-hint"><strong><?php esc_html_e( 'Must be a numeric feature.', 'skwirrel-pim-sync' ); ?></strong> <?php esc_html_e( 'The code of one product-level custom feature holding the stock quantity. Only a whole number is used; range, logical and multi-value features are ignored. A product with no usable value keeps its current stock untouched. Trade-item level features are not used, and products priced on request keep their own availability regardless.', 'skwirrel-pim-sync' ); ?></p>
-			</div>
 			<?php
-			$content_fields = array(
+			$mapping_fields = array(
+				'stock_quantity_feature'       => array(
+					'label'       => __( 'Stock quantity', 'skwirrel-pim-sync' ),
+					'placeholder' => __( 'e.g. STOCK_QTY', 'skwirrel-pim-sync' ),
+					'type_note'   => __( 'Must be a numeric feature.', 'skwirrel-pim-sync' ),
+					'hint'        => __( 'The code of one product-level custom feature holding the stock quantity. Only a whole number is used; range, logical and multi-value features are ignored. A product with no usable value keeps its current stock untouched. Trade-item level features are not used, and products priced on request keep their own availability regardless.', 'skwirrel-pim-sync' ),
+				),
 				'title_feature_id'             => array(
-					'label'     => __( 'Product title', 'skwirrel-pim-sync' ),
-					'type_note' => __( 'Must be a short text feature.', 'skwirrel-pim-sync' ),
-					'hint'      => __( 'The code of the custom feature holding the product title. Leave empty to keep using the normal source (the ERP description, then the product translations). When a product has no value for this feature, the normal source is used for that product — the title is never blanked.', 'skwirrel-pim-sync' ),
+					'label'       => __( 'Product title', 'skwirrel-pim-sync' ),
+					'placeholder' => __( 'e.g. PRODUCT_TITLE', 'skwirrel-pim-sync' ),
+					'type_note'   => __( 'Must be a short text feature.', 'skwirrel-pim-sync' ),
+					'hint'        => __( 'The code of the custom feature holding the product title. Leave empty to keep using the normal source (the ERP description, then the product translations). When a product has no value for this feature, the normal source is used for that product — the title is never blanked.', 'skwirrel-pim-sync' ),
 				),
 				'short_description_feature_id' => array(
-					'label'     => __( 'Short description', 'skwirrel-pim-sync' ),
-					'type_note' => __( 'Must be a long text feature.', 'skwirrel-pim-sync' ),
-					'hint'      => __( 'The code of the custom feature holding the short description. Leave empty to keep using the product translations. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
+					'label'       => __( 'Short description', 'skwirrel-pim-sync' ),
+					'placeholder' => __( 'e.g. SHORT_DESCRIPTION', 'skwirrel-pim-sync' ),
+					'type_note'   => __( 'Must be a long text feature.', 'skwirrel-pim-sync' ),
+					'hint'        => __( 'The code of the custom feature holding the short description. Leave empty to keep using the product translations. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
 				),
 				'long_description_feature_id'  => array(
-					'label'     => __( 'Long description', 'skwirrel-pim-sync' ),
-					'type_note' => __( 'Must be a long text feature.', 'skwirrel-pim-sync' ),
-					'hint'      => __( 'The code of the custom feature holding the long description. Leave empty to keep using the normal source. Formatting is kept; unsafe markup is removed. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
+					'label'       => __( 'Long description', 'skwirrel-pim-sync' ),
+					'placeholder' => __( 'e.g. LONG_DESCRIPTION', 'skwirrel-pim-sync' ),
+					'type_note'   => __( 'Must be a long text feature.', 'skwirrel-pim-sync' ),
+					'hint'        => __( 'The code of the custom feature holding the long description. Leave empty to keep using the normal source. Formatting is kept; unsafe markup is removed. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
 				),
 			);
-			foreach ( $content_fields as $field_id => $field ) :
+			$class_keys     = Skwirrel_WC_Sync_Admin_Settings::field_mapping_keys();
+			foreach ( $mapping_fields as $field_id => $field ) :
+				$class_id = $class_keys[ $field_id ];
 				?>
-				<div class="skw-field">
-					<label for="<?php echo esc_attr( $field_id ); ?>" class="skw-label"><?php echo esc_html( $field['label'] ); ?></label>
-					<input type="text" id="<?php echo esc_attr( $field_id ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $field_id ); ?>]" value="<?php echo esc_attr( (string) ( $opts[ $field_id ] ?? '' ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. PRODUCT_TITLE', 'skwirrel-pim-sync' ); ?>"
-					<?php $this->render_field_state_attrs( $field_id, $field_id . '-hint' ); ?> />
+				<fieldset class="skw-field skw-mapping"<?php $this->render_field_wrapper_attr( $field_id ); ?>>
+					<legend class="skw-label"><?php echo esc_html( $field['label'] ); ?></legend>
+					<div class="skw-field-row">
+						<div>
+							<label for="<?php echo esc_attr( $class_id ); ?>" class="skw-sublabel"><?php esc_html_e( 'Class code (optional)', 'skwirrel-pim-sync' ); ?></label>
+							<input type="text" id="<?php echo esc_attr( $class_id ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $class_id ); ?>]" value="<?php echo esc_attr( (string) ( $opts[ $class_id ] ?? '' ) ); ?>" class="skw-input" placeholder="YOUR_WP_CUSTOM_CLASS_NAME" aria-describedby="skw-mapping-class-hint" />
+						</div>
+						<div>
+							<label for="<?php echo esc_attr( $field_id ); ?>" class="skw-sublabel"><?php esc_html_e( 'Feature code', 'skwirrel-pim-sync' ); ?></label>
+							<input type="text" id="<?php echo esc_attr( $field_id ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $field_id ); ?>]" value="<?php echo esc_attr( (string) ( $opts[ $field_id ] ?? '' ) ); ?>" class="skw-input" placeholder="<?php echo esc_attr( $field['placeholder'] ); ?>"
+							<?php $this->render_field_state_attrs( $field_id, $field_id . '-hint' ); ?> />
+						</div>
+					</div>
 					<?php $this->render_field_error( $field_id ); ?>
 					<p class="skw-field-hint" id="<?php echo esc_attr( $field_id ); ?>-hint"><strong><?php echo esc_html( $field['type_note'] ); ?></strong> <?php echo esc_html( $field['hint'] ); ?></p>
-				</div>
+				</fieldset>
 				<?php
 			endforeach;
 			?>
+			<p class="skw-field-hint" id="skw-mapping-class-hint"><?php esc_html_e( 'The custom class is optional. Set it when the same feature appears in more than one class — for example one class per stock location — to choose which class the value is read from. Without a class, the first class that has a value is used.', 'skwirrel-pim-sync' ); ?></p>
 			<p class="skw-field-hint">
 				<?php
 				printf(
@@ -2101,6 +2115,20 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<p class="skw-field-hint"><?php esc_html_e( 'Field mappings read product-level custom classes. Setting a custom class collection ID under "What to sync" narrows which collection they are read from; without one, every collection is searched. Clearing a field turns its mapping off again, and the next synchronisation then returns that field to its default value.', 'skwirrel-pim-sync' ); ?></p>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Every input on the Field mapping tab: each feature key followed by its class key.
+	 *
+	 * @return array<int, string>
+	 */
+	private static function field_mapping_field_ids(): array {
+		$ids = array();
+		foreach ( Skwirrel_WC_Sync_Admin_Settings::field_mapping_keys() as $feature_key => $class_key ) {
+			$ids[] = $feature_key;
+			$ids[] = $class_key;
+		}
+		return $ids;
 	}
 
 	/**

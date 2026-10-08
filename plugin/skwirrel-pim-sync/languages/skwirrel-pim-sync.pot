@@ -2,7 +2,7 @@
 # This file is distributed under the GPL v2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Skwirrel PIM sync for WooCommerce 4.0.0\n"
+"Project-Id-Version: Skwirrel PIM sync for WooCommerce 4.1.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/skwirrel-pim-sync\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2272,4 +2272,28 @@ msgstr ""
 
 #: skwirrel-pim-sync.php:52
 msgid "Install WooCommerce"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Class code (optional)"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Feature code"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "A custom class is set but the feature is empty. Enter the feature this class should be read from, or clear the class."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "The custom class is optional. Set it when the same feature appears in more than one class — for example one class per stock location — to choose which class the value is read from. Without a class, the first class that has a value is used."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "e.g. SHORT_DESCRIPTION"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "e.g. LONG_DESCRIPTION"
 msgstr ""

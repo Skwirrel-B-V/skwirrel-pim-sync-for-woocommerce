@@ -24,7 +24,7 @@ class Skwirrel_WC_Sync_Service {
 
 	public function __construct() {
 		$this->logger           = new Skwirrel_WC_Sync_Logger();
-		$this->mapper           = new Skwirrel_WC_Sync_Product_Mapper();
+		$this->mapper           = new Skwirrel_WC_Sync_Product_Mapper( $this->logger );
 		$lookup                 = new Skwirrel_WC_Sync_Product_Lookup( $this->mapper );
 		$this->purge_handler    = new Skwirrel_WC_Sync_Purge_Handler( $this->logger );
 		$this->category_sync    = new Skwirrel_WC_Sync_Category_Sync( $this->logger );
@@ -62,7 +62,10 @@ class Skwirrel_WC_Sync_Service {
 		$this->mapper->set_content_mapping(
 			(string) ( $opts['title_feature_id'] ?? '' ),
 			(string) ( $opts['short_description_feature_id'] ?? '' ),
-			(string) ( $opts['long_description_feature_id'] ?? '' )
+			(string) ( $opts['long_description_feature_id'] ?? '' ),
+			(string) ( $opts['title_class_id'] ?? '' ),
+			(string) ( $opts['short_description_class_id'] ?? '' ),
+			(string) ( $opts['long_description_class_id'] ?? '' )
 		);
 		// The language rides the same copy. A mapped I/A/M feature, an ETIM value and a document
 		// name are all language-dependent, so leaving this on the live option would let one run
@@ -366,8 +369,8 @@ class Skwirrel_WC_Sync_Service {
 			if ( null !== $custom_collection_id ) {
 				$api_includes['include_custom_collection_id'] = [ $custom_collection_id ];
 			}
-			// A mapped feature may belong to a class outside the attribute whitelist. The mapping
-			// has no class selector, so it must inspect every product-level class.
+			// A mapped feature may belong to a class outside the attribute whitelist — with or
+			// without a chosen class code — so the mapping must inspect every product-level class.
 			unset( $api_includes['include_custom_class_id'] );
 		}
 
@@ -2650,6 +2653,10 @@ class Skwirrel_WC_Sync_Service {
 			'title_feature_id'              => '',
 			'short_description_feature_id'  => '',
 			'long_description_feature_id'   => '',
+			'stock_quantity_class'          => '',
+			'title_class_id'                => '',
+			'short_description_class_id'    => '',
+			'long_description_class_id'     => '',
 		];
 		$saved = get_option( 'skwirrel_wc_sync_settings', [] );
 		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );
@@ -2674,18 +2681,13 @@ class Skwirrel_WC_Sync_Service {
 	 *
 	 * Field mappings resolve against product-level `_custom_classes`, so when one is set the
 	 * payload must include custom classes regardless of the two custom-class sync toggles.
-	 * Every future mapping key belongs in this list.
+	 * The mapping keys come from {@see Skwirrel_WC_Sync_Admin_Settings::field_mapping_keys()}.
 	 *
 	 * @param array<string, mixed> $options Plugin settings.
 	 */
 	private static function has_field_mapping( array $options ): bool {
-		$keys = [
-			'stock_quantity_feature',
-			'title_feature_id',
-			'short_description_feature_id',
-			'long_description_feature_id',
-		];
-		foreach ( $keys as $key ) {
+		// A class code alone resolves nothing, so only the feature keys turn a mapping on.
+		foreach ( array_keys( Skwirrel_WC_Sync_Admin_Settings::field_mapping_keys() ) as $key ) {
 			if ( '' !== trim( (string) ( $options[ $key ] ?? '' ) ) ) {
 				return true;
 			}

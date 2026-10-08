@@ -205,6 +205,11 @@ test( 'every input name the pre-tabs settings form rendered is still rendered', 
 	$expected[] = 'skwirrel_wc_sync_settings[title_feature_id]';
 	$expected[] = 'skwirrel_wc_sync_settings[short_description_feature_id]';
 	$expected[] = 'skwirrel_wc_sync_settings[long_description_feature_id]';
+	// Added by 4.1.0: the optional class code next to each field mapping.
+	$expected[] = 'skwirrel_wc_sync_settings[stock_quantity_class]';
+	$expected[] = 'skwirrel_wc_sync_settings[title_class_id]';
+	$expected[] = 'skwirrel_wc_sync_settings[short_description_class_id]';
+	$expected[] = 'skwirrel_wc_sync_settings[long_description_class_id]';
 	// Added to the Sync Options group by the sync_etim toggle.
 	$expected[] = 'skwirrel_wc_sync_settings[sync_etim]';
 	$expected   = array_values( array_unique( $expected ) );
