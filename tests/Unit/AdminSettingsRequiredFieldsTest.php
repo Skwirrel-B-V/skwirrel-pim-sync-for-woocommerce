@@ -171,7 +171,7 @@ test('has_settings_error ignores non-error severities', function () {
 
 /*
  * ---------------------------------------------------------------------------
- * Gap coverage added by the QA E2E pass (bmad-qa-generate-e2e-tests, 2026-08-26).
+ * Gap coverage added by the QA E2E pass (2026-08-26).
  * ---------------------------------------------------------------------------
  */
 

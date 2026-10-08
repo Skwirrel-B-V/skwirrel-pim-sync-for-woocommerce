@@ -412,7 +412,7 @@ test( 'a tab holding a failing field is marked with a count, not colour alone', 
 
 /*
  * ---------------------------------------------------------------------------------------------
- * Gaps found by the QA E2E-test pass (bmad-qa-generate-e2e-tests, story 5.1).
+ * Gaps found by the QA E2E-test pass (story 5.1).
  *
  * The tests above prove the payload is unchanged. These prove the things the acceptance criteria
  * asked for that nothing was checking: the re-home map itself (AC 1), the submit button staying
