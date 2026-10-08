@@ -2091,7 +2091,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 							<input type="text" id="<?php echo esc_attr( $class_id ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $class_id ); ?>]" value="<?php echo esc_attr( (string) ( $opts[ $class_id ] ?? '' ) ); ?>" class="skw-input" placeholder="YOUR_WP_CUSTOM_CLASS_NAME" aria-describedby="skw-mapping-class-hint" />
 						</div>
 						<div>
-							<label for="<?php echo esc_attr( $field_id ); ?>" class="skw-sublabel"><?php esc_html_e( 'Feature', 'skwirrel-pim-sync' ); ?></label>
+							<label for="<?php echo esc_attr( $field_id ); ?>" class="skw-sublabel"><?php esc_html_e( 'Feature code', 'skwirrel-pim-sync' ); ?></label>
 							<input type="text" id="<?php echo esc_attr( $field_id ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $field_id ); ?>]" value="<?php echo esc_attr( (string) ( $opts[ $field_id ] ?? '' ) ); ?>" class="skw-input" placeholder="<?php echo esc_attr( $field['placeholder'] ); ?>"
 							<?php $this->render_field_state_attrs( $field_id, $field_id . '-hint' ); ?> />
 						</div>

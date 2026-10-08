@@ -2279,7 +2279,7 @@ msgid "Class code (optional)"
 msgstr ""
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid "Feature"
+msgid "Feature code"
 msgstr ""
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php

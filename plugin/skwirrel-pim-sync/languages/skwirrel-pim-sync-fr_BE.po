@@ -2792,8 +2792,8 @@ msgid "Class code (optional)"
 msgstr "Code de classe (facultatif)"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid "Feature"
-msgstr "Caractéristique"
+msgid "Feature code"
+msgstr "Code de caractéristique"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "A custom class is set but the feature is empty. Enter the feature this class should be read from, or clear the class."

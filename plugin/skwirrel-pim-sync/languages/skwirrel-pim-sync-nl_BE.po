@@ -1172,7 +1172,7 @@ msgid ""
 "Trade-item level features are not used, and products priced on request keep "
 "their own availability regardless."
 msgstr ""
-"De code van één productgebonden custom feature met de voorraad. Alleen een "
+"De code van één productgebonden custom kenmerk met de voorraad. Alleen een "
 "geheel getal wordt gebruikt; bereik-, logische en multi-waarde-kenmerken "
 "worden genegeerd. Een product zonder bruikbare waarde behoudt zijn huidige "
 "voorraad ongewijzigd. Kenmerken op handelsartikelniveau worden niet "
@@ -1243,8 +1243,8 @@ msgid ""
 "Find your feature IDs and codes at %s — open a class to see its features, or "
 "check a product's own custom class values on its edit page."
 msgstr ""
-"Vind je feature-ID’s en -codes op %s — open een klasse om de bijbehorende "
-"features te zien, of bekijk de custom klasse-waarden van een product op de "
+"Vind je kenmerk-ID’s en -codes op %s — open een klasse om de bijbehorende "
+"kenmerken te zien, of bekijk de custom klasse-waarden van een product op de "
 "bewerkpagina van dat product."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php:2101
@@ -2752,16 +2752,16 @@ msgid "Class code (optional)"
 msgstr "Klassecode (optioneel)"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid "Feature"
-msgstr "Feature"
+msgid "Feature code"
+msgstr "Kenmerkcode"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "A custom class is set but the feature is empty. Enter the feature this class should be read from, or clear the class."
-msgstr "Er is een custom klasse ingevuld, maar de feature is leeg. Vul de feature in die uit deze klasse gelezen moet worden, of maak de klasse leeg."
+msgstr "Er is een custom klasse ingevuld, maar het kenmerk is leeg. Vul het kenmerk in die uit deze klasse gelezen moet worden, of maak de klasse leeg."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "The custom class is optional. Set it when the same feature appears in more than one class — for example one class per stock location — to choose which class the value is read from. Without a class, the first class that has a value is used."
-msgstr "De custom klasse is optioneel. Vul deze in als dezelfde feature in meer dan één klasse voorkomt — bijvoorbeeld één klasse per voorraadlocatie — om te kiezen uit welke klasse de waarde gelezen wordt. Zonder klasse wordt de eerste klasse met een waarde gebruikt."
+msgstr "De custom klasse is optioneel. Vul deze in als hetzelfde kenmerk in meer dan één klasse voorkomt — bijvoorbeeld één klasse per voorraadlocatie — om te kiezen uit welke klasse de waarde gelezen wordt. Zonder klasse wordt de eerste klasse met een waarde gebruikt."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "e.g. SHORT_DESCRIPTION"
