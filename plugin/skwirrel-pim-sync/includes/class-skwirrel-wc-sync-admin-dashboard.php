@@ -888,7 +888,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				'label'  => __( 'Field mapping', 'skwirrel-pim-sync' ),
 				'order'  => 25,
 				'render' => 'render_settings_panel_field_mapping',
-				'fields' => array( 'stock_quantity_feature', 'stock_quantity_class', 'title_feature_id', 'title_class_id', 'short_description_feature_id', 'short_description_class_id', 'long_description_feature_id', 'long_description_class_id' ),
+				'fields' => self::field_mapping_field_ids(),
 			),
 			'advanced'      => array(
 				'label'  => __( 'Advanced', 'skwirrel-pim-sync' ),
@@ -2115,6 +2115,20 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<p class="skw-field-hint"><?php esc_html_e( 'Field mappings read product-level custom classes. Setting a custom class collection ID under "What to sync" narrows which collection they are read from; without one, every collection is searched. Clearing a field turns its mapping off again, and the next synchronisation then returns that field to its default value.', 'skwirrel-pim-sync' ); ?></p>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Every input on the Field mapping tab: each feature key followed by its class key.
+	 *
+	 * @return array<int, string>
+	 */
+	private static function field_mapping_field_ids(): array {
+		$ids = array();
+		foreach ( Skwirrel_WC_Sync_Admin_Settings::field_mapping_keys() as $feature_key => $class_key ) {
+			$ids[] = $feature_key;
+			$ids[] = $class_key;
+		}
+		return $ids;
 	}
 
 	/**
