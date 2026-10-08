@@ -2796,13 +2796,17 @@ msgid "Feature"
 msgstr "Caractéristique"
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
-msgid "e.g. WAREHOUSE_DALLAS"
-msgstr "p. ex. WAREHOUSE_DALLAS"
-
-#: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "A custom class is set but the feature is empty. Enter the feature this class should be read from, or clear the class."
 msgstr "Une classe personnalisée est définie, mais la caractéristique est vide. Saisissez la caractéristique à lire dans cette classe, ou videz la classe."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "The custom class is optional. Set it when the same feature appears in more than one class — for example one class per stock location — to choose which class the value is read from. Without a class, the first class that has a value is used."
 msgstr "La classe personnalisée est facultative. Renseignez-la lorsque la même caractéristique figure dans plusieurs classes — par exemple une classe par site de stock — pour choisir la classe dans laquelle la valeur est lue. Sans classe, la première classe qui a une valeur est utilisée."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "e.g. SHORT_DESCRIPTION"
+msgstr "p. ex. SHORT_DESCRIPTION"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "e.g. LONG_DESCRIPTION"
+msgstr "p. ex. LONG_DESCRIPTION"

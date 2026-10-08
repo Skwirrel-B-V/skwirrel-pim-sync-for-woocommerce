@@ -2068,13 +2068,13 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				),
 				'short_description_feature_id' => array(
 					'label'       => __( 'Short description', 'skwirrel-pim-sync' ),
-					'placeholder' => __( 'e.g. PRODUCT_TITLE', 'skwirrel-pim-sync' ),
+					'placeholder' => __( 'e.g. SHORT_DESCRIPTION', 'skwirrel-pim-sync' ),
 					'type_note'   => __( 'Must be a long text feature.', 'skwirrel-pim-sync' ),
 					'hint'        => __( 'The code of the custom feature holding the short description. Leave empty to keep using the product translations. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
 				),
 				'long_description_feature_id'  => array(
 					'label'       => __( 'Long description', 'skwirrel-pim-sync' ),
-					'placeholder' => __( 'e.g. PRODUCT_TITLE', 'skwirrel-pim-sync' ),
+					'placeholder' => __( 'e.g. LONG_DESCRIPTION', 'skwirrel-pim-sync' ),
 					'type_note'   => __( 'Must be a long text feature.', 'skwirrel-pim-sync' ),
 					'hint'        => __( 'The code of the custom feature holding the long description. Leave empty to keep using the normal source. Formatting is kept; unsafe markup is removed. A product without a value keeps the normal source.', 'skwirrel-pim-sync' ),
 				),
@@ -2088,7 +2088,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<div class="skw-field-row">
 						<div>
 							<label for="<?php echo esc_attr( $class_id ); ?>" class="skw-sublabel"><?php esc_html_e( 'Custom class (optional)', 'skwirrel-pim-sync' ); ?></label>
-							<input type="text" id="<?php echo esc_attr( $class_id ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $class_id ); ?>]" value="<?php echo esc_attr( (string) ( $opts[ $class_id ] ?? '' ) ); ?>" class="skw-input" placeholder="<?php esc_attr_e( 'e.g. WAREHOUSE_DALLAS', 'skwirrel-pim-sync' ); ?>" aria-describedby="skw-mapping-class-hint" />
+							<input type="text" id="<?php echo esc_attr( $class_id ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $class_id ); ?>]" value="<?php echo esc_attr( (string) ( $opts[ $class_id ] ?? '' ) ); ?>" class="skw-input" placeholder="YOUR_WP_CUSTOM_CLASS_NAME" aria-describedby="skw-mapping-class-hint" />
 						</div>
 						<div>
 							<label for="<?php echo esc_attr( $field_id ); ?>" class="skw-sublabel"><?php esc_html_e( 'Feature', 'skwirrel-pim-sync' ); ?></label>
