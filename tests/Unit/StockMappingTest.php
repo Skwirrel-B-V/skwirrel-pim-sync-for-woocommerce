@@ -389,3 +389,21 @@ test('the extractor lists every class that holds a feature, in payload order', f
     expect($this->extractor->classes_with_feature(two_location_product(), 'FUSE5_QTY_ONHAND'))
         ->toBe(['USPC_FUSE5_HENDRIK_IDO_AMBACHT', 'USPC_FUSE5_DALLAS']);
 });
+
+test('the ambiguity warning goes through the logger the mapper was given', function () {
+    $logger = new class () extends Skwirrel_WC_Sync_Logger {
+        /** @var array<int, array{0: string, 1: array<string, mixed>}> */
+        public array $warnings = [];
+
+        public function warning(string $message, array $context = []): void
+        {
+            $this->warnings[] = [$message, $context];
+        }
+    };
+    $mapper = new Skwirrel_WC_Sync_Product_Mapper($logger);
+
+    $mapper->get_stock_quantity(two_location_product(), 'FUSE5_QTY_ONHAND');
+
+    expect($logger->warnings)->toHaveCount(1);
+    expect($logger->warnings[0][1]['classes'])->toBe(['USPC_FUSE5_HENDRIK_IDO_AMBACHT', 'USPC_FUSE5_DALLAS']);
+});

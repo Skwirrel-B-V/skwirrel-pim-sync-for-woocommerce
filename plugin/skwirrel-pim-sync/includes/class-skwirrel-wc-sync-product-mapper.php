@@ -139,8 +139,12 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 */
 	private array $ambiguity_warned = [];
 
-	public function __construct() {
-		$this->logger         = new Skwirrel_WC_Sync_Logger();
+	/**
+	 * @param Skwirrel_WC_Sync_Logger|null $logger The sync's logger, so mapper warnings land in the
+	 *                                             run's own log file; a fresh one when omitted.
+	 */
+	public function __construct( ?Skwirrel_WC_Sync_Logger $logger = null ) {
+		$this->logger         = $logger ?? new Skwirrel_WC_Sync_Logger();
 		$this->image_language = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
 		$this->etim           = new Skwirrel_WC_Sync_Etim_Extractor( $this->image_language );
 		$this->custom_class   = new Skwirrel_WC_Sync_Custom_Class_Extractor( $this->image_language );

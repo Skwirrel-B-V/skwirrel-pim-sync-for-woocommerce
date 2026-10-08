@@ -24,7 +24,7 @@ class Skwirrel_WC_Sync_Service {
 
 	public function __construct() {
 		$this->logger           = new Skwirrel_WC_Sync_Logger();
-		$this->mapper           = new Skwirrel_WC_Sync_Product_Mapper();
+		$this->mapper           = new Skwirrel_WC_Sync_Product_Mapper( $this->logger );
 		$lookup                 = new Skwirrel_WC_Sync_Product_Lookup( $this->mapper );
 		$this->purge_handler    = new Skwirrel_WC_Sync_Purge_Handler( $this->logger );
 		$this->category_sync    = new Skwirrel_WC_Sync_Category_Sync( $this->logger );
