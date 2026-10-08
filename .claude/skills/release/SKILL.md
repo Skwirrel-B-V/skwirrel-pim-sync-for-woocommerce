@@ -28,7 +28,7 @@ Update each occurrence to the target version:
 | `package-lock.json` | `"version"` — **two** self-version occurrences near the top (top-level + `packages[""]`). Leave dependency versions untouched. |
 
 > `README.md` (repo root) carries **no** hardcoded version — do not add one.
-> Historical version strings in code comments, tests, `CHANGELOG.md` history, `MIGRATION_VERSION`, and `_bmad-output/` docs are intentional — never rewrite them.
+> Historical version strings in code comments, tests, `CHANGELOG.md` history and `MIGRATION_VERSION` are intentional — never rewrite them.
 
 ### 3. Changelog (both files — the readme one is mandatory for deploy)
 - `CHANGELOG.md`: a `## [X.Y.Z]` section (dev-facing, detailed — symptom / root cause / fix style).

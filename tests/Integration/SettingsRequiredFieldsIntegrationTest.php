@@ -353,7 +353,7 @@ test( 'the success notice still shows when the save was clean', function (): voi
 
 /*
  * ---------------------------------------------------------------------------
- * Gap coverage added by the QA E2E pass (bmad-qa-generate-e2e-tests, 2026-08-26).
+ * Gap coverage added by the QA E2E pass (2026-08-26).
  *
  * Each test below closes an acceptance-criteria clause that the story's own
  * suite left unasserted. The clause is named in the test's comment.

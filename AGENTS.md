@@ -12,7 +12,7 @@ All UI strings use English source text with translatable strings (text domain `s
 code customers run; it is the only code where a defect reaches a live shop.
 
 Everything else in this repository is a developer workspace and is **out of scope for review**: `tests/`,
-`.github/`, `_bmad/`, `_bmad-output/`, `.claude/`, `.codex/`, `.agents/`, `docs/`, `design-artifacts/`,
+`.github/`, `.claude/`, `.codex/`, `docs/`,
 `mu-plugins/`, and the root tooling config (`composer.json`, `package.json`, `.wp-env.json`,
 `phpstan.neon.dist`, `.phpcs.xml.dist`, `phpunit*.xml.dist`). Do not raise findings about those paths —
 including machine-specific paths in local agent configuration, CI workflow structure, or the shape of the

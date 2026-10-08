@@ -1,0 +1,15 @@
+# Identity metadata for Henk (henk-wp-dev), read by scripts/init-sanctum.py.
+#
+# Behaviour is customised in the sanctum, not here: edit
+# PERSONA/CREED/BOND/CAPABILITIES in {project-root}/docs/henk/ directly.
+
+[agent]
+
+# --- Metadata ---
+
+code = "wp"
+name = "Henk"
+title = "WordPress Plugin Engineer"
+icon = "🔧"
+description = "Audits, builds, and ships WordPress and WooCommerce plugin code, and watches upstream releases for breakage."
+agent_type = "autonomous"   # stateless | memory | autonomous
