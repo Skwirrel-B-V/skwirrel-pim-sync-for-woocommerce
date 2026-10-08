@@ -3405,6 +3405,13 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	}
 
 	/**
+	 * The class the stock feature is read from, or '' to search every class.
+	 */
+	private function stock_class_setting(): string {
+		return trim( (string) ( $this->get_options()['stock_quantity_class'] ?? '' ) );
+	}
+
+	/**
 	 * Whether the stock mapping governs stock state, given the configured mapping.
 	 *
 	 * When it does, the legacy `set_manage_stock( false )` / `set_stock_status( 'instock' )`
@@ -3460,7 +3467,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			return;
 		}
 
-		$quantity = $this->mapper->get_stock_quantity( $product, $mapping );
+		$quantity = $this->mapper->get_stock_quantity( $product, $mapping, $this->stock_class_setting() );
 		if ( null === $quantity ) {
 			// The PIM has nothing to say about this product's stock. Leave WooCommerce alone.
 			$this->logger->verbose(
@@ -3498,6 +3505,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			'verbose_logging'                 => false,
 			'prices_managed_outside_skwirrel' => false,
 			'stock_quantity_feature'          => '',
+			'stock_quantity_class'            => '',
 			'related_products_type'           => 'cross_sells',
 		];
 		$saved    = null === $this->run_options ? get_option( 'skwirrel_wc_sync_settings', [] ) : $this->run_options;

@@ -119,6 +119,26 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	/** @see self::$title_feature_ref */
 	private string $long_description_feature_ref = '';
 
+	/**
+	 * Optional class per content mapping: the class ID or code its feature is read from.
+	 * Empty searches every class, first value wins.
+	 */
+	private string $title_class_ref = '';
+
+	/** @see self::$title_class_ref */
+	private string $short_description_class_ref = '';
+
+	/** @see self::$title_class_ref */
+	private string $long_description_class_ref = '';
+
+	/**
+	 * Mapped fields already warned about matching more than one class, so one ambiguous mapping
+	 * logs once per mapper instead of once per product.
+	 *
+	 * @var array<string, true>
+	 */
+	private array $ambiguity_warned = [];
+
 	public function __construct() {
 		$this->logger         = new Skwirrel_WC_Sync_Logger();
 		$this->image_language = get_option( 'skwirrel_wc_sync_settings', [] )['image_language'] ?? 'nl';
@@ -172,7 +192,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 * Get product name. Prefer product_erp_description, then translations.
 	 */
 	public function get_name( array $product ): string {
-		$mapped = $this->mapped_content( $product, $this->title_feature_ref );
+		$mapped = $this->mapped_content( $product, $this->title_feature_ref, $this->title_class_ref, 'title' );
 		if ( '' !== $mapped ) {
 			return $mapped;
 		}
@@ -192,7 +212,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 * Get short description.
 	 */
 	public function get_short_description( array $product ): string {
-		$mapped = $this->mapped_content( $product, $this->short_description_feature_ref );
+		$mapped = $this->mapped_content( $product, $this->short_description_feature_ref, $this->short_description_class_ref, 'short_description' );
 		if ( '' !== $mapped ) {
 			return $mapped;
 		}
@@ -208,7 +228,7 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 * Get long description.
 	 */
 	public function get_long_description( array $product ): string {
-		$mapped = $this->mapped_content( $product, $this->long_description_feature_ref );
+		$mapped = $this->mapped_content( $product, $this->long_description_feature_ref, $this->long_description_class_ref, 'long_description' );
 		if ( '' !== $mapped ) {
 			// Markup in authored copy survives; unsafe markup does not (FR-19). Title and short
 			// description are deliberately left alone — over-sanitising a title would strip
@@ -235,31 +255,20 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 *
 	 * @param array<string, mixed> $product Raw API product.
 	 * @param string               $ref     Configured feature ID or code.
+	 * @param string               $class_ref   Configured class ID or code; '' searches every class.
+	 * @param string               $field   Mapped field name, for the ambiguity warning.
 	 */
-	private function mapped_content( array $product, string $ref ): string {
+	private function mapped_content( array $product, string $ref, string $class_ref, string $field ): string {
 		if ( '' === $ref ) {
 			return '';
 		}
+		$this->warn_if_ambiguous( $product, $ref, $class_ref, $field );
 		// Trimmed here, once, rather than at each of the three call sites: a feature holding only
 		// spaces, tabs or newlines is "nothing to say", not "say nothing" — passing it through would
 		// blank a title or description with visually empty content instead of falling back.
-		return trim( $this->custom_class->resolve_text_feature_value( $product, $ref, $this->image_language ) );
+		return trim( $this->custom_class->resolve_text_feature_value( $product, $ref, $this->image_language, $class_ref ) );
 	}
 
-	/**
-	 * Inject the admin-configured content field mappings (called once per sync run).
-	 *
-	 * Mirrors {@see self::set_status_handling()}: run-scoped state is injected rather than read
-	 * from options inside the getters, which keeps them deterministic under unit test and stops a
-	 * mid-run settings save from splitting one run across two mappings.
-	 *
-	 * Each ref is independent — configuring the long description leaves title and short
-	 * description entirely to their existing chains.
-	 *
-	 * @param string $title_ref             Feature ID or code for the product title; '' disables.
-	 * @param string $short_description_ref Feature ID or code for the short description; '' disables.
-	 * @param string $long_description_ref  Feature ID or code for the long description; '' disables.
-	 */
 	/**
 	 * Point the mapper and its three collaborators at one language (called once per sync run).
 	 *
@@ -278,10 +287,37 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		$this->attachment->set_image_language( $this->image_language );
 	}
 
-	public function set_content_mapping( string $title_ref, string $short_description_ref, string $long_description_ref ): void {
+	/**
+	 * Inject the admin-configured content field mappings (called once per sync run).
+	 *
+	 * Mirrors {@see self::set_status_handling()}: run-scoped state is injected rather than read
+	 * from options inside the getters, which keeps them deterministic under unit test and stops a
+	 * mid-run settings save from splitting one run across two mappings.
+	 *
+	 * Each ref is independent — configuring the long description leaves title and short
+	 * description entirely to their existing chains.
+	 *
+	 * @param string $title_ref             Feature ID or code for the product title; '' disables.
+	 * @param string $short_description_ref Feature ID or code for the short description; '' disables.
+	 * @param string $long_description_ref  Feature ID or code for the long description; '' disables.
+	 * @param string $title_class             Class ID or code the title feature is read from; '' searches every class.
+	 * @param string $short_description_class Class ID or code for the short description feature.
+	 * @param string $long_description_class  Class ID or code for the long description feature.
+	 */
+	public function set_content_mapping(
+		string $title_ref,
+		string $short_description_ref,
+		string $long_description_ref,
+		string $title_class = '',
+		string $short_description_class = '',
+		string $long_description_class = ''
+	): void {
 		$this->title_feature_ref             = trim( $title_ref );
 		$this->short_description_feature_ref = trim( $short_description_ref );
 		$this->long_description_feature_ref  = trim( $long_description_ref );
+		$this->title_class_ref               = trim( $title_class );
+		$this->short_description_class_ref   = trim( $short_description_class );
+		$this->long_description_class_ref    = trim( $long_description_class );
 	}
 
 	/**
@@ -1117,10 +1153,43 @@ class Skwirrel_WC_Sync_Product_Mapper {
 	 *
 	 * @param array<string,mixed> $product Raw API product data.
 	 * @param string              $mapping Custom feature ID or code; empty disables the mapping.
+	 * @param string               $class_ref   Class ID or code to read from; '' searches every class.
 	 * @return float|null Stock quantity, or null when nothing resolves.
 	 */
-	public function get_stock_quantity( array $product, string $mapping ): ?float {
-		return $this->custom_class->resolve_numeric_feature_value( $product, $mapping );
+	public function get_stock_quantity( array $product, string $mapping, string $class_ref = '' ): ?float {
+		$this->warn_if_ambiguous( $product, $mapping, $class_ref, 'stock_quantity' );
+		return $this->custom_class->resolve_numeric_feature_value( $product, $mapping, $class_ref );
+	}
+
+	/**
+	 * Log once when a mapping without a class matches its feature in more than one class.
+	 *
+	 * Only the first class with a value is then used — for a shop with one stock class per
+	 * location that silently means "the first location's stock", so it has to be visible.
+	 *
+	 * @param array<string,mixed> $product Raw API product data.
+	 * @param string              $ref     Configured feature ID or code.
+	 * @param string              $class_ref   Configured class; a set class is never ambiguous.
+	 * @param string              $field   Mapped field name.
+	 */
+	private function warn_if_ambiguous( array $product, string $ref, string $class_ref, string $field ): void {
+		if ( '' !== trim( $class_ref ) || '' === trim( $ref ) || isset( $this->ambiguity_warned[ $field ] ) ) {
+			return;
+		}
+		$classes = $this->custom_class->classes_with_feature( $product, $ref );
+		if ( count( $classes ) < 2 ) {
+			return;
+		}
+		$this->ambiguity_warned[ $field ] = true;
+		$this->logger->warning(
+			'Field mapping feature found in more than one custom class; the first class with a value is used. Set a custom class for this mapping to choose one.',
+			[
+				'field'      => $field,
+				'feature'    => $ref,
+				'classes'    => $classes,
+				'product_id' => $product['product_id'] ?? '?',
+			]
+		);
 	}
 
 	/**

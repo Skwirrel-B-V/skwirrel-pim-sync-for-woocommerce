@@ -136,7 +136,8 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	 * Backs the FR-18 field mappings (stock quantity, and any future numeric mapping).
 	 * The mapping string holds one feature identifier: either a numeric feature ID or a
 	 * string feature code, matched case-insensitively — the same "ID or code" shape
-	 * {@see self::filter_custom_classes()} already accepts for class filters.
+	 * {@see self::filter_custom_classes()} already accepts for class filters. An optional
+	 * class narrows the search to that one class.
 	 *
 	 * Deliberately pure: no `get_option()`, no WooCommerce calls, so it can be driven
 	 * directly from `tests/Unit/` on the stub bootstrap.
@@ -155,10 +156,11 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	 *
 	 * @param array<string, mixed> $product Raw API product.
 	 * @param string               $mapping Feature ID or code; empty disables the mapping.
+	 * @param string               $class_ref   Class ID or code to read from; empty searches every class.
 	 * @return float|null Raw numeric value, or null when nothing resolves.
 	 */
-	public function resolve_numeric_feature_value( array $product, string $mapping ): ?float {
-		foreach ( $this->matching_features( $product, $mapping ) as $feat ) {
+	public function resolve_numeric_feature_value( array $product, string $mapping, string $class_ref = '' ): ?float {
+		foreach ( $this->matching_features( $product, $mapping, $class_ref ) as $feat ) {
 			$value = $this->raw_numeric_feature_value( $feat );
 			if ( null !== $value ) {
 				return $value;
@@ -183,10 +185,11 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	 *
 	 * @param array<string, mixed> $product Raw API product.
 	 * @param string               $mapping Feature ID or code; empty disables the mapping.
+	 * @param string               $class_ref   Class ID or code to read from; empty searches every class.
 	 * @param string               $lang    Language code for translated values.
 	 */
-	public function resolve_text_feature_value( array $product, string $mapping, string $lang ): string {
-		foreach ( $this->matching_features( $product, $mapping ) as $feat ) {
+	public function resolve_text_feature_value( array $product, string $mapping, string $lang, string $class_ref = '' ): string {
+		foreach ( $this->matching_features( $product, $mapping, $class_ref ) as $feat ) {
 			$type = (string) ( $feat['custom_feature_type'] ?? '' );
 
 			// B — big text. format_custom_feature_value() does not handle it, and a long
@@ -217,16 +220,18 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	 * The one traversal both resolvers share, so their matching cannot drift. A reference is
 	 * either a numeric feature ID or a case-insensitive feature code — the two shapes
 	 * {@see self::get_custom_feature_values_for_ids()} and {@see self::filter_custom_classes()}
-	 * already use; no third shape is invented here.
+	 * already use. A class (ID or case-insensitive code) narrows the search to that one class,
+	 * with no fallback to the others.
 	 *
 	 * Scope is product-level `_custom_classes` only (FR-18/FR-19 exclude trade-item level), and
 	 * `not_applicable` features are skipped exactly as every other extractor method does.
 	 *
 	 * @param array<string, mixed> $product Raw API product.
 	 * @param string               $mapping Feature ID or code; empty yields nothing.
-	 * @return \Generator<int, array<string, mixed>> Matching feature payloads, in payload order.
+	 * @param string               $class_ref   Class ID or code to read from; empty searches every class.
+	 * @return \Generator<array<string, mixed>, array<string, mixed>> Matching feature payloads keyed by their class, in payload order.
 	 */
-	private function matching_features( array $product, string $mapping ): \Generator {
+	private function matching_features( array $product, string $mapping, string $class_ref = '' ): \Generator {
 		$mapping = trim( $mapping );
 		if ( '' === $mapping ) {
 			return;
@@ -242,7 +247,23 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 			return;
 		}
 
+		// An optional class picks one class when the same feature appears in several — e.g. one
+		// class per stock location, each carrying the same quantity feature.
+		$wanted_class    = '' !== trim( $class_ref ) ? trim( $class_ref ) : null;
+		$want_class_id   = null;
+		$want_class_code = '';
+		if ( null !== $wanted_class ) {
+			$want_class_id   = self::normalize_feature_ref( $wanted_class );
+			$want_class_code = strtolower( $wanted_class );
+			if ( null === $want_class_id && is_numeric( $wanted_class ) ) {
+				return;
+			}
+		}
+
 		foreach ( $this->collect_custom_classes( $product ) as $cc ) {
+			if ( null !== $wanted_class && ! self::class_matches( $cc, $want_class_id, $want_class_code ) ) {
+				continue;
+			}
 			foreach ( $cc['_custom_features'] ?? [] as $feat ) {
 				if ( ! is_array( $feat ) ) {
 					continue;
@@ -264,9 +285,46 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 					continue;
 				}
 
-				yield $feat;
+				yield $cc => $feat;
 			}
 		}
+	}
+
+	/**
+	 * The classes on a product that hold a feature, in payload order.
+	 *
+	 * Lets the sync warn when a mapping without a class matches more than one class — e.g. one
+	 * stock class per location — because only the first class with a value is then used.
+	 * Each class is named by its code, falling back to its ID.
+	 *
+	 * @param array<string, mixed> $product Raw API product.
+	 * @param string               $mapping Feature ID or code.
+	 * @return array<int, string> Class codes (or IDs), without duplicates.
+	 */
+	public function classes_with_feature( array $product, string $mapping ): array {
+		$classes = [];
+		foreach ( $this->matching_features( $product, $mapping ) as $cc => $feat ) {
+			$code              = (string) ( $cc['custom_class_code'] ?? '' );
+			$label             = '' !== $code ? $code : (string) ( $cc['custom_class_id'] ?? '?' );
+			$classes[ $label ] = $label;
+		}
+		return array_values( $classes );
+	}
+
+	/**
+	 * Whether a custom class matches a class qualifier, by numeric class ID or case-insensitive code.
+	 *
+	 * @param array<string, mixed> $cc         Custom class payload.
+	 * @param int|null             $want_id    Wanted class ID, or null when the qualifier is a code.
+	 * @param string               $want_code  Wanted class code, lowercased.
+	 */
+	private static function class_matches( array $cc, ?int $want_id, string $want_code ): bool {
+		$id = $cc['custom_class_id'] ?? null;
+		if ( null !== $want_id && is_scalar( $id ) && self::normalize_feature_ref( (string) $id ) === $want_id ) {
+			return true;
+		}
+		$code = strtolower( (string) ( $cc['custom_class_code'] ?? '' ) );
+		return '' !== $code && $code === $want_code;
 	}
 
 	/**

@@ -417,6 +417,23 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			'super_category_id_required' => 'super_category_id',
 			'collection_ids_required'    => 'collection_ids',
 			'context_id'                 => 'context_id',
+		] + array_combine(
+			array_map( static fn( string $key ): string => $key . '_required', array_keys( self::field_mapping_keys() ) ),
+			array_keys( self::field_mapping_keys() )
+		);
+	}
+
+	/**
+	 * Field mapping feature key => the key of its optional class.
+	 *
+	 * @return array<string, string>
+	 */
+	public static function field_mapping_keys(): array {
+		return [
+			'stock_quantity_feature'       => 'stock_quantity_class',
+			'title_feature_id'             => 'title_class_id',
+			'short_description_feature_id' => 'short_description_class_id',
+			'long_description_feature_id'  => 'long_description_class_id',
 		];
 	}
 
@@ -575,18 +592,25 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$vis_parts                             = preg_split( '/[\s,]+/', is_string( $raw_vis ) ? $raw_vis : '', -1, PREG_SPLIT_NO_EMPTY );
 		$out['custom_class_visibility_ids']    = implode( ', ', array_map( 'sanitize_text_field', array_map( 'trim', $vis_parts ) ) );
 
-		// Field mapping (FR-18/FR-19). One custom feature ID or code per mapped WooCommerce field.
-		// Empty is the default and the off switch: no mapping, no read, no write.
-		$mapping_keys = [
-			'stock_quantity_feature',
-			'title_feature_id',
-			'short_description_feature_id',
-			'long_description_feature_id',
-		];
-		foreach ( $mapping_keys as $mapping_key ) {
-			$out[ $mapping_key ] = isset( $input[ $mapping_key ] ) && is_scalar( $input[ $mapping_key ] )
-				? sanitize_text_field( trim( (string) $input[ $mapping_key ] ) )
-				: '';
+		// Field mapping (FR-18/FR-19). One custom feature ID or code per mapped WooCommerce field,
+		// plus an optional class ID or code that feature is read from. An empty feature is the
+		// default and the off switch: no mapping, no read, no write.
+		foreach ( self::field_mapping_keys() as $feature_key => $class_key ) {
+			foreach ( [ $feature_key, $class_key ] as $mapping_key ) {
+				$out[ $mapping_key ] = isset( $input[ $mapping_key ] ) && is_scalar( $input[ $mapping_key ] )
+					? sanitize_text_field( trim( (string) $input[ $mapping_key ] ) )
+					: '';
+			}
+			// A class on its own resolves nothing. Report it rather than silently ignore it; both
+			// values are kept so the form shows what was typed.
+			if ( '' !== $out[ $class_key ] && '' === $out[ $feature_key ] ) {
+				add_settings_error(
+					self::OPTION_KEY,
+					$feature_key . '_required',
+					__( 'A custom class is set but the feature is empty. Enter the feature this class should be read from, or clear the class.', 'skwirrel-pim-sync' ),
+					'error'
+				);
+			}
 		}
 
 		$out['show_gtin_attribute']             = ! empty( $input['show_gtin_attribute'] );

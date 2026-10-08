@@ -62,7 +62,10 @@ class Skwirrel_WC_Sync_Service {
 		$this->mapper->set_content_mapping(
 			(string) ( $opts['title_feature_id'] ?? '' ),
 			(string) ( $opts['short_description_feature_id'] ?? '' ),
-			(string) ( $opts['long_description_feature_id'] ?? '' )
+			(string) ( $opts['long_description_feature_id'] ?? '' ),
+			(string) ( $opts['title_class_id'] ?? '' ),
+			(string) ( $opts['short_description_class_id'] ?? '' ),
+			(string) ( $opts['long_description_class_id'] ?? '' )
 		);
 		// The language rides the same copy. A mapped I/A/M feature, an ETIM value and a document
 		// name are all language-dependent, so leaving this on the live option would let one run
@@ -2650,6 +2653,10 @@ class Skwirrel_WC_Sync_Service {
 			'title_feature_id'              => '',
 			'short_description_feature_id'  => '',
 			'long_description_feature_id'   => '',
+			'stock_quantity_class'          => '',
+			'title_class_id'                => '',
+			'short_description_class_id'    => '',
+			'long_description_class_id'     => '',
 		];
 		$saved = get_option( 'skwirrel_wc_sync_settings', [] );
 		return array_merge( $defaults, is_array( $saved ) ? $saved : [] );
