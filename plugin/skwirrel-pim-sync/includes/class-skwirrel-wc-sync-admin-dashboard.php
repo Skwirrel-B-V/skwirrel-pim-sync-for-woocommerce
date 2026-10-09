@@ -46,31 +46,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 */
 	public function render( string $active_view ): void {
 		$sync_in_progress = (bool) get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
-		$base_url         = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
 
 		?>
 		<div id="skwirrel-dashboard" class="skw-dashboard">
 
-			<?php // -- Header -- ?>
-			<div class="skw-header">
-				<div class="skw-header-inner">
-					<div class="skw-header-left">
-						<div class="skw-header-icon">
-							<img src="<?php echo esc_url( SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/s.png' ); // @phpstan-ignore constant.notFound ?>" alt="Skwirrel" width="28" height="28" />
-						</div>
-						<div>
-							<h1 class="skw-header-title"><?php esc_html_e( 'Skwirrel PIM sync', 'skwirrel-pim-sync' ); ?></h1>
-							<p class="skw-header-sub"><?php echo esc_html( 'v' . SKWIRREL_WC_SYNC_VERSION ); ?></p>
-						</div>
-					</div>
-					<?php if ( 'dashboard' !== $active_view ) : ?>
-						<a href="<?php echo esc_url( $base_url ); ?>" class="skw-back-btn">
-							<svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clip-rule="evenodd" /></svg>
-							<?php esc_html_e( 'Dashboard', 'skwirrel-pim-sync' ); ?>
-						</a>
-					<?php endif; ?>
-				</div>
-			</div>
+			<?php self::render_header( 'dashboard' !== $active_view ); ?>
 
 			<?php // -- Notices slot (filled by JS) -- ?>
 			<div id="skwirrel-notices" class="skw-notices"></div>
@@ -120,6 +100,36 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<span class="spinner" id="skwirrel-log-spinner" style="float:none;margin-top:0;"></span>
 					</div>
 				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * The dark plugin header bar (logo, name, version), shared by every Skwirrel admin screen.
+	 *
+	 * @param bool $back_link Whether to show the "Dashboard" link back to the Overview.
+	 */
+	public static function render_header( bool $back_link ): void {
+		$base_url = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		?>
+		<div class="skw-header">
+			<div class="skw-header-inner">
+				<div class="skw-header-left">
+					<div class="skw-header-icon">
+						<img src="<?php echo esc_url( SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/s.png' ); // @phpstan-ignore constant.notFound ?>" alt="Skwirrel" width="28" height="28" />
+					</div>
+					<div>
+						<h1 class="skw-header-title"><?php esc_html_e( 'Skwirrel PIM sync', 'skwirrel-pim-sync' ); ?></h1>
+						<p class="skw-header-sub"><?php echo esc_html( 'v' . SKWIRREL_WC_SYNC_VERSION ); ?></p>
+					</div>
+				</div>
+				<?php if ( $back_link ) : ?>
+					<a href="<?php echo esc_url( $base_url ); ?>" class="skw-back-btn">
+						<svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clip-rule="evenodd" /></svg>
+						<?php esc_html_e( 'Dashboard', 'skwirrel-pim-sync' ); ?>
+					</a>
+				<?php endif; ?>
 			</div>
 		</div>
 		<?php

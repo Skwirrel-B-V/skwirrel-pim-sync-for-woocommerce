@@ -379,3 +379,52 @@ test('custom class codes that sanitize to the same slug get distinct automatic g
 	expect($a['id'])->not->toBe($b['id']);
 	expect($b['id'])->toBe('src-cc-a-b');
 });
+
+// ------------------------------------------------------------------
+// Telling apart groups that share a name
+// ------------------------------------------------------------------
+
+test('class_codes maps each custom class group to its class code', function () {
+	$e     = fn (string $source, string $key = '', string $name = '') => ['source' => $source, 'class_key' => $key, 'class_name' => $name];
+	$codes = Skwirrel_WC_Sync_Attribute_Groups::class_codes([
+		'diagonaal'  => $e('custom_class', 'genormaliseerd_tablet_beeldscherm', 'Beeldscherm'),
+		'helderheid' => $e('custom_class', 'genormaliseerd_tablet_beeldscherm', 'Beeldscherm'),
+		'resolutie'  => $e('custom_class', 'genormaliseerd_monitor_beeldscherm', 'Beeldscherm'),
+		'kleur'      => $e('etim'),
+		'losse'      => $e('custom_class'),
+	]);
+
+	$id = fn (string $code) => Skwirrel_WC_Sync_Attribute_Groups::source_group_for($e('custom_class', $code, 'Beeldscherm'))['id'];
+	expect($codes)->toBe([
+		$id('genormaliseerd_tablet_beeldscherm')  => 'genormaliseerd_tablet_beeldscherm',
+		$id('genormaliseerd_monitor_beeldscherm') => 'genormaliseerd_monitor_beeldscherm',
+	]);
+});
+
+test('only groups whose name is not unique get a suffix: the class code, or else the group ID', function () {
+	$groups = [
+		'src-cc-tablet_scherm'  => ['name' => 'Beeldscherm'],
+		'src-cc-monitor_scherm' => ['name' => 'Beeldscherm'],
+		'beeldscherm'           => ['name' => ' beeldscherm '],
+		'src-etim'              => ['name' => 'ETIM'],
+		'src-cc-camera'         => ['name' => 'Camera'],
+	];
+	$codes  = [
+		'src-cc-tablet_scherm'  => 'tablet_scherm',
+		'src-cc-monitor_scherm' => 'monitor_scherm',
+		'src-cc-camera'         => 'camera',
+	];
+
+	expect(Skwirrel_WC_Sync_Attribute_Groups::name_suffixes($groups, $codes))->toBe([
+		'src-cc-tablet_scherm'  => 'tablet_scherm',
+		'src-cc-monitor_scherm' => 'monitor_scherm',
+		'beeldscherm'           => 'beeldscherm',
+		'src-etim'              => '',
+		'src-cc-camera'         => '',
+	]);
+});
+
+test('choice_label appends a suffix only when there is one', function () {
+	expect(Skwirrel_WC_Sync_Attribute_Groups::choice_label('Camera', ''))->toBe('Camera');
+	expect(Skwirrel_WC_Sync_Attribute_Groups::choice_label('Camera', 'genormaliseerd_tablet_camera'))->toBe('Camera · genormaliseerd_tablet_camera');
+});

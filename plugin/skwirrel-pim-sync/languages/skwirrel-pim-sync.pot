@@ -2513,3 +2513,47 @@ msgstr[1] ""
 #, php-format
 msgid "%s (inactive)"
 msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Group product attributes, choose how each group shows on the product page, and move single attributes between groups."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "WooCommerce attributes"
+msgstr ""
+
+#. translators: %s = name of the custom attribute group
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+#, php-format
+msgid "Included in %s"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "New group"
+msgstr ""
+
+#. translators: %d = number of further groups that are not listed
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+#, php-format
+msgid "+%d more"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "None"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Choose…"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Search groups"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Every global product attribute and the group it is in. Tick attributes to move them to another group."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attribute pages"
+msgstr ""

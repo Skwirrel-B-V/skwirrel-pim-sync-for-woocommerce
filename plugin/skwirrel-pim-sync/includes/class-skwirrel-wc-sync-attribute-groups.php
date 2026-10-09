@@ -103,6 +103,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			add_action( 'woocommerce_after_edit_attribute_fields', [ $this, 'render_edit_attribute_field' ] );
 			add_action( 'woocommerce_attribute_added', [ $this, 'on_attribute_added' ], 10, 2 );
 			add_action( 'admin_footer-post.php', [ $this, 'print_editor_script' ] );
+			add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
 		}
 		// Rename and delete bookkeeping is not about the form: keep it in step for REST and WP-CLI too.
 		add_action( 'woocommerce_attribute_updated', [ $this, 'on_attribute_updated' ], 10, 3 );
@@ -671,6 +672,75 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		return $max + 10;
 	}
 
+	/**
+	 * The custom class code behind each automatic custom-class group.
+	 *
+	 * @param array<string, array{source: string, class_key: string, class_name: string}> $sources Source map (slug => source).
+	 * @return array<string, string> Group ID => class code.
+	 */
+	public static function class_codes( array $sources ): array {
+		$codes = [];
+		foreach ( $sources as $source ) {
+			$code = trim( $source['class_key'] );
+			if ( Skwirrel_WC_Sync_Attribute_Sources::SOURCE_CUSTOM_CLASS !== $source['source'] || '' === $code ) {
+				continue;
+			}
+			$gid           = self::source_group_for( $source )['id'];
+			$codes[ $gid ] = $codes[ $gid ] ?? $code;
+		}
+		return $codes;
+	}
+
+	/**
+	 * What tells apart groups that share a name, for lists to choose from.
+	 *
+	 * Custom classes often share a display name ("Beeldscherm" for the monitor, the tablet and the
+	 * phone class). A group whose name (case-insensitive) is not unique gets its class code, or
+	 * else its group ID, as suffix; a group with a unique name gets ''.
+	 *
+	 * @param array<string, array{name: string}> $groups Groups (ID => group with at least a name).
+	 * @param array<string, string>              $codes  Group ID => class code (see class_codes()).
+	 * @return array<string, string> Group ID => suffix ('' when the name is unique).
+	 */
+	public static function name_suffixes( array $groups, array $codes ): array {
+		$seen = [];
+		foreach ( $groups as $group ) {
+			$key          = self::name_key( $group['name'] );
+			$seen[ $key ] = ( $seen[ $key ] ?? 0 ) + 1;
+		}
+		$out = [];
+		foreach ( $groups as $gid => $group ) {
+			$gid         = (string) $gid;
+			$out[ $gid ] = $seen[ self::name_key( $group['name'] ) ] > 1
+				? ( '' !== ( $codes[ $gid ] ?? '' ) ? $codes[ $gid ] : $gid )
+				: '';
+		}
+		return $out;
+	}
+
+	/**
+	 * A group name with its suffix, for places that only take plain text (select options).
+	 *
+	 * @param string $name   Group name.
+	 * @param string $suffix Suffix from name_suffixes().
+	 */
+	public static function choice_label( string $name, string $suffix ): string {
+		return '' === $suffix ? $name : $name . ' · ' . $suffix;
+	}
+
+	private static function name_key( string $name ): string {
+		return function_exists( 'mb_strtolower' ) ? mb_strtolower( trim( $name ) ) : strtolower( trim( $name ) );
+	}
+
+	/**
+	 * Suffixes for the current context's groups (see name_suffixes()).
+	 *
+	 * @return array<string, string>
+	 */
+	private static function current_suffixes(): array {
+		return self::name_suffixes( self::context()['groups'], self::class_codes( Skwirrel_WC_Sync_Attribute_Sources::current() ) );
+	}
+
 	// ------------------------------------------------------------------
 	// Runtime context
 	// ------------------------------------------------------------------
@@ -899,6 +969,82 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		);
 	}
 
+	/**
+	 * Load the Skwirrel admin look on this page: the plugin header bar (dashboard.css), the
+	 * Settings page components (settings-page.css, scoped to .skw-settings-page) and the few
+	 * pieces only this page has (attribute-groups-page.css).
+	 *
+	 * @param string $hook Current admin page hook.
+	 */
+	public function enqueue_assets( string $hook ): void {
+		if ( false === strpos( $hook, self::PAGE_SLUG ) ) {
+			return;
+		}
+		$url     = SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/'; // @phpstan-ignore constant.notFound
+		$version = SKWIRREL_WC_SYNC_VERSION;
+		// Same handles as the Settings screen, so the files are shared and cached once.
+		wp_enqueue_style( 'skwirrel-pim-sync-dashboard', $url . 'dashboard.css', [], $version );
+		wp_add_inline_style( 'skwirrel-pim-sync-dashboard', '.skw-dashboard{--skw-header-bg:' . esc_attr( Skwirrel_WC_Sync_Admin_Settings::header_background_color() ) . ';}' );
+		wp_enqueue_style( 'skwirrel-pim-sync-inter-font', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', [], $version );
+		wp_enqueue_style( 'skwirrel-pim-sync-settings-page', $url . 'settings-page.css', [], $version );
+		wp_enqueue_style( 'skwirrel-pim-sync-attribute-groups-page', $url . 'attribute-groups-page.css', [ 'skwirrel-pim-sync-settings-page' ], $version );
+
+		wp_register_script( 'skwirrel-pim-sync-attribute-groups', false, [], $version, true );
+		wp_enqueue_script( 'skwirrel-pim-sync-attribute-groups' );
+		wp_add_inline_script( 'skwirrel-pim-sync-attribute-groups', self::page_script() );
+	}
+
+	/**
+	 * Small enhancements on top of plain forms: live chips and a search box for the "Includes"
+	 * pickers, one picker open at a time, and "select all" in the attribute list. Everything
+	 * still submits without it.
+	 */
+	private static function page_script(): string {
+		return '(function () {'
+			// WordPress prints its notices above the page; move them below the plugin header, like the other Skwirrel screens.
+			. ' var slot = document.getElementById( "skwirrel-notices" ), body = document.getElementById( "wpbody-content" );'
+			. ' if ( slot && body ) { body.querySelectorAll( ":scope > .notice, :scope > .updated, :scope > .error, :scope > .update-nag" ).forEach( function ( n ) { slot.appendChild( n ); } ); }'
+			. ' function chip( text, code, extra ) {'
+			. '  var c = document.createElement( "span" ); c.className = "skw-ag-chip" + ( extra ? " " + extra : "" );'
+			. '  c.appendChild( document.createTextNode( text ) );'
+			. '  if ( code ) { var s = document.createElement( "span" ); s.className = "skw-ag-chip-code"; s.textContent = code; c.appendChild( s ); }'
+			. '  c.title = text + ( code || "" ); return c;'
+			. ' }'
+			. ' document.querySelectorAll( ".skw-ag-includes" ).forEach( function ( box ) {'
+			. '  var chips = box.querySelector( ".skw-ag-chips" ), search = box.querySelector( ".skw-ag-picker-search" );'
+			. '  var opts = box.querySelectorAll( ".skw-ag-opt" );'
+			. '  function render() {'
+			. '   var on = []; opts.forEach( function ( o ) { if ( o.querySelector( "input" ).checked ) { on.push( o ); } } );'
+			. '   chips.textContent = "";'
+			. '   if ( ! on.length ) { var n = document.createElement( "span" ); n.className = "skw-ag-none"; n.textContent = box.getAttribute( "data-none" ); chips.appendChild( n ); return; }'
+			. '   on.slice( 0, 3 ).forEach( function ( o ) { var cd = o.querySelector( ".skw-ag-opt-code" ); chips.appendChild( chip( o.querySelector( ".skw-ag-opt-name" ).textContent, cd ? " · " + cd.textContent : "", "" ) ); } );'
+			. '   if ( on.length > 3 ) { chips.appendChild( chip( box.getAttribute( "data-more" ).replace( "%d", on.length - 3 ), "", "skw-ag-chip-more" ) ); }'
+			. '  }'
+			. '  box.addEventListener( "change", function ( e ) { if ( e.target.closest( ".skw-ag-opt" ) ) { render(); } } );'
+			. '  if ( search ) {'
+			. '   search.hidden = false;'
+			. '   search.addEventListener( "keydown", function ( e ) { if ( "Enter" === e.key ) { e.preventDefault(); } } );'
+			. '   search.addEventListener( "input", function () {'
+			. '    var q = search.value.trim().toLowerCase();'
+			. '    opts.forEach( function ( o ) { o.hidden = "" !== q && -1 === o.textContent.toLowerCase().indexOf( q ); } );'
+			. '   } );'
+			. '  }'
+			. ' } );'
+			. ' document.addEventListener( "toggle", function ( e ) {'
+			. '  var d = e.target; if ( ! d.classList || ! d.classList.contains( "skw-ag-picker" ) || ! d.open ) { return; }'
+			. '  document.querySelectorAll( ".skw-ag-picker[open]" ).forEach( function ( o ) { if ( o !== d ) { o.open = false; } } );'
+			. '  var s = d.querySelector( ".skw-ag-picker-search" ); if ( s && ! s.hidden ) { s.focus(); }'
+			. ' }, true );'
+			. ' document.addEventListener( "keydown", function ( e ) {'
+			. '  if ( "Escape" !== e.key ) { return; }'
+			. '  var d = document.activeElement && document.activeElement.closest ? document.activeElement.closest( ".skw-ag-picker[open]" ) : null;'
+			. '  if ( d ) { d.open = false; d.querySelector( "summary" ).focus(); }'
+			. ' } );'
+			. ' var all = document.getElementById( "skwirrel-attr-select-all" );'
+			. ' if ( all ) { all.addEventListener( "change", function () { document.querySelectorAll( "input[name=\"slugs[]\"]" ).forEach( function ( b ) { b.checked = all.checked; } ); } ); }'
+			. '})();';
+	}
+
 	public function render_page(): void {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			return;
@@ -908,6 +1054,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		$attributes = self::attribute_choices();
 		$sources    = Skwirrel_WC_Sync_Attribute_Sources::current();
 		$auto       = array_filter( $groups, static fn( $g ) => $g['automatic'] );
+		$suffixes   = self::name_suffixes( $groups, self::class_codes( $sources ) );
 
 		$counts = [];
 		foreach ( array_keys( $attributes ) as $slug ) {
@@ -921,122 +1068,239 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		$filter  = isset( $_GET['group'] ) ? sanitize_key( wp_unslash( $_GET['group'] ) ) : '';
 		$paged   = isset( $_GET['paged'] ) ? max( 1, absint( $_GET['paged'] ) ) : 1;
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
-		?>
-		<div class="wrap skwirrel-attribute-groups">
-			<h1><?php esc_html_e( 'Attribute groups', 'skwirrel-pim-sync' ); ?></h1>
-			<p class="description" style="max-width:900px;">
-				<?php esc_html_e( 'Automatic groups follow where an attribute comes from: ETIM (while ETIM is synced), each custom class, identifiers and the variant. Create your own groups to combine automatic groups, and move single attributes to any group below.', 'skwirrel-pim-sync' ); ?>
-				<?php esc_html_e( 'A hidden group is not shown on the product page. A group shown as a tab gets its own product tab; other groups stay in "Additional information", listed per group.', 'skwirrel-pim-sync' ); ?>
-				<?php esc_html_e( 'A group hidden in the product editor is collapsed in the Attributes panel of every product. Its attributes are still saved with the product and can be shown with one click.', 'skwirrel-pim-sync' ); ?>
-			</p>
-			<?php if ( 'groups' === $updated ) : ?>
-				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Attribute groups saved.', 'skwirrel-pim-sync' ); ?></p></div>
-			<?php elseif ( 'assign' === $updated ) : ?>
-				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Attributes moved.', 'skwirrel-pim-sync' ); ?></p></div>
-			<?php endif; ?>
-			<?php if ( empty( $sources ) ) : ?>
-				<div class="notice notice-info inline"><p><?php esc_html_e( 'Automatic groups fill during the next sync. Until then only variation and variant attributes can be recognised.', 'skwirrel-pim-sync' ); ?></p></div>
-			<?php endif; ?>
 
-			<?php $this->render_groups_form( $groups, $auto, $counts ); ?>
-			<?php $this->render_attribute_list( $attributes, $sources, $context, $search, $filter, $paged ); ?>
+		$overview_url = admin_url( 'admin.php?page=' . Skwirrel_WC_Sync_Admin_Settings::PAGE_SLUG );
+		?>
+		<div class="skw-dashboard skw-ag-dashboard">
+			<?php Skwirrel_WC_Sync_Admin_Dashboard::render_header( true ); ?>
+			<div id="skwirrel-notices" class="skw-notices"></div>
+			<div class="skw-content">
+				<div class="skw-settings-page skw-ag-page">
+					<div class="skw-set-crumbs">
+						<a href="<?php echo esc_url( $overview_url ); ?>"><?php esc_html_e( 'Skwirrel PIM Sync', 'skwirrel-pim-sync' ); ?></a>
+						<span aria-hidden="true">/</span>
+						<span><?php esc_html_e( 'Attribute groups', 'skwirrel-pim-sync' ); ?></span>
+					</div>
+					<div class="skw-set-header">
+						<div>
+							<h1><?php esc_html_e( 'Attribute groups', 'skwirrel-pim-sync' ); ?></h1>
+							<p><?php esc_html_e( 'Group product attributes, choose how each group shows on the product page, and move single attributes between groups.', 'skwirrel-pim-sync' ); ?></p>
+						</div>
+						<div class="skw-set-header-actions">
+							<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=product&page=product_attributes' ) ); ?>" class="skw-set-btn"><i class="ph ph-tag" aria-hidden="true"></i> <?php esc_html_e( 'WooCommerce attributes', 'skwirrel-pim-sync' ); ?></a>
+							<a href="<?php echo esc_url( add_query_arg( 'tab', 'settings', $overview_url ) ); ?>" class="skw-set-btn"><i class="ph ph-gear" aria-hidden="true"></i> <?php esc_html_e( 'Settings', 'skwirrel-pim-sync' ); ?></a>
+						</div>
+					</div>
+
+					<?php if ( 'groups' === $updated ) : ?>
+						<div class="notice notice-success inline skw-ag-notice"><p><?php esc_html_e( 'Attribute groups saved.', 'skwirrel-pim-sync' ); ?></p></div>
+					<?php elseif ( 'assign' === $updated ) : ?>
+						<div class="notice notice-success inline skw-ag-notice"><p><?php esc_html_e( 'Attributes moved.', 'skwirrel-pim-sync' ); ?></p></div>
+					<?php endif; ?>
+					<?php if ( empty( $sources ) ) : ?>
+						<div class="notice notice-info inline skw-ag-notice"><p><?php esc_html_e( 'Automatic groups fill during the next sync. Until then only variation and variant attributes can be recognised.', 'skwirrel-pim-sync' ); ?></p></div>
+					<?php endif; ?>
+
+					<?php $this->render_groups_form( $groups, $auto, $counts, $suffixes, $context['includes'] ); ?>
+					<?php $this->render_attribute_list( $attributes, $sources, $context, $suffixes, $search, $filter, $paged ); ?>
+				</div>
+			</div>
 		</div>
 		<?php
 	}
 
 	/**
-	 * @param array<string, array<string, mixed>> $groups Context groups.
-	 * @param array<string, array<string, mixed>> $auto   Automatic groups.
-	 * @param array<string, int>                  $counts Attributes per group ID.
+	 * @param array<string, array<string, mixed>> $groups   Context groups.
+	 * @param array<string, array<string, mixed>> $auto     Automatic groups.
+	 * @param array<string, int>                  $counts   Attributes per group ID.
+	 * @param array<string, string>               $suffixes Group ID => disambiguating suffix (see name_suffixes()).
+	 * @param array<string, string>               $included Automatic group ID => custom group that includes it.
 	 */
-	private function render_groups_form( array $groups, array $auto, array $counts ): void {
+	private function render_groups_form( array $groups, array $auto, array $counts, array $suffixes, array $included ): void {
 		?>
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="skw-section skw-ag-card">
 			<input type="hidden" name="action" value="<?php echo esc_attr( self::SAVE_GROUPS_ACTION ); ?>" />
 			<?php wp_nonce_field( self::SAVE_GROUPS_ACTION ); ?>
 
-			<h2><?php esc_html_e( 'Groups', 'skwirrel-pim-sync' ); ?></h2>
-			<table class="widefat striped" style="max-width:1100px;">
-				<thead>
-					<tr>
-						<th><?php esc_html_e( 'Name', 'skwirrel-pim-sync' ); ?></th>
-						<th style="width:110px;"><?php esc_html_e( 'Type', 'skwirrel-pim-sync' ); ?></th>
-						<th style="width:80px;"><?php esc_html_e( 'Order', 'skwirrel-pim-sync' ); ?></th>
-						<th style="width:90px;"><?php esc_html_e( 'Show as tab', 'skwirrel-pim-sync' ); ?></th>
-						<th style="width:90px;"><?php esc_html_e( 'Hide on product page', 'skwirrel-pim-sync' ); ?></th>
-						<th style="width:90px;"><?php esc_html_e( 'Hide in product editor', 'skwirrel-pim-sync' ); ?></th>
-						<th><?php esc_html_e( 'Includes', 'skwirrel-pim-sync' ); ?></th>
-						<th style="width:80px;"><?php esc_html_e( 'Attributes', 'skwirrel-pim-sync' ); ?></th>
-						<th style="width:70px;"><?php esc_html_e( 'Delete', 'skwirrel-pim-sync' ); ?></th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php
-					foreach ( $groups as $gid => $group ) :
-						$field = 'groups[' . $gid . ']';
-						?>
+			<div class="skw-fieldgroup">
+				<div class="skw-fg-head">
+					<span class="skw-fg-icon"><i class="ph ph-stack" aria-hidden="true"></i></span>
+					<div>
+						<h2 class="skw-fieldgroup-title"><?php esc_html_e( 'Groups', 'skwirrel-pim-sync' ); ?></h2>
+						<p class="skw-fg-desc"><?php esc_html_e( 'Automatic groups follow where an attribute comes from: ETIM (while ETIM is synced), each custom class, identifiers and the variant. Create your own groups to combine automatic groups, and move single attributes to any group below.', 'skwirrel-pim-sync' ); ?></p>
+					</div>
+				</div>
+				<ul class="skw-ag-notes">
+					<li><?php esc_html_e( 'A hidden group is not shown on the product page. A group shown as a tab gets its own product tab; other groups stay in "Additional information", listed per group.', 'skwirrel-pim-sync' ); ?></li>
+					<li><?php esc_html_e( 'A group hidden in the product editor is collapsed in the Attributes panel of every product. Its attributes are still saved with the product and can be shown with one click.', 'skwirrel-pim-sync' ); ?></li>
+				</ul>
+			</div>
+
+			<div class="skw-ag-table-wrap">
+				<table class="skw-ag-table skw-ag-groups">
+					<thead>
 						<tr>
-							<td><input type="text" class="regular-text" name="<?php echo esc_attr( $field ); ?>[name]" value="<?php echo esc_attr( (string) $group['name'] ); ?>" aria-label="<?php esc_attr_e( 'Name', 'skwirrel-pim-sync' ); ?>" /></td>
-							<td><?php echo $group['automatic'] ? esc_html__( 'Automatic', 'skwirrel-pim-sync' ) : esc_html__( 'Custom', 'skwirrel-pim-sync' ); ?></td>
-							<td><input type="number" class="small-text" name="<?php echo esc_attr( $field ); ?>[position]" value="<?php echo esc_attr( (string) $group['position'] ); ?>" aria-label="<?php esc_attr_e( 'Order', 'skwirrel-pim-sync' ); ?>" /></td>
-							<td><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[as_tab]" value="1" <?php checked( (bool) $group['as_tab'] ); ?> aria-label="<?php esc_attr_e( 'Show as tab', 'skwirrel-pim-sync' ); ?>" /></td>
-							<td><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[hidden]" value="1" <?php checked( (bool) $group['hidden'] ); ?> aria-label="<?php esc_attr_e( 'Hide on product page', 'skwirrel-pim-sync' ); ?>" /></td>
-							<td><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[admin_hidden]" value="1" <?php checked( (bool) $group['admin_hidden'] ); ?> aria-label="<?php esc_attr_e( 'Hide in product editor', 'skwirrel-pim-sync' ); ?>" /></td>
-							<td>
-								<?php
-								if ( $group['automatic'] ) {
-									echo '&mdash;';
-								} else {
-									$this->render_includes( $field . '[includes][]', $auto, (array) $group['includes'] );
-								}
-								?>
-							</td>
-							<td><a href="<?php echo esc_url( self::page_url( [ 'group' => (string) $gid ] ) ); ?>"><?php echo esc_html( (string) ( $counts[ $gid ] ?? 0 ) ); ?></a></td>
-							<td>
-								<?php if ( ! $group['automatic'] ) : ?>
-									<input type="checkbox" name="<?php echo esc_attr( $field ); ?>[delete]" value="1" aria-label="<?php esc_attr_e( 'Delete', 'skwirrel-pim-sync' ); ?>" />
-								<?php endif; ?>
-							</td>
+							<th scope="col" class="skw-ag-col-name"><?php esc_html_e( 'Name', 'skwirrel-pim-sync' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Type', 'skwirrel-pim-sync' ); ?></th>
+							<th scope="col" class="skw-ag-col-order"><?php esc_html_e( 'Order', 'skwirrel-pim-sync' ); ?></th>
+							<th scope="col" class="skw-ag-col-check"><?php esc_html_e( 'Show as tab', 'skwirrel-pim-sync' ); ?></th>
+							<th scope="col" class="skw-ag-col-check"><?php esc_html_e( 'Hide on product page', 'skwirrel-pim-sync' ); ?></th>
+							<th scope="col" class="skw-ag-col-check"><?php esc_html_e( 'Hide in product editor', 'skwirrel-pim-sync' ); ?></th>
+							<th scope="col" class="skw-ag-col-includes"><?php esc_html_e( 'Includes', 'skwirrel-pim-sync' ); ?></th>
+							<th scope="col" class="skw-ag-col-num"><?php esc_html_e( 'Attributes', 'skwirrel-pim-sync' ); ?></th>
+							<th scope="col" class="skw-ag-col-check"><?php esc_html_e( 'Delete', 'skwirrel-pim-sync' ); ?></th>
 						</tr>
-					<?php endforeach; ?>
-					<tr>
-						<td><input type="text" class="regular-text" name="new_group[name]" value="" placeholder="<?php esc_attr_e( 'New group name', 'skwirrel-pim-sync' ); ?>" aria-label="<?php esc_attr_e( 'New group name', 'skwirrel-pim-sync' ); ?>" /></td>
-						<td><?php esc_html_e( 'Custom', 'skwirrel-pim-sync' ); ?></td>
-						<td><input type="number" class="small-text" name="new_group[position]" value="" aria-label="<?php esc_attr_e( 'Order', 'skwirrel-pim-sync' ); ?>" /></td>
-						<td><input type="checkbox" name="new_group[as_tab]" value="1" aria-label="<?php esc_attr_e( 'Show as tab', 'skwirrel-pim-sync' ); ?>" /></td>
-						<td><input type="checkbox" name="new_group[hidden]" value="1" aria-label="<?php esc_attr_e( 'Hide on product page', 'skwirrel-pim-sync' ); ?>" /></td>
-						<td><input type="checkbox" name="new_group[admin_hidden]" value="1" aria-label="<?php esc_attr_e( 'Hide in product editor', 'skwirrel-pim-sync' ); ?>" /></td>
-						<td><?php $this->render_includes( 'new_group[includes][]', $auto, [] ); ?></td>
-						<td colspan="2"></td>
-					</tr>
-				</tbody>
-			</table>
-			<?php submit_button( __( 'Save groups', 'skwirrel-pim-sync' ) ); ?>
+					</thead>
+					<tbody>
+						<?php
+						foreach ( $groups as $gid => $group ) :
+							$gid    = (string) $gid;
+							$field  = 'groups[' . $gid . ']';
+							$suffix = $suffixes[ $gid ] ?? '';
+							?>
+							<tr>
+								<td class="skw-ag-col-name">
+									<input type="text" class="skw-input" name="<?php echo esc_attr( $field ); ?>[name]" value="<?php echo esc_attr( (string) $group['name'] ); ?>" aria-label="<?php esc_attr_e( 'Name', 'skwirrel-pim-sync' ); ?>" />
+									<?php if ( '' !== $suffix ) : ?>
+										<span class="skw-ag-code"><?php echo esc_html( $suffix ); ?></span>
+									<?php endif; ?>
+								</td>
+								<td>
+									<?php if ( $group['automatic'] ) : ?>
+										<span class="skw-badge skw-ag-badge-auto"><?php esc_html_e( 'Automatic', 'skwirrel-pim-sync' ); ?></span>
+									<?php else : ?>
+										<span class="skw-badge skw-ag-badge-custom"><?php esc_html_e( 'Custom', 'skwirrel-pim-sync' ); ?></span>
+									<?php endif; ?>
+								</td>
+								<td class="skw-ag-col-order"><input type="number" class="skw-input" name="<?php echo esc_attr( $field ); ?>[position]" value="<?php echo esc_attr( (string) $group['position'] ); ?>" aria-label="<?php esc_attr_e( 'Order', 'skwirrel-pim-sync' ); ?>" /></td>
+								<td class="skw-ag-col-check"><label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[as_tab]" value="1" <?php checked( (bool) $group['as_tab'] ); ?> aria-label="<?php esc_attr_e( 'Show as tab', 'skwirrel-pim-sync' ); ?>" /></label></td>
+								<td class="skw-ag-col-check"><label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[hidden]" value="1" <?php checked( (bool) $group['hidden'] ); ?> aria-label="<?php esc_attr_e( 'Hide on product page', 'skwirrel-pim-sync' ); ?>" /></label></td>
+								<td class="skw-ag-col-check"><label class="skw-checkbox"><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[admin_hidden]" value="1" <?php checked( (bool) $group['admin_hidden'] ); ?> aria-label="<?php esc_attr_e( 'Hide in product editor', 'skwirrel-pim-sync' ); ?>" /></label></td>
+								<td class="skw-ag-col-includes">
+									<?php
+									if ( ! $group['automatic'] ) {
+										$this->render_includes( $field . '[includes][]', 'skw-ag-inc-' . $gid, $auto, (array) $group['includes'], $suffixes );
+									} elseif ( isset( $included[ $gid ], $groups[ $included[ $gid ] ] ) ) {
+										$owner = (string) $included[ $gid ];
+										echo '<span class="skw-ag-muted">';
+										printf(
+											/* translators: %s = name of the custom attribute group */
+											esc_html__( 'Included in %s', 'skwirrel-pim-sync' ),
+											'<strong>' . esc_html( self::choice_label( (string) $groups[ $owner ]['name'], $suffixes[ $owner ] ?? '' ) ) . '</strong>'
+										);
+										echo '</span>';
+									} else {
+										echo '<span class="skw-ag-muted" aria-hidden="true">&mdash;</span>';
+									}
+									?>
+								</td>
+								<td class="skw-ag-col-num"><a href="<?php echo esc_url( self::page_url( [ 'group' => $gid ] ) . '#skwirrel-attributes' ); ?>"><?php echo esc_html( number_format_i18n( (int) ( $counts[ $gid ] ?? 0 ) ) ); ?></a></td>
+								<td class="skw-ag-col-check">
+									<?php if ( ! $group['automatic'] ) : ?>
+										<label class="skw-checkbox skw-ag-delete"><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[delete]" value="1" aria-label="<?php esc_attr_e( 'Delete', 'skwirrel-pim-sync' ); ?>" /></label>
+									<?php endif; ?>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+					</tbody>
+					<tbody class="skw-ag-new">
+						<tr>
+							<td class="skw-ag-col-name">
+								<span class="skw-ag-new-label"><i class="ph ph-plus" aria-hidden="true"></i> <?php esc_html_e( 'New group', 'skwirrel-pim-sync' ); ?></span>
+								<input type="text" class="skw-input" name="new_group[name]" value="" placeholder="<?php esc_attr_e( 'New group name', 'skwirrel-pim-sync' ); ?>" aria-label="<?php esc_attr_e( 'New group name', 'skwirrel-pim-sync' ); ?>" />
+							</td>
+							<td><span class="skw-badge skw-ag-badge-custom"><?php esc_html_e( 'Custom', 'skwirrel-pim-sync' ); ?></span></td>
+							<td class="skw-ag-col-order"><input type="number" class="skw-input" name="new_group[position]" value="" aria-label="<?php esc_attr_e( 'Order', 'skwirrel-pim-sync' ); ?>" /></td>
+							<td class="skw-ag-col-check"><label class="skw-checkbox"><input type="checkbox" name="new_group[as_tab]" value="1" aria-label="<?php esc_attr_e( 'Show as tab', 'skwirrel-pim-sync' ); ?>" /></label></td>
+							<td class="skw-ag-col-check"><label class="skw-checkbox"><input type="checkbox" name="new_group[hidden]" value="1" aria-label="<?php esc_attr_e( 'Hide on product page', 'skwirrel-pim-sync' ); ?>" /></label></td>
+							<td class="skw-ag-col-check"><label class="skw-checkbox"><input type="checkbox" name="new_group[admin_hidden]" value="1" aria-label="<?php esc_attr_e( 'Hide in product editor', 'skwirrel-pim-sync' ); ?>" /></label></td>
+							<td class="skw-ag-col-includes"><?php $this->render_includes( 'new_group[includes][]', 'skw-ag-inc-new', $auto, [], $suffixes ); ?></td>
+							<td colspan="2"></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<div class="skw-field-actions">
+				<button type="submit" class="button button-primary button-large"><?php esc_html_e( 'Save groups', 'skwirrel-pim-sync' ); ?></button>
+			</div>
 		</form>
 		<?php
 	}
 
 	/**
-	 * Checkboxes for the automatic groups a custom group takes over.
+	 * The automatic groups a custom group takes over: the current choice as chips, and a
+	 * "Choose…" panel (native details/summary) with a searchable checklist. The checkboxes
+	 * work without JavaScript; the script only adds the search and live chips.
 	 *
 	 * @param string                              $name     Field name (ends in []).
+	 * @param string                              $id_base  Unique HTML ID prefix for this picker.
 	 * @param array<string, array<string, mixed>> $auto     Automatic groups.
 	 * @param string[]                            $selected Selected group IDs.
+	 * @param array<string, string>               $suffixes Group ID => disambiguating suffix.
 	 */
-	private function render_includes( string $name, array $auto, array $selected ): void {
+	private function render_includes( string $name, string $id_base, array $auto, array $selected, array $suffixes ): void {
 		if ( empty( $auto ) ) {
-			echo '&mdash;';
+			echo '<span class="skw-ag-muted" aria-hidden="true">&mdash;</span>';
 			return;
 		}
-		foreach ( $auto as $src => $group ) {
-			printf(
-				'<label style="display:inline-block;margin-right:10px;"><input type="checkbox" name="%s" value="%s" %s /> %s</label>',
-				esc_attr( $name ),
-				esc_attr( (string) $src ),
-				checked( in_array( (string) $src, $selected, true ), true, false ),
-				esc_html( (string) $group['name'] )
-			);
-		}
+		$id_base = sanitize_html_class( $id_base );
+		$chosen  = array_values( array_filter( array_keys( $auto ), static fn( $src ) => in_array( (string) $src, $selected, true ) ) );
+		/* translators: %d = number of further groups that are not listed */
+		$more = __( '+%d more', 'skwirrel-pim-sync' );
+		?>
+		<div class="skw-ag-includes" data-none="<?php esc_attr_e( 'None', 'skwirrel-pim-sync' ); ?>" data-more="<?php echo esc_attr( $more ); ?>">
+			<div class="skw-ag-chips">
+				<?php if ( empty( $chosen ) ) : ?>
+					<span class="skw-ag-none"><?php esc_html_e( 'None', 'skwirrel-pim-sync' ); ?></span>
+				<?php else : ?>
+					<?php
+					foreach ( array_slice( $chosen, 0, 3 ) as $src ) :
+						$src   = (string) $src;
+						$label = (string) $auto[ $src ]['name'];
+						$code  = '' !== ( $suffixes[ $src ] ?? '' ) ? ' · ' . $suffixes[ $src ] : '';
+						?>
+						<span class="skw-ag-chip" title="<?php echo esc_attr( $label . $code ); ?>">
+							<?php
+							echo esc_html( $label );
+							if ( '' !== $code ) {
+								echo '<span class="skw-ag-chip-code">' . esc_html( $code ) . '</span>';
+							}
+							?>
+						</span>
+					<?php endforeach; ?>
+					<?php if ( count( $chosen ) > 3 ) : ?>
+						<span class="skw-ag-chip skw-ag-chip-more"><?php echo esc_html( str_replace( '%d', (string) ( count( $chosen ) - 3 ), $more ) ); ?></span>
+					<?php endif; ?>
+				<?php endif; ?>
+			</div>
+			<details class="skw-ag-picker">
+				<summary class="skw-ag-picker-toggle"><i class="ph ph-list-checks" aria-hidden="true"></i> <?php esc_html_e( 'Choose…', 'skwirrel-pim-sync' ); ?></summary>
+				<div class="skw-ag-picker-panel">
+					<label for="<?php echo esc_attr( $id_base . '-search' ); ?>" class="screen-reader-text"><?php esc_html_e( 'Search groups', 'skwirrel-pim-sync' ); ?></label>
+					<input type="search" id="<?php echo esc_attr( $id_base . '-search' ); ?>" class="skw-input skw-ag-picker-search" placeholder="<?php esc_attr_e( 'Search groups', 'skwirrel-pim-sync' ); ?>" autocomplete="off" hidden />
+					<fieldset class="skw-ag-picker-list">
+						<legend class="screen-reader-text"><?php esc_html_e( 'Includes', 'skwirrel-pim-sync' ); ?></legend>
+						<?php
+						foreach ( $auto as $src => $group ) :
+							$src    = (string) $src;
+							$suffix = $suffixes[ $src ] ?? '';
+							?>
+							<label class="skw-checkbox skw-ag-opt">
+								<input type="checkbox" name="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( $src ); ?>" <?php checked( in_array( $src, $selected, true ) ); ?> />
+								<span>
+									<span class="skw-ag-opt-name"><?php echo esc_html( (string) $group['name'] ); ?></span>
+									<?php if ( '' !== $suffix ) : ?>
+										<span class="skw-ag-opt-code"><?php echo esc_html( $suffix ); ?></span>
+									<?php endif; ?>
+								</span>
+							</label>
+						<?php endforeach; ?>
+					</fieldset>
+				</div>
+			</details>
+		</div>
+		<?php
 	}
 
 	/**
@@ -1048,11 +1312,12 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 * @param array<string, string>                                                     $attributes Slug => label.
 	 * @param array<string, array{source: string, class_key: string, class_name: string}> $sources    Source map.
 	 * @param array<string, mixed>                                                      $context    Context.
+	 * @param array<string, string>                                                     $suffixes   Group ID => disambiguating suffix.
 	 * @param string                                                                    $search     Search text.
 	 * @param string                                                                    $filter     Group filter (group ID, NO_GROUP or '').
 	 * @param int                                                                       $paged      Page number.
 	 */
-	private function render_attribute_list( array $attributes, array $sources, array $context, string $search, string $filter, int $paged ): void {
+	private function render_attribute_list( array $attributes, array $sources, array $context, array $suffixes, string $search, string $filter, int $paged ): void {
 		$groups = $context['groups'];
 		$rows   = [];
 		foreach ( $attributes as $slug => $label ) {
@@ -1076,99 +1341,110 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		$paged = min( $paged, $pages );
 		$rows  = array_slice( $rows, ( $paged - 1 ) * self::PER_PAGE, self::PER_PAGE, true );
 		?>
-		<h2 id="skwirrel-attributes"><?php esc_html_e( 'Attributes', 'skwirrel-pim-sync' ); ?></h2>
-
-		<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" style="margin-bottom:8px;">
-			<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG ); ?>" />
-			<label for="skwirrel-attr-search" class="screen-reader-text"><?php esc_html_e( 'Search attributes', 'skwirrel-pim-sync' ); ?></label>
-			<input type="search" id="skwirrel-attr-search" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search attributes', 'skwirrel-pim-sync' ); ?>" />
-			<label for="skwirrel-attr-filter" class="screen-reader-text"><?php esc_html_e( 'Filter by group', 'skwirrel-pim-sync' ); ?></label>
-			<select id="skwirrel-attr-filter" name="group">
-				<option value=""><?php esc_html_e( 'All groups', 'skwirrel-pim-sync' ); ?></option>
-				<option value="<?php echo esc_attr( self::NO_GROUP ); ?>" <?php selected( $filter, self::NO_GROUP ); ?>><?php esc_html_e( '— No group —', 'skwirrel-pim-sync' ); ?></option>
-				<?php foreach ( $groups as $gid => $group ) : ?>
-					<option value="<?php echo esc_attr( (string) $gid ); ?>" <?php selected( $filter, (string) $gid ); ?>><?php echo esc_html( (string) $group['name'] ); ?></option>
-				<?php endforeach; ?>
-			</select>
-			<?php submit_button( __( 'Filter', 'skwirrel-pim-sync' ), 'secondary', '', false ); ?>
-			<span class="displaying-num" style="margin-left:8px;">
-				<?php
-				/* translators: %s = number of attributes */
-				echo esc_html( sprintf( _n( '%s attribute', '%s attributes', $total, 'skwirrel-pim-sync' ), number_format_i18n( $total ) ) );
-				?>
-			</span>
-		</form>
-
-		<?php if ( empty( $rows ) ) : ?>
-			<p><?php esc_html_e( 'No attributes found.', 'skwirrel-pim-sync' ); ?></p>
-			<?php
-			return;
-		endif;
-		?>
-
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-			<input type="hidden" name="action" value="<?php echo esc_attr( self::ASSIGN_ACTION ); ?>" />
-			<input type="hidden" name="s" value="<?php echo esc_attr( $search ); ?>" />
-			<input type="hidden" name="group" value="<?php echo esc_attr( $filter ); ?>" />
-			<input type="hidden" name="paged" value="<?php echo esc_attr( (string) $paged ); ?>" />
-			<?php wp_nonce_field( self::ASSIGN_ACTION ); ?>
-
-			<div class="tablenav top">
-				<div class="alignleft actions bulkactions">
-					<label for="skwirrel-attr-target" class="screen-reader-text"><?php esc_html_e( 'Move selected to', 'skwirrel-pim-sync' ); ?></label>
-					<select id="skwirrel-attr-target" name="target">
-						<option value=""><?php esc_html_e( 'Move selected to…', 'skwirrel-pim-sync' ); ?></option>
-						<option value="<?php echo esc_attr( self::AUTOMATIC ); ?>"><?php esc_html_e( 'Automatic group', 'skwirrel-pim-sync' ); ?></option>
-						<option value="<?php echo esc_attr( self::NO_GROUP ); ?>"><?php esc_html_e( '— No group —', 'skwirrel-pim-sync' ); ?></option>
-						<?php foreach ( $groups as $gid => $group ) : ?>
-							<option value="<?php echo esc_attr( (string) $gid ); ?>"><?php echo esc_html( (string) $group['name'] ); ?></option>
-						<?php endforeach; ?>
-					</select>
-					<?php submit_button( __( 'Apply', 'skwirrel-pim-sync' ), 'action', '', false ); ?>
+		<section class="skw-section skw-ag-card" id="skwirrel-attributes">
+			<div class="skw-fieldgroup">
+				<div class="skw-fg-head">
+					<span class="skw-fg-icon skw-fg-icon-blue"><i class="ph ph-list-bullets" aria-hidden="true"></i></span>
+					<div>
+						<h2 class="skw-fieldgroup-title"><?php esc_html_e( 'Attributes', 'skwirrel-pim-sync' ); ?></h2>
+						<p class="skw-fg-desc"><?php esc_html_e( 'Every global product attribute and the group it is in. Tick attributes to move them to another group.', 'skwirrel-pim-sync' ); ?></p>
+					</div>
 				</div>
-				<?php $this->render_pagination( $paged, $pages, $search, $filter ); ?>
 			</div>
 
-			<table class="widefat striped" style="max-width:1100px;">
-				<thead>
-					<tr>
-						<td class="manage-column check-column"><input type="checkbox" id="skwirrel-attr-select-all" aria-label="<?php esc_attr_e( 'Select all', 'skwirrel-pim-sync' ); ?>" /></td>
-						<th><?php esc_html_e( 'Attribute', 'skwirrel-pim-sync' ); ?></th>
-						<th><?php esc_html_e( 'Slug', 'skwirrel-pim-sync' ); ?></th>
-						<th><?php esc_html_e( 'Source', 'skwirrel-pim-sync' ); ?></th>
-						<th><?php esc_html_e( 'Group', 'skwirrel-pim-sync' ); ?></th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php foreach ( $rows as $slug => $row ) : ?>
-						<tr>
-							<th scope="row" class="check-column"><input type="checkbox" name="slugs[]" value="<?php echo esc_attr( (string) $slug ); ?>" id="<?php echo esc_attr( 'skwirrel-attr-' . $slug ); ?>" /></th>
-							<td><label for="<?php echo esc_attr( 'skwirrel-attr-' . $slug ); ?>"><?php echo esc_html( $row['label'] ); ?></label></td>
-							<td><code><?php echo esc_html( 'pa_' . $slug ); ?></code></td>
-							<td><?php echo esc_html( $row['source'] ); ?></td>
-							<td>
-								<?php
-								echo esc_html( null !== $row['group'] ? (string) $groups[ $row['group'] ]['name'] : __( '— No group —', 'skwirrel-pim-sync' ) );
-								if ( $row['manual'] ) {
-									echo ' <span class="description">(' . esc_html__( 'manual', 'skwirrel-pim-sync' ) . ')</span>';
-								}
-								?>
-							</td>
-						</tr>
+			<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" class="skw-ag-toolbar">
+				<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG ); ?>" />
+				<label for="skwirrel-attr-search" class="screen-reader-text"><?php esc_html_e( 'Search attributes', 'skwirrel-pim-sync' ); ?></label>
+				<span class="skw-ag-search">
+					<i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+					<input type="search" id="skwirrel-attr-search" class="skw-input" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search attributes', 'skwirrel-pim-sync' ); ?>" />
+				</span>
+				<label for="skwirrel-attr-filter" class="screen-reader-text"><?php esc_html_e( 'Filter by group', 'skwirrel-pim-sync' ); ?></label>
+				<select id="skwirrel-attr-filter" name="group" class="skw-select">
+					<option value=""><?php esc_html_e( 'All groups', 'skwirrel-pim-sync' ); ?></option>
+					<option value="<?php echo esc_attr( self::NO_GROUP ); ?>" <?php selected( $filter, self::NO_GROUP ); ?>><?php esc_html_e( '— No group —', 'skwirrel-pim-sync' ); ?></option>
+					<?php foreach ( $groups as $gid => $group ) : ?>
+						<option value="<?php echo esc_attr( (string) $gid ); ?>" <?php selected( $filter, (string) $gid ); ?>><?php echo esc_html( self::choice_label( (string) $group['name'], $suffixes[ (string) $gid ] ?? '' ) ); ?></option>
 					<?php endforeach; ?>
-				</tbody>
-			</table>
-			<div class="tablenav bottom"><?php $this->render_pagination( $paged, $pages, $search, $filter ); ?></div>
-		</form>
-		<script>
-		( function () {
-			var all = document.getElementById( 'skwirrel-attr-select-all' );
-			if ( ! all ) { return; }
-			all.addEventListener( 'change', function () {
-				document.querySelectorAll( 'input[name="slugs[]"]' ).forEach( function ( box ) { box.checked = all.checked; } );
-			} );
-		} )();
-		</script>
+				</select>
+				<button type="submit" class="skw-set-btn"><i class="ph ph-funnel" aria-hidden="true"></i> <?php esc_html_e( 'Filter', 'skwirrel-pim-sync' ); ?></button>
+				<span class="skw-ag-count">
+					<?php
+					/* translators: %s = number of attributes */
+					echo esc_html( sprintf( _n( '%s attribute', '%s attributes', $total, 'skwirrel-pim-sync' ), number_format_i18n( $total ) ) );
+					?>
+				</span>
+			</form>
+
+			<?php if ( empty( $rows ) ) : ?>
+				<p class="skw-ag-empty"><?php esc_html_e( 'No attributes found.', 'skwirrel-pim-sync' ); ?></p>
+			<?php else : ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<input type="hidden" name="action" value="<?php echo esc_attr( self::ASSIGN_ACTION ); ?>" />
+					<input type="hidden" name="s" value="<?php echo esc_attr( $search ); ?>" />
+					<input type="hidden" name="group" value="<?php echo esc_attr( $filter ); ?>" />
+					<input type="hidden" name="paged" value="<?php echo esc_attr( (string) $paged ); ?>" />
+					<?php wp_nonce_field( self::ASSIGN_ACTION ); ?>
+
+					<div class="skw-ag-bulkbar">
+						<div class="skw-ag-bulk">
+							<label for="skwirrel-attr-target" class="screen-reader-text"><?php esc_html_e( 'Move selected to', 'skwirrel-pim-sync' ); ?></label>
+							<select id="skwirrel-attr-target" name="target" class="skw-select">
+								<option value=""><?php esc_html_e( 'Move selected to…', 'skwirrel-pim-sync' ); ?></option>
+								<option value="<?php echo esc_attr( self::AUTOMATIC ); ?>"><?php esc_html_e( 'Automatic group', 'skwirrel-pim-sync' ); ?></option>
+								<option value="<?php echo esc_attr( self::NO_GROUP ); ?>"><?php esc_html_e( '— No group —', 'skwirrel-pim-sync' ); ?></option>
+								<?php foreach ( $groups as $gid => $group ) : ?>
+									<option value="<?php echo esc_attr( (string) $gid ); ?>"><?php echo esc_html( self::choice_label( (string) $group['name'], $suffixes[ (string) $gid ] ?? '' ) ); ?></option>
+								<?php endforeach; ?>
+							</select>
+							<button type="submit" class="skw-set-btn"><?php esc_html_e( 'Apply', 'skwirrel-pim-sync' ); ?></button>
+						</div>
+						<?php $this->render_pagination( $paged, $pages, $search, $filter ); ?>
+					</div>
+
+					<div class="skw-ag-table-wrap">
+						<table class="skw-ag-table skw-ag-attributes">
+							<thead>
+								<tr>
+									<td class="skw-ag-col-select"><label class="skw-checkbox"><input type="checkbox" id="skwirrel-attr-select-all" aria-label="<?php esc_attr_e( 'Select all', 'skwirrel-pim-sync' ); ?>" /></label></td>
+									<th scope="col"><?php esc_html_e( 'Attribute', 'skwirrel-pim-sync' ); ?></th>
+									<th scope="col"><?php esc_html_e( 'Slug', 'skwirrel-pim-sync' ); ?></th>
+									<th scope="col"><?php esc_html_e( 'Source', 'skwirrel-pim-sync' ); ?></th>
+									<th scope="col"><?php esc_html_e( 'Group', 'skwirrel-pim-sync' ); ?></th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ( $rows as $slug => $row ) : ?>
+									<tr>
+										<td class="skw-ag-col-select"><label class="skw-checkbox"><input type="checkbox" name="slugs[]" value="<?php echo esc_attr( (string) $slug ); ?>" id="<?php echo esc_attr( 'skwirrel-attr-' . $slug ); ?>" /></label></td>
+										<th scope="row" class="skw-ag-attr-label"><label for="<?php echo esc_attr( 'skwirrel-attr-' . $slug ); ?>"><?php echo esc_html( $row['label'] ); ?></label></th>
+										<td><code class="skw-ag-slug"><?php echo esc_html( 'pa_' . $slug ); ?></code></td>
+										<td class="skw-ag-muted"><?php echo esc_html( $row['source'] ); ?></td>
+										<td>
+											<?php
+											if ( null !== $row['group'] ) {
+												echo esc_html( (string) $groups[ $row['group'] ]['name'] );
+												$suffix = $suffixes[ (string) $row['group'] ] ?? '';
+												if ( '' !== $suffix ) {
+													echo '<span class="skw-ag-code">' . esc_html( $suffix ) . '</span>';
+												}
+											} else {
+												echo '<span class="skw-ag-muted">' . esc_html__( '— No group —', 'skwirrel-pim-sync' ) . '</span>';
+											}
+											if ( $row['manual'] ) {
+												echo ' <span class="skw-badge skw-ag-badge-manual">' . esc_html__( 'manual', 'skwirrel-pim-sync' ) . '</span>';
+											}
+											?>
+										</td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+					<div class="skw-ag-bulkbar skw-ag-bulkbar-bottom"><?php $this->render_pagination( $paged, $pages, $search, $filter ); ?></div>
+				</form>
+			<?php endif; ?>
+		</section>
 		<?php
 	}
 
@@ -1195,7 +1471,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			]
 		);
 		if ( '' !== $links ) {
-			echo '<div class="tablenav-pages">' . wp_kses_post( $links ) . '</div>';
+			echo '<nav class="skw-ag-pagination" aria-label="' . esc_attr__( 'Attribute pages', 'skwirrel-pim-sync' ) . '">' . wp_kses_post( $links ) . '</nav>';
 		}
 	}
 
@@ -1370,13 +1646,14 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		printf( '<select id="%1$s" name="%1$s">', esc_attr( self::ATTRIBUTE_FIELD ) );
 		echo '<option value="">' . esc_html__( 'Automatic group', 'skwirrel-pim-sync' ) . '</option>';
 		printf( '<option value="%s"%s>%s</option>', esc_attr( self::NO_GROUP ), selected( $selected, self::NO_GROUP, false ), esc_html__( '— No group —', 'skwirrel-pim-sync' ) );
-		$groups = self::context()['groups'];
+		$groups   = self::context()['groups'];
+		$suffixes = self::current_suffixes();
 		foreach ( $groups as $gid => $group ) {
 			printf(
 				'<option value="%s"%s>%s</option>',
 				esc_attr( (string) $gid ),
 				selected( $selected, (string) $gid, false ),
-				esc_html( (string) $group['name'] )
+				esc_html( self::choice_label( (string) $group['name'], $suffixes[ (string) $gid ] ?? '' ) )
 			);
 		}
 		if ( null !== $selected && self::NO_GROUP !== $selected && ! isset( $groups[ $selected ] ) ) {

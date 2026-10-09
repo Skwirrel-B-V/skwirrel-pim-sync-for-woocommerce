@@ -84,6 +84,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * Each group can be hidden on the product page, or shown as its own product tab. Other groups stay in "Additional information", listed per group.
 * A group can also be hidden in the product editor, for all products at once. Its attributes are collapsed in the Attributes panel but still saved, with a toggle to show them.
 * Move single attributes in bulk from a paged, searchable list, or pick a group when editing an attribute under Products → Attributes.
+* Groups that share a name show their custom class code wherever you choose a group, so you can tell them apart.
 * New theme function `skwirrel_get_attribute_groups( $product_id )` returns a product's visible groups with their attribute values.
 
 = 4.1.0 =
