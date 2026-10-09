@@ -177,6 +177,7 @@ if (!function_exists('wc_get_logger')) {
 // Stub $wpdb for slug_exists() and other direct queries.
 if (!isset($GLOBALS['wpdb'])) {
     $GLOBALS['wpdb'] = new class {
+        public string $prefix = 'wp_';
         public string $posts = 'wp_posts';
         public string $postmeta = 'wp_postmeta';
         public string $terms = 'wp_terms';

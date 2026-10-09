@@ -79,3 +79,40 @@ test('the extractor maps each custom class attribute label to the class whose va
 		'Kostprijs bekend' => ['class_key' => 'INTERNAL', 'class_name' => 'INTERNAL'],
 	]);
 });
+
+test('when two custom features share a label, the class of the later one wins, like the attribute value', function () {
+	$extractor = new Skwirrel_WC_Sync_Custom_Class_Extractor('nl');
+	$feature   = fn (string $code) => [
+		'custom_feature_code'          => $code,
+		'custom_feature_type'          => 'L',
+		'logical_value'                => true,
+		'_custom_feature_translations' => [['language' => 'nl', 'custom_feature_description' => 'Op voorraad']],
+	];
+	$product = ['_custom_classes' => [
+		['custom_class_id' => 1, 'custom_class_code' => 'LOCATION_A', '_custom_features' => [$feature('QTY_A')]],
+		['custom_class_id' => 2, 'custom_class_code' => 'LOCATION_B', '_custom_features' => [$feature('QTY_B')]],
+	]];
+
+	expect(array_keys($extractor->get_custom_class_attributes($product)))->toBe(['Op voorraad']);
+	expect($extractor->get_attribute_class_map($product)['Op voorraad']['class_key'])->toBe('LOCATION_B');
+});
+
+test('forget removes an entry and rename moves it to the new slug', function () {
+	$GLOBALS['_test_options'][Skwirrel_WC_Sync_Attribute_Sources::OPTION_KEY] = [
+		'kleur'   => ['source' => 'etim', 'class_key' => '', 'class_name' => ''],
+		'breedte' => ['source' => 'etim', 'class_key' => '', 'class_name' => ''],
+	];
+
+	Skwirrel_WC_Sync_Attribute_Sources::forget('pa_kleur');
+	Skwirrel_WC_Sync_Attribute_Sources::rename('breedte', 'width');
+
+	expect(array_keys(Skwirrel_WC_Sync_Attribute_Sources::all()))->toBe(['width']);
+});
+
+test('forget also drops an entry recorded earlier in the same request', function () {
+	Skwirrel_WC_Sync_Attribute_Sources::record('kleur', 'etim');
+	Skwirrel_WC_Sync_Attribute_Sources::forget('kleur');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+
+	expect(Skwirrel_WC_Sync_Attribute_Sources::all())->toBe([]);
+});

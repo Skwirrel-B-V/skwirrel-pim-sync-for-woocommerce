@@ -9,6 +9,8 @@
  *
  * Recording is buffered per request and written once, at shutdown, and only when something
  * changed, so a sync of thousands of products costs one option write per request at most.
+ * The read-merge-write runs under a MySQL advisory lock, so two requests flushing at the same
+ * time (a background sync step and a single-product sync) cannot drop each other's entries.
  *
  * @package Skwirrel_PIM_Sync
  */
@@ -103,14 +105,84 @@ class Skwirrel_WC_Sync_Attribute_Sources {
 		if ( empty( self::$pending ) ) {
 			return;
 		}
-		// Another request (a parallel sync step) may have written in the meantime.
-		wp_cache_delete( self::OPTION_KEY, 'options' );
-		$stored = self::all();
-		$merged = array_merge( $stored, self::$pending );
-		ksort( $merged );
+		$pending       = self::$pending;
 		self::$pending = [];
-		if ( $merged !== $stored ) {
-			update_option( self::OPTION_KEY, $merged, false );
+		self::update_locked(
+			static function ( array $stored ) use ( $pending ): array {
+				return array_merge( $stored, $pending );
+			}
+		);
+	}
+
+	/**
+	 * Remove an attribute's entry, e.g. when the attribute is deleted, so a new attribute that
+	 * reuses the slug does not inherit the old source.
+	 *
+	 * @param string $slug Attribute slug, with or without `pa_`.
+	 */
+	public static function forget( string $slug ): void {
+		$slug = self::normalize_slug( $slug );
+		unset( self::$pending[ $slug ] );
+		self::update_locked(
+			static function ( array $stored ) use ( $slug ): array {
+				unset( $stored[ $slug ] );
+				return $stored;
+			}
+		);
+	}
+
+	/**
+	 * Move an attribute's entry to its new slug after a rename.
+	 *
+	 * @param string $old_slug Previous slug.
+	 * @param string $new_slug New slug.
+	 */
+	public static function rename( string $old_slug, string $new_slug ): void {
+		$old_slug = self::normalize_slug( $old_slug );
+		$new_slug = self::normalize_slug( $new_slug );
+		if ( '' === $old_slug || '' === $new_slug || $old_slug === $new_slug ) {
+			return;
+		}
+		self::update_locked(
+			static function ( array $stored ) use ( $old_slug, $new_slug ): array {
+				if ( isset( $stored[ $old_slug ] ) ) {
+					$stored[ $new_slug ] = $stored[ $old_slug ];
+					unset( $stored[ $old_slug ] );
+				}
+				return $stored;
+			}
+		);
+	}
+
+	/**
+	 * Read, change and write the stored map under a MySQL advisory lock.
+	 *
+	 * When advisory locks are unavailable or the lock times out, the update still runs (best
+	 * effort, as before): a lost entry is recorded again the next time its product syncs.
+	 *
+	 * @param callable(array<string, array{source: string, class_key: string, class_name: string}>): array<string, mixed> $change Returns the new map.
+	 */
+	private static function update_locked( callable $change ): void {
+		global $wpdb;
+		// Advisory lock names are server-wide: database name + table prefix identify this install.
+		$name = 'skwirrel_attr_sources_' . md5( ( defined( 'DB_NAME' ) ? (string) DB_NAME : '' ) . '|' . $wpdb->prefix );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- advisory lock, nothing to cache.
+		$got  = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $name, 5 ) );
+		$lock = '1' === (string) $got ? $name : '';
+		try {
+			// Another request may have written since this one last read the option.
+			wp_cache_delete( self::OPTION_KEY, 'options' );
+			$stored = self::all();
+			$merged = $change( $stored );
+			ksort( $merged );
+			if ( $merged !== $stored ) {
+				update_option( self::OPTION_KEY, $merged, false );
+			}
+		} finally {
+			if ( '' !== $lock ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- advisory lock, nothing to cache.
+				$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock ) );
+			}
 		}
 	}
 

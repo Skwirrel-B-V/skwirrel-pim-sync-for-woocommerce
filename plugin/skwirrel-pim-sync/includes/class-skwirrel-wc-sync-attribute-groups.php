@@ -221,7 +221,8 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 					'position' => 400,
 				];
 		}
-		$key = self::sanitize_group_id( sanitize_title( $source['class_key'] ) );
+		// Untruncated: the hash below must see the whole code.
+		$key = sanitize_key( sanitize_title( $source['class_key'] ) );
 		if ( '' === $key ) {
 			return [
 				'id'       => self::SOURCE_PREFIX . 'cc',
@@ -230,8 +231,14 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			];
 		}
 		$name = '' !== $source['class_name'] ? $source['class_name'] : $source['class_key'];
+		$id   = self::SOURCE_PREFIX . 'cc-' . $key;
+		if ( strlen( $id ) > self::MAX_ID_LENGTH ) {
+			// Keep long class codes apart: two codes sharing a long prefix must not merge.
+			$hash = substr( md5( $key ), 0, 8 );
+			$id   = substr( $id, 0, self::MAX_ID_LENGTH - 9 ) . '-' . $hash;
+		}
 		return [
-			'id'       => substr( self::SOURCE_PREFIX . 'cc-' . $key, 0, self::MAX_ID_LENGTH ),
+			'id'       => $id,
 			'name'     => $name,
 			'position' => 200,
 		];
@@ -513,7 +520,16 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 				'as_tab'       => ! empty( $row['as_tab'] ),
 				'hidden'       => ! empty( $row['hidden'] ),
 				'admin_hidden' => ! empty( $row['admin_hidden'] ),
-				'includes'     => self::filter_includes( $row['includes'] ?? [], $auto ),
+				'includes'     => array_values(
+					array_unique(
+						array_merge(
+							self::filter_includes( $row['includes'] ?? [], $auto ),
+							// Automatic groups that are absent right now (ETIM sync switched off, a class
+							// not synced yet) have no checkbox, so keep what was stored for them.
+							array_values( array_filter( $groups[ $id ]['includes'], static fn( $src ) => ! isset( $auto[ $src ] ) ) )
+						)
+					)
+				),
 			];
 		}
 
@@ -1420,6 +1436,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		if ( '' === $new_slug ) {
 			return;
 		}
+		Skwirrel_WC_Sync_Attribute_Sources::rename( $old_slug, $new_slug );
 		$group = self::submitted_attribute_group();
 		if ( null !== $group && ! self::is_valid_target( $group ) ) {
 			$group = null;
@@ -1442,6 +1459,8 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 */
 	public function on_attribute_deleted( $id, $slug ): void {
 		self::assign( (string) $slug, '' );
+		// A new attribute that reuses this slug must not inherit the old source group.
+		Skwirrel_WC_Sync_Attribute_Sources::forget( (string) $slug );
 	}
 
 	private static function is_valid_target( string $group ): bool {

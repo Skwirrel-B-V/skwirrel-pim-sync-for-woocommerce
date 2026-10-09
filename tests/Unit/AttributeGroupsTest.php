@@ -326,3 +326,32 @@ test('editor hiding and product page hiding are independent', function () {
 	expect(Skwirrel_WC_Sync_Attribute_Groups::editor_hidden_taxonomies(['pa_breedte'], $ctx))->toBe(['pa_breedte']);
 	expect(array_keys(Skwirrel_WC_Sync_Attribute_Groups::filter_rows(['attribute_pa_breedte' => []], $ctx, null)))->toBe(['attribute_pa_breedte']);
 });
+
+// ------------------------------------------------------------------
+// Review fixes
+// ------------------------------------------------------------------
+
+test('saving keeps includes of automatic groups that are absent right now', function () {
+	$existing = ['groups' => ['technical' => ['name' => 'Technical', 'includes' => ['src-etim', 'src-cc-logistics']]]];
+	$ctx      = skwAgContext($existing, false); // ETIM sync off: src-etim has no checkbox.
+
+	$config = Skwirrel_WC_Sync_Attribute_Groups::sanitize_groups_submission(
+		['groups' => ['technical' => ['name' => 'Technical', 'includes' => ['src-identifiers']]]],
+		$existing,
+		$ctx
+	);
+
+	expect($config['groups']['technical']['includes'])->toBe(['src-identifiers', 'src-etim']);
+	expect(skwAgContext($config)['groups']['technical']['includes'])->toBe(['src-identifiers', 'src-etim']);
+});
+
+test('long custom class codes sharing a prefix get distinct automatic group IDs', function () {
+	$long = 'warehouse-location-netherlands-amsterdam-';
+	$a    = Skwirrel_WC_Sync_Attribute_Groups::source_group_for(['source' => 'custom_class', 'class_key' => $long . 'north', 'class_name' => '']);
+	$b    = Skwirrel_WC_Sync_Attribute_Groups::source_group_for(['source' => 'custom_class', 'class_key' => $long . 'south', 'class_name' => '']);
+
+	expect($a['id'])->not->toBe($b['id']);
+	expect(strlen($a['id']) <= 40)->toBeTrue();
+	expect(str_starts_with($a['id'], 'src-cc-'))->toBeTrue();
+	expect(Skwirrel_WC_Sync_Attribute_Groups::source_group_for(['source' => 'custom_class', 'class_key' => 'logistics', 'class_name' => ''])['id'])->toBe('src-cc-logistics');
+});

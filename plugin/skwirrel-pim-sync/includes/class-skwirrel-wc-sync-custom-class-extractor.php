@@ -429,9 +429,9 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	/**
 	 * Which custom class each custom class attribute label comes from.
 	 *
-	 * Applies the same rules and the same first-wins de-duplication as
-	 * get_custom_class_attributes(), so every label it returns maps to the class whose
-	 * value was actually used.
+	 * Applies the same rules as get_custom_class_attributes(): a feature code is only used
+	 * once (first class wins), and when two features share a label the later one wins. So
+	 * every label maps to the class whose value was actually used.
 	 *
 	 * @param array<string, mixed> $product             Raw API product.
 	 * @param bool                 $include_trade_items Include trade-item custom classes.
@@ -472,14 +472,12 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 				if ( isset( $seen[ $key ] ) ) {
 					continue;
 				}
-				$seen[ $key ] = true;
-				$label        = $this->resolve_custom_feature_label( $feat, $lang );
-				if ( ! isset( $map[ $label ] ) ) {
-					$map[ $label ] = [
-						'class_key'  => $class_key,
-						'class_name' => '' !== $class_name ? $class_name : $class_key,
-					];
-				}
+				$seen[ $key ]  = true;
+				$label         = $this->resolve_custom_feature_label( $feat, $lang );
+				$map[ $label ] = [
+					'class_key'  => $class_key,
+					'class_name' => '' !== $class_name ? $class_name : $class_key,
+				];
 			}
 		}
 		return $map;
