@@ -3016,3 +3016,9 @@ msgid "%d attribute is hidden by its attribute group."
 msgid_plural "%d attributes are hidden by their attribute group."
 msgstr[0] "%d Attribut ist durch seine Attributgruppe ausgeblendet."
 msgstr[1] "%d Attribute sind durch ihre Attributgruppe ausgeblendet."
+
+#. translators: %s = attribute group ID
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+#, php-format
+msgid "%s (inactive)"
+msgstr "%s (inaktiv)"

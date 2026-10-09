@@ -56,11 +56,14 @@ class Skwirrel_WC_Sync_Attribute_Sources {
 		if ( '' === $slug || ! in_array( $source, [ self::SOURCE_ETIM, self::SOURCE_CUSTOM_CLASS, self::SOURCE_IDENTIFIER, self::SOURCE_VARIANT ], true ) ) {
 			return;
 		}
-		self::$pending[ $slug ] = [
-			'source'     => $source,
-			'class_key'  => self::SOURCE_CUSTOM_CLASS === $source ? strtolower( trim( $class_key ) ) : '',
-			'class_name' => self::SOURCE_CUSTOM_CLASS === $source ? trim( $class_name ) : '',
-		];
+		self::$pending[ $slug ] = self::prefer(
+			self::$pending[ $slug ] ?? null,
+			[
+				'source'     => $source,
+				'class_key'  => self::SOURCE_CUSTOM_CLASS === $source ? strtolower( trim( $class_key ) ) : '',
+				'class_name' => self::SOURCE_CUSTOM_CLASS === $source ? trim( $class_name ) : '',
+			]
+		);
 		if ( ! self::$shutdown_hooked ) {
 			self::$shutdown_hooked = true;
 			add_action( 'shutdown', [ self::class, 'flush' ] );
@@ -109,9 +112,47 @@ class Skwirrel_WC_Sync_Attribute_Sources {
 		self::$pending = [];
 		self::update_locked(
 			static function ( array $stored ) use ( $pending ): array {
-				return array_merge( $stored, $pending );
+				foreach ( $pending as $slug => $entry ) {
+					$stored[ $slug ] = self::prefer( $stored[ $slug ] ?? null, $entry );
+				}
+				return $stored;
 			}
 		);
+	}
+
+	/**
+	 * Pick the source to keep when one attribute slug is fed from different sources, e.g.
+	 * "Breedte" from ETIM on one product and from a custom class on another.
+	 *
+	 * The choice must not depend on which product happens to sync last, or the attribute would
+	 * move between groups when the API order changes. Precedence follows how the mapper merges
+	 * a product's attributes: identifier, then ETIM, then custom class, then variant. Between
+	 * two custom classes the lowest class key wins. The same source refreshes the entry (a
+	 * renamed class keeps its new name). A manual assignment overrides all of this.
+	 *
+	 * @param array{source: string, class_key: string, class_name: string}|null $current  Entry kept so far.
+	 * @param array{source: string, class_key: string, class_name: string}      $incoming New entry.
+	 * @return array{source: string, class_key: string, class_name: string}
+	 */
+	public static function prefer( ?array $current, array $incoming ): array {
+		if ( null === $current ) {
+			return $incoming;
+		}
+		$rank = [
+			self::SOURCE_IDENTIFIER   => 0,
+			self::SOURCE_ETIM         => 1,
+			self::SOURCE_CUSTOM_CLASS => 2,
+			self::SOURCE_VARIANT      => 3,
+		];
+		$a    = $rank[ $current['source'] ] ?? 9;
+		$b    = $rank[ $incoming['source'] ] ?? 9;
+		if ( $a !== $b ) {
+			return $b < $a ? $incoming : $current;
+		}
+		if ( self::SOURCE_CUSTOM_CLASS === $incoming['source'] && $current['class_key'] !== $incoming['class_key'] ) {
+			return strcmp( $incoming['class_key'], $current['class_key'] ) < 0 ? $incoming : $current;
+		}
+		return $incoming;
 	}
 
 	/**

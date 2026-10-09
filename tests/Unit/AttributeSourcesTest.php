@@ -116,3 +116,34 @@ test('forget also drops an entry recorded earlier in the same request', function
 
 	expect(Skwirrel_WC_Sync_Attribute_Sources::all())->toBe([]);
 });
+
+test('a slug fed from different sources keeps the same winner whatever the product order', function ($first, $second) {
+	Skwirrel_WC_Sync_Attribute_Sources::record('breedte', ...$first);
+	Skwirrel_WC_Sync_Attribute_Sources::record('breedte', ...$second);
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+
+	expect(Skwirrel_WC_Sync_Attribute_Sources::all()['breedte']['source'])->toBe('etim');
+})->with([
+	'ETIM first'         => [['etim'], ['custom_class', 'LOGISTICS', 'Logistiek']],
+	'custom class first' => [['custom_class', 'LOGISTICS', 'Logistiek'], ['etim']],
+]);
+
+test('between two custom classes the lowest class key wins, across requests too', function () {
+	Skwirrel_WC_Sync_Attribute_Sources::record('voorraad', 'custom_class', 'WAREHOUSE_B', 'B');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+	Skwirrel_WC_Sync_Attribute_Sources::record('voorraad', 'custom_class', 'WAREHOUSE_A', 'A');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+	Skwirrel_WC_Sync_Attribute_Sources::record('voorraad', 'custom_class', 'WAREHOUSE_B', 'B');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+
+	expect(Skwirrel_WC_Sync_Attribute_Sources::all()['voorraad']['class_key'])->toBe('warehouse_a');
+});
+
+test('the same source refreshes the entry, so a renamed class shows its new name', function () {
+	Skwirrel_WC_Sync_Attribute_Sources::record('voorraad', 'custom_class', 'LOGISTICS', 'Logistiek');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+	Skwirrel_WC_Sync_Attribute_Sources::record('voorraad', 'custom_class', 'LOGISTICS', 'Logistics');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+
+	expect(Skwirrel_WC_Sync_Attribute_Sources::all()['voorraad']['class_name'])->toBe('Logistics');
+});

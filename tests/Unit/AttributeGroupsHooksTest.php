@@ -119,3 +119,12 @@ test('deleting an attribute removes its assignment and its source', function () 
 	expect(skwAgAssignments())->toBe([]);
 	expect(Skwirrel_WC_Sync_Attribute_Sources::all())->toBe([]);
 });
+
+test('an unrelated edit that submits an inactive group keeps the assignment', function () {
+	Skwirrel_WC_Sync_Attribute_Groups::assign('kleur', 'src-etim');
+	$_POST['skwirrel_attribute_group'] = 'src-etim'; // Rendered as "(inactive)" while ETIM is absent.
+
+	$this->groups->on_attribute_updated(1, ['attribute_name' => 'kleur'], 'kleur');
+
+	expect(skwAgAssignments())->toBe(['kleur' => 'src-etim']);
+});

@@ -232,10 +232,12 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			];
 		}
 		$name = '' !== $source['class_name'] ? $source['class_name'] : $source['class_key'];
+		$raw  = strtolower( trim( $source['class_key'] ) );
 		$id   = self::SOURCE_PREFIX . 'cc-' . $key;
-		if ( strlen( $id ) > self::MAX_ID_LENGTH ) {
-			// Keep long class codes apart: two codes sharing a long prefix must not merge.
-			$hash = substr( md5( $key ), 0, 8 );
+		if ( $key !== $raw || strlen( $id ) > self::MAX_ID_LENGTH ) {
+			// Sanitizing or truncating loses information ("A.B" and "a-b" both become "a-b"),
+			// so add a hash of the original code to keep such classes in separate groups.
+			$hash = substr( md5( $raw ), 0, 8 );
 			$id   = substr( $id, 0, self::MAX_ID_LENGTH - 9 ) . '-' . $hash;
 		}
 		return [
@@ -770,7 +772,11 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 				'title'    => $group['name'],
 				// Right after "Additional information" (20), in group order.
 				'priority' => 20 + ( $index + 1 ) / 100,
-				'callback' => [ $this, 'render_group_tab' ],
+				// Bound to the group, not derived from the tab key: block themes' Product Details
+				// re-index the tabs before calling back, so the key can be a plain number.
+				'callback' => function () use ( $gid ): void {
+					$this->render_group( (string) $gid );
+				},
 			];
 			/**
 			 * Filter a product tab built from an attribute group.
@@ -789,11 +795,10 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	/**
 	 * Render a group tab with WooCommerce's own attribute table, filtered to the group.
 	 *
-	 * @param string $key Tab key.
+	 * @param string $gid Group ID.
 	 */
-	public function render_group_tab( $key = '' ): void {
+	public function render_group( string $gid ): void {
 		global $product;
-		$gid     = substr( (string) $key, strlen( self::TAB_PREFIX ) );
 		$context = self::context();
 		if ( ! $product instanceof WC_Product || empty( $context['groups'][ $gid ] ) ) {
 			return;
@@ -1366,12 +1371,23 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		printf( '<select id="%1$s" name="%1$s">', esc_attr( self::ATTRIBUTE_FIELD ) );
 		echo '<option value="">' . esc_html__( 'Automatic group', 'skwirrel-pim-sync' ) . '</option>';
 		printf( '<option value="%s"%s>%s</option>', esc_attr( self::NO_GROUP ), selected( $selected, self::NO_GROUP, false ), esc_html__( '— No group —', 'skwirrel-pim-sync' ) );
-		foreach ( self::context()['groups'] as $gid => $group ) {
+		$groups = self::context()['groups'];
+		foreach ( $groups as $gid => $group ) {
 			printf(
 				'<option value="%s"%s>%s</option>',
 				esc_attr( (string) $gid ),
 				selected( $selected, (string) $gid, false ),
 				esc_html( (string) $group['name'] )
+			);
+		}
+		if ( null !== $selected && self::NO_GROUP !== $selected && ! isset( $groups[ $selected ] ) ) {
+			// An assignment to a group that is absent right now (ETIM sync off, class not synced
+			// yet). Offer it so an unrelated edit does not submit "Automatic" and clear it.
+			printf(
+				'<option value="%s" selected="selected">%s</option>',
+				esc_attr( $selected ),
+				/* translators: %s = attribute group ID */
+				esc_html( sprintf( __( '%s (inactive)', 'skwirrel-pim-sync' ), $selected ) )
 			);
 		}
 		echo '</select>';

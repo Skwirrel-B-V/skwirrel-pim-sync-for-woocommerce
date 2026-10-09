@@ -371,3 +371,11 @@ test('saving keeps manual assignments to automatic groups that are absent right 
 	expect($config['assignments'])->toBe(['gtin' => 'technical', 'kleur' => 'src-etim']);
 	expect(Skwirrel_WC_Sync_Attribute_Groups::group_for_slug('kleur', skwAgContext($config)))->toBe('src-etim');
 });
+
+test('custom class codes that sanitize to the same slug get distinct automatic group IDs', function () {
+	$a = Skwirrel_WC_Sync_Attribute_Groups::source_group_for(['source' => 'custom_class', 'class_key' => 'a.b', 'class_name' => '']);
+	$b = Skwirrel_WC_Sync_Attribute_Groups::source_group_for(['source' => 'custom_class', 'class_key' => 'a-b', 'class_name' => '']);
+
+	expect($a['id'])->not->toBe($b['id']);
+	expect($b['id'])->toBe('src-cc-a-b');
+});
