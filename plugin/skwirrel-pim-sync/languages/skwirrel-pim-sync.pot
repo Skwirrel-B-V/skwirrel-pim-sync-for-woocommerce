@@ -2297,3 +2297,283 @@ msgstr ""
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "e.g. LONG_DESCRIPTION"
 msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attribute groups"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attribute groups saved."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Groups"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Name"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Order"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Show as tab"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attributes"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Delete"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "New group name"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attribute"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Slug"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Group"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "— No group —"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "You do not have permission to do this."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attribute group used on the product page (Skwirrel → Attribute groups)."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "A hidden group is not shown on the product page. A group shown as a tab gets its own product tab; other groups stay in \"Additional information\", listed per group."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Automatic groups follow where an attribute comes from: ETIM (while ETIM is synced), each custom class, identifiers and the variant. Create your own groups to combine automatic groups, and move single attributes to any group below."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Automatic groups fill during the next sync. Until then only variation and variant attributes can be recognised."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attributes moved."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Type"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Includes"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Automatic"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Custom"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Save groups"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Search attributes"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Filter by group"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "All groups"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Filter"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "No attributes found."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Move selected to"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Move selected to…"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Automatic group"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Apply"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Select all"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Source"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "manual"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Other"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "ETIM"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Identifier"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Identifiers"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Custom classes"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Custom class"
+msgstr ""
+
+#. translators: %s = custom class name
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+#, php-format
+msgid "Custom class: %s"
+msgstr ""
+
+#. translators: %s = number of attributes
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+#, php-format
+msgid "%s attribute"
+msgid_plural "%s attributes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Hide on product page"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Hide in product editor"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "A group hidden in the product editor is collapsed in the Attributes panel of every product. Its attributes are still saved with the product and can be shown with one click."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Show"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Hide"
+msgstr ""
+
+#. translators: %d = number of attributes
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+#, php-format
+msgid "%d attribute is hidden by its attribute group."
+msgid_plural "%d attributes are hidden by their attribute group."
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %s = attribute group ID
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+#, php-format
+msgid "%s (inactive)"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Group product attributes, choose how each group shows on the product page, and move single attributes between groups."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "WooCommerce attributes"
+msgstr ""
+
+#. translators: %s = name of the custom attribute group
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+#, php-format
+msgid "Included in %s"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "New group"
+msgstr ""
+
+#. translators: %d = number of further groups that are not listed
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+#, php-format
+msgid "+%d more"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "None"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Choose…"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Search groups"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Every global product attribute and the group it is in. Tick attributes to move them to another group."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attribute pages"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Group product attributes and show them as product tabs."
+msgstr ""
+
+#. translators: %s = number of attribute groups
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+#, php-format
+msgid "%s group"
+msgid_plural "%s groups"
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %s = number of attribute groups shown as a product tab
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+#, php-format
+msgid "%s shown as tab"
+msgid_plural "%s shown as tab"
+msgstr[0] ""
+msgstr[1] ""

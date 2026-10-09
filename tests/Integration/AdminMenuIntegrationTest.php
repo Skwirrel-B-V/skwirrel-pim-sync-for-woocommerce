@@ -13,7 +13,7 @@
  *  - the resolved position of our entry in `$menu`, and its order relative to the WooCommerce
  *    cluster and to core's separator2/Appearance, AFTER `custom_menu_order`/`menu_order` have run
  *    (WooCommerce reorders the top level, so the raw positions are not the rendered order);
- *  - the five submenu rows core ends up with, including that the first one is the RENAMED parent;
+ *  - the six submenu rows core ends up with, including that the first one is the RENAMED parent;
  *  - that `get_admin_page_parent()` — what core actually calls to decide which top-level menu owns
  *    the current screen — resolves to our menu;
  *  - that `highlight_active_tab()` returns a value that is genuinely present in `$submenu`, which
@@ -302,7 +302,7 @@ test( 'the menu icon css is not printed for users without the capability', funct
 |--------------------------------------------------------------------------
 */
 
-test('the Skwirrel menu has exactly the five expected submenu rows, in order', function () {
+test('the Skwirrel menu has exactly the six expected submenu rows, in order', function () {
 	skwAdminMenuBuild();
 
 	$rows = array_map(
@@ -310,18 +310,19 @@ test('the Skwirrel menu has exactly the five expected submenu rows, in order', f
 		$GLOBALS['submenu']['skwirrel-pim-sync'] ?? []
 	);
 
-	expect( $rows )->toHaveCount( 5 );
+	expect( $rows )->toHaveCount( 6 );
 
 	expect( $rows[0] )->toBe( [ 'Status', 'skwirrel-pim-sync' ] );
 	expect( $rows[1] )->toBe( [ 'Settings', 'admin.php?page=skwirrel-pim-sync&tab=settings' ] );
-	expect( $rows[2] )->toBe( [ 'Sync logs', 'admin.php?page=skwirrel-pim-sync&tab=debug' ] );
-	expect( $rows[3] )->toBe( [ 'Debug', 'admin.php?page=skwirrel-pim-sync&tab=debug#skwirrel-health-check' ] );
+	expect( $rows[2] )->toBe( [ 'Attribute groups', 'skwirrel-attribute-groups' ] );
+	expect( $rows[3] )->toBe( [ 'Sync logs', 'admin.php?page=skwirrel-pim-sync&tab=debug' ] );
+	expect( $rows[4] )->toBe( [ 'Debug', 'admin.php?page=skwirrel-pim-sync&tab=debug#skwirrel-health-check' ] );
 
 	// "Sync now" triggers the sync directly via a nonced admin-post.php request rather than
 	// navigating to an anchor; the nonce itself differs per request, so match structurally.
-	expect( $rows[4][0] )->toBe( 'Sync now' );
-	expect( $rows[4][1] )->toContain( 'admin-post.php?action=skwirrel_wc_sync_run' );
-	expect( $rows[4][1] )->toContain( '_wpnonce=' );
+	expect( $rows[5][0] )->toBe( 'Sync now' );
+	expect( $rows[5][1] )->toContain( 'admin-post.php?action=skwirrel_wc_sync_run' );
+	expect( $rows[5][1] )->toContain( '_wpnonce=' );
 });
 
 test('the first submenu row is the renamed parent, not a second "Skwirrel"', function () {
@@ -410,6 +411,15 @@ test('every tab highlights a submenu row that is actually registered', function 
 	'unknown tab'        => [ 'not-a-real-tab', 'skwirrel-pim-sync' ],
 	'junk tab'           => [ '../../etc/passwd', 'skwirrel-pim-sync' ],
 ]);
+
+test('the Attribute groups page keeps its own row highlighted, not Status', function () {
+	skwAdminMenuBuild();
+
+	$GLOBALS['plugin_page'] = 'skwirrel-attribute-groups';
+
+	expect( Skwirrel_WC_Sync_Admin_Settings::instance()->highlight_active_tab( null, 'skwirrel-pim-sync' ) )->toBeNull();
+	expect( skwAdminMenuSubSlugs( 'skwirrel-pim-sync' ) )->toContain( 'skwirrel-attribute-groups' );
+});
 
 test('highlight_active_tab leaves other screens alone', function () {
 	skwAdminMenuBuild();

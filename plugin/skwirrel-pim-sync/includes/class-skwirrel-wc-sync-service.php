@@ -498,6 +498,8 @@ class Skwirrel_WC_Sync_Service {
 		// matching the pre-refactor behavior where it was set once up front.
 		$this->upserter->set_change_gate_enabled( (bool) $ctx['gate_enabled'] );
 		$this->upserter->set_content_hash_context( (string) ( $ctx['hash_mode'] ?? 'off' ), (string) ( $ctx['sync_sig'] ?? '' ) );
+		// Attribute sources recorded in this step belong to this run (precedence applies per run).
+		Skwirrel_WC_Sync_Attribute_Sources::set_run( (string) ( $ctx['run_id'] ?? '' ) );
 		// Every step of a resumable run builds a fresh service, whose constructor reads the *live*
 		// settings. Re-apply the run's own frozen options so an admin saving a different status
 		// mapping between two async steps cannot make one run publish some products under the old

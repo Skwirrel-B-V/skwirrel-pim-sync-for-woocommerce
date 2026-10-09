@@ -72,3 +72,17 @@ if ( ! function_exists( 'skwirrel_is_skwirrel_product' ) ) {
 		return Skwirrel_WC_Sync_Theme_API::is_skwirrel_product( $product_id );
 	}
 }
+
+if ( ! function_exists( 'skwirrel_get_attribute_groups' ) ) {
+	/**
+	 * Get the visible attribute groups of a product with their attribute values.
+	 *
+	 * Groups are managed under Skwirrel → Attribute groups. Hidden groups are left out.
+	 *
+	 * @param int $product_id WC product ID.
+	 * @return array<int, array{id: string, name: string, as_tab: bool, attributes: array<string, array{label: string, value: string}>}>
+	 */
+	function skwirrel_get_attribute_groups( int $product_id ): array {
+		return Skwirrel_WC_Sync_Attribute_Groups::get_product_groups( $product_id );
+	}
+}

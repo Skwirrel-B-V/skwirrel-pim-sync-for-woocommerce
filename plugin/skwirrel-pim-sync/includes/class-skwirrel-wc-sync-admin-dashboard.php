@@ -46,31 +46,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 */
 	public function render( string $active_view ): void {
 		$sync_in_progress = (bool) get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS );
-		$base_url         = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
 
 		?>
 		<div id="skwirrel-dashboard" class="skw-dashboard">
 
-			<?php // -- Header -- ?>
-			<div class="skw-header">
-				<div class="skw-header-inner">
-					<div class="skw-header-left">
-						<div class="skw-header-icon">
-							<img src="<?php echo esc_url( SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/s.png' ); // @phpstan-ignore constant.notFound ?>" alt="Skwirrel" width="28" height="28" />
-						</div>
-						<div>
-							<h1 class="skw-header-title"><?php esc_html_e( 'Skwirrel PIM sync', 'skwirrel-pim-sync' ); ?></h1>
-							<p class="skw-header-sub"><?php echo esc_html( 'v' . SKWIRREL_WC_SYNC_VERSION ); ?></p>
-						</div>
-					</div>
-					<?php if ( 'dashboard' !== $active_view ) : ?>
-						<a href="<?php echo esc_url( $base_url ); ?>" class="skw-back-btn">
-							<svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clip-rule="evenodd" /></svg>
-							<?php esc_html_e( 'Dashboard', 'skwirrel-pim-sync' ); ?>
-						</a>
-					<?php endif; ?>
-				</div>
-			</div>
+			<?php self::render_header( 'dashboard' !== $active_view ); ?>
 
 			<?php // -- Notices slot (filled by JS) -- ?>
 			<div id="skwirrel-notices" class="skw-notices"></div>
@@ -120,6 +100,36 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 						<span class="spinner" id="skwirrel-log-spinner" style="float:none;margin-top:0;"></span>
 					</div>
 				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * The dark plugin header bar (logo, name, version), shared by every Skwirrel admin screen.
+	 *
+	 * @param bool $back_link Whether to show the "Dashboard" link back to the Overview.
+	 */
+	public static function render_header( bool $back_link ): void {
+		$base_url = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		?>
+		<div class="skw-header">
+			<div class="skw-header-inner">
+				<div class="skw-header-left">
+					<div class="skw-header-icon">
+						<img src="<?php echo esc_url( SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/s.png' ); // @phpstan-ignore constant.notFound ?>" alt="Skwirrel" width="28" height="28" />
+					</div>
+					<div>
+						<h1 class="skw-header-title"><?php esc_html_e( 'Skwirrel PIM sync', 'skwirrel-pim-sync' ); ?></h1>
+						<p class="skw-header-sub"><?php echo esc_html( 'v' . SKWIRREL_WC_SYNC_VERSION ); ?></p>
+					</div>
+				</div>
+				<?php if ( $back_link ) : ?>
+					<a href="<?php echo esc_url( $base_url ); ?>" class="skw-back-btn">
+						<svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clip-rule="evenodd" /></svg>
+						<?php esc_html_e( 'Dashboard', 'skwirrel-pim-sync' ); ?>
+					</a>
+				<?php endif; ?>
 			</div>
 		</div>
 		<?php
@@ -275,6 +285,17 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					</div>
 				</a>
 
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . Skwirrel_WC_Sync_Attribute_Groups::PAGE_SLUG ) ); ?>" class="skw-ov-card">
+					<div class="skw-ov-card-top">
+						<span class="skw-ov-tile"><i class="ph ph-stack" aria-hidden="true"></i></span>
+						<i class="ph ph-arrow-up-right skw-ov-card-arrow" aria-hidden="true"></i>
+					</div>
+					<div>
+						<div class="skw-ov-card-title"><?php esc_html_e( 'Attribute groups', 'skwirrel-pim-sync' ); ?></div>
+						<p><?php echo esc_html( self::attribute_groups_card_text() ); ?></p>
+					</div>
+				</a>
+
 				<a href="<?php echo esc_url( $log_url ? $log_url : '#' ); ?>" class="skw-ov-card" <?php echo $log_url ? 'target="_blank" rel="noopener noreferrer"' : ''; ?>>
 					<div class="skw-ov-card-top">
 						<span class="skw-ov-tile"><i class="ph ph-file-text" aria-hidden="true"></i></span>
@@ -327,6 +348,26 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<?php endif; ?>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Description of the Attribute groups card: a live summary ("7 groups · 2 shown as tab")
+	 * from the request's group context, or a plain description while there are no groups.
+	 */
+	private static function attribute_groups_card_text(): string {
+		$summary = Skwirrel_WC_Sync_Attribute_Groups::summary( Skwirrel_WC_Sync_Attribute_Groups::context()['groups'] );
+		if ( 0 === $summary['groups'] ) {
+			return __( 'Group product attributes and show them as product tabs.', 'skwirrel-pim-sync' );
+		}
+		return sprintf(
+			/* translators: %s = number of attribute groups */
+			_n( '%s group', '%s groups', $summary['groups'], 'skwirrel-pim-sync' ),
+			number_format_i18n( $summary['groups'] )
+		) . ' · ' . sprintf(
+			/* translators: %s = number of attribute groups shown as a product tab. Singular and plural are the same in English on purpose ("1 shown as tab", "9 shown as tab"). */
+			_n( '%s shown as tab', '%s shown as tab', $summary['tabs'], 'skwirrel-pim-sync' ),
+			number_format_i18n( $summary['tabs'] )
+		);
 	}
 
 	/**

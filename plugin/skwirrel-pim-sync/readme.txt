@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 4.1.0
+Stable tag: 4.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,17 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 4.2.0 =
+* New: attribute groups under Skwirrel → Attribute groups. Synced attributes are grouped automatically: ETIM (when ETIM is synced), one group per custom class, identifiers and variant. The groups fill during the next sync.
+* Create your own groups and combine automatic groups in them, for example "Technical specifications" with ETIM and a custom class.
+* Each group can be hidden on the product page, or shown as its own product tab. Other groups stay in "Additional information", listed per group.
+* A group can also be hidden in the product editor, for all products at once. Its attributes are collapsed in the Attributes panel but still saved, with a toggle to show them.
+* Move single attributes in bulk from a paged, searchable list, or pick a group when editing an attribute under Products → Attributes.
+* Groups that share a name show their custom class code wherever you choose a group, so you can tell them apart.
+* Sort the groups table and the attribute list by clicking a column header.
+* New "Attribute groups" card on the Skwirrel Status page.
+* New theme function `skwirrel_get_attribute_groups( $product_id )` returns a product's visible groups with their attribute values.
 
 = 4.1.0 =
 * Field mappings can now choose the custom class a feature is read from. Use it when the same feature appears in more than one class, for example one stock class per location. Leave the class empty to keep the current behaviour.

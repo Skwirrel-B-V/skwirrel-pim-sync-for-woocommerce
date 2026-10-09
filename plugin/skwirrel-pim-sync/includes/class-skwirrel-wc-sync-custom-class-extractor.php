@@ -427,6 +427,63 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	}
 
 	/**
+	 * Which custom class each custom class attribute label comes from.
+	 *
+	 * Applies the same rules as get_custom_class_attributes(): a feature code is only used
+	 * once (first class wins), and when two features share a label the later one wins. So
+	 * every label maps to the class whose value was actually used.
+	 *
+	 * @param array<string, mixed> $product             Raw API product.
+	 * @param bool                 $include_trade_items Include trade-item custom classes.
+	 * @param string               $filter_mode         'whitelist' | 'blacklist' | ''.
+	 * @param array<int, int>      $filter_ids          Numeric class IDs to filter.
+	 * @param array<int, string>   $filter_codes        String class codes to filter (lowercase).
+	 * @return array<string, array{class_key: string, class_name: string}> label => class
+	 */
+	public function get_attribute_class_map(
+		array $product,
+		bool $include_trade_items = false,
+		string $filter_mode = '',
+		array $filter_ids = [],
+		array $filter_codes = []
+	): array {
+		$lang    = $this->image_language;
+		$classes = $this->collect_custom_classes( $product, $include_trade_items );
+		$classes = $this->filter_custom_classes( $classes, $filter_mode, $filter_ids, $filter_codes );
+
+		$map  = [];
+		$seen = [];
+		foreach ( $classes as $cc ) {
+			$class_key  = (string) ( $cc['custom_class_code'] ?? ( $cc['custom_class_id'] ?? '' ) );
+			$class_name = $this->resolve_custom_class_name( $cc, $lang );
+			foreach ( $cc['_custom_features'] ?? [] as $feat ) {
+				if ( ! is_array( $feat ) ) {
+					continue;
+				}
+				$type = $feat['custom_feature_type'] ?? '';
+				if ( ! in_array( $type, self::CC_ATTRIBUTE_TYPES, true ) || ! empty( $feat['not_applicable'] ) ) {
+					continue;
+				}
+				$value = $this->format_custom_feature_value( $feat, $lang );
+				if ( null === $value || '' === $value ) {
+					continue;
+				}
+				$key = $feat['custom_feature_code'] ?? ( 'cc_' . ( $feat['custom_class_feature_id'] ?? ( $feat['custom_feature_id'] ?? '' ) ) );
+				if ( isset( $seen[ $key ] ) ) {
+					continue;
+				}
+				$seen[ $key ]  = true;
+				$label         = $this->resolve_custom_feature_label( $feat, $lang );
+				$map[ $label ] = [
+					'class_key'  => $class_key,
+					'class_name' => '' !== $class_name ? $class_name : $class_key,
+				];
+			}
+		}
+		return $map;
+	}
+
+	/**
 	 * Get visibility map for custom class attributes.
 	 *
 	 * Returns a map of attribute label => visible (bool) based on the
