@@ -2836,10 +2836,6 @@ msgid "Show as tab"
 msgstr "Afficher en onglet"
 
 #: includes/class-skwirrel-wc-sync-attribute-groups.php
-msgid "Hidden"
-msgstr "Masqué"
-
-#: includes/class-skwirrel-wc-sync-attribute-groups.php
 msgid "Attributes"
 msgstr "Attributs"
 
@@ -2996,3 +2992,31 @@ msgid "%s attribute"
 msgid_plural "%s attributes"
 msgstr[0] "%s attribut"
 msgstr[1] "%s attributs"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Hide on product page"
+msgstr "Masquer sur la page produit"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Hide in product editor"
+msgstr "Masquer dans l'éditeur de produit"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "A group hidden in the product editor is collapsed in the Attributes panel of every product. Its attributes are still saved with the product and can be shown with one click."
+msgstr "Un groupe masqué dans l'éditeur de produit est replié dans le panneau Attributs de chaque produit. Ses attributs sont toujours enregistrés avec le produit et peuvent être affichés en un clic."
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Show"
+msgstr "Afficher"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Hide"
+msgstr "Masquer"
+
+#. translators: %d = number of attributes
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+#, php-format
+msgid "%d attribute is hidden by its attribute group."
+msgid_plural "%d attributes are hidden by their attribute group."
+msgstr[0] "%d attribut est masqué par son groupe d'attributs."
+msgstr[1] "%d attributs sont masqués par leur groupe d'attributs."

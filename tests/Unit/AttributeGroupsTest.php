@@ -139,7 +139,7 @@ test('saving an automatic group stores only what differs from its defaults', fun
 		$ctx
 	);
 
-	expect($config['groups']['src-etim'])->toBe(['name' => '', 'position' => null, 'as_tab' => true, 'hidden' => false, 'includes' => []]);
+	expect($config['groups']['src-etim'])->toBe(['name' => '', 'position' => null, 'as_tab' => true, 'hidden' => false, 'admin_hidden' => false, 'includes' => []]);
 });
 
 test('a new custom group gets the next position and only valid includes', function () {
@@ -149,7 +149,7 @@ test('a new custom group gets the next position and only valid includes', functi
 		skwAgContext()
 	);
 
-	expect($config['groups']['technical'])->toBe(['name' => 'Technical', 'position' => 410, 'as_tab' => false, 'hidden' => false, 'includes' => ['src-etim']]);
+	expect($config['groups']['technical'])->toBe(['name' => 'Technical', 'position' => 410, 'as_tab' => false, 'hidden' => false, 'admin_hidden' => false, 'includes' => ['src-etim']]);
 });
 
 test('an empty new group row adds nothing', function () {
@@ -279,4 +279,50 @@ test('assign stores, changes and clears a manual assignment', function () {
 
 	Skwirrel_WC_Sync_Attribute_Groups::assign('size', '');
 	expect(Skwirrel_WC_Sync_Attribute_Groups::get_config()['assignments'])->toBe([]);
+});
+
+// ------------------------------------------------------------------
+// Hide in product editor
+// ------------------------------------------------------------------
+
+test('hide in product editor is saved for automatic and custom groups', function () {
+	$existing = ['groups' => ['internal' => ['name' => 'Internal']]];
+	$config   = Skwirrel_WC_Sync_Attribute_Groups::sanitize_groups_submission(
+		[
+			'groups'    => [
+				'src-cc-internal' => ['name' => 'Intern', 'admin_hidden' => '1'],
+				'internal'        => ['name' => 'Internal', 'admin_hidden' => '1'],
+			],
+			'new_group' => ['name' => 'Logistics', 'admin_hidden' => '1'],
+		],
+		$existing,
+		skwAgContext($existing)
+	);
+
+	expect($config['groups']['src-cc-internal']['admin_hidden'])->toBeTrue();
+	expect($config['groups']['internal']['admin_hidden'])->toBeTrue();
+	expect($config['groups']['logistics']['admin_hidden'])->toBeTrue();
+	expect(skwAgContext($config)['groups']['src-cc-internal']['admin_hidden'])->toBeTrue();
+});
+
+test('the product editor hides only attributes whose resolved group is editor-hidden', function () {
+	$ctx = skwAgContext([
+		'groups'      => [
+			'src-cc-internal' => ['admin_hidden' => true],
+			'backoffice'      => ['name' => 'Back office', 'admin_hidden' => true, 'includes' => ['src-identifiers']],
+		],
+		'assignments' => ['gtin' => 'src-etim', 'handmatig' => 'backoffice'],
+	]);
+
+	expect(Skwirrel_WC_Sync_Attribute_Groups::editor_hidden_taxonomies(
+		['pa_kostprijs', 'pa_gtin', 'pa_manufacturer', 'pa_breedte', 'pa_handmatig', 'pa_kostprijs'],
+		$ctx
+	))->toBe(['pa_kostprijs', 'pa_manufacturer', 'pa_handmatig']);
+});
+
+test('editor hiding and product page hiding are independent', function () {
+	$ctx = skwAgContext(['groups' => ['src-etim' => ['admin_hidden' => true]]]);
+
+	expect(Skwirrel_WC_Sync_Attribute_Groups::editor_hidden_taxonomies(['pa_breedte'], $ctx))->toBe(['pa_breedte']);
+	expect(array_keys(Skwirrel_WC_Sync_Attribute_Groups::filter_rows(['attribute_pa_breedte' => []], $ctx, null)))->toBe(['attribute_pa_breedte']);
 });

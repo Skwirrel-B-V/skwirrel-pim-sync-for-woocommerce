@@ -18,6 +18,8 @@
  *
  * On the product page a hidden group's attributes are not shown, a tab group gets its own
  * product tab, and the other groups stay in "Additional information", clustered per group.
+ * A group can also be hidden in the product editor (the Attributes panel of every product),
+ * which only collapses those rows from view: they are still saved with the product.
  *
  * Only global (taxonomy) attributes can be grouped; product-level custom attributes always
  * stay in "Additional information". Hiding is presentation only: terms, filters and data stay.
@@ -35,7 +37,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 
 	/**
 	 * Option holding the group settings:
-	 * `{ groups: { id: {name, position, as_tab, hidden, includes} }, assignments: { slug: id|'__none' } }`.
+	 * `{ groups: { id: {name, position, as_tab, hidden, admin_hidden, includes} }, assignments: { slug: id|'__none' } }`.
 	 * Automatic groups (`src-*`) only store what the admin changed.
 	 */
 	public const OPTION_KEY = 'skwirrel_wc_sync_attribute_groups';
@@ -101,6 +103,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			add_action( 'woocommerce_attribute_added', [ $this, 'on_attribute_added' ], 10, 2 );
 			add_action( 'woocommerce_attribute_updated', [ $this, 'on_attribute_updated' ], 10, 3 );
 			add_action( 'woocommerce_attribute_deleted', [ $this, 'on_attribute_deleted' ], 10, 2 );
+			add_action( 'admin_footer-post.php', [ $this, 'print_editor_script' ] );
 		}
 	}
 
@@ -116,7 +119,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 * point at a group that does not exist (any more).
 	 *
 	 * @param mixed $raw Stored option value.
-	 * @return array{groups: array<string, array{name: string, position: int|null, as_tab: bool, hidden: bool, includes: string[]}>, assignments: array<string, string>}
+	 * @return array{groups: array<string, array{name: string, position: int|null, as_tab: bool, hidden: bool, admin_hidden: bool, includes: string[]}>, assignments: array<string, string>}
 	 */
 	public static function normalize( $raw ): array {
 		$raw    = is_array( $raw ) ? $raw : [];
@@ -142,11 +145,12 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			}
 			$position      = $group['position'] ?? null;
 			$groups[ $id ] = [
-				'name'     => $name,
-				'position' => null === $position || '' === $position ? null : (int) $position,
-				'as_tab'   => ! empty( $group['as_tab'] ),
-				'hidden'   => ! empty( $group['hidden'] ),
-				'includes' => array_values( $includes ),
+				'name'         => $name,
+				'position'     => null === $position || '' === $position ? null : (int) $position,
+				'as_tab'       => ! empty( $group['as_tab'] ),
+				'hidden'       => ! empty( $group['hidden'] ),
+				'admin_hidden' => ! empty( $group['admin_hidden'] ),
+				'includes'     => array_values( $includes ),
 			];
 		}
 		ksort( $groups );
@@ -170,7 +174,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	/**
 	 * The stored configuration, normalized.
 	 *
-	 * @return array{groups: array<string, array{name: string, position: int|null, as_tab: bool, hidden: bool, includes: string[]}>, assignments: array<string, string>}
+	 * @return array{groups: array<string, array{name: string, position: int|null, as_tab: bool, hidden: bool, admin_hidden: bool, includes: string[]}>, assignments: array<string, string>}
 	 */
 	public static function get_config(): array {
 		return self::normalize( get_option( self::OPTION_KEY, [] ) );
@@ -240,7 +244,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 * @param array<string, array{source: string, class_key: string, class_name: string}> $sources      Source map (slug => source).
 	 * @param string[]                                                                  $slugs        All global attribute slugs.
 	 * @param bool                                                                      $etim_enabled Whether ETIM is synced (the ETIM group exists only then).
-	 * @return array{groups: array<string, array{name: string, position: int, as_tab: bool, hidden: bool, includes: string[], automatic: bool, default_name: string}>, assignments: array<string, string>, slug_sources: array<string, string>, includes: array<string, string>}
+	 * @return array{groups: array<string, array{name: string, position: int, as_tab: bool, hidden: bool, admin_hidden: bool, includes: string[], automatic: bool, default_name: string}>, assignments: array<string, string>, slug_sources: array<string, string>, includes: array<string, string>}
 	 */
 	public static function build_context( array $config, array $sources, array $slugs, bool $etim_enabled ): array {
 		$config = self::normalize( $config );
@@ -267,6 +271,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 				'position'     => null !== $stored && null !== $stored['position'] ? $stored['position'] : $def['position'],
 				'as_tab'       => null !== $stored && $stored['as_tab'],
 				'hidden'       => null !== $stored && $stored['hidden'],
+				'admin_hidden' => null !== $stored && $stored['admin_hidden'],
 				'includes'     => [],
 				'automatic'    => true,
 				'default_name' => $def['name'],
@@ -281,6 +286,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 				'position'     => $group['position'] ?? 0,
 				'as_tab'       => $group['as_tab'],
 				'hidden'       => $group['hidden'],
+				'admin_hidden' => $group['admin_hidden'],
 				'includes'     => array_values( array_filter( $group['includes'], static fn( $src ) => isset( $auto[ $src ] ) ) ),
 				'automatic'    => false,
 				'default_name' => '',
@@ -431,6 +437,24 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		];
 	}
 
+	/**
+	 * Which of the given attributes the product editor hides, as taxonomy names.
+	 *
+	 * @param string[]             $slugs   Attribute slugs or taxonomy names.
+	 * @param array<string, mixed> $context Context from build_context().
+	 * @return string[] Taxonomy names (`pa_{slug}`).
+	 */
+	public static function editor_hidden_taxonomies( array $slugs, array $context ): array {
+		$out = [];
+		foreach ( $slugs as $slug ) {
+			$gid = self::group_for_slug( (string) $slug, $context );
+			if ( null !== $gid && ! empty( $context['groups'][ $gid ]['admin_hidden'] ) ) {
+				$out[] = 'pa_' . Skwirrel_WC_Sync_Attribute_Sources::normalize_slug( (string) $slug );
+			}
+		}
+		return array_values( array_unique( $out ) );
+	}
+
 	// ------------------------------------------------------------------
 	// Admin form handling (pure helpers)
 	// ------------------------------------------------------------------
@@ -438,7 +462,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	/**
 	 * Apply the groups form.
 	 *
-	 * - `groups[id][name|position|as_tab|hidden]` updates a group; an automatic group stores
+	 * - `groups[id][name|position|as_tab|hidden|admin_hidden]` updates a group; an automatic group stores
 	 *   only the values that differ from its defaults.
 	 * - `groups[id][includes][]` sets which automatic groups a custom group takes over.
 	 * - `groups[id][delete]` deletes a custom group and its manual assignments.
@@ -447,7 +471,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 * @param array<string, mixed> $post     Unslashed form data.
 	 * @param array<string, mixed> $existing Current configuration.
 	 * @param array<string, mixed> $context  Current context (for the automatic groups and their defaults).
-	 * @return array{groups: array<string, array{name: string, position: int|null, as_tab: bool, hidden: bool, includes: string[]}>, assignments: array<string, string>}
+	 * @return array{groups: array<string, array{name: string, position: int|null, as_tab: bool, hidden: bool, admin_hidden: bool, includes: string[]}>, assignments: array<string, string>}
 	 */
 	public static function sanitize_groups_submission( array $post, array $existing, array $context ): array {
 		$config    = self::normalize( $existing );
@@ -466,11 +490,12 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			if ( isset( $auto[ $id ] ) ) {
 				$defaults      = self::source_defaults( $id, $auto[ $id ] );
 				$groups[ $id ] = [
-					'name'     => $name === $defaults['name'] ? '' : $name,
-					'position' => $pos === $defaults['position'] ? null : $pos,
-					'as_tab'   => ! empty( $row['as_tab'] ),
-					'hidden'   => ! empty( $row['hidden'] ),
-					'includes' => [],
+					'name'         => $name === $defaults['name'] ? '' : $name,
+					'position'     => $pos === $defaults['position'] ? null : $pos,
+					'as_tab'       => ! empty( $row['as_tab'] ),
+					'hidden'       => ! empty( $row['hidden'] ),
+					'admin_hidden' => ! empty( $row['admin_hidden'] ),
+					'includes'     => [],
 				];
 				continue;
 			}
@@ -483,11 +508,12 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			}
 			$groups[ $id ] = [
 				// An emptied name keeps the old one rather than silently deleting the group.
-				'name'     => '' !== $name ? $name : $groups[ $id ]['name'],
-				'position' => $pos ?? $groups[ $id ]['position'],
-				'as_tab'   => ! empty( $row['as_tab'] ),
-				'hidden'   => ! empty( $row['hidden'] ),
-				'includes' => self::filter_includes( $row['includes'] ?? [], $auto ),
+				'name'         => '' !== $name ? $name : $groups[ $id ]['name'],
+				'position'     => $pos ?? $groups[ $id ]['position'],
+				'as_tab'       => ! empty( $row['as_tab'] ),
+				'hidden'       => ! empty( $row['hidden'] ),
+				'admin_hidden' => ! empty( $row['admin_hidden'] ),
+				'includes'     => self::filter_includes( $row['includes'] ?? [], $auto ),
 			];
 		}
 
@@ -496,11 +522,12 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		if ( '' !== $new_name ) {
 			$new_id            = self::generate_group_id( $new_name, array_keys( array_merge( $groups, $context['groups'] ?? [] ) ) );
 			$groups[ $new_id ] = [
-				'name'     => $new_name,
-				'position' => isset( $new['position'] ) && '' !== $new['position'] ? (int) $new['position'] : self::next_position( $context['groups'] ?? [] ),
-				'as_tab'   => ! empty( $new['as_tab'] ),
-				'hidden'   => ! empty( $new['hidden'] ),
-				'includes' => self::filter_includes( $new['includes'] ?? [], $auto ),
+				'name'         => $new_name,
+				'position'     => isset( $new['position'] ) && '' !== $new['position'] ? (int) $new['position'] : self::next_position( $context['groups'] ?? [] ),
+				'as_tab'       => ! empty( $new['as_tab'] ),
+				'hidden'       => ! empty( $new['hidden'] ),
+				'admin_hidden' => ! empty( $new['admin_hidden'] ),
+				'includes'     => self::filter_includes( $new['includes'] ?? [], $auto ),
 			];
 		}
 
@@ -528,7 +555,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 * @param array<string, mixed> $existing    Current configuration.
 	 * @param array<string, mixed> $context     Current context (valid groups).
 	 * @param string[]             $known_slugs Slugs of the existing global attributes.
-	 * @return array{groups: array<string, array{name: string, position: int|null, as_tab: bool, hidden: bool, includes: string[]}>, assignments: array<string, string>}
+	 * @return array{groups: array<string, array{name: string, position: int|null, as_tab: bool, hidden: bool, admin_hidden: bool, includes: string[]}>, assignments: array<string, string>}
 	 */
 	public static function apply_bulk_assignment( array $slugs, string $target, array $existing, array $context, array $known_slugs ): array {
 		$config = self::normalize( $existing );
@@ -881,6 +908,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			<p class="description" style="max-width:900px;">
 				<?php esc_html_e( 'Automatic groups follow where an attribute comes from: ETIM (while ETIM is synced), each custom class, identifiers and the variant. Create your own groups to combine automatic groups, and move single attributes to any group below.', 'skwirrel-pim-sync' ); ?>
 				<?php esc_html_e( 'A hidden group is not shown on the product page. A group shown as a tab gets its own product tab; other groups stay in "Additional information", listed per group.', 'skwirrel-pim-sync' ); ?>
+				<?php esc_html_e( 'A group hidden in the product editor is collapsed in the Attributes panel of every product. Its attributes are still saved with the product and can be shown with one click.', 'skwirrel-pim-sync' ); ?>
 			</p>
 			<?php if ( 'groups' === $updated ) : ?>
 				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Attribute groups saved.', 'skwirrel-pim-sync' ); ?></p></div>
@@ -916,7 +944,8 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 						<th style="width:110px;"><?php esc_html_e( 'Type', 'skwirrel-pim-sync' ); ?></th>
 						<th style="width:80px;"><?php esc_html_e( 'Order', 'skwirrel-pim-sync' ); ?></th>
 						<th style="width:90px;"><?php esc_html_e( 'Show as tab', 'skwirrel-pim-sync' ); ?></th>
-						<th style="width:80px;"><?php esc_html_e( 'Hidden', 'skwirrel-pim-sync' ); ?></th>
+						<th style="width:90px;"><?php esc_html_e( 'Hide on product page', 'skwirrel-pim-sync' ); ?></th>
+						<th style="width:90px;"><?php esc_html_e( 'Hide in product editor', 'skwirrel-pim-sync' ); ?></th>
 						<th><?php esc_html_e( 'Includes', 'skwirrel-pim-sync' ); ?></th>
 						<th style="width:80px;"><?php esc_html_e( 'Attributes', 'skwirrel-pim-sync' ); ?></th>
 						<th style="width:70px;"><?php esc_html_e( 'Delete', 'skwirrel-pim-sync' ); ?></th>
@@ -932,7 +961,8 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 							<td><?php echo $group['automatic'] ? esc_html__( 'Automatic', 'skwirrel-pim-sync' ) : esc_html__( 'Custom', 'skwirrel-pim-sync' ); ?></td>
 							<td><input type="number" class="small-text" name="<?php echo esc_attr( $field ); ?>[position]" value="<?php echo esc_attr( (string) $group['position'] ); ?>" aria-label="<?php esc_attr_e( 'Order', 'skwirrel-pim-sync' ); ?>" /></td>
 							<td><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[as_tab]" value="1" <?php checked( (bool) $group['as_tab'] ); ?> aria-label="<?php esc_attr_e( 'Show as tab', 'skwirrel-pim-sync' ); ?>" /></td>
-							<td><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[hidden]" value="1" <?php checked( (bool) $group['hidden'] ); ?> aria-label="<?php esc_attr_e( 'Hidden', 'skwirrel-pim-sync' ); ?>" /></td>
+							<td><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[hidden]" value="1" <?php checked( (bool) $group['hidden'] ); ?> aria-label="<?php esc_attr_e( 'Hide on product page', 'skwirrel-pim-sync' ); ?>" /></td>
+							<td><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[admin_hidden]" value="1" <?php checked( (bool) $group['admin_hidden'] ); ?> aria-label="<?php esc_attr_e( 'Hide in product editor', 'skwirrel-pim-sync' ); ?>" /></td>
 							<td>
 								<?php
 								if ( $group['automatic'] ) {
@@ -955,7 +985,8 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 						<td><?php esc_html_e( 'Custom', 'skwirrel-pim-sync' ); ?></td>
 						<td><input type="number" class="small-text" name="new_group[position]" value="" aria-label="<?php esc_attr_e( 'Order', 'skwirrel-pim-sync' ); ?>" /></td>
 						<td><input type="checkbox" name="new_group[as_tab]" value="1" aria-label="<?php esc_attr_e( 'Show as tab', 'skwirrel-pim-sync' ); ?>" /></td>
-						<td><input type="checkbox" name="new_group[hidden]" value="1" aria-label="<?php esc_attr_e( 'Hidden', 'skwirrel-pim-sync' ); ?>" /></td>
+						<td><input type="checkbox" name="new_group[hidden]" value="1" aria-label="<?php esc_attr_e( 'Hide on product page', 'skwirrel-pim-sync' ); ?>" /></td>
+						<td><input type="checkbox" name="new_group[admin_hidden]" value="1" aria-label="<?php esc_attr_e( 'Hide in product editor', 'skwirrel-pim-sync' ); ?>" /></td>
 						<td><?php $this->render_includes( 'new_group[includes][]', $auto, [] ); ?></td>
 						<td colspan="2"></td>
 					</tr>
@@ -1218,6 +1249,75 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			) . '#skwirrel-attributes'
 		);
 		exit;
+	}
+
+	// ------------------------------------------------------------------
+	// Admin: product editor (Attributes panel)
+	// ------------------------------------------------------------------
+
+	/**
+	 * Hide the attributes of editor-hidden groups in the product's Attributes panel.
+	 *
+	 * The rows are only hidden with CSS, never removed: WooCommerce rebuilds a product's
+	 * attributes from the posted rows on save, so a removed row would delete the attribute.
+	 * A note above the list shows how many rows are hidden, with a toggle to show them.
+	 * Rows WooCommerce re-renders over AJAX (after "Save attributes") are hidden again.
+	 */
+	public function print_editor_script(): void {
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		if ( ! $screen || 'product' !== $screen->post_type || ! current_user_can( 'edit_post', (int) get_the_ID() ) ) {
+			return;
+		}
+		$product = wc_get_product( get_the_ID() );
+		if ( ! $product instanceof WC_Product ) {
+			return;
+		}
+		$taxonomies = [];
+		foreach ( $product->get_attributes( 'edit' ) as $attribute ) {
+			if ( $attribute instanceof WC_Product_Attribute && $attribute->is_taxonomy() ) {
+				$taxonomies[] = $attribute->get_name();
+			}
+		}
+		$hidden = self::editor_hidden_taxonomies( $taxonomies, self::context() );
+		if ( empty( $hidden ) ) {
+			return;
+		}
+
+		$data = [
+			'taxonomies' => $hidden,
+			/* translators: %d = number of attributes */
+			'one'        => _n( '%d attribute is hidden by its attribute group.', '%d attributes are hidden by their attribute group.', 1, 'skwirrel-pim-sync' ),
+			/* translators: %d = number of attributes */
+			'many'       => _n( '%d attribute is hidden by its attribute group.', '%d attributes are hidden by their attribute group.', 2, 'skwirrel-pim-sync' ),
+			'show'       => __( 'Show', 'skwirrel-pim-sync' ),
+			'hide'       => __( 'Hide', 'skwirrel-pim-sync' ),
+		];
+
+		$js = '( function ( d ) {'
+			. ' var panel = document.getElementById( "product_attributes" );'
+			. ' if ( ! panel ) { return; }'
+			. ' var hidden = {}; d.taxonomies.forEach( function ( t ) { hidden[ t ] = true; } );'
+			. ' var shown = false;'
+			. ' var note = document.createElement( "p" ); note.className = "skwirrel-hidden-attributes-note description";'
+			. ' var text = document.createTextNode( "" ); var btn = document.createElement( "button" );'
+			. ' btn.type = "button"; btn.className = "button-link"; note.appendChild( text ); note.appendChild( btn );'
+			. ' btn.addEventListener( "click", function () { shown = ! shown; apply(); } );'
+			. ' function set( node, value ) { if ( node.textContent !== value ) { node.textContent = value; } }'
+			. ' function apply() {'
+			. '  var n = 0;'
+			. '  panel.querySelectorAll( ".woocommerce_attribute[data-taxonomy]" ).forEach( function ( row ) {'
+			. '   if ( hidden[ row.getAttribute( "data-taxonomy" ) ] ) { n++; var v = shown ? "" : "none"; if ( row.style.display !== v ) { row.style.display = v; } }'
+			. '  } );'
+			. '  if ( ! n ) { if ( note.parentNode ) { note.parentNode.removeChild( note ); } return; }'
+			. '  set( text, ( 1 === n ? d.one : d.many ).replace( "%d", n ) + " " ); set( btn, shown ? d.hide : d.show );'
+			. '  var list = panel.querySelector( ".product_attributes" );'
+			. '  if ( list && note.nextSibling !== list ) { list.parentNode.insertBefore( note, list ); }'
+			. ' }'
+			. ' new MutationObserver( apply ).observe( panel, { childList: true, subtree: true } );'
+			. ' apply();'
+			. '} )( ' . wp_json_encode( $data ) . ' );';
+
+		wp_print_inline_script_tag( $js, [ 'id' => 'skwirrel-attribute-groups-editor' ] );
 	}
 
 	// ------------------------------------------------------------------
