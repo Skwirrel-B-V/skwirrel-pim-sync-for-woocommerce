@@ -285,6 +285,17 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					</div>
 				</a>
 
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . Skwirrel_WC_Sync_Attribute_Groups::PAGE_SLUG ) ); ?>" class="skw-ov-card">
+					<div class="skw-ov-card-top">
+						<span class="skw-ov-tile"><i class="ph ph-stack" aria-hidden="true"></i></span>
+						<i class="ph ph-arrow-up-right skw-ov-card-arrow" aria-hidden="true"></i>
+					</div>
+					<div>
+						<div class="skw-ov-card-title"><?php esc_html_e( 'Attribute groups', 'skwirrel-pim-sync' ); ?></div>
+						<p><?php echo esc_html( self::attribute_groups_card_text() ); ?></p>
+					</div>
+				</a>
+
 				<a href="<?php echo esc_url( $log_url ? $log_url : '#' ); ?>" class="skw-ov-card" <?php echo $log_url ? 'target="_blank" rel="noopener noreferrer"' : ''; ?>>
 					<div class="skw-ov-card-top">
 						<span class="skw-ov-tile"><i class="ph ph-file-text" aria-hidden="true"></i></span>
@@ -337,6 +348,26 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<?php endif; ?>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Description of the Attribute groups card: a live summary ("7 groups · 2 shown as tab")
+	 * from the request's group context, or a plain description while there are no groups.
+	 */
+	private static function attribute_groups_card_text(): string {
+		$summary = Skwirrel_WC_Sync_Attribute_Groups::summary( Skwirrel_WC_Sync_Attribute_Groups::context()['groups'] );
+		if ( 0 === $summary['groups'] ) {
+			return __( 'Group product attributes and show them as product tabs.', 'skwirrel-pim-sync' );
+		}
+		return sprintf(
+			/* translators: %s = number of attribute groups */
+			_n( '%s group', '%s groups', $summary['groups'], 'skwirrel-pim-sync' ),
+			number_format_i18n( $summary['groups'] )
+		) . ' · ' . sprintf(
+			/* translators: %s = number of attribute groups shown as a product tab */
+			_n( '%s shown as tab', '%s shown as tab', $summary['tabs'], 'skwirrel-pim-sync' ),
+			number_format_i18n( $summary['tabs'] )
+		);
 	}
 
 	/**

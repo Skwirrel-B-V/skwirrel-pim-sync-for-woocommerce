@@ -428,3 +428,58 @@ test('choice_label appends a suffix only when there is one', function () {
 	expect(Skwirrel_WC_Sync_Attribute_Groups::choice_label('Camera', ''))->toBe('Camera');
 	expect(Skwirrel_WC_Sync_Attribute_Groups::choice_label('Camera', 'genormaliseerd_tablet_camera'))->toBe('Camera · genormaliseerd_tablet_camera');
 });
+
+// ------------------------------------------------------------------
+// Attribute list sorting
+// ------------------------------------------------------------------
+
+function skwAgSortRows(): array {
+	$r = fn (string $label, string $source, string $group) => ['label' => $label, 'source' => $source, 'group_label' => $group];
+	return [
+		'kleur'   => $r('Kleur', 'ETIM', 'Technisch'),
+		'breedte' => $r('Breedte', 'ETIM', 'Afmetingen'),
+		'gtin'    => $r('GTIN', 'Identifier', ''),
+		'maat10'  => $r('Maat 10', 'Custom class: Kleding', 'Technisch'),
+		'maat9'   => $r('maat 9', 'Custom class: Kleding', 'Afmetingen'),
+	];
+}
+
+test('sanitize_sort allows only known columns and directions', function ($orderby, $order, $expected) {
+	expect(Skwirrel_WC_Sync_Attribute_Groups::sanitize_sort($orderby, $order))->toBe($expected);
+})->with([
+	['group', 'desc', ['orderby' => 'group', 'order' => 'desc']],
+	['SLUG', 'ASC', ['orderby' => 'slug', 'order' => 'asc']],
+	['label; drop', 'sideways', ['orderby' => 'attribute', 'order' => 'asc']],
+	['', '', ['orderby' => 'attribute', 'order' => 'asc']],
+]);
+
+test('sort_rows sorts by attribute name naturally and case-insensitively', function () {
+	expect(array_keys(Skwirrel_WC_Sync_Attribute_Groups::sort_rows(skwAgSortRows(), 'attribute', 'asc')))
+		->toBe(['breedte', 'gtin', 'kleur', 'maat9', 'maat10']);
+	expect(array_keys(Skwirrel_WC_Sync_Attribute_Groups::sort_rows(skwAgSortRows(), 'attribute', 'desc')))
+		->toBe(['maat10', 'maat9', 'kleur', 'gtin', 'breedte']);
+});
+
+test('sort_rows sorts by slug', function () {
+	expect(array_keys(Skwirrel_WC_Sync_Attribute_Groups::sort_rows(skwAgSortRows(), 'slug', 'asc')))
+		->toBe(['breedte', 'gtin', 'kleur', 'maat9', 'maat10']);
+});
+
+test('sort_rows keeps ties in their incoming order in both directions', function () {
+	expect(array_keys(Skwirrel_WC_Sync_Attribute_Groups::sort_rows(skwAgSortRows(), 'source', 'asc')))
+		->toBe(['maat10', 'maat9', 'kleur', 'breedte', 'gtin']);
+	expect(array_keys(Skwirrel_WC_Sync_Attribute_Groups::sort_rows(skwAgSortRows(), 'group', 'desc')))
+		->toBe(['kleur', 'maat10', 'breedte', 'maat9', 'gtin']);
+});
+
+test('sort_rows falls back to the attribute name for an unknown column', function () {
+	expect(array_keys(Skwirrel_WC_Sync_Attribute_Groups::sort_rows(skwAgSortRows(), 'price', 'asc')))
+		->toBe(['breedte', 'gtin', 'kleur', 'maat9', 'maat10']);
+});
+
+test('summary counts the groups and the ones shown as a tab', function () {
+	$ctx = skwAgContext(['groups' => ['src-etim' => ['name' => '', 'as_tab' => true], 'tech' => ['name' => 'Technisch', 'as_tab' => true]]]);
+
+	expect(Skwirrel_WC_Sync_Attribute_Groups::summary($ctx['groups']))->toBe(['groups' => 7, 'tabs' => 2]);
+	expect(Skwirrel_WC_Sync_Attribute_Groups::summary([]))->toBe(['groups' => 0, 'tabs' => 0]);
+});

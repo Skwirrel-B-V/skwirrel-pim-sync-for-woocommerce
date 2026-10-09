@@ -60,6 +60,9 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	/** Attributes per page in the admin list. */
 	public const PER_PAGE = 50;
 
+	/** Columns the attribute list can be sorted by (`orderby`); the first is the default. */
+	public const SORT_KEYS = [ 'attribute', 'slug', 'source', 'group' ];
+
 	private const SAVE_GROUPS_ACTION = 'skwirrel_wc_sync_save_attribute_groups';
 	private const ASSIGN_ACTION      = 'skwirrel_wc_sync_assign_attribute_groups';
 
@@ -741,6 +744,78 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		return self::name_suffixes( self::context()['groups'], self::class_codes( Skwirrel_WC_Sync_Attribute_Sources::current() ) );
 	}
 
+	/**
+	 * The attribute list sort from request values: an allowed column (default "attribute")
+	 * and a direction ("asc" unless "desc" is asked for).
+	 *
+	 * @param string $orderby Requested column.
+	 * @param string $order   Requested direction.
+	 * @return array{orderby: string, order: string}
+	 */
+	public static function sanitize_sort( string $orderby, string $order ): array {
+		$orderby = strtolower( trim( $orderby ) );
+		return [
+			'orderby' => in_array( $orderby, self::SORT_KEYS, true ) ? $orderby : self::SORT_KEYS[0],
+			'order'   => 'desc' === strtolower( trim( $order ) ) ? 'desc' : 'asc',
+		];
+	}
+
+	/**
+	 * Sort attribute list rows by one column (natural, case-insensitive). Rows that tie keep
+	 * their incoming order in both directions; an unknown column sorts by attribute name.
+	 *
+	 * @template T of array{label: string, source: string, group_label: string}
+	 * @param array<string, T> $rows    Rows keyed by slug (more fields are kept as they are).
+	 * @param string           $orderby Column (see SORT_KEYS).
+	 * @param string           $order   "asc" or "desc".
+	 * @return array<string, T>
+	 */
+	public static function sort_rows( array $rows, string $orderby, string $order ): array {
+		$sort  = self::sanitize_sort( $orderby, $order );
+		$field = [
+			'attribute' => 'label',
+			'source'    => 'source',
+			'group'     => 'group_label',
+		][ $sort['orderby'] ] ?? null;
+		$dir   = 'desc' === $sort['order'] ? -1 : 1;
+
+		$keys = [];
+		$i    = 0;
+		foreach ( $rows as $slug => $row ) {
+			$keys[] = [
+				'slug'  => (string) $slug,
+				'value' => null === $field ? (string) $slug : (string) $row[ $field ],
+				'index' => $i++,
+			];
+		}
+		usort(
+			$keys,
+			static function ( array $a, array $b ) use ( $dir ): int {
+				$cmp = strnatcasecmp( $a['value'], $b['value'] ) * $dir;
+				return 0 !== $cmp ? $cmp : $a['index'] <=> $b['index'];
+			}
+		);
+
+		$out = [];
+		foreach ( $keys as $key ) {
+			$out[ $key['slug'] ] = $rows[ $key['slug'] ];
+		}
+		return $out;
+	}
+
+	/**
+	 * How many groups there are and how many of them show as a product tab.
+	 *
+	 * @param array<string, array{as_tab: bool}> $groups Context groups.
+	 * @return array{groups: int, tabs: int}
+	 */
+	public static function summary( array $groups ): array {
+		return [
+			'groups' => count( $groups ),
+			'tabs'   => count( array_filter( $groups, static fn( array $group ): bool => $group['as_tab'] ) ),
+		];
+	}
+
 	// ------------------------------------------------------------------
 	// Runtime context
 	// ------------------------------------------------------------------
@@ -1040,9 +1115,77 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			. '  var d = document.activeElement && document.activeElement.closest ? document.activeElement.closest( ".skw-ag-picker[open]" ) : null;'
 			. '  if ( d ) { d.open = false; d.querySelector( "summary" ).focus(); }'
 			. ' } );'
+			// Groups table: sort the rows on screen by the current field values. Moving rows changes no field.
+			. ' var body = document.querySelector( ".skw-ag-sortable" );'
+			. ' if ( body ) {'
+			. '  var rows = Array.prototype.slice.call( body.rows ), state = { key: "", dir: 1 };'
+			. '  rows.forEach( function ( r, i ) { r.setAttribute( "data-index", i ); } );'
+			. '  function value( r, key ) {'
+			. '   if ( "name" === key ) { return r.querySelector( "input[name$=\"[name]\"]" ).value.trim().toLowerCase(); }'
+			. '   if ( "type" === key ) { return r.getAttribute( "data-type" ); }'
+			. '   if ( "count" === key ) { return parseInt( r.getAttribute( "data-count" ), 10 ) || 0; }'
+			. '   if ( "order" === key ) { var v = r.querySelector( "input[name$=\"[position]\"]" ).value; return "" === v ? Infinity : parseFloat( v ); }'
+			. '   var box = r.querySelector( "input[name$=\"[" + key + "]\"]" ); return box && box.checked ? 1 : 0;'
+			. '  }'
+			. '  document.querySelectorAll( ".skw-ag-groups .skw-ag-sort" ).forEach( function ( btn ) {'
+			. '   btn.addEventListener( "click", function () {'
+			. '    var key = btn.getAttribute( "data-sort-key" );'
+			. '    state.dir = state.key === key ? -state.dir : 1; state.key = key;'
+			. '    var sorted = Array.prototype.slice.call( body.rows ).sort( function ( a, b ) {'
+			. '     var x = value( a, key ), y = value( b, key ), c = 0;'
+			. '     if ( "string" === typeof x ) { c = x.localeCompare( y, undefined, { numeric: true, sensitivity: "base" } ); } else { c = x < y ? -1 : ( x > y ? 1 : 0 ); }'
+			. '     return c * state.dir || a.getAttribute( "data-index" ) - b.getAttribute( "data-index" );'
+			. '    } );'
+			. '    sorted.forEach( function ( r ) { body.appendChild( r ); } );'
+			. '    document.querySelectorAll( ".skw-ag-groups .skw-ag-sort" ).forEach( function ( other ) {'
+			. '     var on = other === btn, icon = other.querySelector( ".skw-ag-sort-icon" );'
+			. '     other.classList.toggle( "is-active", on );'
+			. '     if ( on ) { other.parentNode.setAttribute( "aria-sort", 1 === state.dir ? "ascending" : "descending" ); } else { other.parentNode.removeAttribute( "aria-sort" ); }'
+			. '     icon.className = "ph skw-ag-sort-icon " + ( on ? ( 1 === state.dir ? "ph-arrow-up" : "ph-arrow-down" ) : "ph-caret-up-down" );'
+			. '    } );'
+			. '   } );'
+			. '  } );'
+			. ' }'
 			. ' var all = document.getElementById( "skwirrel-attr-select-all" );'
 			. ' if ( all ) { all.addEventListener( "change", function () { document.querySelectorAll( "input[name=\"slugs[]\"]" ).forEach( function ( b ) { b.checked = all.checked; } ); } ); }'
 			. '})();';
+	}
+
+	/**
+	 * The attribute list's search, filter and sort.
+	 *
+	 * @param string                                 $search Search text.
+	 * @param string                                 $filter Group filter.
+	 * @param array{orderby: string, order: string} $sort   Sort from sanitize_sort().
+	 * @return array{s: string, group: string, orderby: string, order: string}
+	 */
+	private static function list_state( string $search, string $filter, array $sort ): array {
+		return [
+			's'       => $search,
+			'group'   => $filter,
+			'orderby' => $sort['orderby'],
+			'order'   => $sort['order'],
+		];
+	}
+
+	/**
+	 * Query args that keep the list state in a URL; empty and default values are left out.
+	 *
+	 * @param array{s: string, group: string, orderby: string, order: string} $state List state.
+	 * @return array<string, string>
+	 */
+	private static function list_args( array $state ): array {
+		$args = [];
+		foreach ( [ 's', 'group' ] as $key ) {
+			if ( '' !== $state[ $key ] ) {
+				$args[ $key ] = $state[ $key ];
+			}
+		}
+		if ( self::SORT_KEYS[0] !== $state['orderby'] || 'asc' !== $state['order'] ) {
+			$args['orderby'] = $state['orderby'];
+			$args['order']   = $state['order'];
+		}
+		return $args;
 	}
 
 	public function render_page(): void {
@@ -1067,6 +1210,10 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		$search  = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
 		$filter  = isset( $_GET['group'] ) ? sanitize_key( wp_unslash( $_GET['group'] ) ) : '';
 		$paged   = isset( $_GET['paged'] ) ? max( 1, absint( $_GET['paged'] ) ) : 1;
+		$sort    = self::sanitize_sort(
+			isset( $_GET['orderby'] ) ? sanitize_key( wp_unslash( $_GET['orderby'] ) ) : '',
+			isset( $_GET['order'] ) ? sanitize_key( wp_unslash( $_GET['order'] ) ) : ''
+		);
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 		$overview_url = admin_url( 'admin.php?page=' . Skwirrel_WC_Sync_Admin_Settings::PAGE_SLUG );
@@ -1102,7 +1249,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 					<?php endif; ?>
 
 					<?php $this->render_groups_form( $groups, $auto, $counts, $suffixes, $context['includes'] ); ?>
-					<?php $this->render_attribute_list( $attributes, $sources, $context, $suffixes, $search, $filter, $paged ); ?>
+					<?php $this->render_attribute_list( $attributes, $sources, $context, $suffixes, self::list_state( $search, $filter, $sort ), $paged ); ?>
 				</div>
 			</div>
 		</div>
@@ -1118,7 +1265,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 */
 	private function render_groups_form( array $groups, array $auto, array $counts, array $suffixes, array $included ): void {
 		?>
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="skw-section skw-ag-card">
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="skw-section skw-ag-card skw-ag-groups-form">
 			<input type="hidden" name="action" value="<?php echo esc_attr( self::SAVE_GROUPS_ACTION ); ?>" />
 			<?php wp_nonce_field( self::SAVE_GROUPS_ACTION ); ?>
 
@@ -1140,25 +1287,25 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 				<table class="skw-ag-table skw-ag-groups">
 					<thead>
 						<tr>
-							<th scope="col" class="skw-ag-col-name"><?php esc_html_e( 'Name', 'skwirrel-pim-sync' ); ?></th>
-							<th scope="col"><?php esc_html_e( 'Type', 'skwirrel-pim-sync' ); ?></th>
-							<th scope="col" class="skw-ag-col-order"><?php esc_html_e( 'Order', 'skwirrel-pim-sync' ); ?></th>
-							<th scope="col" class="skw-ag-col-check"><?php esc_html_e( 'Show as tab', 'skwirrel-pim-sync' ); ?></th>
-							<th scope="col" class="skw-ag-col-check"><?php esc_html_e( 'Hide on product page', 'skwirrel-pim-sync' ); ?></th>
-							<th scope="col" class="skw-ag-col-check"><?php esc_html_e( 'Hide in product editor', 'skwirrel-pim-sync' ); ?></th>
+							<?php $this->render_group_sort_header( 'name', __( 'Name', 'skwirrel-pim-sync' ), 'skw-ag-col-name' ); ?>
+							<?php $this->render_group_sort_header( 'type', __( 'Type', 'skwirrel-pim-sync' ), '' ); ?>
+							<?php $this->render_group_sort_header( 'order', __( 'Order', 'skwirrel-pim-sync' ), 'skw-ag-col-order' ); ?>
+							<?php $this->render_group_sort_header( 'as_tab', __( 'Show as tab', 'skwirrel-pim-sync' ), 'skw-ag-col-check' ); ?>
+							<?php $this->render_group_sort_header( 'hidden', __( 'Hide on product page', 'skwirrel-pim-sync' ), 'skw-ag-col-check' ); ?>
+							<?php $this->render_group_sort_header( 'admin_hidden', __( 'Hide in product editor', 'skwirrel-pim-sync' ), 'skw-ag-col-check' ); ?>
 							<th scope="col" class="skw-ag-col-includes"><?php esc_html_e( 'Includes', 'skwirrel-pim-sync' ); ?></th>
-							<th scope="col" class="skw-ag-col-num"><?php esc_html_e( 'Attributes', 'skwirrel-pim-sync' ); ?></th>
+							<?php $this->render_group_sort_header( 'count', __( 'Attributes', 'skwirrel-pim-sync' ), 'skw-ag-col-num' ); ?>
 							<th scope="col" class="skw-ag-col-check"><?php esc_html_e( 'Delete', 'skwirrel-pim-sync' ); ?></th>
 						</tr>
 					</thead>
-					<tbody>
+					<tbody class="skw-ag-sortable">
 						<?php
 						foreach ( $groups as $gid => $group ) :
 							$gid    = (string) $gid;
 							$field  = 'groups[' . $gid . ']';
 							$suffix = $suffixes[ $gid ] ?? '';
 							?>
-							<tr>
+							<tr data-type="<?php echo esc_attr( $group['automatic'] ? 'automatic' : 'custom' ); ?>" data-count="<?php echo esc_attr( (string) (int) ( $counts[ $gid ] ?? 0 ) ); ?>">
 								<td class="skw-ag-col-name">
 									<input type="text" class="skw-input" name="<?php echo esc_attr( $field ); ?>[name]" value="<?php echo esc_attr( (string) $group['name'] ); ?>" aria-label="<?php esc_attr_e( 'Name', 'skwirrel-pim-sync' ); ?>" />
 									<?php if ( '' !== $suffix ) : ?>
@@ -1226,6 +1373,23 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			</div>
 		</form>
 		<?php
+	}
+
+	/**
+	 * A sortable column header of the groups table. Sorting happens in the browser and only
+	 * reorders the rows on screen: it changes no field, so it never changes what is saved.
+	 *
+	 * @param string $key       Sort key the script understands (name, type, order, as_tab, hidden, admin_hidden, count).
+	 * @param string $label     Column label.
+	 * @param string $col_class Column class.
+	 */
+	private function render_group_sort_header( string $key, string $label, string $col_class ): void {
+		printf(
+			'<th scope="col"%s><button type="button" class="skw-ag-sort" data-sort-key="%s">%s <i class="ph ph-caret-up-down skw-ag-sort-icon" aria-hidden="true"></i></button></th>',
+			'' !== $col_class ? ' class="' . esc_attr( $col_class ) . '"' : '',
+			esc_attr( $key ),
+			esc_html( $label )
+		);
 	}
 
 	/**
@@ -1313,12 +1477,13 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 * @param array<string, array{source: string, class_key: string, class_name: string}> $sources    Source map.
 	 * @param array<string, mixed>                                                      $context    Context.
 	 * @param array<string, string>                                                     $suffixes   Group ID => disambiguating suffix.
-	 * @param string                                                                    $search     Search text.
-	 * @param string                                                                    $filter     Group filter (group ID, NO_GROUP or '').
+	 * @param array{s: string, group: string, orderby: string, order: string}            $state      Search, group filter (group ID, NO_GROUP or '') and sort.
 	 * @param int                                                                       $paged      Page number.
 	 */
-	private function render_attribute_list( array $attributes, array $sources, array $context, array $suffixes, string $search, string $filter, int $paged ): void {
+	private function render_attribute_list( array $attributes, array $sources, array $context, array $suffixes, array $state, int $paged ): void {
 		$groups = $context['groups'];
+		$search = $state['s'];
+		$filter = $state['group'];
 		$rows   = [];
 		foreach ( $attributes as $slug => $label ) {
 			$slug = (string) $slug;
@@ -1330,12 +1495,14 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 				continue;
 			}
 			$rows[ $slug ] = [
-				'label'  => $label,
-				'group'  => $gid,
-				'manual' => isset( $context['assignments'][ $slug ] ),
-				'source' => $this->describe_source( $slug, $sources ),
+				'label'       => $label,
+				'group'       => $gid,
+				'group_label' => null !== $gid ? self::choice_label( (string) $groups[ $gid ]['name'], $suffixes[ $gid ] ?? '' ) : '',
+				'manual'      => isset( $context['assignments'][ $slug ] ),
+				'source'      => $this->describe_source( $slug, $sources ),
 			];
 		}
+		$rows  = self::sort_rows( $rows, $state['orderby'], $state['order'] );
 		$total = count( $rows );
 		$pages = max( 1, (int) ceil( $total / self::PER_PAGE ) );
 		$paged = min( $paged, $pages );
@@ -1354,6 +1521,18 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 
 			<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" class="skw-ag-toolbar">
 				<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG ); ?>" />
+				<?php
+				$sort_args = array_intersect_key(
+					self::list_args( $state ),
+					[
+						'orderby' => 1,
+						'order'   => 1,
+					]
+				);
+				foreach ( $sort_args as $arg => $value ) :
+					?>
+					<input type="hidden" name="<?php echo esc_attr( $arg ); ?>" value="<?php echo esc_attr( $value ); ?>" />
+				<?php endforeach; ?>
 				<label for="skwirrel-attr-search" class="screen-reader-text"><?php esc_html_e( 'Search attributes', 'skwirrel-pim-sync' ); ?></label>
 				<span class="skw-ag-search">
 					<i class="ph ph-magnifying-glass" aria-hidden="true"></i>
@@ -1383,6 +1562,8 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 					<input type="hidden" name="action" value="<?php echo esc_attr( self::ASSIGN_ACTION ); ?>" />
 					<input type="hidden" name="s" value="<?php echo esc_attr( $search ); ?>" />
 					<input type="hidden" name="group" value="<?php echo esc_attr( $filter ); ?>" />
+					<input type="hidden" name="orderby" value="<?php echo esc_attr( $state['orderby'] ); ?>" />
+					<input type="hidden" name="order" value="<?php echo esc_attr( $state['order'] ); ?>" />
 					<input type="hidden" name="paged" value="<?php echo esc_attr( (string) $paged ); ?>" />
 					<?php wp_nonce_field( self::ASSIGN_ACTION ); ?>
 
@@ -1399,7 +1580,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 							</select>
 							<button type="submit" class="skw-set-btn"><?php esc_html_e( 'Apply', 'skwirrel-pim-sync' ); ?></button>
 						</div>
-						<?php $this->render_pagination( $paged, $pages, $search, $filter ); ?>
+						<?php $this->render_pagination( $paged, $pages, $state ); ?>
 					</div>
 
 					<div class="skw-ag-table-wrap">
@@ -1407,10 +1588,12 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 							<thead>
 								<tr>
 									<td class="skw-ag-col-select"><label class="skw-checkbox"><input type="checkbox" id="skwirrel-attr-select-all" aria-label="<?php esc_attr_e( 'Select all', 'skwirrel-pim-sync' ); ?>" /></label></td>
-									<th scope="col"><?php esc_html_e( 'Attribute', 'skwirrel-pim-sync' ); ?></th>
-									<th scope="col"><?php esc_html_e( 'Slug', 'skwirrel-pim-sync' ); ?></th>
-									<th scope="col"><?php esc_html_e( 'Source', 'skwirrel-pim-sync' ); ?></th>
-									<th scope="col"><?php esc_html_e( 'Group', 'skwirrel-pim-sync' ); ?></th>
+									<?php
+									$this->render_sort_header( 'attribute', __( 'Attribute', 'skwirrel-pim-sync' ), $state );
+									$this->render_sort_header( 'slug', __( 'Slug', 'skwirrel-pim-sync' ), $state );
+									$this->render_sort_header( 'source', __( 'Source', 'skwirrel-pim-sync' ), $state );
+									$this->render_sort_header( 'group', __( 'Group', 'skwirrel-pim-sync' ), $state );
+									?>
 								</tr>
 							</thead>
 							<tbody>
@@ -1441,24 +1624,56 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 							</tbody>
 						</table>
 					</div>
-					<div class="skw-ag-bulkbar skw-ag-bulkbar-bottom"><?php $this->render_pagination( $paged, $pages, $search, $filter ); ?></div>
+					<div class="skw-ag-bulkbar skw-ag-bulkbar-bottom"><?php $this->render_pagination( $paged, $pages, $state ); ?></div>
 				</form>
 			<?php endif; ?>
 		</section>
 		<?php
 	}
 
-	private function render_pagination( int $paged, int $pages, string $search, string $filter ): void {
+	/**
+	 * A sortable column header of the attribute list: a link that sorts by the column, ascending
+	 * first and flipping on the next click, with aria-sort on the active column.
+	 *
+	 * @param string                                                          $key   Column (see SORT_KEYS).
+	 * @param string                                                          $label Column label.
+	 * @param array{s: string, group: string, orderby: string, order: string} $state List state.
+	 */
+	private function render_sort_header( string $key, string $label, array $state ): void {
+		$active = $key === $state['orderby'];
+		$next   = $active && 'asc' === $state['order'] ? 'desc' : 'asc';
+		$url    = self::page_url(
+			self::list_args(
+				array_merge(
+					$state,
+					[
+						'orderby' => $key,
+						'order'   => $next,
+					]
+				)
+			)
+		) . '#skwirrel-attributes';
+		$icon   = $active ? ( 'asc' === $state['order'] ? 'ph-arrow-up' : 'ph-arrow-down' ) : 'ph-caret-up-down';
+		printf(
+			'<th scope="col"%s><a class="skw-ag-sort%s" href="%s">%s <i class="ph %s skw-ag-sort-icon" aria-hidden="true"></i></a></th>',
+			$active ? ' aria-sort="' . ( 'asc' === $state['order'] ? 'ascending' : 'descending' ) . '"' : '',
+			$active ? ' is-active' : '',
+			esc_url( $url ),
+			esc_html( $label ),
+			esc_attr( $icon )
+		);
+	}
+
+	/**
+	 * @param int                                                             $paged Current page.
+	 * @param int                                                             $pages Number of pages.
+	 * @param array{s: string, group: string, orderby: string, order: string} $state List state.
+	 */
+	private function render_pagination( int $paged, int $pages, array $state ): void {
 		if ( $pages < 2 ) {
 			return;
 		}
-		$base  = self::page_url(
-			[
-				's'     => $search,
-				'group' => $filter,
-				'paged' => 999999999,
-			]
-		);
+		$base  = self::page_url( array_merge( self::list_args( $state ), [ 'paged' => 999999999 ] ) );
 		$links = (string) paginate_links(
 			[
 				// paginate_links() swaps %#% for each page number.
@@ -1532,14 +1747,21 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			self::save_config( self::apply_bulk_assignment( $slugs, $target, self::get_config(), self::context(), array_keys( self::attribute_choices() ) ) );
 		}
 
+		$state = self::list_state(
+			isset( $_POST['s'] ) ? sanitize_text_field( wp_unslash( $_POST['s'] ) ) : '',
+			isset( $_POST['group'] ) ? sanitize_key( wp_unslash( $_POST['group'] ) ) : '',
+			self::sanitize_sort(
+				isset( $_POST['orderby'] ) ? sanitize_key( wp_unslash( $_POST['orderby'] ) ) : '',
+				isset( $_POST['order'] ) ? sanitize_key( wp_unslash( $_POST['order'] ) ) : ''
+			)
+		);
 		wp_safe_redirect(
 			self::page_url(
-				[
-					'updated' => 'assign',
-					's'       => isset( $_POST['s'] ) ? sanitize_text_field( wp_unslash( $_POST['s'] ) ) : '',
-					'group'   => isset( $_POST['group'] ) ? sanitize_key( wp_unslash( $_POST['group'] ) ) : '',
-					'paged'   => isset( $_POST['paged'] ) ? absint( $_POST['paged'] ) : 1,
-				]
+				array_merge(
+					[ 'updated' => 'assign' ],
+					self::list_args( $state ),
+					[ 'paged' => isset( $_POST['paged'] ) ? absint( $_POST['paged'] ) : 1 ]
+				)
 			) . '#skwirrel-attributes'
 		);
 		exit;

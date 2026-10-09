@@ -16,6 +16,9 @@
 .skw-ag-page .ph-funnel:before { content: '\e266'; }
 .skw-ag-page .ph-list-checks:before { content: '\eadc'; }
 .skw-ag-page .ph-caret-down:before { content: '\e136'; }
+.skw-ag-page .ph-caret-up-down:before { content: '\e140'; }
+.skw-ag-page .ph-arrow-up:before { content: '\e08e'; }
+.skw-ag-page .ph-arrow-down:before { content: '\e03e'; }
 
 .skw-ag-page {
 	--skw-ag-line: rgb(28 31 38 / .1);
@@ -112,7 +115,7 @@
 .skw-ag-page .skw-ag-table .skw-input:hover { border-color: var(--color-neutral); }
 .skw-ag-page .skw-ag-table .skw-input:focus { border-color: var(--color-mascot); }
 
-.skw-ag-page .skw-ag-col-name { width: 260px; min-width: 240px; }
+.skw-ag-page .skw-ag-col-name { width: 260px; min-width: 200px; }
 .skw-ag-page .skw-ag-col-name .skw-input { width: 100%; max-width: 260px; }
 .skw-ag-page .skw-ag-col-order { width: 76px; }
 .skw-ag-page .skw-ag-col-order .skw-input { width: 72px; }
@@ -120,7 +123,8 @@
 .skw-ag-page .skw-ag-col-check .skw-checkbox { justify-content: center; }
 .skw-ag-page .skw-ag-table .skw-ag-col-num { width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
 .skw-ag-page .skw-ag-col-num a { font-weight: 500; }
-.skw-ag-page .skw-ag-col-includes { min-width: 220px; }
+.skw-ag-page .skw-ag-col-includes { min-width: 200px; }
+.skw-ag-page .skw-ag-table thead .skw-ag-col-check { padding-left: 6px; padding-right: 6px; }
 .skw-ag-page .skw-ag-col-select { width: 20px; }
 
 .skw-ag-page .skw-ag-muted { color: var(--color-neutral-light); }
@@ -169,6 +173,34 @@
 	font-size: 13px;
 	color: var(--color-neutral);
 }
+
+/* -- Sortable headers: the whole label is the control; a muted ↕ until active, then ↑ / ↓. -- */
+
+.skw-ag-page .skw-ag-sort {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: none;
+	font: inherit;
+	color: inherit;
+	text-align: inherit;
+	line-height: inherit;
+	cursor: pointer;
+	text-decoration: none;
+}
+.skw-ag-page .skw-ag-sort:hover,
+.skw-ag-page .skw-ag-sort:focus { color: var(--color-neutral); text-decoration: none; box-shadow: none; }
+.skw-ag-page .skw-ag-sort:focus-visible { outline: 2px solid var(--color-mascot); outline-offset: 2px; border-radius: 2px; }
+.skw-ag-page .skw-ag-sort.is-active { color: var(--color-neutral); }
+.skw-ag-page .skw-ag-sort-icon { flex-shrink: 0; font-size: 12px; opacity: .45; }
+.skw-ag-page .skw-ag-sort:hover .skw-ag-sort-icon { opacity: .8; }
+.skw-ag-page .skw-ag-sort.is-active .skw-ag-sort-icon { opacity: 1; color: var(--color-mascot); font-size: 13px; }
+.skw-ag-page .skw-ag-col-check .skw-ag-sort,
+.skw-ag-page .skw-ag-col-num .skw-ag-sort { justify-content: center; }
+.skw-ag-page .skw-ag-col-num .skw-ag-sort { justify-content: flex-end; }
 
 /* -- Badges (same shape as the Overview status badges) -- */
 

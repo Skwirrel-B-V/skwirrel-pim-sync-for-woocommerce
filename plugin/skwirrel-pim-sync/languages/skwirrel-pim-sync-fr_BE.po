@@ -3070,3 +3070,23 @@ msgstr "Tous les attributs produit globaux et le groupe auquel ils appartiennent
 #: includes/class-skwirrel-wc-sync-attribute-groups.php
 msgid "Attribute pages"
 msgstr "Pages d’attributs"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Group product attributes and show them as product tabs."
+msgstr "Regroupez les attributs produit et affichez-les comme onglets produit."
+
+#. translators: %s = number of attribute groups
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+#, php-format
+msgid "%s group"
+msgid_plural "%s groups"
+msgstr[0] "%s groupe"
+msgstr[1] "%s groupes"
+
+#. translators: %s = number of attribute groups shown as a product tab
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+#, php-format
+msgid "%s shown as tab"
+msgid_plural "%s shown as tab"
+msgstr[0] "%s en onglet"
+msgstr[1] "%s en onglets"

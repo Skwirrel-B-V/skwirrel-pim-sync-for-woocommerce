@@ -100,6 +100,7 @@
 .skw-overview-page .ph-file-text:before { content: '\e23a'; }
 .skw-overview-page .ph-gear:before { content: '\e270'; }
 .skw-overview-page .ph-play:before { content: '\e3d0'; }
+.skw-overview-page .ph-stack:before { content: '\e466'; }
 .skw-overview-page .ph-warning-circle:before { content: '\e4e2'; }
 .skw-overview-page .ph-warning-octagon:before { content: '\e4e4'; }
 .skw-overview-page .ph.skw-spin { display: inline-block; }
