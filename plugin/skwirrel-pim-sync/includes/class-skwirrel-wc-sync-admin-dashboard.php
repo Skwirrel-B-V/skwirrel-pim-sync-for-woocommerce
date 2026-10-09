@@ -364,7 +364,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			_n( '%s group', '%s groups', $summary['groups'], 'skwirrel-pim-sync' ),
 			number_format_i18n( $summary['groups'] )
 		) . ' · ' . sprintf(
-			/* translators: %s = number of attribute groups shown as a product tab */
+			/* translators: %s = number of attribute groups shown as a product tab. Singular and plural are the same in English on purpose ("1 shown as tab", "9 shown as tab"). */
 			_n( '%s shown as tab', '%s shown as tab', $summary['tabs'], 'skwirrel-pim-sync' ),
 			number_format_i18n( $summary['tabs'] )
 		);

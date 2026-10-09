@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 beforeEach(function () {
 	Skwirrel_WC_Sync_Attribute_Sources::reset_pending();
+	Skwirrel_WC_Sync_Attribute_Sources::set_run('');
 	unset($GLOBALS['_test_options'][Skwirrel_WC_Sync_Attribute_Sources::OPTION_KEY]);
 });
 
@@ -128,7 +129,8 @@ test('a slug fed from different sources keeps the same winner whatever the produ
 	'custom class first' => [['custom_class', 'LOGISTICS', 'Logistiek'], ['etim']],
 ]);
 
-test('between two custom classes the lowest class key wins, across requests too', function () {
+test('between two custom classes the lowest class key wins, across the requests of one run too', function () {
+	Skwirrel_WC_Sync_Attribute_Sources::set_run('run-1');
 	Skwirrel_WC_Sync_Attribute_Sources::record('voorraad', 'custom_class', 'WAREHOUSE_B', 'B');
 	Skwirrel_WC_Sync_Attribute_Sources::flush();
 	Skwirrel_WC_Sync_Attribute_Sources::record('voorraad', 'custom_class', 'WAREHOUSE_A', 'A');
@@ -146,4 +148,50 @@ test('the same source refreshes the entry, so a renamed class shows its new name
 	Skwirrel_WC_Sync_Attribute_Sources::flush();
 
 	expect(Skwirrel_WC_Sync_Attribute_Sources::all()['voorraad']['class_name'])->toBe('Logistics');
+});
+
+test('within one run a higher-ranked source recorded in an earlier step keeps winning', function () {
+	Skwirrel_WC_Sync_Attribute_Sources::set_run('run-1');
+	Skwirrel_WC_Sync_Attribute_Sources::record('breedte', 'etim');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+	Skwirrel_WC_Sync_Attribute_Sources::record('breedte', 'custom_class', 'LOGISTICS', 'Logistiek');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+
+	expect(Skwirrel_WC_Sync_Attribute_Sources::all()['breedte']['source'])->toBe('etim');
+});
+
+test('a later run replaces a source an earlier run recorded, e.g. after ETIM sync is switched off', function () {
+	Skwirrel_WC_Sync_Attribute_Sources::set_run('run-1');
+	Skwirrel_WC_Sync_Attribute_Sources::record('breedte', 'etim');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+
+	Skwirrel_WC_Sync_Attribute_Sources::set_run('run-2');
+	Skwirrel_WC_Sync_Attribute_Sources::record('breedte', 'custom_class', 'LOGISTICS', 'Logistiek');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+
+	expect(Skwirrel_WC_Sync_Attribute_Sources::all()['breedte'])->toBe(['source' => 'custom_class', 'class_key' => 'logistics', 'class_name' => 'Logistiek']);
+});
+
+test('a later run also replaces a custom class that no longer feeds the attribute', function () {
+	Skwirrel_WC_Sync_Attribute_Sources::set_run('run-1');
+	Skwirrel_WC_Sync_Attribute_Sources::record('voorraad', 'custom_class', 'WAREHOUSE_A', 'A');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+
+	Skwirrel_WC_Sync_Attribute_Sources::set_run('run-2');
+	Skwirrel_WC_Sync_Attribute_Sources::record('voorraad', 'custom_class', 'WAREHOUSE_B', 'B');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+
+	expect(Skwirrel_WC_Sync_Attribute_Sources::all()['voorraad']['class_key'])->toBe('warehouse_b');
+});
+
+test('a sync outside a run (one product) records what that product has now', function () {
+	Skwirrel_WC_Sync_Attribute_Sources::set_run('run-1');
+	Skwirrel_WC_Sync_Attribute_Sources::record('breedte', 'etim');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+
+	Skwirrel_WC_Sync_Attribute_Sources::set_run('');
+	Skwirrel_WC_Sync_Attribute_Sources::record('breedte', 'custom_class', 'LOGISTICS', 'Logistiek');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+
+	expect(Skwirrel_WC_Sync_Attribute_Sources::all()['breedte']['source'])->toBe('custom_class');
 });

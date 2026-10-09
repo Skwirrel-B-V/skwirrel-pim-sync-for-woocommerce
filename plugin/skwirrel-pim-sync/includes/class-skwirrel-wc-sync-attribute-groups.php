@@ -656,6 +656,33 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		return array_values( $out );
 	}
 
+	/**
+	 * Readable name of a group that is absent right now: the automatic group's default name when
+	 * its source is still known (ETIM, a recorded class), otherwise the group ID.
+	 *
+	 * @param string                                                                  $id      Group ID.
+	 * @param array<string, array{source: string, class_key: string, class_name: string}>|null $sources Source map (null = the stored one).
+	 */
+	public static function inactive_group_name( string $id, ?array $sources = null ): string {
+		$known = [
+			[
+				'source'     => Skwirrel_WC_Sync_Attribute_Sources::SOURCE_ETIM,
+				'class_key'  => '',
+				'class_name' => '',
+			],
+		];
+		foreach ( $sources ?? Skwirrel_WC_Sync_Attribute_Sources::current() as $source ) {
+			$known[] = $source;
+		}
+		foreach ( $known as $source ) {
+			$group = self::source_group_for( $source );
+			if ( $group['id'] === $id ) {
+				return $group['name'];
+			}
+		}
+		return $id;
+	}
+
 	public static function is_source_group( string $id ): bool {
 		return str_starts_with( $id, self::SOURCE_PREFIX );
 	}
@@ -1058,9 +1085,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		$url     = SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/'; // @phpstan-ignore constant.notFound
 		$version = SKWIRREL_WC_SYNC_VERSION;
 		// Same handles as the Settings screen, so the files are shared and cached once.
-		wp_enqueue_style( 'skwirrel-pim-sync-dashboard', $url . 'dashboard.css', [], $version );
-		wp_add_inline_style( 'skwirrel-pim-sync-dashboard', '.skw-dashboard{--skw-header-bg:' . esc_attr( Skwirrel_WC_Sync_Admin_Settings::header_background_color() ) . ';}' );
-		wp_enqueue_style( 'skwirrel-pim-sync-inter-font', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', [], $version );
+		Skwirrel_WC_Sync_Admin_Settings::enqueue_shell_assets();
 		wp_enqueue_style( 'skwirrel-pim-sync-settings-page', $url . 'settings-page.css', [], $version );
 		wp_enqueue_style( 'skwirrel-pim-sync-attribute-groups-page', $url . 'attribute-groups-page.css', [ 'skwirrel-pim-sync-settings-page' ], $version );
 
@@ -1077,8 +1102,8 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	private static function page_script(): string {
 		return '(function () {'
 			// WordPress prints its notices above the page; move them below the plugin header, like the other Skwirrel screens.
-			. ' var slot = document.getElementById( "skwirrel-notices" ), body = document.getElementById( "wpbody-content" );'
-			. ' if ( slot && body ) { body.querySelectorAll( ":scope > .notice, :scope > .updated, :scope > .error, :scope > .update-nag" ).forEach( function ( n ) { slot.appendChild( n ); } ); }'
+			. ' var slot = document.getElementById( "skwirrel-notices" ), wpBody = document.getElementById( "wpbody-content" );'
+			. ' if ( slot && wpBody ) { wpBody.querySelectorAll( ":scope > .notice, :scope > .updated, :scope > .error, :scope > .update-nag" ).forEach( function ( n ) { slot.appendChild( n ); } ); }'
 			. ' function chip( text, code, extra ) {'
 			. '  var c = document.createElement( "span" ); c.className = "skw-ag-chip" + ( extra ? " " + extra : "" );'
 			. '  c.appendChild( document.createTextNode( text ) );'
@@ -1093,7 +1118,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			. '   chips.textContent = "";'
 			. '   if ( ! on.length ) { var n = document.createElement( "span" ); n.className = "skw-ag-none"; n.textContent = box.getAttribute( "data-none" ); chips.appendChild( n ); return; }'
 			. '   on.slice( 0, 3 ).forEach( function ( o ) { var cd = o.querySelector( ".skw-ag-opt-code" ); chips.appendChild( chip( o.querySelector( ".skw-ag-opt-name" ).textContent, cd ? " · " + cd.textContent : "", "" ) ); } );'
-			. '   if ( on.length > 3 ) { chips.appendChild( chip( box.getAttribute( "data-more" ).replace( "%d", on.length - 3 ), "", "skw-ag-chip-more" ) ); }'
+			. '   if ( on.length > 3 ) { chips.appendChild( chip( box.getAttribute( "data-more" ).replace( /%(?:\\d+\\$)?d/, on.length - 3 ), "", "skw-ag-chip-more" ) ); }'
 			. '  }'
 			. '  box.addEventListener( "change", function ( e ) { if ( e.target.closest( ".skw-ag-opt" ) ) { render(); } } );'
 			. '  if ( search ) {'
@@ -1116,9 +1141,9 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			. '  if ( d ) { d.open = false; d.querySelector( "summary" ).focus(); }'
 			. ' } );'
 			// Groups table: sort the rows on screen by the current field values. Moving rows changes no field.
-			. ' var body = document.querySelector( ".skw-ag-sortable" );'
-			. ' if ( body ) {'
-			. '  var rows = Array.prototype.slice.call( body.rows ), state = { key: "", dir: 1 };'
+			. ' var groupRows = document.querySelector( ".skw-ag-sortable" );'
+			. ' if ( groupRows ) {'
+			. '  var rows = Array.prototype.slice.call( groupRows.rows ), state = { key: "", dir: 1 };'
 			. '  rows.forEach( function ( r, i ) { r.setAttribute( "data-index", i ); } );'
 			. '  function value( r, key ) {'
 			. '   if ( "name" === key ) { return r.querySelector( "input[name$=\"[name]\"]" ).value.trim().toLowerCase(); }'
@@ -1131,12 +1156,12 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			. '   btn.addEventListener( "click", function () {'
 			. '    var key = btn.getAttribute( "data-sort-key" );'
 			. '    state.dir = state.key === key ? -state.dir : 1; state.key = key;'
-			. '    var sorted = Array.prototype.slice.call( body.rows ).sort( function ( a, b ) {'
+			. '    var sorted = Array.prototype.slice.call( groupRows.rows ).sort( function ( a, b ) {'
 			. '     var x = value( a, key ), y = value( b, key ), c = 0;'
 			. '     if ( "string" === typeof x ) { c = x.localeCompare( y, undefined, { numeric: true, sensitivity: "base" } ); } else { c = x < y ? -1 : ( x > y ? 1 : 0 ); }'
 			. '     return c * state.dir || a.getAttribute( "data-index" ) - b.getAttribute( "data-index" );'
 			. '    } );'
-			. '    sorted.forEach( function ( r ) { body.appendChild( r ); } );'
+			. '    sorted.forEach( function ( r ) { groupRows.appendChild( r ); } );'
 			. '    document.querySelectorAll( ".skw-ag-groups .skw-ag-sort" ).forEach( function ( other ) {'
 			. '     var on = other === btn, icon = other.querySelector( ".skw-ag-sort-icon" );'
 			. '     other.classList.toggle( "is-active", on );'
@@ -1248,7 +1273,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 						<div class="notice notice-info inline skw-ag-notice"><p><?php esc_html_e( 'Automatic groups fill during the next sync. Until then only variation and variant attributes can be recognised.', 'skwirrel-pim-sync' ); ?></p></div>
 					<?php endif; ?>
 
-					<?php $this->render_groups_form( $groups, $auto, $counts, $suffixes, $context['includes'] ); ?>
+					<?php $this->render_groups_form( $groups, $auto, $counts, $suffixes, $context['includes'], $sort ); ?>
 					<?php $this->render_attribute_list( $attributes, $sources, $context, $suffixes, self::list_state( $search, $filter, $sort ), $paged ); ?>
 				</div>
 			</div>
@@ -1262,8 +1287,9 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 * @param array<string, int>                  $counts   Attributes per group ID.
 	 * @param array<string, string>               $suffixes Group ID => disambiguating suffix (see name_suffixes()).
 	 * @param array<string, string>               $included Automatic group ID => custom group that includes it.
+	 * @param array{orderby: string, order: string} $sort   Attribute list sort, kept in the count links.
 	 */
-	private function render_groups_form( array $groups, array $auto, array $counts, array $suffixes, array $included ): void {
+	private function render_groups_form( array $groups, array $auto, array $counts, array $suffixes, array $included, array $sort ): void {
 		?>
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="skw-section skw-ag-card skw-ag-groups-form">
 			<input type="hidden" name="action" value="<?php echo esc_attr( self::SAVE_GROUPS_ACTION ); ?>" />
@@ -1341,7 +1367,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 									}
 									?>
 								</td>
-								<td class="skw-ag-col-num"><a href="<?php echo esc_url( self::page_url( [ 'group' => $gid ] ) . '#skwirrel-attributes' ); ?>"><?php echo esc_html( number_format_i18n( (int) ( $counts[ $gid ] ?? 0 ) ) ); ?></a></td>
+								<td class="skw-ag-col-num"><a href="<?php echo esc_url( self::page_url( self::list_args( self::list_state( '', (string) $gid, $sort ) ) ) . '#skwirrel-attributes' ); ?>"><?php echo esc_html( number_format_i18n( (int) ( $counts[ $gid ] ?? 0 ) ) ); ?></a></td>
 								<td class="skw-ag-col-check">
 									<?php if ( ! $group['automatic'] ) : ?>
 										<label class="skw-checkbox skw-ag-delete"><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[delete]" value="1" aria-label="<?php esc_attr_e( 'Delete', 'skwirrel-pim-sync' ); ?>" /></label>
@@ -1434,7 +1460,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 						</span>
 					<?php endforeach; ?>
 					<?php if ( count( $chosen ) > 3 ) : ?>
-						<span class="skw-ag-chip skw-ag-chip-more"><?php echo esc_html( str_replace( '%d', (string) ( count( $chosen ) - 3 ), $more ) ); ?></span>
+						<span class="skw-ag-chip skw-ag-chip-more"><?php echo esc_html( sprintf( $more, count( $chosen ) - 3 ) ); ?></span>
 					<?php endif; ?>
 				<?php endif; ?>
 			</div>
@@ -1884,8 +1910,8 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			printf(
 				'<option value="%s" selected="selected">%s</option>',
 				esc_attr( $selected ),
-				/* translators: %s = attribute group ID */
-				esc_html( sprintf( __( '%s (inactive)', 'skwirrel-pim-sync' ), $selected ) )
+				/* translators: %s = attribute group name */
+				esc_html( sprintf( __( '%s (inactive)', 'skwirrel-pim-sync' ), self::inactive_group_name( $selected ) ) )
 			);
 		}
 		echo '</select>';

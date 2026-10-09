@@ -2099,13 +2099,11 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. '})();';
 	}
 
-	public function enqueue_assets( string $hook ): void {
-		// Only load plugin page assets on our settings page.
-		if ( false === strpos( $hook, self::PAGE_SLUG ) ) {
-			return;
-		}
-
-		wp_enqueue_style( 'skwirrel-pim-sync-admin', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/admin.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
+	/**
+	 * Styles every Skwirrel admin screen shares: the dashboard shell with the plugin header in
+	 * the admin colour scheme, and the Inter font.
+	 */
+	public static function enqueue_shell_assets(): void {
 		wp_enqueue_style( 'skwirrel-pim-sync-dashboard', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/dashboard.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
 		// Make the plugin header follow the user's admin colour scheme (the WP menu colour).
 		wp_add_inline_style( 'skwirrel-pim-sync-dashboard', '.skw-dashboard{--skw-header-bg:' . esc_attr( self::header_background_color() ) . ';}' );
@@ -2113,6 +2111,16 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		// is satisfied. Google ignores any extra query params anyway, so this
 		// only changes browser cache busting on plugin upgrades.
 		wp_enqueue_style( 'skwirrel-pim-sync-inter-font', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', [], SKWIRREL_WC_SYNC_VERSION );
+	}
+
+	public function enqueue_assets( string $hook ): void {
+		// Only load plugin page assets on our settings page.
+		if ( false === strpos( $hook, self::PAGE_SLUG ) ) {
+			return;
+		}
+
+		wp_enqueue_style( 'skwirrel-pim-sync-admin', SKWIRREL_WC_SYNC_PLUGIN_URL . 'assets/admin.css', [], SKWIRREL_WC_SYNC_VERSION ); // @phpstan-ignore constant.notFound
+		self::enqueue_shell_assets();
 
 		// Debug tab only: self-hosted Skwirrel brand fonts (Anek Latin, Roboto — both open-licensed
 		// Google Fonts) and the Phosphor icon font (MIT), scoped to .skw-debug-page. Not loaded on

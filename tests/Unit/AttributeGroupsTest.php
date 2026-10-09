@@ -483,3 +483,11 @@ test('summary counts the groups and the ones shown as a tab', function () {
 	expect(Skwirrel_WC_Sync_Attribute_Groups::summary($ctx['groups']))->toBe(['groups' => 7, 'tabs' => 2]);
 	expect(Skwirrel_WC_Sync_Attribute_Groups::summary([]))->toBe(['groups' => 0, 'tabs' => 0]);
 });
+
+test('an inactive group gets a readable name when its source is known, else its ID', function () {
+	$sources = ['voorraad' => ['source' => 'custom_class', 'class_key' => 'logistics', 'class_name' => 'Logistiek']];
+
+	expect(Skwirrel_WC_Sync_Attribute_Groups::inactive_group_name('src-cc-logistics', $sources))->toBe('Logistiek')
+		->and(Skwirrel_WC_Sync_Attribute_Groups::inactive_group_name('src-etim', $sources))->toBe(Skwirrel_WC_Sync_Attribute_Groups::source_group_for(['source' => 'etim', 'class_key' => '', 'class_name' => ''])['name'])
+		->and(Skwirrel_WC_Sync_Attribute_Groups::inactive_group_name('src-cc-gone', $sources))->toBe('src-cc-gone');
+});

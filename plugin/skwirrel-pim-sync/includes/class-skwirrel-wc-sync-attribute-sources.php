@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Skwirrel_WC_Sync_Attribute_Sources {
 
-	/** Option holding `{ slug: {source, class_key, class_name} }`. Not autoloaded. */
+	/** Option holding `{ slug: {source, class_key, class_name, run} }`. Not autoloaded. */
 	public const OPTION_KEY = 'skwirrel_wc_sync_attribute_sources';
 
 	public const SOURCE_ETIM         = 'etim';
@@ -42,6 +42,23 @@ class Skwirrel_WC_Sync_Attribute_Sources {
 	private static array $pending = [];
 
 	private static bool $shutdown_hooked = false;
+
+	/** ID of the sync run this request works for; '' outside a run (e.g. a single-product sync). */
+	private static string $run = '';
+
+	/**
+	 * Tell the recorder which sync run the following records belong to.
+	 *
+	 * Within one run, precedence decides between sources (see prefer()), across all of the run's
+	 * requests. A later run, or a sync outside a run, replaces what an earlier run stored, so an
+	 * attribute follows its current source: e.g. it falls back to its custom class once ETIM
+	 * sync is switched off.
+	 *
+	 * @param string $run_id Sync run ID.
+	 */
+	public static function set_run( string $run_id ): void {
+		self::$run = $run_id;
+	}
 
 	/**
 	 * Record the source of one attribute.
@@ -110,14 +127,36 @@ class Skwirrel_WC_Sync_Attribute_Sources {
 		}
 		$pending       = self::$pending;
 		self::$pending = [];
+		$run           = self::$run;
 		self::update_locked(
-			static function ( array $stored ) use ( $pending ): array {
+			static function ( array $stored ) use ( $pending, $run ): array {
 				foreach ( $pending as $slug => $entry ) {
-					$stored[ $slug ] = self::prefer( $stored[ $slug ] ?? null, $entry );
+					$current = $stored[ $slug ] ?? null;
+					// Precedence only between sources of the same run; a newer result replaces an older one.
+					if ( null !== $current && ( '' === $run || ( $current['run'] ?? '' ) !== $run ) ) {
+						$current = null;
+					}
+					$kept            = self::prefer( null === $current ? null : self::strip_run( $current ), $entry );
+					$kept['run']     = $run;
+					$stored[ $slug ] = $kept;
 				}
 				return $stored;
 			}
 		);
+	}
+
+	/**
+	 * An entry without its run marker.
+	 *
+	 * @param array<string, string> $entry Stored entry.
+	 * @return array{source: string, class_key: string, class_name: string}
+	 */
+	private static function strip_run( array $entry ): array {
+		return [
+			'source'     => (string) ( $entry['source'] ?? '' ),
+			'class_key'  => (string) ( $entry['class_key'] ?? '' ),
+			'class_name' => (string) ( $entry['class_name'] ?? '' ),
+		];
 	}
 
 	/**
@@ -201,7 +240,7 @@ class Skwirrel_WC_Sync_Attribute_Sources {
 	 * When advisory locks are unavailable or the lock times out, the update still runs (best
 	 * effort, as before): a lost entry is recorded again the next time its product syncs.
 	 *
-	 * @param callable(array<string, array{source: string, class_key: string, class_name: string}>): array<string, mixed> $change Returns the new map.
+	 * @param callable(array<string, array<string, string>>): array<string, mixed> $change Gets the stored map with run markers, returns the new map.
 	 */
 	private static function update_locked( callable $change ): void {
 		global $wpdb;
@@ -213,7 +252,7 @@ class Skwirrel_WC_Sync_Attribute_Sources {
 		try {
 			// Another request may have written since this one last read the option.
 			wp_cache_delete( self::OPTION_KEY, 'options' );
-			$stored = self::all();
+			$stored = self::stored();
 			$merged = $change( $stored );
 			ksort( $merged );
 			if ( $merged !== $stored ) {
@@ -225,6 +264,26 @@ class Skwirrel_WC_Sync_Attribute_Sources {
 				$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock ) );
 			}
 		}
+	}
+
+	/**
+	 * The stored map with each entry's run marker.
+	 *
+	 * @return array<string, array<string, string>>
+	 */
+	private static function stored(): array {
+		$raw = get_option( self::OPTION_KEY, [] );
+		if ( ! is_array( $raw ) ) {
+			return [];
+		}
+		$out = [];
+		foreach ( $raw as $slug => $entry ) {
+			if ( ! is_array( $entry ) || ! isset( $entry['source'] ) ) {
+				continue;
+			}
+			$out[ (string) $slug ] = self::strip_run( $entry ) + [ 'run' => (string) ( $entry['run'] ?? '' ) ];
+		}
+		return $out;
 	}
 
 	/**
@@ -313,5 +372,6 @@ class Skwirrel_WC_Sync_Attribute_Sources {
 	public static function reset_pending(): void {
 		self::$pending         = [];
 		self::$shutdown_hooked = false;
+		self::$run             = '';
 	}
 }
