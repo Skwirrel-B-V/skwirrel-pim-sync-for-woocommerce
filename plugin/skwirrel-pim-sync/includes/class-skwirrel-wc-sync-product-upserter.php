@@ -432,7 +432,9 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			$this->apply_stock_mapping( $wc_product, $product );
 		}
 
-		$attrs = $this->mapper->get_attributes( $product, $this->run_options );
+		$attrs      = $this->mapper->get_attributes( $product, $this->run_options );
+		$base_attrs = $attrs;
+		$cc_attrs   = [];
 
 		// Merge custom class attributes (if enabled)
 		$cc_options    = $this->get_options();
@@ -467,6 +469,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 			$cc_visibility = $this->build_cc_visibility_map( $product, $cc_options );
 		}
+		$this->record_attribute_sources( $product, $base_attrs, $cc_attrs );
 
 		$wc_product->save();
 
@@ -946,6 +949,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 		// Collect non-variation ETIM + custom class attributes for parent product
 		$non_var_attrs = $this->mapper->get_attributes( $product, $this->run_options );
+		$base_attrs    = $non_var_attrs;
+		$cc_attrs      = [];
 		if ( ! empty( $cc_options['sync_custom_classes'] ) || ! empty( $cc_options['sync_trade_item_custom_classes'] ) ) {
 			$cc_filter_mode = $cc_options['custom_class_filter_mode'] ?? '';
 			$cc_parsed      = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $cc_options['custom_class_filter_ids'] ?? '' );
@@ -963,6 +968,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 				}
 			}
 		}
+		$this->record_attribute_sources( $product, $base_attrs, $cc_attrs );
 
 		// Remove attributes already used as variation axes
 		$variation_tax_slugs = array_keys( $variation_attrs );
@@ -2311,6 +2317,8 @@ class Skwirrel_WC_Sync_Product_Upserter {
 		}
 
 		$attrs         = $this->mapper->get_attributes( $product, $this->run_options );
+		$base_attrs    = $attrs;
+		$cc_attrs      = [];
 		$cc_options    = $this->get_options();
 		$cc_text_meta  = [];
 		$cc_visibility = [];
@@ -2343,6 +2351,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 
 			$cc_visibility = $this->build_cc_visibility_map( $product, $cc_options );
 		}
+		$this->record_attribute_sources( $product, $base_attrs, $cc_attrs );
 
 		// For variations: remove variation-axis attrs, defer non-variation attrs to parent.
 		// Also set custom feature variation attributes (custom class data is available from Phase 3 fetch).
@@ -3564,6 +3573,35 @@ class Skwirrel_WC_Sync_Product_Upserter {
 			return ! empty( $this->get_options()['show_gtin_attribute'] );
 		}
 		return $this->get_cc_attribute_visibility( $label, $visibility_map );
+	}
+
+	/**
+	 * Remember where this product's attributes come from (ETIM, custom class, identifier), so
+	 * attribute groups can group them automatically.
+	 *
+	 * @param array                $product    Skwirrel product data.
+	 * @param array<string, mixed> $base_attrs Mapper attributes (identifiers + ETIM).
+	 * @param array<string, mixed> $cc_attrs   Custom class attributes.
+	 */
+	private function record_attribute_sources( array $product, array $base_attrs, array $cc_attrs ): void {
+		$cc_classes = [];
+		if ( ! empty( $cc_attrs ) ) {
+			$options    = $this->get_options();
+			$parsed     = Skwirrel_WC_Sync_Product_Mapper::parse_custom_class_filter( $options['custom_class_filter_ids'] ?? '' );
+			$cc_classes = $this->mapper->get_custom_class_attribute_classes(
+				$product,
+				! empty( $options['sync_trade_item_custom_classes'] ),
+				(string) ( $options['custom_class_filter_mode'] ?? '' ),
+				$parsed['ids'],
+				$parsed['codes']
+			);
+		}
+		Skwirrel_WC_Sync_Attribute_Sources::record_product_attributes(
+			$base_attrs,
+			$cc_attrs,
+			$cc_classes,
+			[ $this->taxonomy_manager, 'get_attribute_slug' ]
+		);
 	}
 
 	/**

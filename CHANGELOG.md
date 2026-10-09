@@ -4,16 +4,23 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 
 ## [4.2.0]
 
-Product attributes can be managed in groups. Each group can be hidden on the product page or shown as its own product tab.
+Product attributes can be managed in groups. Synced attributes are grouped automatically by where they come from, and each group can be hidden on the product page or shown as its own product tab.
 
 ### Added
 
-* **Attribute groups** (`Skwirrel_WC_Sync_Attribute_Groups`, option `skwirrel_wc_sync_attribute_groups`). A new screen under Products → Attribute groups creates, orders, renames and deletes groups and assigns global attributes (`pa_*`) to them, with a filter box for long ETIM attribute lists. The WooCommerce add/edit attribute form under Products → Attributes gets a "Group" field that writes the same assignment; it only acts when that form field is submitted, so `wc_create_attribute()` during a sync and the REST API never touch groups. Renaming an attribute slug keeps its group, deleting an attribute removes its assignment, and deleting a group releases its attributes.
+* **Attribute sources** (`Skwirrel_WC_Sync_Attribute_Sources`, option `skwirrel_wc_sync_attribute_sources`, not autoloaded). The sync now records where each global attribute comes from: ETIM, a custom class (code and name), an identifier (GTIN, manufacturer) or the variant attribute. Before, this was lost: attribute slugs are derived from the translated label, so an ETIM feature and a custom class feature could not be told apart afterwards. Recording happens where the upserter builds a product's attribute set (simple products, `assign_attributes()` and variation parents), is buffered per request and written once at shutdown, only when something changed. Variation axes (`etim_*`, `cc_*`) and `skwirrel_variant` are recognised by their slug, so they need no sync. `Custom_Class_Extractor::get_attribute_class_map()` gives the class per custom class attribute label, with the same de-duplication as `get_custom_class_attributes()`.
+* **Automatic attribute groups.** Without any setup there is one group for ETIM (only while "Sync ETIM features" is on), one per custom class, one for Identifiers and one for Variant. They can be renamed, ordered, hidden or shown as a tab, but not deleted. Only changes from the defaults are stored.
+* **Custom attribute groups** (`Skwirrel_WC_Sync_Attribute_Groups`, option `skwirrel_wc_sync_attribute_groups`). Create your own groups under Products → Attribute groups. A custom group can include whole automatic groups (for example "Technical specifications" = ETIM + one custom class), and single attributes can be moved to any group or kept out of all groups. An attribute's group is resolved as: manual assignment, then the custom group that includes its automatic group, then its automatic group.
+* **Paged attribute list with bulk actions.** The attributes are listed 50 per page with search, a group filter and a "Move selected to…" bulk action (any group, back to the automatic group, or no group). Only the ticked rows of one page are submitted, so the form stays far below PHP's `max_input_vars` however many ETIM attributes a shop has.
+* **Group field on the WooCommerce attribute form** (Products → Attributes): "Automatic group", "No group" or any group. It only acts when that form field is submitted, so `wc_create_attribute()` during a sync and the REST API never change assignments. Renaming an attribute slug keeps its assignment, and deleting an attribute removes it.
 * **Hide a group on the product page.** A hidden group's attributes are removed from `woocommerce_display_product_attributes`, so they disappear from "Additional information", group tabs and any block or theme that uses that WooCommerce filter. This is display only: terms, layered-nav filters and the synced data stay as they are.
 * **Show a group as a product tab.** A tab group gets its own tab (key `skwirrel_attr_group_{id}`), placed right after "Additional information" in group order and only on products that have a visible attribute from that group. The tab renders WooCommerce's own attribute table, filtered to the group. "Additional information" is dropped when nothing is left in it (no ungrouped attributes, no weight or dimensions). Filters: `skwirrel_wc_sync_attribute_group_tab` (tab definition) and `skwirrel_wc_sync_attribute_group_tab_heading` (tab heading, '' for none).
-* **Grouped "Additional information".** Groups that are neither hidden nor tabs stay in "Additional information", listed after the ungrouped rows in group order.
 * **Theme API:** `skwirrel_get_attribute_groups( int $product_id )` returns the product's visible groups with label and value per attribute.
-* Covered by `tests/Unit/AttributeGroupsTest.php`.
+* Covered by `tests/Unit/AttributeGroupsTest.php` and `tests/Unit/AttributeSourcesTest.php`.
+
+### Changed
+
+* **"Additional information" is listed per group.** Ungrouped rows (attributes made by hand, weight, dimensions) come first, then the groups in order: Identifiers, ETIM, custom classes, Variant by default. Automatic groups fill during the first sync after the update.
 
 ### Notes
 

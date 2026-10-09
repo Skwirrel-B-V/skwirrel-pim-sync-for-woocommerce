@@ -2,14 +2,25 @@
 /**
  * Skwirrel Attribute Groups.
  *
- * Groups global WooCommerce product attributes (pa_*) so they can be managed and shown together:
- * - Products → Attribute groups: create, order, hide and tab-enable groups, assign attributes.
- * - Products → Attributes: a "Group" field on the add/edit attribute form.
- * - Product page: a hidden group's attributes are not shown, a tab group gets its own product
- *   tab, and the other groups stay in "Additional information", clustered per group.
+ * Groups global WooCommerce product attributes (pa_*) so they can be managed and shown together.
  *
- * Only global (taxonomy) attributes can be grouped; product-level custom attributes always stay
- * in "Additional information". Hiding is presentation only: terms, filters and the data stay.
+ * Two kinds of group:
+ * - Automatic groups follow where an attribute comes from (Skwirrel_WC_Sync_Attribute_Sources):
+ *   ETIM (only while ETIM is synced), one group per custom class, Identifiers (GTIN,
+ *   manufacturer) and Variant. They exist without any setup and can be renamed, ordered,
+ *   hidden or shown as a tab, but not deleted.
+ * - Custom groups are created by hand. A custom group can take over whole automatic groups
+ *   ("includes"), and single attributes can be moved into any group.
+ *
+ * An attribute's group is, in order: its manual assignment, the custom group that includes
+ * its automatic group, its automatic group. Attributes without a source (made by hand in
+ * WooCommerce) stay ungrouped unless assigned.
+ *
+ * On the product page a hidden group's attributes are not shown, a tab group gets its own
+ * product tab, and the other groups stay in "Additional information", clustered per group.
+ *
+ * Only global (taxonomy) attributes can be grouped; product-level custom attributes always
+ * stay in "Additional information". Hiding is presentation only: terms, filters and data stay.
  *
  * @package Skwirrel_PIM_Sync
  */
@@ -22,7 +33,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Skwirrel_WC_Sync_Attribute_Groups {
 
-	/** Option holding `{ groups: { id: {name, position, as_tab, hidden} }, assignments: { slug: id } }`. */
+	/**
+	 * Option holding the group settings:
+	 * `{ groups: { id: {name, position, as_tab, hidden, includes} }, assignments: { slug: id|'__none' } }`.
+	 * Automatic groups (`src-*`) only store what the admin changed.
+	 */
 	public const OPTION_KEY = 'skwirrel_wc_sync_attribute_groups';
 
 	/** Admin page slug (Products → Attribute groups). */
@@ -31,7 +46,20 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	/** Product tab key prefix; the group ID is appended. */
 	public const TAB_PREFIX = 'skwirrel_attr_group_';
 
-	private const SAVE_ACTION = 'skwirrel_wc_sync_save_attribute_groups';
+	/** Prefix of automatic group IDs. */
+	public const SOURCE_PREFIX = 'src-';
+
+	/** Assignment value that keeps an attribute out of every group. */
+	public const NO_GROUP = '__none';
+
+	/** Bulk target that removes the manual assignment (back to the automatic group). */
+	public const AUTOMATIC = '__auto';
+
+	/** Attributes per page in the admin list. */
+	public const PER_PAGE = 50;
+
+	private const SAVE_GROUPS_ACTION = 'skwirrel_wc_sync_save_attribute_groups';
+	private const ASSIGN_ACTION      = 'skwirrel_wc_sync_assign_attribute_groups';
 
 	/** Form field on the WooCommerce add/edit attribute screen. */
 	private const ATTRIBUTE_FIELD = 'skwirrel_attribute_group';
@@ -44,6 +72,13 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 * group's attributes; while null it builds the "Additional information" table.
 	 */
 	private ?string $rendering_group = null;
+
+	/**
+	 * Context for this request, built on first use.
+	 *
+	 * @var array<string, mixed>|null
+	 */
+	private static ?array $context = null;
 
 	public static function instance(): self {
 		static $instance = null;
@@ -59,7 +94,8 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 
 		if ( is_admin() ) {
 			add_action( 'admin_menu', [ $this, 'add_menu' ], 60 );
-			add_action( 'admin_post_' . self::SAVE_ACTION, [ $this, 'handle_save' ] );
+			add_action( 'admin_post_' . self::SAVE_GROUPS_ACTION, [ $this, 'handle_save_groups' ] );
+			add_action( 'admin_post_' . self::ASSIGN_ACTION, [ $this, 'handle_assign' ] );
 			add_action( 'woocommerce_after_add_attribute_fields', [ $this, 'render_add_attribute_field' ] );
 			add_action( 'woocommerce_after_edit_attribute_fields', [ $this, 'render_edit_attribute_field' ] );
 			add_action( 'woocommerce_attribute_added', [ $this, 'on_attribute_added' ], 10, 2 );
@@ -69,17 +105,18 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	}
 
 	// ------------------------------------------------------------------
-	// Configuration (pure helpers)
+	// Stored configuration (pure helpers)
 	// ------------------------------------------------------------------
 
 	/**
 	 * Normalize a stored or submitted configuration into its canonical shape.
 	 *
-	 * Drops malformed groups, nameless groups and assignments that point at a group that no
-	 * longer exists, and orders the groups by position, then name.
+	 * Custom groups need a name; automatic groups (`src-*`) may leave it empty to keep their
+	 * default name. Assignments keep any group ID here; build_context() ignores the ones that
+	 * point at a group that does not exist (any more).
 	 *
 	 * @param mixed $raw Stored option value.
-	 * @return array{groups: array<string, array{name: string, position: int, as_tab: bool, hidden: bool}>, assignments: array<string, string>}
+	 * @return array{groups: array<string, array{name: string, position: int|null, as_tab: bool, hidden: bool, includes: string[]}>, assignments: array<string, string>}
 	 */
 	public static function normalize( $raw ): array {
 		$raw    = is_array( $raw ) ? $raw : [];
@@ -89,30 +126,36 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			if ( '' === $id || ! is_array( $group ) ) {
 				continue;
 			}
-			$name = trim( sanitize_text_field( (string) ( $group['name'] ?? '' ) ) );
-			if ( '' === $name ) {
+			$is_source = self::is_source_group( $id );
+			$name      = trim( sanitize_text_field( (string) ( $group['name'] ?? '' ) ) );
+			if ( '' === $name && ! $is_source ) {
 				continue;
 			}
+			$includes = [];
+			if ( ! $is_source && is_array( $group['includes'] ?? null ) ) {
+				foreach ( $group['includes'] as $src ) {
+					$src = self::sanitize_group_id( (string) $src );
+					if ( self::is_source_group( $src ) ) {
+						$includes[ $src ] = $src;
+					}
+				}
+			}
+			$position      = $group['position'] ?? null;
 			$groups[ $id ] = [
 				'name'     => $name,
-				'position' => (int) ( $group['position'] ?? 0 ),
+				'position' => null === $position || '' === $position ? null : (int) $position,
 				'as_tab'   => ! empty( $group['as_tab'] ),
 				'hidden'   => ! empty( $group['hidden'] ),
+				'includes' => array_values( $includes ),
 			];
 		}
-		uksort(
-			$groups,
-			static function ( string $a, string $b ) use ( $groups ): int {
-				return [ $groups[ $a ]['position'], strtolower( $groups[ $a ]['name'] ), $a ]
-					<=> [ $groups[ $b ]['position'], strtolower( $groups[ $b ]['name'] ), $b ];
-			}
-		);
+		ksort( $groups );
 
 		$assignments = [];
 		foreach ( is_array( $raw['assignments'] ?? null ) ? $raw['assignments'] : [] as $slug => $group_id ) {
-			$slug     = self::sanitize_attribute_slug( (string) $slug );
-			$group_id = (string) $group_id;
-			if ( '' !== $slug && isset( $groups[ $group_id ] ) ) {
+			$slug     = Skwirrel_WC_Sync_Attribute_Sources::normalize_slug( (string) $slug );
+			$group_id = self::NO_GROUP === $group_id ? self::NO_GROUP : self::sanitize_group_id( (string) $group_id );
+			if ( '' !== $slug && '' !== $group_id ) {
 				$assignments[ $slug ] = $group_id;
 			}
 		}
@@ -127,7 +170,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	/**
 	 * The stored configuration, normalized.
 	 *
-	 * @return array{groups: array<string, array{name: string, position: int, as_tab: bool, hidden: bool}>, assignments: array<string, string>}
+	 * @return array{groups: array<string, array{name: string, position: int|null, as_tab: bool, hidden: bool, includes: string[]}>, assignments: array<string, string>}
 	 */
 	public static function get_config(): array {
 		return self::normalize( get_option( self::OPTION_KEY, [] ) );
@@ -140,100 +183,166 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 */
 	public static function save_config( array $config ): void {
 		update_option( self::OPTION_KEY, self::normalize( $config ), false );
+		self::$context = null;
+	}
+
+	// ------------------------------------------------------------------
+	// Context: automatic + custom groups, resolved (pure helpers)
+	// ------------------------------------------------------------------
+
+	/**
+	 * The automatic group an attribute source belongs to, with its default name and order.
+	 *
+	 * @param array{source: string, class_key: string, class_name: string} $source Source entry.
+	 * @return array{id: string, name: string, position: int}
+	 */
+	public static function source_group_for( array $source ): array {
+		switch ( $source['source'] ) {
+			case Skwirrel_WC_Sync_Attribute_Sources::SOURCE_IDENTIFIER:
+				return [
+					'id'       => self::SOURCE_PREFIX . 'identifiers',
+					'name'     => __( 'Identifiers', 'skwirrel-pim-sync' ),
+					'position' => 50,
+				];
+			case Skwirrel_WC_Sync_Attribute_Sources::SOURCE_ETIM:
+				return [
+					'id'       => self::SOURCE_PREFIX . 'etim',
+					'name'     => __( 'ETIM', 'skwirrel-pim-sync' ),
+					'position' => 100,
+				];
+			case Skwirrel_WC_Sync_Attribute_Sources::SOURCE_VARIANT:
+				return [
+					'id'       => self::SOURCE_PREFIX . 'variant',
+					'name'     => __( 'Variant', 'skwirrel-pim-sync' ),
+					'position' => 400,
+				];
+		}
+		$key = self::sanitize_group_id( sanitize_title( $source['class_key'] ) );
+		if ( '' === $key ) {
+			return [
+				'id'       => self::SOURCE_PREFIX . 'cc',
+				'name'     => __( 'Custom classes', 'skwirrel-pim-sync' ),
+				'position' => 300,
+			];
+		}
+		$name = '' !== $source['class_name'] ? $source['class_name'] : $source['class_key'];
+		return [
+			'id'       => substr( self::SOURCE_PREFIX . 'cc-' . $key, 0, self::MAX_ID_LENGTH ),
+			'name'     => $name,
+			'position' => 200,
+		];
 	}
 
 	/**
-	 * Build a new configuration from the admin form submission.
+	 * Resolve groups and memberships for a set of attributes.
 	 *
-	 * - `groups[id][name|position|as_tab|hidden|delete]` updates or deletes an existing group.
-	 * - `new_group[name|position|as_tab|hidden]` adds a group when the name is filled in.
-	 * - `assign[slug] = group id` (or '') sets an attribute's group; slugs that are not in
-	 *   `$known_slugs` are ignored, and attributes not submitted keep their current group.
-	 *
-	 * @param array<string, mixed> $post        Unslashed form data.
-	 * @param array<string, mixed> $existing    Current configuration.
-	 * @param string[]             $known_slugs Slugs of the existing global attributes.
-	 * @return array{groups: array<string, array{name: string, position: int, as_tab: bool, hidden: bool}>, assignments: array<string, string>}
+	 * @param array<string, mixed>                                                      $config       Normalized configuration.
+	 * @param array<string, array{source: string, class_key: string, class_name: string}> $sources      Source map (slug => source).
+	 * @param string[]                                                                  $slugs        All global attribute slugs.
+	 * @param bool                                                                      $etim_enabled Whether ETIM is synced (the ETIM group exists only then).
+	 * @return array{groups: array<string, array{name: string, position: int, as_tab: bool, hidden: bool, includes: string[], automatic: bool, default_name: string}>, assignments: array<string, string>, slug_sources: array<string, string>, includes: array<string, string>}
 	 */
-	public static function sanitize_submission( array $post, array $existing, array $known_slugs ): array {
-		$existing = self::normalize( $existing );
-		$groups   = $existing['groups'];
+	public static function build_context( array $config, array $sources, array $slugs, bool $etim_enabled ): array {
+		$config = self::normalize( $config );
 
-		$submitted = is_array( $post['groups'] ?? null ) ? $post['groups'] : [];
-		foreach ( $submitted as $id => $row ) {
-			$id = (string) $id;
-			if ( ! isset( $groups[ $id ] ) || ! is_array( $row ) ) {
+		// Automatic groups that have at least one attribute.
+		$auto         = [];
+		$slug_sources = [];
+		foreach ( array_unique( array_merge( array_keys( $sources ), array_map( [ Skwirrel_WC_Sync_Attribute_Sources::class, 'normalize_slug' ], $slugs ) ) ) as $slug ) {
+			$slug   = (string) $slug;
+			$source = Skwirrel_WC_Sync_Attribute_Sources::source_of( $slug, $sources );
+			if ( null === $source || ( ! $etim_enabled && Skwirrel_WC_Sync_Attribute_Sources::SOURCE_ETIM === $source['source'] ) ) {
 				continue;
 			}
-			if ( ! empty( $row['delete'] ) ) {
-				unset( $groups[ $id ] );
-				continue;
-			}
-			$name          = trim( sanitize_text_field( (string) ( $row['name'] ?? '' ) ) );
+			$def                   = self::source_group_for( $source );
+			$auto[ $def['id'] ]    = $auto[ $def['id'] ] ?? $def;
+			$slug_sources[ $slug ] = $def['id'];
+		}
+
+		$groups = [];
+		foreach ( $auto as $id => $def ) {
+			$stored        = $config['groups'][ $id ] ?? null;
 			$groups[ $id ] = [
-				// An emptied name keeps the old one rather than silently deleting the group.
-				'name'     => '' !== $name ? $name : $groups[ $id ]['name'],
-				'position' => (int) ( $row['position'] ?? $groups[ $id ]['position'] ),
-				'as_tab'   => ! empty( $row['as_tab'] ),
-				'hidden'   => ! empty( $row['hidden'] ),
+				'name'         => null !== $stored && '' !== $stored['name'] ? $stored['name'] : $def['name'],
+				'position'     => null !== $stored && null !== $stored['position'] ? $stored['position'] : $def['position'],
+				'as_tab'       => null !== $stored && $stored['as_tab'],
+				'hidden'       => null !== $stored && $stored['hidden'],
+				'includes'     => [],
+				'automatic'    => true,
+				'default_name' => $def['name'],
 			];
 		}
-
-		$new      = is_array( $post['new_group'] ?? null ) ? $post['new_group'] : [];
-		$new_name = trim( sanitize_text_field( (string) ( $new['name'] ?? '' ) ) );
-		if ( '' !== $new_name ) {
-			$new_id            = self::generate_group_id( $new_name, array_keys( $groups ) );
-			$groups[ $new_id ] = [
-				'name'     => $new_name,
-				'position' => isset( $new['position'] ) && '' !== $new['position'] ? (int) $new['position'] : self::next_position( $groups ),
-				'as_tab'   => ! empty( $new['as_tab'] ),
-				'hidden'   => ! empty( $new['hidden'] ),
-			];
-		}
-
-		$assignments = $existing['assignments'];
-		$known       = array_flip( array_map( [ self::class, 'sanitize_attribute_slug' ], $known_slugs ) );
-		$assign      = is_array( $post['assign'] ?? null ) ? $post['assign'] : [];
-		foreach ( $assign as $slug => $group_id ) {
-			$slug = self::sanitize_attribute_slug( (string) $slug );
-			if ( '' === $slug || ! isset( $known[ $slug ] ) ) {
+		foreach ( $config['groups'] as $id => $group ) {
+			if ( self::is_source_group( $id ) ) {
 				continue;
 			}
-			$group_id = (string) $group_id;
-			if ( '' === $group_id || ! isset( $groups[ $group_id ] ) ) {
-				unset( $assignments[ $slug ] );
-			} else {
-				$assignments[ $slug ] = $group_id;
+			$groups[ $id ] = [
+				'name'         => $group['name'],
+				'position'     => $group['position'] ?? 0,
+				'as_tab'       => $group['as_tab'],
+				'hidden'       => $group['hidden'],
+				'includes'     => array_values( array_filter( $group['includes'], static fn( $src ) => isset( $auto[ $src ] ) ) ),
+				'automatic'    => false,
+				'default_name' => '',
+			];
+		}
+		uksort(
+			$groups,
+			static function ( string $a, string $b ) use ( $groups ): int {
+				return [ $groups[ $a ]['position'], strtolower( $groups[ $a ]['name'] ), $a ]
+					<=> [ $groups[ $b ]['position'], strtolower( $groups[ $b ]['name'] ), $b ];
+			}
+		);
+
+		// Automatic group => the first custom group (in order) that includes it.
+		$includes = [];
+		foreach ( $groups as $id => $group ) {
+			foreach ( $group['includes'] as $src ) {
+				$includes[ $src ] = $includes[ $src ] ?? (string) $id;
 			}
 		}
 
-		return self::normalize(
-			[
-				'groups'      => $groups,
-				'assignments' => $assignments,
-			]
-		);
+		return [
+			'groups'       => $groups,
+			'assignments'  => $config['assignments'],
+			'slug_sources' => $slug_sources,
+			'includes'     => $includes,
+		];
 	}
 
 	/**
-	 * A stable, unique group ID derived from the name ("Technical data" → "technical-data").
+	 * The group an attribute slug (with or without `pa_`) belongs to, or null.
 	 *
-	 * @param string   $name     Group name.
-	 * @param string[] $existing IDs already in use.
+	 * @param string               $slug    Attribute slug.
+	 * @param array<string, mixed> $context Context from build_context().
 	 */
-	public static function generate_group_id( string $name, array $existing ): string {
-		$base = self::sanitize_group_id( sanitize_title( $name ) );
-		if ( '' === $base ) {
-			$base = 'group';
+	public static function group_for_slug( string $slug, array $context ): ?string {
+		$slug     = Skwirrel_WC_Sync_Attribute_Sources::normalize_slug( $slug );
+		$assigned = $context['assignments'][ $slug ] ?? null;
+		if ( self::NO_GROUP === $assigned ) {
+			return null;
 		}
-		$base = substr( $base, 0, self::MAX_ID_LENGTH - 4 );
-		$id   = $base;
-		$n    = 2;
-		while ( in_array( $id, $existing, true ) ) {
-			$id = $base . '-' . $n;
-			++$n;
+		if ( null !== $assigned && isset( $context['groups'][ $assigned ] ) ) {
+			return (string) $assigned;
 		}
-		return $id;
+		$src = $context['slug_sources'][ $slug ] ?? null;
+		if ( null === $src || ! isset( $context['groups'][ $src ] ) ) {
+			return null;
+		}
+		return isset( $context['includes'][ $src ] ) ? (string) $context['includes'][ $src ] : (string) $src;
+	}
+
+	/**
+	 * The group a display row belongs to, or null when ungrouped.
+	 *
+	 * @param string               $key     Row key (`attribute_pa_{slug}` for global attributes).
+	 * @param array<string, mixed> $context Context from build_context().
+	 */
+	public static function group_for_row_key( string $key, array $context ): ?string {
+		if ( ! str_starts_with( $key, 'attribute_pa_' ) ) {
+			return null;
+		}
+		return self::group_for_slug( substr( $key, strlen( 'attribute_' ) ), $context );
 	}
 
 	/**
@@ -245,12 +354,12 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 * group's attributes are kept (nothing for a hidden group).
 	 *
 	 * @param array<string, mixed> $rows     Rows keyed like WooCommerce does (`attribute_pa_{slug}`, `weight`, …).
-	 * @param array<string, mixed> $config   Normalized configuration.
+	 * @param array<string, mixed> $context  Context from build_context().
 	 * @param string|null          $group_id Group being rendered, or null for "Additional information".
 	 * @return array<string, mixed>
 	 */
-	public static function filter_rows( array $rows, array $config, ?string $group_id ): array {
-		$groups = $config['groups'] ?? [];
+	public static function filter_rows( array $rows, array $context, ?string $group_id ): array {
+		$groups = $context['groups'] ?? [];
 
 		if ( null !== $group_id ) {
 			if ( empty( $groups[ $group_id ] ) || $groups[ $group_id ]['hidden'] ) {
@@ -258,7 +367,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			}
 			$kept = [];
 			foreach ( $rows as $key => $row ) {
-				if ( self::group_for_row_key( (string) $key, $config ) === $group_id ) {
+				if ( self::group_for_row_key( (string) $key, $context ) === $group_id ) {
 					$kept[ $key ] = $row;
 				}
 			}
@@ -268,7 +377,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		$ungrouped = [];
 		$grouped   = array_fill_keys( array_keys( $groups ), [] );
 		foreach ( $rows as $key => $row ) {
-			$gid = self::group_for_row_key( (string) $key, $config );
+			$gid = self::group_for_row_key( (string) $key, $context );
 			if ( null === $gid ) {
 				$ungrouped[ $key ] = $row;
 				continue;
@@ -287,49 +396,23 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	}
 
 	/**
-	 * The group a display row belongs to, or null when ungrouped.
-	 *
-	 * @param string               $key    Row key (`attribute_pa_{slug}` for global attributes).
-	 * @param array<string, mixed> $config Normalized configuration.
-	 */
-	public static function group_for_row_key( string $key, array $config ): ?string {
-		if ( ! str_starts_with( $key, 'attribute_pa_' ) ) {
-			return null;
-		}
-		return self::group_for_slug( substr( $key, strlen( 'attribute_pa_' ) ), $config );
-	}
-
-	/**
-	 * The group an attribute slug (without the `pa_` prefix) belongs to, or null.
-	 *
-	 * @param string               $slug   Attribute slug.
-	 * @param array<string, mixed> $config Normalized configuration.
-	 */
-	public static function group_for_slug( string $slug, array $config ): ?string {
-		$gid = $config['assignments'][ $slug ] ?? null;
-		return null !== $gid && isset( $config['groups'][ $gid ] ) ? (string) $gid : null;
-	}
-
-	/**
-	 * Which groups and which "Additional information" content a product has, from the slugs of
-	 * its visible global attributes and whether it shows other rows (custom attributes, weight,
-	 * dimensions).
+	 * Which tab groups a product gets, and whether "Additional information" keeps any content.
 	 *
 	 * @param string[]             $visible_slugs Visible global attribute slugs on the product.
-	 * @param bool                 $has_other     Whether the product shows ungroupable rows.
-	 * @param array<string, mixed> $config        Normalized configuration.
+	 * @param bool                 $has_other     Whether the product shows ungroupable rows (custom attributes, weight, dimensions).
+	 * @param array<string, mixed> $context       Context from build_context().
 	 * @return array{tabs: string[], additional_information: bool}
 	 */
-	public static function layout_for( array $visible_slugs, bool $has_other, array $config ): array {
+	public static function layout_for( array $visible_slugs, bool $has_other, array $context ): array {
 		$tabs       = [];
 		$additional = $has_other;
 		foreach ( $visible_slugs as $slug ) {
-			$gid = self::group_for_slug( (string) $slug, $config );
+			$gid = self::group_for_slug( (string) $slug, $context );
 			if ( null === $gid ) {
 				$additional = true;
 				continue;
 			}
-			$group = $config['groups'][ $gid ];
+			$group = $context['groups'][ $gid ];
 			if ( $group['hidden'] ) {
 				continue;
 			}
@@ -340,8 +423,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			}
 		}
 
-		// Keep the configured group order.
-		$ordered = array_values( array_filter( array_keys( $config['groups'] ?? [] ), static fn( $gid ) => isset( $tabs[ $gid ] ) ) );
+		$ordered = array_values( array_filter( array_keys( $context['groups'] ?? [] ), static fn( $gid ) => isset( $tabs[ $gid ] ) ) );
 
 		return [
 			'tabs'                   => $ordered,
@@ -349,18 +431,193 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		];
 	}
 
+	// ------------------------------------------------------------------
+	// Admin form handling (pure helpers)
+	// ------------------------------------------------------------------
+
+	/**
+	 * Apply the groups form.
+	 *
+	 * - `groups[id][name|position|as_tab|hidden]` updates a group; an automatic group stores
+	 *   only the values that differ from its defaults.
+	 * - `groups[id][includes][]` sets which automatic groups a custom group takes over.
+	 * - `groups[id][delete]` deletes a custom group and its manual assignments.
+	 * - `new_group[...]` adds a custom group when the name is filled in.
+	 *
+	 * @param array<string, mixed> $post     Unslashed form data.
+	 * @param array<string, mixed> $existing Current configuration.
+	 * @param array<string, mixed> $context  Current context (for the automatic groups and their defaults).
+	 * @return array{groups: array<string, array{name: string, position: int|null, as_tab: bool, hidden: bool, includes: string[]}>, assignments: array<string, string>}
+	 */
+	public static function sanitize_groups_submission( array $post, array $existing, array $context ): array {
+		$config    = self::normalize( $existing );
+		$groups    = $config['groups'];
+		$auto      = array_filter( $context['groups'] ?? [], static fn( $g ) => ! empty( $g['automatic'] ) );
+		$submitted = is_array( $post['groups'] ?? null ) ? $post['groups'] : [];
+
+		foreach ( $submitted as $id => $row ) {
+			$id = (string) $id;
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$name = trim( sanitize_text_field( (string) ( $row['name'] ?? '' ) ) );
+			$pos  = isset( $row['position'] ) && '' !== $row['position'] ? (int) $row['position'] : null;
+
+			if ( isset( $auto[ $id ] ) ) {
+				$defaults      = self::source_defaults( $id, $auto[ $id ] );
+				$groups[ $id ] = [
+					'name'     => $name === $defaults['name'] ? '' : $name,
+					'position' => $pos === $defaults['position'] ? null : $pos,
+					'as_tab'   => ! empty( $row['as_tab'] ),
+					'hidden'   => ! empty( $row['hidden'] ),
+					'includes' => [],
+				];
+				continue;
+			}
+			if ( ! isset( $groups[ $id ] ) || self::is_source_group( $id ) ) {
+				continue;
+			}
+			if ( ! empty( $row['delete'] ) ) {
+				unset( $groups[ $id ] );
+				continue;
+			}
+			$groups[ $id ] = [
+				// An emptied name keeps the old one rather than silently deleting the group.
+				'name'     => '' !== $name ? $name : $groups[ $id ]['name'],
+				'position' => $pos ?? $groups[ $id ]['position'],
+				'as_tab'   => ! empty( $row['as_tab'] ),
+				'hidden'   => ! empty( $row['hidden'] ),
+				'includes' => self::filter_includes( $row['includes'] ?? [], $auto ),
+			];
+		}
+
+		$new      = is_array( $post['new_group'] ?? null ) ? $post['new_group'] : [];
+		$new_name = trim( sanitize_text_field( (string) ( $new['name'] ?? '' ) ) );
+		if ( '' !== $new_name ) {
+			$new_id            = self::generate_group_id( $new_name, array_keys( array_merge( $groups, $context['groups'] ?? [] ) ) );
+			$groups[ $new_id ] = [
+				'name'     => $new_name,
+				'position' => isset( $new['position'] ) && '' !== $new['position'] ? (int) $new['position'] : self::next_position( $context['groups'] ?? [] ),
+				'as_tab'   => ! empty( $new['as_tab'] ),
+				'hidden'   => ! empty( $new['hidden'] ),
+				'includes' => self::filter_includes( $new['includes'] ?? [], $auto ),
+			];
+		}
+
+		// Manual assignments to a deleted group go back to automatic.
+		$assignments = [];
+		foreach ( $config['assignments'] as $slug => $gid ) {
+			if ( self::NO_GROUP === $gid || isset( $groups[ $gid ] ) || isset( $auto[ $gid ] ) ) {
+				$assignments[ $slug ] = $gid;
+			}
+		}
+
+		return self::normalize(
+			[
+				'groups'      => $groups,
+				'assignments' => $assignments,
+			]
+		);
+	}
+
+	/**
+	 * Apply a bulk "move to group" on selected attributes.
+	 *
+	 * @param string[]             $slugs       Selected attribute slugs.
+	 * @param string               $target      Group ID, NO_GROUP, or AUTOMATIC to drop the manual assignment.
+	 * @param array<string, mixed> $existing    Current configuration.
+	 * @param array<string, mixed> $context     Current context (valid groups).
+	 * @param string[]             $known_slugs Slugs of the existing global attributes.
+	 * @return array{groups: array<string, array{name: string, position: int|null, as_tab: bool, hidden: bool, includes: string[]}>, assignments: array<string, string>}
+	 */
+	public static function apply_bulk_assignment( array $slugs, string $target, array $existing, array $context, array $known_slugs ): array {
+		$config = self::normalize( $existing );
+		if ( self::AUTOMATIC !== $target && self::NO_GROUP !== $target && ! isset( $context['groups'][ $target ] ) ) {
+			return $config;
+		}
+		$known = array_flip( array_map( [ Skwirrel_WC_Sync_Attribute_Sources::class, 'normalize_slug' ], $known_slugs ) );
+		foreach ( $slugs as $slug ) {
+			$slug = Skwirrel_WC_Sync_Attribute_Sources::normalize_slug( (string) $slug );
+			if ( '' === $slug || ! isset( $known[ $slug ] ) ) {
+				continue;
+			}
+			if ( self::AUTOMATIC === $target ) {
+				unset( $config['assignments'][ $slug ] );
+			} else {
+				$config['assignments'][ $slug ] = $target;
+			}
+		}
+		return self::normalize( $config );
+	}
+
+	/**
+	 * A stable, unique group ID derived from the name ("Technical data" → "technical-data").
+	 *
+	 * @param string   $name     Group name.
+	 * @param string[] $existing IDs already in use.
+	 */
+	public static function generate_group_id( string $name, array $existing ): string {
+		$base = self::sanitize_group_id( sanitize_title( $name ) );
+		if ( '' === $base || self::is_source_group( $base ) || str_starts_with( $base, '__' ) ) {
+			$base = 'group-' . $base;
+			$base = rtrim( $base, '-' );
+		}
+		$base = substr( $base, 0, self::MAX_ID_LENGTH - 4 );
+		$id   = $base;
+		$n    = 2;
+		while ( in_array( $id, $existing, true ) ) {
+			$id = $base . '-' . $n;
+			++$n;
+		}
+		return $id;
+	}
+
+	/**
+	 * Default name and position of an automatic group.
+	 *
+	 * @param string               $id    Group ID.
+	 * @param array<string, mixed> $group Context group.
+	 * @return array{name: string, position: int}
+	 */
+	private static function source_defaults( string $id, array $group ): array {
+		$defaults = [
+			self::SOURCE_PREFIX . 'identifiers' => 50,
+			self::SOURCE_PREFIX . 'etim'        => 100,
+			self::SOURCE_PREFIX . 'cc'          => 300,
+			self::SOURCE_PREFIX . 'variant'     => 400,
+		];
+		return [
+			'name'     => (string) ( $group['default_name'] ?? '' ),
+			'position' => $defaults[ $id ] ?? 200,
+		];
+	}
+
+	/**
+	 * @param mixed                $raw  Submitted includes.
+	 * @param array<string, mixed> $auto Automatic groups.
+	 * @return string[]
+	 */
+	private static function filter_includes( $raw, array $auto ): array {
+		$out = [];
+		foreach ( is_array( $raw ) ? $raw : [] as $src ) {
+			$src = (string) $src;
+			if ( isset( $auto[ $src ] ) ) {
+				$out[ $src ] = $src;
+			}
+		}
+		return array_values( $out );
+	}
+
+	public static function is_source_group( string $id ): bool {
+		return str_starts_with( $id, self::SOURCE_PREFIX );
+	}
+
 	private static function sanitize_group_id( string $id ): string {
 		return substr( sanitize_key( $id ), 0, self::MAX_ID_LENGTH );
 	}
 
-	private static function sanitize_attribute_slug( string $slug ): string {
-		// Not sanitize_key(): WooCommerce keeps non-ASCII attribute slugs percent-encoded.
-		$slug = (string) preg_replace( '/[^a-z0-9_\-%]/', '', strtolower( $slug ) );
-		return str_starts_with( $slug, 'pa_' ) ? substr( $slug, 3 ) : $slug;
-	}
-
 	/**
-	 * @param array<string, array{position: int}> $groups Groups.
+	 * @param array<string, array{position: int|null}> $groups Groups.
 	 */
 	private static function next_position( array $groups ): int {
 		$max = 0;
@@ -368,6 +625,43 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			$max = max( $max, (int) $group['position'] );
 		}
 		return $max + 10;
+	}
+
+	// ------------------------------------------------------------------
+	// Runtime context
+	// ------------------------------------------------------------------
+
+	/**
+	 * Global attributes as slug => label, sorted by label.
+	 *
+	 * @return array<string, string>
+	 */
+	private static function attribute_choices(): array {
+		$choices = [];
+		foreach ( wc_get_attribute_taxonomies() as $tax ) {
+			$choices[ (string) $tax->attribute_name ] = (string) ( $tax->attribute_label ? $tax->attribute_label : $tax->attribute_name );
+		}
+		asort( $choices, SORT_NATURAL | SORT_FLAG_CASE );
+		return $choices;
+	}
+
+	/**
+	 * The context for this request.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public static function context(): array {
+		if ( null === self::$context ) {
+			$settings      = get_option( 'skwirrel_wc_sync_settings', [] );
+			$etim_enabled  = ! is_array( $settings ) || ! empty( $settings['sync_etim'] ?? true );
+			self::$context = self::build_context(
+				self::get_config(),
+				Skwirrel_WC_Sync_Attribute_Sources::current(),
+				array_keys( self::attribute_choices() ),
+				$etim_enabled
+			);
+		}
+		return self::$context;
 	}
 
 	// ------------------------------------------------------------------
@@ -386,11 +680,11 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		if ( ! is_array( $rows ) ) {
 			return $rows;
 		}
-		$config = self::get_config();
-		if ( empty( $config['groups'] ) ) {
+		$context = self::context();
+		if ( empty( $context['groups'] ) ) {
 			return $rows;
 		}
-		return self::filter_rows( $rows, $config, $this->rendering_group );
+		return self::filter_rows( $rows, $context, $this->rendering_group );
 	}
 
 	/**
@@ -405,8 +699,8 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		if ( ! is_array( $tabs ) || ! $product instanceof WC_Product ) {
 			return $tabs;
 		}
-		$config = self::get_config();
-		if ( empty( $config['groups'] ) ) {
+		$context = self::context();
+		if ( empty( $context['groups'] ) ) {
 			return $tabs;
 		}
 
@@ -417,21 +711,22 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 				continue;
 			}
 			if ( $attribute->is_taxonomy() ) {
-				$visible_slugs[] = self::sanitize_attribute_slug( $attribute->get_name() );
+				$visible_slugs[] = $attribute->get_name();
 			} else {
 				$has_other = true;
 			}
 		}
 
-		$layout = self::layout_for( $visible_slugs, $has_other, $config );
+		$layout = self::layout_for( $visible_slugs, $has_other, $context );
 
 		if ( ! $layout['additional_information'] ) {
 			unset( $tabs['additional_information'] );
 		}
 
 		foreach ( $layout['tabs'] as $index => $gid ) {
-			$tab = [
-				'title'    => $config['groups'][ $gid ]['name'],
+			$group = $context['groups'][ $gid ];
+			$tab   = [
+				'title'    => $group['name'],
 				// Right after "Additional information" (20), in group order.
 				'priority' => 20 + ( $index + 1 ) / 100,
 				'callback' => [ $this, 'render_group_tab' ],
@@ -440,11 +735,11 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			 * Filter a product tab built from an attribute group.
 			 *
 			 * @param array  $tab     Tab definition (title, priority, callback).
-			 * @param string $gid     Group ID.
-			 * @param array  $group   Group settings (name, position, as_tab, hidden).
+			 * @param string $gid     Group ID (`src-*` for automatic groups).
+			 * @param array  $group   Group settings (name, position, as_tab, hidden, automatic, …).
 			 * @param mixed  $product Current product.
 			 */
-			$tabs[ self::TAB_PREFIX . $gid ] = apply_filters( 'skwirrel_wc_sync_attribute_group_tab', $tab, $gid, $config['groups'][ $gid ], $product );
+			$tabs[ self::TAB_PREFIX . $gid ] = apply_filters( 'skwirrel_wc_sync_attribute_group_tab', $tab, $gid, $group, $product );
 		}
 
 		return $tabs;
@@ -457,9 +752,9 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 */
 	public function render_group_tab( $key = '' ): void {
 		global $product;
-		$gid    = substr( (string) $key, strlen( self::TAB_PREFIX ) );
-		$config = self::get_config();
-		if ( ! $product instanceof WC_Product || empty( $config['groups'][ $gid ] ) ) {
+		$gid     = substr( (string) $key, strlen( self::TAB_PREFIX ) );
+		$context = self::context();
+		if ( ! $product instanceof WC_Product || empty( $context['groups'][ $gid ] ) ) {
 			return;
 		}
 
@@ -469,7 +764,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		 * @param string $heading Heading (the group name).
 		 * @param string $gid     Group ID.
 		 */
-		$heading = (string) apply_filters( 'skwirrel_wc_sync_attribute_group_tab_heading', $config['groups'][ $gid ]['name'], $gid );
+		$heading = (string) apply_filters( 'skwirrel_wc_sync_attribute_group_tab_heading', $context['groups'][ $gid ]['name'], $gid );
 		if ( '' !== $heading ) {
 			echo '<h2>' . esc_html( $heading ) . '</h2>';
 		}
@@ -493,15 +788,15 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		if ( ! $product instanceof WC_Product ) {
 			return [];
 		}
-		$config = self::get_config();
-		$by_gid = [];
+		$context = self::context();
+		$by_gid  = [];
 		foreach ( $product->get_attributes() as $attribute ) {
 			if ( ! $attribute instanceof WC_Product_Attribute || ! $attribute->get_visible() || ! $attribute->is_taxonomy() ) {
 				continue;
 			}
 			$taxonomy = $attribute->get_name();
-			$gid      = self::group_for_slug( self::sanitize_attribute_slug( $taxonomy ), $config );
-			if ( null === $gid || $config['groups'][ $gid ]['hidden'] ) {
+			$gid      = self::group_for_slug( $taxonomy, $context );
+			if ( null === $gid || $context['groups'][ $gid ]['hidden'] ) {
 				continue;
 			}
 			$by_gid[ $gid ][ $taxonomy ] = [
@@ -511,7 +806,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		}
 
 		$out = [];
-		foreach ( $config['groups'] as $gid => $group ) {
+		foreach ( $context['groups'] as $gid => $group ) {
 			if ( empty( $by_gid[ $gid ] ) ) {
 				continue;
 			}
@@ -541,175 +836,386 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	}
 
 	/**
-	 * Global attributes as slug => label, sorted by label.
+	 * Admin page URL with list state.
 	 *
-	 * @return array<string, string>
+	 * @param array<string, scalar> $args Extra query args.
 	 */
-	private static function attribute_choices(): array {
-		$choices = [];
-		foreach ( wc_get_attribute_taxonomies() as $tax ) {
-			$choices[ (string) $tax->attribute_name ] = (string) ( $tax->attribute_label ? $tax->attribute_label : $tax->attribute_name );
-		}
-		asort( $choices, SORT_NATURAL | SORT_FLAG_CASE );
-		return $choices;
+	private static function page_url( array $args = [] ): string {
+		return add_query_arg(
+			array_merge(
+				[
+					'post_type' => 'product',
+					'page'      => self::PAGE_SLUG,
+				],
+				$args
+			),
+			admin_url( 'edit.php' )
+		);
 	}
 
 	public function render_page(): void {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			return;
 		}
-		$config     = self::get_config();
-		$groups     = $config['groups'];
+		$context    = self::context();
+		$groups     = $context['groups'];
 		$attributes = self::attribute_choices();
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only notice flag.
-		$updated = isset( $_GET['updated'] );
+		$sources    = Skwirrel_WC_Sync_Attribute_Sources::current();
+		$auto       = array_filter( $groups, static fn( $g ) => $g['automatic'] );
+
+		$counts = [];
+		foreach ( array_keys( $attributes ) as $slug ) {
+			$key            = self::group_for_slug( (string) $slug, $context ) ?? self::NO_GROUP;
+			$counts[ $key ] = ( $counts[ $key ] ?? 0 ) + 1;
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only list state.
+		$updated = isset( $_GET['updated'] ) ? sanitize_key( wp_unslash( $_GET['updated'] ) ) : '';
+		$search  = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+		$filter  = isset( $_GET['group'] ) ? sanitize_key( wp_unslash( $_GET['group'] ) ) : '';
+		$paged   = isset( $_GET['paged'] ) ? max( 1, absint( $_GET['paged'] ) ) : 1;
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 		?>
 		<div class="wrap skwirrel-attribute-groups">
 			<h1><?php esc_html_e( 'Attribute groups', 'skwirrel-pim-sync' ); ?></h1>
-			<p class="description">
-				<?php esc_html_e( 'Group global product attributes. A hidden group is not shown on the product page. A group shown as a tab gets its own product tab; other groups stay in "Additional information", listed per group.', 'skwirrel-pim-sync' ); ?>
+			<p class="description" style="max-width:900px;">
+				<?php esc_html_e( 'Automatic groups follow where an attribute comes from: ETIM (while ETIM is synced), each custom class, identifiers and the variant. Create your own groups to combine automatic groups, and move single attributes to any group below.', 'skwirrel-pim-sync' ); ?>
+				<?php esc_html_e( 'A hidden group is not shown on the product page. A group shown as a tab gets its own product tab; other groups stay in "Additional information", listed per group.', 'skwirrel-pim-sync' ); ?>
 			</p>
-			<?php if ( $updated ) : ?>
+			<?php if ( 'groups' === $updated ) : ?>
 				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Attribute groups saved.', 'skwirrel-pim-sync' ); ?></p></div>
+			<?php elseif ( 'assign' === $updated ) : ?>
+				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Attributes moved.', 'skwirrel-pim-sync' ); ?></p></div>
+			<?php endif; ?>
+			<?php if ( empty( $sources ) ) : ?>
+				<div class="notice notice-info inline"><p><?php esc_html_e( 'Automatic groups fill during the next sync. Until then only variation and variant attributes can be recognised.', 'skwirrel-pim-sync' ); ?></p></div>
 			<?php endif; ?>
 
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<input type="hidden" name="action" value="<?php echo esc_attr( self::SAVE_ACTION ); ?>" />
-				<?php wp_nonce_field( self::SAVE_ACTION ); ?>
-
-				<h2><?php esc_html_e( 'Groups', 'skwirrel-pim-sync' ); ?></h2>
-				<table class="widefat striped" style="max-width:900px;">
-					<thead>
-						<tr>
-							<th><?php esc_html_e( 'Name', 'skwirrel-pim-sync' ); ?></th>
-							<th style="width:90px;"><?php esc_html_e( 'Order', 'skwirrel-pim-sync' ); ?></th>
-							<th style="width:120px;"><?php esc_html_e( 'Show as tab', 'skwirrel-pim-sync' ); ?></th>
-							<th style="width:120px;"><?php esc_html_e( 'Hidden', 'skwirrel-pim-sync' ); ?></th>
-							<th style="width:90px;"><?php esc_html_e( 'Attributes', 'skwirrel-pim-sync' ); ?></th>
-							<th style="width:90px;"><?php esc_html_e( 'Delete', 'skwirrel-pim-sync' ); ?></th>
-						</tr>
-					</thead>
-					<tbody>
-						<?php
-						$counts = array_count_values( $config['assignments'] );
-						foreach ( $groups as $gid => $group ) :
-							$field = 'groups[' . $gid . ']';
-							?>
-							<tr>
-								<td><input type="text" class="regular-text" name="<?php echo esc_attr( $field ); ?>[name]" value="<?php echo esc_attr( $group['name'] ); ?>" aria-label="<?php esc_attr_e( 'Name', 'skwirrel-pim-sync' ); ?>" /></td>
-								<td><input type="number" class="small-text" name="<?php echo esc_attr( $field ); ?>[position]" value="<?php echo esc_attr( (string) $group['position'] ); ?>" aria-label="<?php esc_attr_e( 'Order', 'skwirrel-pim-sync' ); ?>" /></td>
-								<td><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[as_tab]" value="1" <?php checked( $group['as_tab'] ); ?> aria-label="<?php esc_attr_e( 'Show as tab', 'skwirrel-pim-sync' ); ?>" /></td>
-								<td><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[hidden]" value="1" <?php checked( $group['hidden'] ); ?> aria-label="<?php esc_attr_e( 'Hidden', 'skwirrel-pim-sync' ); ?>" /></td>
-								<td><?php echo esc_html( (string) ( $counts[ $gid ] ?? 0 ) ); ?></td>
-								<td><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[delete]" value="1" aria-label="<?php esc_attr_e( 'Delete', 'skwirrel-pim-sync' ); ?>" /></td>
-							</tr>
-						<?php endforeach; ?>
-						<tr>
-							<td><input type="text" class="regular-text" name="new_group[name]" value="" placeholder="<?php esc_attr_e( 'New group name', 'skwirrel-pim-sync' ); ?>" aria-label="<?php esc_attr_e( 'New group name', 'skwirrel-pim-sync' ); ?>" /></td>
-							<td><input type="number" class="small-text" name="new_group[position]" value="" aria-label="<?php esc_attr_e( 'Order', 'skwirrel-pim-sync' ); ?>" /></td>
-							<td><input type="checkbox" name="new_group[as_tab]" value="1" aria-label="<?php esc_attr_e( 'Show as tab', 'skwirrel-pim-sync' ); ?>" /></td>
-							<td><input type="checkbox" name="new_group[hidden]" value="1" aria-label="<?php esc_attr_e( 'Hidden', 'skwirrel-pim-sync' ); ?>" /></td>
-							<td colspan="2"></td>
-						</tr>
-					</tbody>
-				</table>
-
-				<h2><?php esc_html_e( 'Attributes', 'skwirrel-pim-sync' ); ?></h2>
-				<?php if ( empty( $attributes ) ) : ?>
-					<p><?php esc_html_e( 'No global product attributes yet.', 'skwirrel-pim-sync' ); ?></p>
-				<?php elseif ( empty( $groups ) ) : ?>
-					<p><?php esc_html_e( 'Add a group first, then assign attributes to it.', 'skwirrel-pim-sync' ); ?></p>
-				<?php else : ?>
-					<p>
-						<label for="skwirrel-attribute-group-search" class="screen-reader-text"><?php esc_html_e( 'Filter attributes', 'skwirrel-pim-sync' ); ?></label>
-						<input type="search" id="skwirrel-attribute-group-search" class="regular-text" placeholder="<?php esc_attr_e( 'Filter attributes', 'skwirrel-pim-sync' ); ?>" />
-					</p>
-					<table class="widefat striped" id="skwirrel-attribute-group-assignments" style="max-width:900px;">
-						<thead>
-							<tr>
-								<th><?php esc_html_e( 'Attribute', 'skwirrel-pim-sync' ); ?></th>
-								<th><?php esc_html_e( 'Slug', 'skwirrel-pim-sync' ); ?></th>
-								<th><?php esc_html_e( 'Group', 'skwirrel-pim-sync' ); ?></th>
-							</tr>
-						</thead>
-						<tbody>
-							<?php foreach ( $attributes as $slug => $label ) : ?>
-								<tr>
-									<td><label for="<?php echo esc_attr( 'skwirrel-attr-group-' . $slug ); ?>"><?php echo esc_html( $label ); ?></label></td>
-									<td><code><?php echo esc_html( 'pa_' . $slug ); ?></code></td>
-									<td><?php $this->render_group_select( 'skwirrel-attr-group-' . $slug, 'assign[' . $slug . ']', $groups, self::group_for_slug( $slug, $config ) ); ?></td>
-								</tr>
-							<?php endforeach; ?>
-						</tbody>
-					</table>
-					<script>
-					( function () {
-						var input = document.getElementById( 'skwirrel-attribute-group-search' );
-						var rows = document.querySelectorAll( '#skwirrel-attribute-group-assignments tbody tr' );
-						input.addEventListener( 'input', function () {
-							var q = input.value.toLowerCase();
-							rows.forEach( function ( row ) {
-								row.style.display = row.textContent.toLowerCase().indexOf( q ) === -1 ? 'none' : '';
-							} );
-						} );
-					} )();
-					</script>
-				<?php endif; ?>
-
-				<?php submit_button( __( 'Save attribute groups', 'skwirrel-pim-sync' ) ); ?>
-			</form>
+			<?php $this->render_groups_form( $groups, $auto, $counts ); ?>
+			<?php $this->render_attribute_list( $attributes, $sources, $context, $search, $filter, $paged ); ?>
 		</div>
 		<?php
 	}
 
 	/**
-	 * Print a group <select>.
-	 *
-	 * @param string                              $id       Element ID.
-	 * @param string                              $name     Field name.
-	 * @param array<string, array{name: string}> $groups   Groups.
-	 * @param string|null                         $selected Selected group ID.
+	 * @param array<string, array<string, mixed>> $groups Context groups.
+	 * @param array<string, array<string, mixed>> $auto   Automatic groups.
+	 * @param array<string, int>                  $counts Attributes per group ID.
 	 */
-	private function render_group_select( string $id, string $name, array $groups, ?string $selected ): void {
-		printf( '<select id="%s" name="%s">', esc_attr( $id ), esc_attr( $name ) );
-		echo '<option value="">' . esc_html__( '— No group —', 'skwirrel-pim-sync' ) . '</option>';
-		foreach ( $groups as $gid => $group ) {
-			printf(
-				'<option value="%s"%s>%s</option>',
-				esc_attr( (string) $gid ),
-				selected( $selected, (string) $gid, false ),
-				esc_html( $group['name'] )
-			);
-		}
-		echo '</select>';
+	private function render_groups_form( array $groups, array $auto, array $counts ): void {
+		?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="<?php echo esc_attr( self::SAVE_GROUPS_ACTION ); ?>" />
+			<?php wp_nonce_field( self::SAVE_GROUPS_ACTION ); ?>
+
+			<h2><?php esc_html_e( 'Groups', 'skwirrel-pim-sync' ); ?></h2>
+			<table class="widefat striped" style="max-width:1100px;">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Name', 'skwirrel-pim-sync' ); ?></th>
+						<th style="width:110px;"><?php esc_html_e( 'Type', 'skwirrel-pim-sync' ); ?></th>
+						<th style="width:80px;"><?php esc_html_e( 'Order', 'skwirrel-pim-sync' ); ?></th>
+						<th style="width:90px;"><?php esc_html_e( 'Show as tab', 'skwirrel-pim-sync' ); ?></th>
+						<th style="width:80px;"><?php esc_html_e( 'Hidden', 'skwirrel-pim-sync' ); ?></th>
+						<th><?php esc_html_e( 'Includes', 'skwirrel-pim-sync' ); ?></th>
+						<th style="width:80px;"><?php esc_html_e( 'Attributes', 'skwirrel-pim-sync' ); ?></th>
+						<th style="width:70px;"><?php esc_html_e( 'Delete', 'skwirrel-pim-sync' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php
+					foreach ( $groups as $gid => $group ) :
+						$field = 'groups[' . $gid . ']';
+						?>
+						<tr>
+							<td><input type="text" class="regular-text" name="<?php echo esc_attr( $field ); ?>[name]" value="<?php echo esc_attr( (string) $group['name'] ); ?>" aria-label="<?php esc_attr_e( 'Name', 'skwirrel-pim-sync' ); ?>" /></td>
+							<td><?php echo $group['automatic'] ? esc_html__( 'Automatic', 'skwirrel-pim-sync' ) : esc_html__( 'Custom', 'skwirrel-pim-sync' ); ?></td>
+							<td><input type="number" class="small-text" name="<?php echo esc_attr( $field ); ?>[position]" value="<?php echo esc_attr( (string) $group['position'] ); ?>" aria-label="<?php esc_attr_e( 'Order', 'skwirrel-pim-sync' ); ?>" /></td>
+							<td><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[as_tab]" value="1" <?php checked( (bool) $group['as_tab'] ); ?> aria-label="<?php esc_attr_e( 'Show as tab', 'skwirrel-pim-sync' ); ?>" /></td>
+							<td><input type="checkbox" name="<?php echo esc_attr( $field ); ?>[hidden]" value="1" <?php checked( (bool) $group['hidden'] ); ?> aria-label="<?php esc_attr_e( 'Hidden', 'skwirrel-pim-sync' ); ?>" /></td>
+							<td>
+								<?php
+								if ( $group['automatic'] ) {
+									echo '&mdash;';
+								} else {
+									$this->render_includes( $field . '[includes][]', $auto, (array) $group['includes'] );
+								}
+								?>
+							</td>
+							<td><a href="<?php echo esc_url( self::page_url( [ 'group' => (string) $gid ] ) ); ?>"><?php echo esc_html( (string) ( $counts[ $gid ] ?? 0 ) ); ?></a></td>
+							<td>
+								<?php if ( ! $group['automatic'] ) : ?>
+									<input type="checkbox" name="<?php echo esc_attr( $field ); ?>[delete]" value="1" aria-label="<?php esc_attr_e( 'Delete', 'skwirrel-pim-sync' ); ?>" />
+								<?php endif; ?>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+					<tr>
+						<td><input type="text" class="regular-text" name="new_group[name]" value="" placeholder="<?php esc_attr_e( 'New group name', 'skwirrel-pim-sync' ); ?>" aria-label="<?php esc_attr_e( 'New group name', 'skwirrel-pim-sync' ); ?>" /></td>
+						<td><?php esc_html_e( 'Custom', 'skwirrel-pim-sync' ); ?></td>
+						<td><input type="number" class="small-text" name="new_group[position]" value="" aria-label="<?php esc_attr_e( 'Order', 'skwirrel-pim-sync' ); ?>" /></td>
+						<td><input type="checkbox" name="new_group[as_tab]" value="1" aria-label="<?php esc_attr_e( 'Show as tab', 'skwirrel-pim-sync' ); ?>" /></td>
+						<td><input type="checkbox" name="new_group[hidden]" value="1" aria-label="<?php esc_attr_e( 'Hidden', 'skwirrel-pim-sync' ); ?>" /></td>
+						<td><?php $this->render_includes( 'new_group[includes][]', $auto, [] ); ?></td>
+						<td colspan="2"></td>
+					</tr>
+				</tbody>
+			</table>
+			<?php submit_button( __( 'Save groups', 'skwirrel-pim-sync' ) ); ?>
+		</form>
+		<?php
 	}
 
-	public function handle_save(): void {
+	/**
+	 * Checkboxes for the automatic groups a custom group takes over.
+	 *
+	 * @param string                              $name     Field name (ends in []).
+	 * @param array<string, array<string, mixed>> $auto     Automatic groups.
+	 * @param string[]                            $selected Selected group IDs.
+	 */
+	private function render_includes( string $name, array $auto, array $selected ): void {
+		if ( empty( $auto ) ) {
+			echo '&mdash;';
+			return;
+		}
+		foreach ( $auto as $src => $group ) {
+			printf(
+				'<label style="display:inline-block;margin-right:10px;"><input type="checkbox" name="%s" value="%s" %s /> %s</label>',
+				esc_attr( $name ),
+				esc_attr( (string) $src ),
+				checked( in_array( (string) $src, $selected, true ), true, false ),
+				esc_html( (string) $group['name'] )
+			);
+		}
+	}
+
+	/**
+	 * Paged attribute list with search, a group filter and a bulk "move to group".
+	 *
+	 * Only the ticked rows of one page are submitted, so the form stays far below PHP's
+	 * max_input_vars however many attributes a shop has.
+	 *
+	 * @param array<string, string>                                                     $attributes Slug => label.
+	 * @param array<string, array{source: string, class_key: string, class_name: string}> $sources    Source map.
+	 * @param array<string, mixed>                                                      $context    Context.
+	 * @param string                                                                    $search     Search text.
+	 * @param string                                                                    $filter     Group filter (group ID, NO_GROUP or '').
+	 * @param int                                                                       $paged      Page number.
+	 */
+	private function render_attribute_list( array $attributes, array $sources, array $context, string $search, string $filter, int $paged ): void {
+		$groups = $context['groups'];
+		$rows   = [];
+		foreach ( $attributes as $slug => $label ) {
+			$slug = (string) $slug;
+			$gid  = self::group_for_slug( $slug, $context );
+			if ( '' !== $filter && ( self::NO_GROUP === $filter ? null !== $gid : $gid !== $filter ) ) {
+				continue;
+			}
+			if ( '' !== $search && false === stripos( $label . ' ' . $slug, $search ) ) {
+				continue;
+			}
+			$rows[ $slug ] = [
+				'label'  => $label,
+				'group'  => $gid,
+				'manual' => isset( $context['assignments'][ $slug ] ),
+				'source' => $this->describe_source( $slug, $sources ),
+			];
+		}
+		$total = count( $rows );
+		$pages = max( 1, (int) ceil( $total / self::PER_PAGE ) );
+		$paged = min( $paged, $pages );
+		$rows  = array_slice( $rows, ( $paged - 1 ) * self::PER_PAGE, self::PER_PAGE, true );
+		?>
+		<h2 id="skwirrel-attributes"><?php esc_html_e( 'Attributes', 'skwirrel-pim-sync' ); ?></h2>
+
+		<form method="get" action="<?php echo esc_url( admin_url( 'edit.php' ) ); ?>" style="margin-bottom:8px;">
+			<input type="hidden" name="post_type" value="product" />
+			<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG ); ?>" />
+			<label for="skwirrel-attr-search" class="screen-reader-text"><?php esc_html_e( 'Search attributes', 'skwirrel-pim-sync' ); ?></label>
+			<input type="search" id="skwirrel-attr-search" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search attributes', 'skwirrel-pim-sync' ); ?>" />
+			<label for="skwirrel-attr-filter" class="screen-reader-text"><?php esc_html_e( 'Filter by group', 'skwirrel-pim-sync' ); ?></label>
+			<select id="skwirrel-attr-filter" name="group">
+				<option value=""><?php esc_html_e( 'All groups', 'skwirrel-pim-sync' ); ?></option>
+				<option value="<?php echo esc_attr( self::NO_GROUP ); ?>" <?php selected( $filter, self::NO_GROUP ); ?>><?php esc_html_e( '— No group —', 'skwirrel-pim-sync' ); ?></option>
+				<?php foreach ( $groups as $gid => $group ) : ?>
+					<option value="<?php echo esc_attr( (string) $gid ); ?>" <?php selected( $filter, (string) $gid ); ?>><?php echo esc_html( (string) $group['name'] ); ?></option>
+				<?php endforeach; ?>
+			</select>
+			<?php submit_button( __( 'Filter', 'skwirrel-pim-sync' ), 'secondary', '', false ); ?>
+			<span class="displaying-num" style="margin-left:8px;">
+				<?php
+				/* translators: %s = number of attributes */
+				echo esc_html( sprintf( _n( '%s attribute', '%s attributes', $total, 'skwirrel-pim-sync' ), number_format_i18n( $total ) ) );
+				?>
+			</span>
+		</form>
+
+		<?php if ( empty( $rows ) ) : ?>
+			<p><?php esc_html_e( 'No attributes found.', 'skwirrel-pim-sync' ); ?></p>
+			<?php
+			return;
+		endif;
+		?>
+
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="<?php echo esc_attr( self::ASSIGN_ACTION ); ?>" />
+			<input type="hidden" name="s" value="<?php echo esc_attr( $search ); ?>" />
+			<input type="hidden" name="group" value="<?php echo esc_attr( $filter ); ?>" />
+			<input type="hidden" name="paged" value="<?php echo esc_attr( (string) $paged ); ?>" />
+			<?php wp_nonce_field( self::ASSIGN_ACTION ); ?>
+
+			<div class="tablenav top">
+				<div class="alignleft actions bulkactions">
+					<label for="skwirrel-attr-target" class="screen-reader-text"><?php esc_html_e( 'Move selected to', 'skwirrel-pim-sync' ); ?></label>
+					<select id="skwirrel-attr-target" name="target">
+						<option value=""><?php esc_html_e( 'Move selected to…', 'skwirrel-pim-sync' ); ?></option>
+						<option value="<?php echo esc_attr( self::AUTOMATIC ); ?>"><?php esc_html_e( 'Automatic group', 'skwirrel-pim-sync' ); ?></option>
+						<option value="<?php echo esc_attr( self::NO_GROUP ); ?>"><?php esc_html_e( '— No group —', 'skwirrel-pim-sync' ); ?></option>
+						<?php foreach ( $groups as $gid => $group ) : ?>
+							<option value="<?php echo esc_attr( (string) $gid ); ?>"><?php echo esc_html( (string) $group['name'] ); ?></option>
+						<?php endforeach; ?>
+					</select>
+					<?php submit_button( __( 'Apply', 'skwirrel-pim-sync' ), 'action', '', false ); ?>
+				</div>
+				<?php $this->render_pagination( $paged, $pages, $search, $filter ); ?>
+			</div>
+
+			<table class="widefat striped" style="max-width:1100px;">
+				<thead>
+					<tr>
+						<td class="manage-column check-column"><input type="checkbox" id="skwirrel-attr-select-all" aria-label="<?php esc_attr_e( 'Select all', 'skwirrel-pim-sync' ); ?>" /></td>
+						<th><?php esc_html_e( 'Attribute', 'skwirrel-pim-sync' ); ?></th>
+						<th><?php esc_html_e( 'Slug', 'skwirrel-pim-sync' ); ?></th>
+						<th><?php esc_html_e( 'Source', 'skwirrel-pim-sync' ); ?></th>
+						<th><?php esc_html_e( 'Group', 'skwirrel-pim-sync' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $rows as $slug => $row ) : ?>
+						<tr>
+							<th scope="row" class="check-column"><input type="checkbox" name="slugs[]" value="<?php echo esc_attr( (string) $slug ); ?>" id="<?php echo esc_attr( 'skwirrel-attr-' . $slug ); ?>" /></th>
+							<td><label for="<?php echo esc_attr( 'skwirrel-attr-' . $slug ); ?>"><?php echo esc_html( $row['label'] ); ?></label></td>
+							<td><code><?php echo esc_html( 'pa_' . $slug ); ?></code></td>
+							<td><?php echo esc_html( $row['source'] ); ?></td>
+							<td>
+								<?php
+								echo esc_html( null !== $row['group'] ? (string) $groups[ $row['group'] ]['name'] : __( '— No group —', 'skwirrel-pim-sync' ) );
+								if ( $row['manual'] ) {
+									echo ' <span class="description">(' . esc_html__( 'manual', 'skwirrel-pim-sync' ) . ')</span>';
+								}
+								?>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+			<div class="tablenav bottom"><?php $this->render_pagination( $paged, $pages, $search, $filter ); ?></div>
+		</form>
+		<script>
+		( function () {
+			var all = document.getElementById( 'skwirrel-attr-select-all' );
+			if ( ! all ) { return; }
+			all.addEventListener( 'change', function () {
+				document.querySelectorAll( 'input[name="slugs[]"]' ).forEach( function ( box ) { box.checked = all.checked; } );
+			} );
+		} )();
+		</script>
+		<?php
+	}
+
+	private function render_pagination( int $paged, int $pages, string $search, string $filter ): void {
+		if ( $pages < 2 ) {
+			return;
+		}
+		$base  = self::page_url(
+			[
+				's'     => $search,
+				'group' => $filter,
+				'paged' => 999999999,
+			]
+		);
+		$links = paginate_links(
+			[
+				// paginate_links() swaps %#% for each page number.
+				'base'      => str_replace( '999999999', '%#%', $base ),
+				'format'    => '',
+				'current'   => $paged,
+				'total'     => $pages,
+				'prev_text' => '&lsaquo;',
+				'next_text' => '&rsaquo;',
+			]
+		);
+		if ( is_string( $links ) ) {
+			echo '<div class="tablenav-pages">' . wp_kses_post( $links ) . '</div>';
+		}
+	}
+
+	/**
+	 * Human-readable source of an attribute.
+	 *
+	 * @param string                                                                    $slug    Attribute slug.
+	 * @param array<string, array{source: string, class_key: string, class_name: string}> $sources Source map.
+	 */
+	private function describe_source( string $slug, array $sources ): string {
+		$source = Skwirrel_WC_Sync_Attribute_Sources::source_of( $slug, $sources );
+		if ( null === $source ) {
+			return __( 'Other', 'skwirrel-pim-sync' );
+		}
+		switch ( $source['source'] ) {
+			case Skwirrel_WC_Sync_Attribute_Sources::SOURCE_ETIM:
+				return __( 'ETIM', 'skwirrel-pim-sync' );
+			case Skwirrel_WC_Sync_Attribute_Sources::SOURCE_IDENTIFIER:
+				return __( 'Identifier', 'skwirrel-pim-sync' );
+			case Skwirrel_WC_Sync_Attribute_Sources::SOURCE_VARIANT:
+				return __( 'Variant', 'skwirrel-pim-sync' );
+		}
+		$class = '' !== $source['class_name'] ? $source['class_name'] : $source['class_key'];
+		return '' !== $class
+			/* translators: %s = custom class name */
+			? sprintf( __( 'Custom class: %s', 'skwirrel-pim-sync' ), $class )
+			: __( 'Custom class', 'skwirrel-pim-sync' );
+	}
+
+	public function handle_save_groups(): void {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			wp_die( esc_html__( 'You do not have permission to do this.', 'skwirrel-pim-sync' ) );
 		}
-		check_admin_referer( self::SAVE_ACTION );
+		check_admin_referer( self::SAVE_GROUPS_ACTION );
 
 		$post = [
-			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized per field in sanitize_submission().
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized per field in sanitize_groups_submission().
 			'groups'    => isset( $_POST['groups'] ) && is_array( $_POST['groups'] ) ? wp_unslash( $_POST['groups'] ) : [],
-			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized per field in sanitize_submission().
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized per field in sanitize_groups_submission().
 			'new_group' => isset( $_POST['new_group'] ) && is_array( $_POST['new_group'] ) ? wp_unslash( $_POST['new_group'] ) : [],
-			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized per field in sanitize_submission().
-			'assign'    => isset( $_POST['assign'] ) && is_array( $_POST['assign'] ) ? wp_unslash( $_POST['assign'] ) : [],
 		];
 
-		self::save_config( self::sanitize_submission( $post, self::get_config(), array_keys( self::attribute_choices() ) ) );
+		self::save_config( self::sanitize_groups_submission( $post, self::get_config(), self::context() ) );
+
+		wp_safe_redirect( self::page_url( [ 'updated' => 'groups' ] ) );
+		exit;
+	}
+
+	public function handle_assign(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( esc_html__( 'You do not have permission to do this.', 'skwirrel-pim-sync' ) );
+		}
+		check_admin_referer( self::ASSIGN_ACTION );
+
+		$slugs  = isset( $_POST['slugs'] ) && is_array( $_POST['slugs'] ) ? array_map( 'sanitize_text_field', wp_unslash( $_POST['slugs'] ) ) : [];
+		$target = isset( $_POST['target'] ) ? sanitize_key( wp_unslash( $_POST['target'] ) ) : '';
+		if ( '' !== $target && ! empty( $slugs ) ) {
+			self::save_config( self::apply_bulk_assignment( $slugs, $target, self::get_config(), self::context(), array_keys( self::attribute_choices() ) ) );
+		}
 
 		wp_safe_redirect(
-			add_query_arg(
+			self::page_url(
 				[
-					'post_type' => 'product',
-					'page'      => self::PAGE_SLUG,
-					'updated'   => 1,
-				],
-				admin_url( 'edit.php' )
-			)
+					'updated' => 'assign',
+					's'       => isset( $_POST['s'] ) ? sanitize_text_field( wp_unslash( $_POST['s'] ) ) : '',
+					'group'   => isset( $_POST['group'] ) ? sanitize_key( wp_unslash( $_POST['group'] ) ) : '',
+					'paged'   => isset( $_POST['paged'] ) ? absint( $_POST['paged'] ) : 1,
+				]
+			) . '#skwirrel-attributes'
 		);
 		exit;
 	}
@@ -719,36 +1225,47 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	// ------------------------------------------------------------------
 
 	public function render_add_attribute_field(): void {
-		$groups = self::get_config()['groups'];
-		if ( empty( $groups ) ) {
-			return;
-		}
 		echo '<div class="form-field">';
 		echo '<label for="' . esc_attr( self::ATTRIBUTE_FIELD ) . '">' . esc_html__( 'Group', 'skwirrel-pim-sync' ) . '</label>';
-		$this->render_group_select( self::ATTRIBUTE_FIELD, self::ATTRIBUTE_FIELD, $groups, null );
+		$this->render_attribute_form_select( null );
 		echo '<p class="description">' . esc_html__( 'Attribute group used on the product page (Products → Attribute groups).', 'skwirrel-pim-sync' ) . '</p>';
 		echo '</div>';
 	}
 
 	public function render_edit_attribute_field(): void {
-		$config = self::get_config();
-		if ( empty( $config['groups'] ) ) {
-			return;
-		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only: which attribute WooCommerce is editing.
 		$edit_id = isset( $_GET['edit'] ) ? absint( $_GET['edit'] ) : 0;
 		$attr    = $edit_id ? wc_get_attribute( $edit_id ) : null;
-		$current = $attr ? self::group_for_slug( self::sanitize_attribute_slug( (string) $attr->slug ), $config ) : null;
+		$slug    = $attr ? Skwirrel_WC_Sync_Attribute_Sources::normalize_slug( (string) $attr->slug ) : '';
+		$current = '' !== $slug ? ( self::context()['assignments'][ $slug ] ?? null ) : null;
 
 		echo '<tr class="form-field"><th scope="row" valign="top"><label for="' . esc_attr( self::ATTRIBUTE_FIELD ) . '">' . esc_html__( 'Group', 'skwirrel-pim-sync' ) . '</label></th><td>';
-		$this->render_group_select( self::ATTRIBUTE_FIELD, self::ATTRIBUTE_FIELD, $config['groups'], $current );
+		$this->render_attribute_form_select( $current );
 		echo '<p class="description">' . esc_html__( 'Attribute group used on the product page (Products → Attribute groups).', 'skwirrel-pim-sync' ) . '</p>';
 		echo '</td></tr>';
 	}
 
 	/**
-	 * The group submitted on the WooCommerce attribute form, or null when the field was not
-	 * part of the request (REST API, wc_create_attribute() during a sync, …).
+	 * @param string|null $selected Current manual assignment, or null for automatic.
+	 */
+	private function render_attribute_form_select( ?string $selected ): void {
+		printf( '<select id="%1$s" name="%1$s">', esc_attr( self::ATTRIBUTE_FIELD ) );
+		echo '<option value="">' . esc_html__( 'Automatic group', 'skwirrel-pim-sync' ) . '</option>';
+		printf( '<option value="%s"%s>%s</option>', esc_attr( self::NO_GROUP ), selected( $selected, self::NO_GROUP, false ), esc_html__( '— No group —', 'skwirrel-pim-sync' ) );
+		foreach ( self::context()['groups'] as $gid => $group ) {
+			printf(
+				'<option value="%s"%s>%s</option>',
+				esc_attr( (string) $gid ),
+				selected( $selected, (string) $gid, false ),
+				esc_html( (string) $group['name'] )
+			);
+		}
+		echo '</select>';
+	}
+
+	/**
+	 * The group submitted on the WooCommerce attribute form ('' = automatic), or null when the
+	 * field was not part of the request (REST API, wc_create_attribute() during a sync, …).
 	 */
 	private static function submitted_attribute_group(): ?string {
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- WooCommerce verified its own attribute form nonce before firing the hook.
@@ -760,21 +1277,21 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	}
 
 	/**
-	 * Set or clear an attribute's group in the stored configuration.
+	 * Set or clear an attribute's manual assignment.
 	 *
 	 * @param string $slug     Attribute slug.
-	 * @param string $group_id Group ID, or '' for none.
+	 * @param string $group_id Group ID, NO_GROUP, or '' to go back to the automatic group.
 	 */
 	public static function assign( string $slug, string $group_id ): void {
 		$config = self::get_config();
-		$slug   = self::sanitize_attribute_slug( $slug );
+		$slug   = Skwirrel_WC_Sync_Attribute_Sources::normalize_slug( $slug );
 		if ( '' === $slug ) {
 			return;
 		}
-		if ( '' !== $group_id && isset( $config['groups'][ $group_id ] ) ) {
-			$config['assignments'][ $slug ] = $group_id;
-		} else {
+		if ( '' === $group_id ) {
 			unset( $config['assignments'][ $slug ] );
+		} else {
+			$config['assignments'][ $slug ] = $group_id;
 		}
 		self::save_config( $config );
 	}
@@ -785,30 +1302,33 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 */
 	public function on_attribute_added( $id, $data ): void {
 		$group = self::submitted_attribute_group();
-		if ( null !== $group && is_array( $data ) ) {
+		if ( null !== $group && is_array( $data ) && self::is_valid_target( $group ) ) {
 			self::assign( (string) ( $data['attribute_name'] ?? '' ), $group );
 		}
 	}
 
 	/**
-	 * Keep the group when the slug is renamed, and apply the form's choice.
+	 * Keep the assignment when the slug is renamed, and apply the form's choice.
 	 *
 	 * @param mixed $id       Attribute ID.
 	 * @param mixed $data     Attribute data.
 	 * @param mixed $old_slug Previous slug.
 	 */
 	public function on_attribute_updated( $id, $data, $old_slug ): void {
-		$new_slug = is_array( $data ) ? self::sanitize_attribute_slug( (string) ( $data['attribute_name'] ?? '' ) ) : '';
-		$old_slug = self::sanitize_attribute_slug( (string) $old_slug );
+		$new_slug = is_array( $data ) ? Skwirrel_WC_Sync_Attribute_Sources::normalize_slug( (string) ( $data['attribute_name'] ?? '' ) ) : '';
+		$old_slug = Skwirrel_WC_Sync_Attribute_Sources::normalize_slug( (string) $old_slug );
 		if ( '' === $new_slug ) {
 			return;
 		}
 		$group = self::submitted_attribute_group();
+		if ( null !== $group && ! self::is_valid_target( $group ) ) {
+			$group = null;
+		}
 		if ( null === $group ) {
 			if ( '' === $old_slug || $old_slug === $new_slug ) {
 				return;
 			}
-			$group = self::group_for_slug( $old_slug, self::get_config() ) ?? '';
+			$group = self::get_config()['assignments'][ $old_slug ] ?? '';
 		}
 		if ( '' !== $old_slug && $old_slug !== $new_slug ) {
 			self::assign( $old_slug, '' );
@@ -822,5 +1342,9 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 */
 	public function on_attribute_deleted( $id, $slug ): void {
 		self::assign( (string) $slug, '' );
+	}
+
+	private static function is_valid_target( string $group ): bool {
+		return '' === $group || self::NO_GROUP === $group || isset( self::context()['groups'][ $group ] );
 	}
 }

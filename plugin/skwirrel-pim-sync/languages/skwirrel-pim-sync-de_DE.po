@@ -2812,10 +2812,6 @@ msgid "Attribute groups"
 msgstr "Attributgruppen"
 
 #: includes/class-skwirrel-wc-sync-attribute-groups.php
-msgid "Group global product attributes. A hidden group is not shown on the product page. A group shown as a tab gets its own product tab; other groups stay in \"Additional information\", listed per group."
-msgstr "Gruppieren Sie globale Produktattribute. Eine ausgeblendete Gruppe wird auf der Produktseite nicht angezeigt. Eine als Tab angezeigte Gruppe erhält einen eigenen Produkt-Tab; andere Gruppen bleiben unter \"Zusätzliche Informationen\", nach Gruppe aufgelistet."
-
-#: includes/class-skwirrel-wc-sync-attribute-groups.php
 msgid "Attribute groups saved."
 msgstr "Attributgruppen gespeichert."
 
@@ -2852,18 +2848,6 @@ msgid "New group name"
 msgstr "Name der neuen Gruppe"
 
 #: includes/class-skwirrel-wc-sync-attribute-groups.php
-msgid "No global product attributes yet."
-msgstr "Noch keine globalen Produktattribute."
-
-#: includes/class-skwirrel-wc-sync-attribute-groups.php
-msgid "Add a group first, then assign attributes to it."
-msgstr "Fügen Sie zuerst eine Gruppe hinzu und weisen Sie ihr dann Attribute zu."
-
-#: includes/class-skwirrel-wc-sync-attribute-groups.php
-msgid "Filter attributes"
-msgstr "Attribute filtern"
-
-#: includes/class-skwirrel-wc-sync-attribute-groups.php
 msgid "Attribute"
 msgstr "Attribut"
 
@@ -2876,10 +2860,6 @@ msgid "Group"
 msgstr "Gruppe"
 
 #: includes/class-skwirrel-wc-sync-attribute-groups.php
-msgid "Save attribute groups"
-msgstr "Attributgruppen speichern"
-
-#: includes/class-skwirrel-wc-sync-attribute-groups.php
 msgid "— No group —"
 msgstr "— Keine Gruppe —"
 
@@ -2890,3 +2870,125 @@ msgstr "Sie haben keine Berechtigung, dies zu tun."
 #: includes/class-skwirrel-wc-sync-attribute-groups.php
 msgid "Attribute group used on the product page (Products → Attribute groups)."
 msgstr "Attributgruppe, die auf der Produktseite verwendet wird (Produkte → Attributgruppen)."
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "A hidden group is not shown on the product page. A group shown as a tab gets its own product tab; other groups stay in \"Additional information\", listed per group."
+msgstr "Eine ausgeblendete Gruppe wird auf der Produktseite nicht angezeigt. Eine als Tab angezeigte Gruppe erhält einen eigenen Produkt-Tab; andere Gruppen bleiben unter \"Zusätzliche Informationen\", nach Gruppe aufgelistet."
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Automatic groups follow where an attribute comes from: ETIM (while ETIM is synced), each custom class, identifiers and the variant. Create your own groups to combine automatic groups, and move single attributes to any group below."
+msgstr "Automatische Gruppen folgen der Herkunft eines Attributs: ETIM (solange ETIM synchronisiert wird), jede Custom Klasse, Kennungen und die Variante. Erstellen Sie eigene Gruppen, um automatische Gruppen zusammenzufassen, und verschieben Sie einzelne Attribute unten in eine beliebige Gruppe."
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Automatic groups fill during the next sync. Until then only variation and variant attributes can be recognised."
+msgstr "Automatische Gruppen werden bei der nächsten Synchronisierung gefüllt. Bis dahin werden nur Variations- und Variantenattribute erkannt."
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Attributes moved."
+msgstr "Attribute verschoben."
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Type"
+msgstr "Typ"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Includes"
+msgstr "Enthält"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Automatic"
+msgstr "Automatisch"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Custom"
+msgstr "Eigene"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Save groups"
+msgstr "Gruppen speichern"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Search attributes"
+msgstr "Attribute suchen"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Filter by group"
+msgstr "Nach Gruppe filtern"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "All groups"
+msgstr "Alle Gruppen"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Filter"
+msgstr "Filtern"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "No attributes found."
+msgstr "Keine Attribute gefunden."
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Move selected to"
+msgstr "Auswahl verschieben nach"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Move selected to…"
+msgstr "Auswahl verschieben nach…"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Automatic group"
+msgstr "Automatische Gruppe"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Apply"
+msgstr "Anwenden"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Select all"
+msgstr "Alle auswählen"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Source"
+msgstr "Herkunft"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "manual"
+msgstr "manuell"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Other"
+msgstr "Sonstige"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "ETIM"
+msgstr "ETIM"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Identifier"
+msgstr "Kennung"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Identifiers"
+msgstr "Kennungen"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Custom classes"
+msgstr "Custom Klassen"
+
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+msgid "Custom class"
+msgstr "Custom Klasse"
+
+#. translators: %s = custom class name
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+#, php-format
+msgid "Custom class: %s"
+msgstr "Custom Klasse: %s"
+
+#. translators: %s = number of attributes
+#: includes/class-skwirrel-wc-sync-attribute-groups.php
+#, php-format
+msgid "%s attribute"
+msgid_plural "%s attributes"
+msgstr[0] "%s Attribut"
+msgstr[1] "%s Attribute"

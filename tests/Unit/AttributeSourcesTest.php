@@ -1,0 +1,81 @@
+<?php
+
+declare(strict_types=1);
+
+beforeEach(function () {
+	Skwirrel_WC_Sync_Attribute_Sources::reset_pending();
+	unset($GLOBALS['_test_options'][Skwirrel_WC_Sync_Attribute_Sources::OPTION_KEY]);
+});
+
+afterEach(function () {
+	Skwirrel_WC_Sync_Attribute_Sources::reset_pending();
+	unset($GLOBALS['_test_options'][Skwirrel_WC_Sync_Attribute_Sources::OPTION_KEY]);
+});
+
+test('product attributes are recorded as identifier, ETIM or custom class', function () {
+	Skwirrel_WC_Sync_Attribute_Sources::record_product_attributes(
+		['GTIN' => '123', 'Manufacturer' => 'Acme', 'Breedte' => '10'],
+		['Voorraad' => '7', 'Breedte' => 'ignored, ETIM took this label'],
+		['Voorraad' => ['class_key' => 'LOGISTICS', 'class_name' => 'Logistiek']],
+		'sanitize_title'
+	);
+
+	expect(Skwirrel_WC_Sync_Attribute_Sources::current())->toBe([
+		'gtin'         => ['source' => 'identifier', 'class_key' => '', 'class_name' => ''],
+		'manufacturer' => ['source' => 'identifier', 'class_key' => '', 'class_name' => ''],
+		'breedte'      => ['source' => 'etim', 'class_key' => '', 'class_name' => ''],
+		'voorraad'     => ['source' => 'custom_class', 'class_key' => 'logistics', 'class_name' => 'Logistiek'],
+	]);
+});
+
+test('flush merges into the stored map and writes nothing when unchanged', function () {
+	$GLOBALS['_test_options'][Skwirrel_WC_Sync_Attribute_Sources::OPTION_KEY] = [
+		'kleur' => ['source' => 'etim', 'class_key' => '', 'class_name' => ''],
+	];
+
+	Skwirrel_WC_Sync_Attribute_Sources::record('pa_breedte', 'etim');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+
+	expect(array_keys(Skwirrel_WC_Sync_Attribute_Sources::all()))->toBe(['breedte', 'kleur']);
+
+	$GLOBALS['_test_options'][Skwirrel_WC_Sync_Attribute_Sources::OPTION_KEY]['marker'] = 'untouched';
+	Skwirrel_WC_Sync_Attribute_Sources::record('kleur', 'etim');
+	Skwirrel_WC_Sync_Attribute_Sources::flush();
+
+	expect($GLOBALS['_test_options'][Skwirrel_WC_Sync_Attribute_Sources::OPTION_KEY]['marker'])->toBe('untouched');
+});
+
+test('unknown sources and empty slugs are ignored', function () {
+	Skwirrel_WC_Sync_Attribute_Sources::record('kleur', 'bogus');
+	Skwirrel_WC_Sync_Attribute_Sources::record('', 'etim');
+
+	expect(Skwirrel_WC_Sync_Attribute_Sources::current())->toBe([]);
+});
+
+test('source_of falls back to slug prefixes for variation axes and the variant', function ($slug, $source) {
+	expect(Skwirrel_WC_Sync_Attribute_Sources::source_of($slug, [])['source'] ?? null)->toBe($source);
+})->with([
+	['pa_etim_ef000008', 'etim'],
+	['cc_42', 'custom_class'],
+	['skwirrel_variant', 'variant'],
+	['kleur', null],
+]);
+
+test('the extractor maps each custom class attribute label to the class whose value is used', function () {
+	$extractor = new Skwirrel_WC_Sync_Custom_Class_Extractor('nl');
+	$feature   = fn (string $code, string $label) => [
+		'custom_feature_code'          => $code,
+		'custom_feature_type'          => 'L',
+		'logical_value'                => true,
+		'_custom_feature_translations' => [['language' => 'nl', 'custom_feature_description' => $label]],
+	];
+	$product = ['_custom_classes' => [
+		['custom_class_id' => 1, 'custom_class_code' => 'LOGISTICS', 'custom_class_name' => 'Logistiek', '_custom_features' => [$feature('QTY', 'Op voorraad')]],
+		['custom_class_id' => 2, 'custom_class_code' => 'INTERNAL', '_custom_features' => [$feature('QTY', 'Op voorraad'), $feature('COST', 'Kostprijs bekend')]],
+	]];
+
+	expect($extractor->get_attribute_class_map($product))->toBe([
+		'Op voorraad'      => ['class_key' => 'LOGISTICS', 'class_name' => 'Logistiek'],
+		'Kostprijs bekend' => ['class_key' => 'INTERNAL', 'class_name' => 'INTERNAL'],
+	]);
+});

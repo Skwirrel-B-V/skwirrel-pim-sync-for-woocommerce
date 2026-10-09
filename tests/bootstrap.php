@@ -603,8 +603,15 @@ if (!function_exists('get_settings_errors')) {
     }
 }
 
+if (!function_exists('wp_cache_delete')) {
+    function wp_cache_delete($key, string $group = ''): bool {
+        return true;
+    }
+}
+
 // Load plugin classes (order matters — dependencies first).
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-logger.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-attribute-sources.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-media-importer.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-etim-extractor.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-custom-class-extractor.php';

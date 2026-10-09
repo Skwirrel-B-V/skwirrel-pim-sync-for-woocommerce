@@ -1127,6 +1127,26 @@ class Skwirrel_WC_Sync_Product_Mapper {
 		return $this->custom_class->get_custom_class_attributes( $product, $include_trade_items, $filter_mode, $filter_ids, $filter_codes );
 	}
 
+	/**
+	 * Custom class per custom class attribute label.
+	 *
+	 * @param array<string,mixed> $product             Raw API product data.
+	 * @param bool                $include_trade_items Include trade-item custom classes.
+	 * @param string              $filter_mode         'whitelist' | 'blacklist' | ''.
+	 * @param array<int, int>     $filter_ids          Numeric class IDs to filter.
+	 * @param array<int, string>  $filter_codes        Class codes to filter.
+	 * @return array<string, array{class_key: string, class_name: string}>
+	 */
+	public function get_custom_class_attribute_classes(
+		array $product,
+		bool $include_trade_items = false,
+		string $filter_mode = '',
+		array $filter_ids = [],
+		array $filter_codes = []
+	): array {
+		return $this->custom_class->get_attribute_class_map( $product, $include_trade_items, $filter_mode, $filter_ids, $filter_codes );
+	}
+
 	public function get_custom_class_text_meta(
 		array $product,
 		bool $include_trade_items = false,
