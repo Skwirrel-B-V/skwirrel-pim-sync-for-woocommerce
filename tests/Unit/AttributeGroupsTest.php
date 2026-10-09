@@ -355,3 +355,19 @@ test('long custom class codes sharing a prefix get distinct automatic group IDs'
 	expect(str_starts_with($a['id'], 'src-cc-'))->toBeTrue();
 	expect(Skwirrel_WC_Sync_Attribute_Groups::source_group_for(['source' => 'custom_class', 'class_key' => 'logistics', 'class_name' => ''])['id'])->toBe('src-cc-logistics');
 });
+
+test('saving keeps manual assignments to automatic groups that are absent right now', function () {
+	$existing = [
+		'groups'      => ['technical' => ['name' => 'Technical']],
+		'assignments' => ['kleur' => 'src-etim', 'gtin' => 'technical', 'kostprijs' => 'gone-custom-group'],
+	];
+
+	$config = Skwirrel_WC_Sync_Attribute_Groups::sanitize_groups_submission(
+		['groups' => ['technical' => ['name' => 'Technical']]],
+		$existing,
+		skwAgContext($existing, false)
+	);
+
+	expect($config['assignments'])->toBe(['gtin' => 'technical', 'kleur' => 'src-etim']);
+	expect(Skwirrel_WC_Sync_Attribute_Groups::group_for_slug('kleur', skwAgContext($config)))->toBe('src-etim');
+});

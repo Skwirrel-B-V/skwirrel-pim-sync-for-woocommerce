@@ -26,6 +26,7 @@ Product attributes can be managed in groups. Synced attributes are grouped autom
 ### Notes
 
 * Only global attributes can be grouped. Custom attributes defined on a single product always stay in "Additional information".
+* "Hide in product editor" works on the product's saved attributes on the edit screen. An attribute from a hidden group that is added in the editor, or on a new product, stays visible until the product is saved and reopened.
 
 ## [4.1.0]
 

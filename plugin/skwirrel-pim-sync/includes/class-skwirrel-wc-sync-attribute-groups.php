@@ -101,10 +101,11 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			add_action( 'woocommerce_after_add_attribute_fields', [ $this, 'render_add_attribute_field' ] );
 			add_action( 'woocommerce_after_edit_attribute_fields', [ $this, 'render_edit_attribute_field' ] );
 			add_action( 'woocommerce_attribute_added', [ $this, 'on_attribute_added' ], 10, 2 );
-			add_action( 'woocommerce_attribute_updated', [ $this, 'on_attribute_updated' ], 10, 3 );
-			add_action( 'woocommerce_attribute_deleted', [ $this, 'on_attribute_deleted' ], 10, 2 );
 			add_action( 'admin_footer-post.php', [ $this, 'print_editor_script' ] );
 		}
+		// Rename and delete bookkeeping is not about the form: keep it in step for REST and WP-CLI too.
+		add_action( 'woocommerce_attribute_updated', [ $this, 'on_attribute_updated' ], 10, 3 );
+		add_action( 'woocommerce_attribute_deleted', [ $this, 'on_attribute_deleted' ], 10, 2 );
 	}
 
 	// ------------------------------------------------------------------
@@ -251,7 +252,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 * @param array<string, array{source: string, class_key: string, class_name: string}> $sources      Source map (slug => source).
 	 * @param string[]                                                                  $slugs        All global attribute slugs.
 	 * @param bool                                                                      $etim_enabled Whether ETIM is synced (the ETIM group exists only then).
-	 * @return array{groups: array<string, array{name: string, position: int, as_tab: bool, hidden: bool, admin_hidden: bool, includes: string[], automatic: bool, default_name: string}>, assignments: array<string, string>, slug_sources: array<string, string>, includes: array<string, string>}
+	 * @return array{groups: array<string, array{name: string, position: int, as_tab: bool, hidden: bool, admin_hidden: bool, includes: string[], automatic: bool, default_name: string, default_pos: int}>, assignments: array<string, string>, slug_sources: array<string, string>, includes: array<string, string>}
 	 */
 	public static function build_context( array $config, array $sources, array $slugs, bool $etim_enabled ): array {
 		$config = self::normalize( $config );
@@ -282,6 +283,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 				'includes'     => [],
 				'automatic'    => true,
 				'default_name' => $def['name'],
+				'default_pos'  => $def['position'],
 			];
 		}
 		foreach ( $config['groups'] as $id => $group ) {
@@ -297,6 +299,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 				'includes'     => array_values( array_filter( $group['includes'], static fn( $src ) => isset( $auto[ $src ] ) ) ),
 				'automatic'    => false,
 				'default_name' => '',
+				'default_pos'  => 0,
 			];
 		}
 		uksort(
@@ -495,7 +498,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			$pos  = isset( $row['position'] ) && '' !== $row['position'] ? (int) $row['position'] : null;
 
 			if ( isset( $auto[ $id ] ) ) {
-				$defaults      = self::source_defaults( $id, $auto[ $id ] );
+				$defaults      = self::source_defaults( $auto[ $id ] );
 				$groups[ $id ] = [
 					'name'         => $name === $defaults['name'] ? '' : $name,
 					'position'     => $pos === $defaults['position'] ? null : $pos,
@@ -547,10 +550,12 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 			];
 		}
 
-		// Manual assignments to a deleted group go back to automatic.
+		// Manual assignments to a deleted custom group go back to automatic. Assignments to an
+		// automatic group are kept even while that group is absent (ETIM sync switched off, a
+		// class not synced yet), so they come back when it does.
 		$assignments = [];
 		foreach ( $config['assignments'] as $slug => $gid ) {
-			if ( self::NO_GROUP === $gid || isset( $groups[ $gid ] ) || isset( $auto[ $gid ] ) ) {
+			if ( self::NO_GROUP === $gid || isset( $groups[ $gid ] ) || self::is_source_group( $gid ) ) {
 				$assignments[ $slug ] = $gid;
 			}
 		}
@@ -616,22 +621,15 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	}
 
 	/**
-	 * Default name and position of an automatic group.
+	 * Default name and position of an automatic group, as source_group_for() defined them.
 	 *
-	 * @param string               $id    Group ID.
 	 * @param array<string, mixed> $group Context group.
 	 * @return array{name: string, position: int}
 	 */
-	private static function source_defaults( string $id, array $group ): array {
-		$defaults = [
-			self::SOURCE_PREFIX . 'identifiers' => 50,
-			self::SOURCE_PREFIX . 'etim'        => 100,
-			self::SOURCE_PREFIX . 'cc'          => 300,
-			self::SOURCE_PREFIX . 'variant'     => 400,
-		];
+	private static function source_defaults( array $group ): array {
 		return [
 			'name'     => (string) ( $group['default_name'] ?? '' ),
-			'position' => $defaults[ $id ] ?? 200,
+			'position' => (int) ( $group['default_pos'] ?? 0 ),
 		];
 	}
 
