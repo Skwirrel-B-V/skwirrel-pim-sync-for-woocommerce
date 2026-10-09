@@ -67,7 +67,7 @@ All class files follow `class-skwirrel-wc-sync-{slug}.php` (the WordPress coding
 | `Skwirrel_WC_Sync_Variation_Permalinks` | `class-skwirrel-wc-sync-variation-permalinks.php` | Variation-specific slug/permalink handling |
 | `Skwirrel_WC_Sync_Variation_Attributes_Fix` | `class-skwirrel-wc-sync-variation-attributes-fix.php` | Patches WooCommerce variation attribute bugs (static) |
 | `Skwirrel_WC_Sync_Product_Documents` | `class-skwirrel-wc-sync-product-documents.php` | Frontend documents tab + admin meta box |
-| `Skwirrel_WC_Sync_Attribute_Groups` | `class-skwirrel-wc-sync-attribute-groups.php` | Attribute groups (Products → Attribute groups): automatic groups per source plus custom groups; hide groups on the product page or in the product editor, or show them as product tabs |
+| `Skwirrel_WC_Sync_Attribute_Groups` | `class-skwirrel-wc-sync-attribute-groups.php` | Attribute groups (Skwirrel → Attribute groups): automatic groups per source plus custom groups; hide groups on the product page or in the product editor, or show them as product tabs |
 | `Skwirrel_WC_Sync_Attribute_Sources` | `class-skwirrel-wc-sync-attribute-sources.php` | Records per attribute where it comes from (ETIM, custom class, identifier, variant) during sync |
 | `Skwirrel_WC_Sync_Product_Sync_Meta_Box` | `class-skwirrel-wc-sync-product-sync-meta-box.php` | Admin meta box on product edit screen |
 | `Skwirrel_WC_Sync_Delete_Protection` | `class-skwirrel-wc-sync-delete-protection.php` | Delete warnings + force full sync after WC deletion |

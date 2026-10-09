@@ -42,7 +42,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	 */
 	public const OPTION_KEY = 'skwirrel_wc_sync_attribute_groups';
 
-	/** Admin page slug (Products → Attribute groups). */
+	/** Admin page slug (Skwirrel → Attribute groups). */
 	public const PAGE_SLUG = 'skwirrel-attribute-groups';
 
 	/** Product tab key prefix; the group ID is appended. */
@@ -93,9 +93,10 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	private function __construct() {
 		add_filter( 'woocommerce_display_product_attributes', [ $this, 'filter_display_attributes' ], 20, 2 );
 		add_filter( 'woocommerce_product_tabs', [ $this, 'add_group_tabs' ], 98 );
+		// admin_menu only fires in the admin; hooked unconditionally like the Skwirrel menu itself.
+		add_action( 'admin_menu', [ $this, 'add_menu' ], 60 );
 
 		if ( is_admin() ) {
-			add_action( 'admin_menu', [ $this, 'add_menu' ], 60 );
 			add_action( 'admin_post_' . self::SAVE_GROUPS_ACTION, [ $this, 'handle_save_groups' ] );
 			add_action( 'admin_post_' . self::ASSIGN_ACTION, [ $this, 'handle_assign' ] );
 			add_action( 'woocommerce_after_add_attribute_fields', [ $this, 'render_add_attribute_field' ] );
@@ -867,17 +868,19 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	}
 
 	// ------------------------------------------------------------------
-	// Admin: Products → Attribute groups
+	// Admin: Skwirrel → Attribute groups
 	// ------------------------------------------------------------------
 
 	public function add_menu(): void {
+		// In the Skwirrel menu, right after Settings (Status is row 0, Settings row 1).
 		add_submenu_page(
-			'edit.php?post_type=product',
+			Skwirrel_WC_Sync_Admin_Settings::PAGE_SLUG,
 			__( 'Attribute groups', 'skwirrel-pim-sync' ),
 			__( 'Attribute groups', 'skwirrel-pim-sync' ),
 			'manage_woocommerce',
 			self::PAGE_SLUG,
-			[ $this, 'render_page' ]
+			[ $this, 'render_page' ],
+			2
 		);
 	}
 
@@ -889,13 +892,10 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 	private static function page_url( array $args = [] ): string {
 		return add_query_arg(
 			array_merge(
-				[
-					'post_type' => 'product',
-					'page'      => self::PAGE_SLUG,
-				],
+				[ 'page' => self::PAGE_SLUG ],
 				$args
 			),
-			admin_url( 'edit.php' )
+			admin_url( 'admin.php' )
 		);
 	}
 
@@ -1078,8 +1078,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		?>
 		<h2 id="skwirrel-attributes"><?php esc_html_e( 'Attributes', 'skwirrel-pim-sync' ); ?></h2>
 
-		<form method="get" action="<?php echo esc_url( admin_url( 'edit.php' ) ); ?>" style="margin-bottom:8px;">
-			<input type="hidden" name="post_type" value="product" />
+		<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" style="margin-bottom:8px;">
 			<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG ); ?>" />
 			<label for="skwirrel-attr-search" class="screen-reader-text"><?php esc_html_e( 'Search attributes', 'skwirrel-pim-sync' ); ?></label>
 			<input type="search" id="skwirrel-attr-search" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search attributes', 'skwirrel-pim-sync' ); ?>" />
@@ -1347,7 +1346,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 		echo '<div class="form-field">';
 		echo '<label for="' . esc_attr( self::ATTRIBUTE_FIELD ) . '">' . esc_html__( 'Group', 'skwirrel-pim-sync' ) . '</label>';
 		$this->render_attribute_form_select( null );
-		echo '<p class="description">' . esc_html__( 'Attribute group used on the product page (Products → Attribute groups).', 'skwirrel-pim-sync' ) . '</p>';
+		echo '<p class="description">' . esc_html__( 'Attribute group used on the product page (Skwirrel → Attribute groups).', 'skwirrel-pim-sync' ) . '</p>';
 		echo '</div>';
 	}
 
@@ -1360,7 +1359,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 
 		echo '<tr class="form-field"><th scope="row" valign="top"><label for="' . esc_attr( self::ATTRIBUTE_FIELD ) . '">' . esc_html__( 'Group', 'skwirrel-pim-sync' ) . '</label></th><td>';
 		$this->render_attribute_form_select( $current );
-		echo '<p class="description">' . esc_html__( 'Attribute group used on the product page (Products → Attribute groups).', 'skwirrel-pim-sync' ) . '</p>';
+		echo '<p class="description">' . esc_html__( 'Attribute group used on the product page (Skwirrel → Attribute groups).', 'skwirrel-pim-sync' ) . '</p>';
 		echo '</td></tr>';
 	}
 

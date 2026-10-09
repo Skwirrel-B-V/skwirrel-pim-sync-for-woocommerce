@@ -77,7 +77,7 @@ if ( ! function_exists( 'skwirrel_get_attribute_groups' ) ) {
 	/**
 	 * Get the visible attribute groups of a product with their attribute values.
 	 *
-	 * Groups are managed under Products → Attribute groups. Hidden groups are left out.
+	 * Groups are managed under Skwirrel → Attribute groups. Hidden groups are left out.
 	 *
 	 * @param int $product_id WC product ID.
 	 * @return array<int, array{id: string, name: string, as_tab: bool, attributes: array<string, array{label: string, value: string}>}>

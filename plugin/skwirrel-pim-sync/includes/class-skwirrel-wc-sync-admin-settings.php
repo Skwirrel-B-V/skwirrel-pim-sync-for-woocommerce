@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Skwirrel_WC_Sync_Admin_Settings {
 
-	private const PAGE_SLUG  = 'skwirrel-pim-sync';
+	public const PAGE_SLUG   = 'skwirrel-pim-sync';
 	private const OPTION_KEY = 'skwirrel_wc_sync_settings';
 
 	private const TOKEN_OPTION_KEY = 'skwirrel_wc_sync_auth_token';
@@ -245,6 +245,11 @@ class Skwirrel_WC_Sync_Admin_Settings {
 	 */
 	public function highlight_active_tab( $submenu_file, $parent_file ) {
 		if ( self::PAGE_SLUG !== $parent_file ) {
+			return $submenu_file;
+		}
+		// Other pages in the Skwirrel menu (Attribute groups) highlight their own row.
+		global $plugin_page;
+		if ( is_string( $plugin_page ) && '' !== $plugin_page && self::PAGE_SLUG !== $plugin_page ) {
 			return $submenu_file;
 		}
 

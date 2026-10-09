@@ -2868,8 +2868,8 @@ msgid "You do not have permission to do this."
 msgstr "Vous n'avez pas l'autorisation de faire cela."
 
 #: includes/class-skwirrel-wc-sync-attribute-groups.php
-msgid "Attribute group used on the product page (Products → Attribute groups)."
-msgstr "Groupe d'attributs utilisé sur la page produit (Produits → Groupes d'attributs)."
+msgid "Attribute group used on the product page (Skwirrel → Attribute groups)."
+msgstr "Groupe d'attributs utilisé sur la page produit (Skwirrel → Groupes d'attributs)."
 
 #: includes/class-skwirrel-wc-sync-attribute-groups.php
 msgid "A hidden group is not shown on the product page. A group shown as a tab gets its own product tab; other groups stay in \"Additional information\", listed per group."

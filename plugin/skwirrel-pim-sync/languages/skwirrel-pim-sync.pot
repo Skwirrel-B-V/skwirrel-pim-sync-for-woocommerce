@@ -2355,7 +2355,7 @@ msgid "You do not have permission to do this."
 msgstr ""
 
 #: includes/class-skwirrel-wc-sync-attribute-groups.php
-msgid "Attribute group used on the product page (Products → Attribute groups)."
+msgid "Attribute group used on the product page (Skwirrel → Attribute groups)."
 msgstr ""
 
 #: includes/class-skwirrel-wc-sync-attribute-groups.php

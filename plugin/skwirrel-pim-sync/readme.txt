@@ -79,7 +79,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 == Changelog ==
 
 = 4.2.0 =
-* New: attribute groups under Products → Attribute groups. Synced attributes are grouped automatically: ETIM (when ETIM is synced), one group per custom class, identifiers and variant. The groups fill during the next sync.
+* New: attribute groups under Skwirrel → Attribute groups. Synced attributes are grouped automatically: ETIM (when ETIM is synced), one group per custom class, identifiers and variant. The groups fill during the next sync.
 * Create your own groups and combine automatic groups in them, for example "Technical specifications" with ETIM and a custom class.
 * Each group can be hidden on the product page, or shown as its own product tab. Other groups stay in "Additional information", listed per group.
 * A group can also be hidden in the product editor, for all products at once. Its attributes are collapsed in the Attributes panel but still saved, with a toggle to show them.
