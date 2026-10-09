@@ -433,11 +433,11 @@ class Skwirrel_WC_Sync_Custom_Class_Extractor {
 	 * get_custom_class_attributes(), so every label it returns maps to the class whose
 	 * value was actually used.
 	 *
-	 * @param array  $product             Raw API product.
-	 * @param bool   $include_trade_items Include trade-item custom classes.
-	 * @param string $filter_mode         'whitelist' | 'blacklist' | ''.
-	 * @param array  $filter_ids          Numeric class IDs to filter.
-	 * @param array  $filter_codes        String class codes to filter (lowercase).
+	 * @param array<string, mixed> $product             Raw API product.
+	 * @param bool                 $include_trade_items Include trade-item custom classes.
+	 * @param string               $filter_mode         'whitelist' | 'blacklist' | ''.
+	 * @param array<int, int>      $filter_ids          Numeric class IDs to filter.
+	 * @param array<int, string>   $filter_codes        String class codes to filter (lowercase).
 	 * @return array<string, array{class_key: string, class_name: string}> label => class
 	 */
 	public function get_attribute_class_map(

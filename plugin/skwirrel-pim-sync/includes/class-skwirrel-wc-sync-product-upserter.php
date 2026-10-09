@@ -3579,7 +3579,7 @@ class Skwirrel_WC_Sync_Product_Upserter {
 	 * Remember where this product's attributes come from (ETIM, custom class, identifier), so
 	 * attribute groups can group them automatically.
 	 *
-	 * @param array                $product    Skwirrel product data.
+	 * @param array<string, mixed> $product    Skwirrel product data.
 	 * @param array<string, mixed> $base_attrs Mapper attributes (identifiers + ETIM).
 	 * @param array<string, mixed> $cc_attrs   Custom class attributes.
 	 */

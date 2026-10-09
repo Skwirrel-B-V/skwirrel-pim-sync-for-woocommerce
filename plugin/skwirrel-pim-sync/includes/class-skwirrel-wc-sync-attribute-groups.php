@@ -1165,7 +1165,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 				'paged' => 999999999,
 			]
 		);
-		$links = paginate_links(
+		$links = (string) paginate_links(
 			[
 				// paginate_links() swaps %#% for each page number.
 				'base'      => str_replace( '999999999', '%#%', $base ),
@@ -1176,7 +1176,7 @@ class Skwirrel_WC_Sync_Attribute_Groups {
 				'next_text' => '&rsaquo;',
 			]
 		);
-		if ( is_string( $links ) ) {
+		if ( '' !== $links ) {
 			echo '<div class="tablenav-pages">' . wp_kses_post( $links ) . '</div>';
 		}
 	}
