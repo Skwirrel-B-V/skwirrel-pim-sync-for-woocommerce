@@ -93,11 +93,10 @@ class Skwirrel_WC_Sync_File_Naming {
 	 * @return string File name, without directory.
 	 */
 	public static function build( string $dir, string $file_name, string $ext, string $url, string $context, bool $force_ext = false ): string {
-		$mode = self::get_mode();
 		$name = '';
 
-		if ( self::MODE_CURRENT !== $mode ) {
-			$name = self::name_from_skwirrel( $file_name, $ext, $force_ext, self::MODE_PREFIX === $mode ? self::get_prefix() : '' );
+		if ( self::MODE_CURRENT !== self::get_mode() ) {
+			$name = self::derive( $dir, $file_name, $ext, $force_ext );
 			if ( '' === $name ) {
 				( new Skwirrel_WC_Sync_Logger() )->warning(
 					'No usable Skwirrel file name; using the default file name',
@@ -107,8 +106,6 @@ class Skwirrel_WC_Sync_File_Naming {
 						'context'   => $context,
 					]
 				);
-			} else {
-				$name = wp_unique_filename( $dir, $name );
 			}
 		}
 
@@ -116,15 +113,45 @@ class Skwirrel_WC_Sync_File_Naming {
 			$name = 'skwirrel-' . substr( hash( 'sha256', $url ), 0, 12 ) . '-' . time() . '.' . $ext;
 		}
 
+		return self::finalize( $name, $dir, $url, $context );
+	}
+
+	/**
+	 * The file name the configured mode gives a Skwirrel `file_name`, or '' when the plugin
+	 * naming applies (mode A, or no usable name). Logs nothing and writes nothing.
+	 *
+	 * @param string $dir       Directory the file lives in or will be written to.
+	 * @param string $file_name The Skwirrel `file_name`; may be empty.
+	 * @param string $ext       Extension of the file content (without dot).
+	 * @param bool   $force_ext True when `$ext` is certain: a different extension on the Skwirrel name is replaced.
+	 * @param bool   $unique    Make the name unique in `$dir`. False compares the bare name.
+	 */
+	public static function derive( string $dir, string $file_name, string $ext, bool $force_ext, bool $unique = true ): string {
+		$mode = self::get_mode();
+		if ( self::MODE_CURRENT === $mode ) {
+			return '';
+		}
+		$name = self::name_from_skwirrel( $file_name, $ext, $force_ext, self::MODE_PREFIX === $mode ? self::get_prefix() : '' );
+		return ( '' !== $name && $unique ) ? wp_unique_filename( $dir, $name ) : $name;
+	}
+
+	/**
+	 * Run a name through the `skwirrel_wc_sync_upload_filename` filter. A name the filter
+	 * changes is made safe and unique again, so a filter can never cause an overwrite.
+	 *
+	 * @param string $name    File name without directory.
+	 * @param string $dir     Directory the file lives in or will be written to.
+	 * @param string $url     Source URL the file was downloaded from.
+	 * @param string $context `image`, `file`, `image_replace`, `file_replace` or `rename`.
+	 */
+	public static function finalize( string $name, string $dir, string $url, string $context ): string {
 		$filtered = self::filter_name( $name, $url, $context );
 		if ( is_string( $filtered ) && '' !== $filtered && $filtered !== $name ) {
-			// Never let a filter's choice overwrite a file that is already there.
 			$safe = sanitize_file_name( basename( $filtered ) );
 			if ( '' !== $safe ) {
-				$name = wp_unique_filename( $dir, $safe );
+				return wp_unique_filename( $dir, $safe );
 			}
 		}
-
 		return $name;
 	}
 
@@ -133,7 +160,7 @@ class Skwirrel_WC_Sync_File_Naming {
 	 *
 	 * @param string $name    File name without directory.
 	 * @param string $url     Source URL the file was downloaded from.
-	 * @param string $context `image`, `file`, `image_replace` or `file_replace`.
+	 * @param string $context `image`, `file`, `image_replace`, `file_replace` or `rename`.
 	 * @return mixed Filtered value before validation.
 	 */
 	private static function filter_name( string $name, string $url, string $context ): mixed {

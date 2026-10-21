@@ -332,6 +332,23 @@ if (!function_exists('get_post_field')) {
     }
 }
 
+// Stub get_attached_file() — tests set $GLOBALS['_test_attached_files'][$attachment_id] = path.
+if (!function_exists('get_attached_file')) {
+    function get_attached_file(int $attachment_id) {
+        return $GLOBALS['_test_attached_files'][$attachment_id] ?? false;
+    }
+}
+
+// Stub get_posts() — returns ids from $GLOBALS['_test_posts'], honouring paging.
+if (!function_exists('get_posts')) {
+    function get_posts(array $args = []): array {
+        $all      = $GLOBALS['_test_posts'] ?? [];
+        $per_page = (int) ($args['posts_per_page'] ?? count($all));
+        $paged    = max(1, (int) ($args['paged'] ?? 1));
+        return array_slice($all, ($paged - 1) * $per_page, $per_page);
+    }
+}
+
 // Stub wp_update_post() — merges the given fields into $GLOBALS['_test_post_fields'][$ID].
 if (!function_exists('wp_update_post')) {
     function wp_update_post(array $postarr) {
@@ -647,6 +664,7 @@ if (!function_exists('wp_cache_delete')) {
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-logger.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-attribute-sources.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-file-naming.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-file-renamer.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-media-importer.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-etim-extractor.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-custom-class-extractor.php';
