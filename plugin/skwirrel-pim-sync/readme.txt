@@ -82,6 +82,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * New: Files tab in the settings. Choose how downloaded images and documents are named: the plugin naming (default), your own prefix plus the Skwirrel file name, or the Skwirrel file name as is.
 * A file name that already exists gets -1, -2 appended; existing files are never overwritten. A file without a usable name keeps the plugin naming.
 * New filter skwirrel_wc_sync_upload_filename to change the final file name.
+* With file names that follow Skwirrel, renaming a file in Skwirrel adds a new file on the next sync. The old file stays in the media library, unattached.
 
 = 4.2.0 =
 * New: attribute groups under Skwirrel → Attribute groups. Synced attributes are grouped automatically: ETIM (when ETIM is synced), one group per custom class, identifiers and variant. The groups fill during the next sync.

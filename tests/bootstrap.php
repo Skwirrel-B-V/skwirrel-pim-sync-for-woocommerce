@@ -332,6 +332,19 @@ if (!function_exists('get_post_field')) {
     }
 }
 
+// Stub wp_update_post() — merges the given fields into $GLOBALS['_test_post_fields'][$ID].
+if (!function_exists('wp_update_post')) {
+    function wp_update_post(array $postarr) {
+        $id = (int) ($postarr['ID'] ?? 0);
+        foreach ($postarr as $field => $value) {
+            if ($field !== 'ID') {
+                $GLOBALS['_test_post_fields'][$id][$field] = $value;
+            }
+        }
+        return $id;
+    }
+}
+
 // Stub wp_get_post_parent_id() — tests can set $GLOBALS['_test_post_parents'][$post_id].
 if (!function_exists('wp_get_post_parent_id')) {
     function wp_get_post_parent_id($post_id = 0) {
