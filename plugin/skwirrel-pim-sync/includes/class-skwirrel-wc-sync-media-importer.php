@@ -19,6 +19,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	private const META_SKWIRREL_HASH          = '_skwirrel_url_hash';
 	private const META_SKWIRREL_ATTACHMENT_ID = '_skwirrel_attachment_id';
 	private const META_SKWIRREL_FILE_CHECKSUM = '_skwirrel_file_checksum';
+	private const META_SKWIRREL_FILE_NAME     = '_skwirrel_file_name';
 
 	/** Image attachment type codes (from Skwirrel schema: PPI=Picture, PHI=Picture print, LOG=Logo, SCH=Diagram, PRT=Presentation, OTV=Other visual). */
 	private const IMAGE_TYPES = [ 'IMG', 'PPI', 'PHI', 'LOG', 'SCH', 'PRT', 'OTV' ];
@@ -562,6 +563,19 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( '' !== $checksum ) {
 			update_post_meta( $attachment_id, self::META_SKWIRREL_FILE_CHECKSUM, $checksum );
 		}
+		$file_name = $this->incoming_file_name( $api_meta );
+		if ( '' !== $file_name ) {
+			update_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, $file_name );
+		}
+	}
+
+	/**
+	 * The Skwirrel file name carried by the payload, or '' when there is none.
+	 *
+	 * @param array{file_name?: string|null, ...} $api_meta
+	 */
+	private function incoming_file_name( array $api_meta ): string {
+		return isset( $api_meta['file_name'] ) ? trim( (string) $api_meta['file_name'] ) : '';
 	}
 
 	/**
@@ -605,6 +619,15 @@ class Skwirrel_WC_Sync_Media_Importer {
 						'checksum'      => $checksum,
 					]
 				);
+			}
+		}
+		$file_name = $this->incoming_file_name( $api_meta );
+		if ( '' !== $file_name ) {
+			$stored_name = (string) get_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, true );
+			// Plugin naming ignores the name, so keep the record current there: a later switch
+			// to another mode then compares against the name Skwirrel has today, not an old one.
+			if ( '' === $stored_name || ( Skwirrel_WC_Sync_File_Naming::MODE_CURRENT === Skwirrel_WC_Sync_File_Naming::get_mode() && $stored_name !== $file_name ) ) {
+				update_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, $file_name );
 			}
 		}
 	}
@@ -714,6 +737,11 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( ! $existing ) {
 			return 0;
 		}
+		if ( $this->file_name_changed( $existing, $api_meta ) ) {
+			$this->release_renamed_attachment( $existing, $api_meta );
+			return 0;
+		}
+
 		$file         = get_attached_file( $existing );
 		$file_present = is_string( $file ) && '' !== $file && file_exists( $file );
 
@@ -751,6 +779,59 @@ class Skwirrel_WC_Sync_Media_Importer {
 		delete_post_meta( $existing, self::META_SKWIRREL_HASH );
 		delete_post_meta( $existing, self::META_SKWIRREL_URL );
 		return 0;
+	}
+
+	/**
+	 * Whether Skwirrel now calls this file something else than when it was imported.
+	 *
+	 * Only matters when file names follow Skwirrel (modes B and C): the stored file then
+	 * carries the old name, so the changed name means a new file. Without a stored name
+	 * (earlier imports) or without an incoming name there is nothing to compare.
+	 *
+	 * @param array{file_name?: string|null, ...} $api_meta
+	 */
+	private function file_name_changed( int $attachment_id, array $api_meta ): bool {
+		if ( Skwirrel_WC_Sync_File_Naming::MODE_CURRENT === Skwirrel_WC_Sync_File_Naming::get_mode() ) {
+			return false;
+		}
+		$incoming = $this->incoming_file_name( $api_meta );
+		if ( '' === $incoming ) {
+			return false;
+		}
+		$stored = (string) get_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, true );
+		return '' !== $stored && $stored !== $incoming;
+	}
+
+	/**
+	 * Let go of an attachment whose Skwirrel file name changed, so the import path adds a new one.
+	 *
+	 * Same approach as the missing-file path: the Skwirrel identifiers are cleared so no lookup
+	 * finds the record again, and the record and its file stay in the media library. It is also
+	 * detached from the product it was uploaded to. Cleaning it up is left to the site owner.
+	 *
+	 * @param array{file_name?: string|null, attachment_id?: int|string|null, ...} $api_meta
+	 */
+	private function release_renamed_attachment( int $attachment_id, array $api_meta ): void {
+		$this->logger->info(
+			'Skwirrel file name changed; importing a new file and leaving the old one unattached',
+			[
+				'attachment_id' => $attachment_id,
+				'old_name'      => (string) get_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, true ),
+				'new_name'      => $this->incoming_file_name( $api_meta ),
+			]
+		);
+		delete_post_meta( $attachment_id, self::META_SKWIRREL_ATTACHMENT_ID );
+		delete_post_meta( $attachment_id, self::META_SKWIRREL_FILE_CHECKSUM );
+		delete_post_meta( $attachment_id, self::META_SKWIRREL_HASH );
+		delete_post_meta( $attachment_id, self::META_SKWIRREL_URL );
+		if ( (int) get_post_field( 'post_parent', $attachment_id ) > 0 ) {
+			wp_update_post(
+				[
+					'ID'          => $attachment_id,
+					'post_parent' => 0,
+				]
+			);
+		}
 	}
 
 	/**

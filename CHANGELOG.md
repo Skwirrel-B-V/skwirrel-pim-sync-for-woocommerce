@@ -13,6 +13,7 @@ Choose how imported files are named in WordPress.
 * **Filter `skwirrel_wc_sync_upload_filename`** (file name, source URL, context `image`, `file`, `image_replace` or `file_replace`) changes the final name. A name returned by the filter is still made unique.
 * The attachment handler passes the Skwirrel `file_name` to the importer in `$api_meta['file_name']`.
 * Covered by `tests/Unit/FileNamingTest.php`.
+* **Imported file name is remembered** (`_skwirrel_file_name` on the attachment). In modes B and C, a different Skwirrel `file_name` on a later sync adds a new attachment; the old one stays in the media library, is detached from the product and has its Skwirrel identifiers cleared so it is not found again. A sync without changes adds nothing. Attachments from earlier imports get their name filled in on the next sync without downloading the file again. In mode A the stored name is only kept up to date; behavior is unchanged. Covered by `tests/Unit/MediaImporterFileNameTest.php`.
 
 ## [4.2.0]
 
