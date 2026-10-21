@@ -3142,3 +3142,65 @@ msgstr "Utilisé uniquement avec \"Préfixe + nom de fichier Skwirrel\". Les maj
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "If a file has no usable name or extension in Skwirrel, the plugin naming is used for that file and a warning is logged. A file name that already exists gets -1, -2 appended; existing files are never overwritten."
 msgstr "Si un fichier n’a pas de nom ou d’extension utilisable dans Skwirrel, le nommage du plugin est utilisé pour ce fichier et un avertissement est consigné. Un nom de fichier déjà existant reçoit -1, -2 ; les fichiers existants ne sont jamais écrasés."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Rename existing files"
+msgstr "Renommer les fichiers existants"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Give files that were imported earlier the name from Skwirrel. First see what would change; nothing is renamed by looking."
+msgstr "Donnez aux fichiers importés précédemment le nom de Skwirrel. Voyez d’abord ce qui changerait ; la consultation ne renomme rien."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming is switched off on this site, usually because uploads are stored on remote storage by another plugin. Renaming local copies would leave the remote files with the old name."
+msgstr "Le renommage est désactivé sur ce site, généralement parce qu’un autre plugin stocke les fichiers téléversés sur un stockage distant. Renommer les copies locales laisserait les fichiers distants avec l’ancien nom."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Preview renaming"
+msgstr "Aperçu du renommage"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Choose \"Prefix + Skwirrel file name\" or \"Skwirrel file name as is\" above and save the settings first. Renaming is not available with the plugin naming."
+msgstr "Choisissez ci-dessus \"Préfixe + nom de fichier Skwirrel\" ou \"Nom de fichier Skwirrel tel quel\" et enregistrez d’abord les réglages. Le renommage n’est pas disponible avec le nommage du plugin."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Skipped, run a sync first"
+msgstr "Ignoré, lancez d’abord une synchronisation"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Skipped, no usable name in Skwirrel"
+msgstr "Ignoré, aucun nom utilisable dans Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Skipped, file not on this server"
+msgstr "Ignoré, fichier absent de ce serveur"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Make a backup first."
+msgstr "Faites d’abord une sauvegarde."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming changes files on disk and the links to them. Back up your uploads folder and database before you continue."
+msgstr "Le renommage modifie les fichiers sur le disque et les liens qui y mènent. Sauvegardez votre dossier d’envois et votre base de données avant de continuer."
+
+#. translators: 1: number of files to rename, 2: number already named correctly, 3: number skipped
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+#, php-format
+msgid "%1$s to rename, %2$s already named correctly, %3$s skipped."
+msgstr "%1$s à renommer, %2$s déjà correctement nommés, %3$s ignorés."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "There are no files to rename."
+msgstr "Il n’y a aucun fichier à renommer."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Current name"
+msgstr "Nom actuel"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "New name"
+msgstr "Nouveau nom"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Skipped files"
+msgstr "Fichiers ignorés"
