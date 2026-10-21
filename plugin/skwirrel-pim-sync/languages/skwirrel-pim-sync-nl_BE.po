@@ -3164,3 +3164,29 @@ msgstr "Nieuwe naam"
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "Skipped files"
 msgstr "Overgeslagen bestanden"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Rename these files now? Make sure you have a backup of your uploads folder and database."
+msgstr "Deze bestanden nu hernoemen? Zorg dat je een back-up hebt van je uploadmap en database."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Rename files"
+msgstr "Bestanden hernoemen"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming could not be started. Check that a naming mode other than the plugin naming is saved, and that a rename is not already running."
+msgstr "Hernoemen kon niet worden gestart. Controleer of een andere naamgeving dan die van de plugin is opgeslagen en of er niet al een hernoeming loopt."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming files…"
+msgstr "Bestanden hernoemen…"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming finished."
+msgstr "Hernoemen voltooid."
+
+#. translators: 1: files handled so far, 2: files to handle in total, 3: renamed, 4: skipped, 5: failed
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+#, php-format
+msgid "%1$s of %2$s handled: %3$s renamed, %4$s skipped, %5$s failed. Every rename is in the log."
+msgstr "%1$s van %2$s verwerkt: %3$s hernoemd, %4$s overgeslagen, %5$s mislukt. Elke hernoeming staat in het log."

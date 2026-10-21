@@ -2691,3 +2691,29 @@ msgstr ""
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "Skipped files"
 msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Rename these files now? Make sure you have a backup of your uploads folder and database."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Rename files"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming could not be started. Check that a naming mode other than the plugin naming is saved, and that a rename is not already running."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming files…"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming finished."
+msgstr ""
+
+#. translators: 1: files handled so far, 2: files to handle in total, 3: renamed, 4: skipped, 5: failed
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+#, php-format
+msgid "%1$s of %2$s handled: %3$s renamed, %4$s skipped, %5$s failed. Every rename is in the log."
+msgstr ""

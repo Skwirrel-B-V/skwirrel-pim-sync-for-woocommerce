@@ -3204,3 +3204,29 @@ msgstr "Nouveau nom"
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "Skipped files"
 msgstr "Fichiers ignorés"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Rename these files now? Make sure you have a backup of your uploads folder and database."
+msgstr "Renommer ces fichiers maintenant ? Assurez-vous d’avoir une sauvegarde de votre dossier d’envois et de votre base de données."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Rename files"
+msgstr "Renommer les fichiers"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming could not be started. Check that a naming mode other than the plugin naming is saved, and that a rename is not already running."
+msgstr "Le renommage n’a pas pu démarrer. Vérifiez qu’un mode de nommage autre que celui du plugin est enregistré et qu’aucun renommage n’est déjà en cours."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming files…"
+msgstr "Renommage des fichiers…"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming finished."
+msgstr "Renommage terminé."
+
+#. translators: 1: files handled so far, 2: files to handle in total, 3: renamed, 4: skipped, 5: failed
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+#, php-format
+msgid "%1$s of %2$s handled: %3$s renamed, %4$s skipped, %5$s failed. Every rename is in the log."
+msgstr "%1$s sur %2$s traités : %3$s renommés, %4$s ignorés, %5$s en échec. Chaque renommage figure dans le journal."
