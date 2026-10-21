@@ -229,6 +229,26 @@ if (!function_exists('remove_filter')) {
     }
 }
 
+if (!function_exists('sanitize_file_name')) {
+    function sanitize_file_name(string $filename): string {
+        $filename = preg_replace('/[^A-Za-z0-9._-]+/', '-', $filename);
+        return trim((string) $filename, '-_ ');
+    }
+}
+
+if (!function_exists('wp_unique_filename')) {
+    function wp_unique_filename(string $dir, string $filename): string {
+        $existing = $GLOBALS['_test_existing_files'] ?? [];
+        $info = pathinfo($filename);
+        $name = $filename;
+        $i = 1;
+        while (in_array($name, $existing, true)) {
+            $name = $info['filename'] . '-' . $i++ . (isset($info['extension']) ? '.' . $info['extension'] : '');
+        }
+        return $name;
+    }
+}
+
 if (!function_exists('apply_filters')) {
     function apply_filters(string $hook, $value, ...$args) {
         foreach ($GLOBALS['_test_filters'][$hook] ?? [] as $callback) {
@@ -613,6 +633,7 @@ if (!function_exists('wp_cache_delete')) {
 // Load plugin classes (order matters — dependencies first).
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-logger.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-attribute-sources.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-file-naming.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-media-importer.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-etim-extractor.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-custom-class-extractor.php';

@@ -384,12 +384,16 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 	 * file_checksum onto the WordPress attachment for cross-sync deduplication.
 	 *
 	 * @param array<string,mixed> $att Single Skwirrel _attachments[] entry.
-	 * @return array{attachment_id: int|null, file_checksum: string|null}
+	 * `file_name` is the name entered in Skwirrel; the importer names the stored file after it
+	 * when the site owner chose so (Settings → Files).
+	 *
+	 * @return array{attachment_id: int|null, file_checksum: string|null, file_name: string|null}
 	 */
 	private function build_api_meta( array $att ): array {
 		return [
 			'attachment_id' => isset( $att['product_attachment_id'] ) ? (int) $att['product_attachment_id'] : null,
 			'file_checksum' => isset( $att['file_sha256_checksum'] ) ? (string) $att['file_sha256_checksum'] : null,
+			'file_name'     => isset( $att['file_name'] ) && is_string( $att['file_name'] ) ? $att['file_name'] : null,
 		];
 	}
 }

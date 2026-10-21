@@ -3050,3 +3050,55 @@ msgid "%s shown as tab"
 msgid_plural "%s shown as tab"
 msgstr[0] "%s als tabblad"
 msgstr[1] "%s als tabblad"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Files"
+msgstr "Bestanden"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "File names"
+msgstr "Bestandsnamen"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "How images and documents downloaded from Skwirrel are named in the media library. Applies to new downloads."
+msgstr "Hoe afbeeldingen en documenten die uit Skwirrel zijn gedownload in de mediabibliotheek heten. Geldt voor nieuwe downloads."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Naming"
+msgstr "Naamgeving"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Plugin naming (default)"
+msgstr "Naamgeving van de plugin (standaard)"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Files are saved as skwirrel-<code>-<number>.ext, whatever name was entered in Skwirrel."
+msgstr "Bestanden worden opgeslagen als skwirrel-<code>-<nummer>.ext, ongeacht de naam die in Skwirrel is ingevoerd."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Prefix + Skwirrel file name"
+msgstr "Voorvoegsel + Skwirrel-bestandsnaam"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "The file name from Skwirrel with your own prefix in front, for example acme-datasheet.pdf."
+msgstr "De bestandsnaam uit Skwirrel met een eigen voorvoegsel ervoor, bijvoorbeeld acme-datasheet.pdf."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Skwirrel file name as is"
+msgstr "Skwirrel-bestandsnaam ongewijzigd"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "The file name from Skwirrel, unchanged. Risk: the name becomes part of the file's public URL, so whatever is entered as a file name in Skwirrel is visible there. Names are not guaranteed to be unique: a clash with a file that already exists (for example from a manual upload) gets -1, -2 appended."
+msgstr "De bestandsnaam uit Skwirrel, ongewijzigd. Risico: de naam wordt onderdeel van de openbare URL van het bestand, dus alles wat in Skwirrel als bestandsnaam is ingevoerd is daar zichtbaar. Namen zijn niet gegarandeerd uniek: bij een conflict met een bestaand bestand (bijvoorbeeld een handmatige upload) wordt -1, -2 toegevoegd."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Prefix"
+msgstr "Voorvoegsel"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Only used with \"Prefix + Skwirrel file name\". Capitals are kept; characters that are not safe in a file name are replaced."
+msgstr "Alleen gebruikt bij \"Voorvoegsel + Skwirrel-bestandsnaam\". Hoofdletters blijven behouden; tekens die niet veilig zijn in een bestandsnaam worden vervangen."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "If a file has no usable name or extension in Skwirrel, the plugin naming is used for that file and a warning is logged. A file name that already exists gets -1, -2 appended; existing files are never overwritten."
+msgstr "Heeft een bestand in Skwirrel geen bruikbare naam of extensie, dan wordt voor dat bestand de naamgeving van de plugin gebruikt en wordt een waarschuwing gelogd. Een bestandsnaam die al bestaat krijgt -1, -2 erbij; bestaande bestanden worden nooit overschreven."

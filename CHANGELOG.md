@@ -2,6 +2,18 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [4.3.0]
+
+Choose how imported files are named in WordPress.
+
+### Added
+
+* **Files tab in the settings** with three ways to name downloaded images and documents (`file_naming_mode`): the plugin naming `skwirrel-<code>-<number>.ext` (default, nothing changes for existing sites), a custom prefix followed by the Skwirrel `file_name` (`file_naming_prefix`), or the Skwirrel `file_name` as is, with an explanation of the risk next to it.
+* **`Skwirrel_WC_Sync_File_Naming`** builds the name for all four download paths (new image, new file, image content replace, file content replace). Names are made safe with `sanitize_file_name()` but keep their capitals, and are made unique with `wp_unique_filename()` (`-1`, `-2`), so an existing file is never overwritten. Replaced content is saved under a new unique name. A file without a usable name or extension gets the plugin naming and a logged warning.
+* **Filter `skwirrel_wc_sync_upload_filename`** (file name, source URL, context `image`, `file`, `image_replace` or `file_replace`) changes the final name. A name returned by the filter is still made unique.
+* The attachment handler passes the Skwirrel `file_name` to the importer in `$api_meta['file_name']`.
+* Covered by `tests/Unit/FileNamingTest.php`.
+
 ## [4.2.0]
 
 Product attributes can be managed in groups. Synced attributes are grouped automatically by where they come from, and each group can be hidden on the product page or shown as its own product tab.

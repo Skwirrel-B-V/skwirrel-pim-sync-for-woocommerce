@@ -644,20 +644,22 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				}
 			}
 		}
-		$out['status_mapping']                = $status_mapping;
-		$out['status_mapping_default']        = in_array( $input['status_mapping_default'] ?? '', $valid_states, true )
+		$out['status_mapping']                               = $status_mapping;
+		$out['status_mapping_default']                       = in_array( $input['status_mapping_default'] ?? '', $valid_states, true )
 			? $input['status_mapping_default']
 			: 'publish';
-		$out['deprecated_remove_after_syncs'] = isset( $input['deprecated_remove_after_syncs'] )
+		$out['deprecated_remove_after_syncs']                = isset( $input['deprecated_remove_after_syncs'] )
 			? max( 0, (int) $input['deprecated_remove_after_syncs'] )
 			: 3;
-		$out['log_mode_manual']               = in_array( $input['log_mode_manual'] ?? '', [ 'per_sync', 'per_day' ], true )
+		$out['log_mode_manual']                              = in_array( $input['log_mode_manual'] ?? '', [ 'per_sync', 'per_day' ], true )
 			? $input['log_mode_manual']
 			: 'per_sync';
-		$out['log_mode_scheduled']            = in_array( $input['log_mode_scheduled'] ?? '', [ 'per_sync', 'per_day' ], true )
+		$out['log_mode_scheduled']                           = in_array( $input['log_mode_scheduled'] ?? '', [ 'per_sync', 'per_day' ], true )
 			? $input['log_mode_scheduled']
 			: 'per_day';
-		$out['log_retention']                 = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
+		$out[ Skwirrel_WC_Sync_File_Naming::SETTING_MODE ]   = Skwirrel_WC_Sync_File_Naming::sanitize_mode( $input[ Skwirrel_WC_Sync_File_Naming::SETTING_MODE ] ?? null );
+		$out[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] = Skwirrel_WC_Sync_File_Naming::sanitize_prefix( $input[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] ?? '' );
+		$out['log_retention']                                = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
 			? $input['log_retention']
 			: '7days';
 		return $out;

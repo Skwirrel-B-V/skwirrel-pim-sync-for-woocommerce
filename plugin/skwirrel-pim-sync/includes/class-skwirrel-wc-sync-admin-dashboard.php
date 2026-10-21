@@ -931,6 +931,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				'render' => 'render_settings_panel_field_mapping',
 				'fields' => self::field_mapping_field_ids(),
 			),
+			'files'         => array(
+				'label'  => __( 'Files', 'skwirrel-pim-sync' ),
+				'order'  => 30,
+				'render' => 'render_settings_panel_files',
+				'fields' => array( 'file_naming_prefix' ),
+			),
 			'advanced'      => array(
 				'label'  => __( 'Advanced', 'skwirrel-pim-sync' ),
 				'order'  => 40,
@@ -1127,6 +1133,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			case 'render_settings_panel_field_mapping':
 				$this->render_settings_panel_field_mapping( $context );
 				return;
+			case 'render_settings_panel_files':
+				$this->render_settings_panel_files( $context );
+				return;
 			case 'render_settings_panel_advanced':
 				$this->render_settings_panel_advanced( $context );
 				return;
@@ -1173,6 +1182,15 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 */
 	private function render_settings_panel_field_mapping( array $context ): void {
 		$this->render_fieldgroup_field_mapping( (array) $context['opts'], (string) $context['base_url'] );
+	}
+
+	/**
+	 * Render the Files tab panel.
+	 *
+	 * @param array<string, mixed> $context Render context.
+	 */
+	private function render_settings_panel_files( array $context ): void {
+		$this->render_fieldgroup_file_naming( (array) $context['opts'] );
 	}
 
 	/**
@@ -2004,6 +2022,59 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</select>
 				<p class="skw-field-hint"><?php esc_html_e( 'How long to keep per-sync log files. Old files are cleaned up at the start of each sync.', 'skwirrel-pim-sync' ); ?></p>
 			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "File names" field group.
+	 *
+	 * @param array<string,mixed> $opts Stored plugin settings.
+	 */
+	private function render_fieldgroup_file_naming( array $opts ): void {
+		$mode_key   = Skwirrel_WC_Sync_File_Naming::SETTING_MODE;
+		$prefix_key = Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX;
+		$mode       = Skwirrel_WC_Sync_File_Naming::sanitize_mode( $opts[ $mode_key ] ?? null );
+		$prefix     = Skwirrel_WC_Sync_File_Naming::sanitize_prefix( $opts[ $prefix_key ] ?? '' );
+		?>
+		<div class="skw-fieldgroup">
+			<div class="skw-fg-head">
+				<span class="skw-fg-icon skw-fg-icon-blue"><i class="ph ph-file-image" aria-hidden="true"></i></span>
+				<div>
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'File names', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-fg-desc"><?php esc_html_e( 'How images and documents downloaded from Skwirrel are named in the media library. Applies to new downloads.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+			</div>
+			<fieldset class="skw-field">
+				<legend class="skw-label"><?php esc_html_e( 'Naming', 'skwirrel-pim-sync' ); ?></legend>
+				<p>
+					<label>
+						<input type="radio" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $mode_key ); ?>]" value="<?php echo esc_attr( Skwirrel_WC_Sync_File_Naming::MODE_CURRENT ); ?>" <?php checked( $mode, Skwirrel_WC_Sync_File_Naming::MODE_CURRENT ); ?>>
+						<?php esc_html_e( 'Plugin naming (default)', 'skwirrel-pim-sync' ); ?>
+					</label>
+					<span class="skw-field-hint"><?php esc_html_e( 'Files are saved as skwirrel-<code>-<number>.ext, whatever name was entered in Skwirrel.', 'skwirrel-pim-sync' ); ?></span>
+				</p>
+				<p>
+					<label>
+						<input type="radio" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $mode_key ); ?>]" value="<?php echo esc_attr( Skwirrel_WC_Sync_File_Naming::MODE_PREFIX ); ?>" <?php checked( $mode, Skwirrel_WC_Sync_File_Naming::MODE_PREFIX ); ?>>
+						<?php esc_html_e( 'Prefix + Skwirrel file name', 'skwirrel-pim-sync' ); ?>
+					</label>
+					<span class="skw-field-hint"><?php esc_html_e( 'The file name from Skwirrel with your own prefix in front, for example acme-datasheet.pdf.', 'skwirrel-pim-sync' ); ?></span>
+				</p>
+				<p>
+					<label>
+						<input type="radio" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $mode_key ); ?>]" value="<?php echo esc_attr( Skwirrel_WC_Sync_File_Naming::MODE_ORIGINAL ); ?>" <?php checked( $mode, Skwirrel_WC_Sync_File_Naming::MODE_ORIGINAL ); ?>>
+						<?php esc_html_e( 'Skwirrel file name as is', 'skwirrel-pim-sync' ); ?>
+					</label>
+					<span class="skw-field-hint"><?php esc_html_e( 'The file name from Skwirrel, unchanged. Risk: the name becomes part of the file\'s public URL, so whatever is entered as a file name in Skwirrel is visible there. Names are not guaranteed to be unique: a clash with a file that already exists (for example from a manual upload) gets -1, -2 appended.', 'skwirrel-pim-sync' ); ?></span>
+				</p>
+			</fieldset>
+			<div class="skw-field">
+				<label for="<?php echo esc_attr( $prefix_key ); ?>" class="skw-label"><?php esc_html_e( 'Prefix', 'skwirrel-pim-sync' ); ?></label>
+				<input type="text" id="<?php echo esc_attr( $prefix_key ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $prefix_key ); ?>]" value="<?php echo esc_attr( $prefix ); ?>" class="skw-input" style="max-width: 240px;" maxlength="40" autocomplete="off">
+				<p class="skw-field-hint"><?php esc_html_e( 'Only used with "Prefix + Skwirrel file name". Capitals are kept; characters that are not safe in a file name are replaced.', 'skwirrel-pim-sync' ); ?></p>
+			</div>
+			<p class="skw-field-hint"><?php esc_html_e( 'If a file has no usable name or extension in Skwirrel, the plugin naming is used for that file and a warning is logged. A file name that already exists gets -1, -2 appended; existing files are never overwritten.', 'skwirrel-pim-sync' ); ?></p>
 		</div>
 		<?php
 	}

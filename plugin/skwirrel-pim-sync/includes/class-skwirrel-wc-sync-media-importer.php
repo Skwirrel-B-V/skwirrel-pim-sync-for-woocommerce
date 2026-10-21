@@ -41,7 +41,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * When supplied, both are persisted as post meta so subsequent syncs can dedup
 	 * on the stable ID and detect content changes via checksum comparison.
 	 *
-	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null, file_name?: string|null} $api_meta
 	 * @return int Attachment ID or 0 on failure.
 	 */
 	public function import_image( string $url, string $title = '', int $parent_id = 0, string $alt_caption = '', string $description = '', array $api_meta = [] ): int {
@@ -86,14 +86,13 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
-		$ext_map  = [
+		$ext_map = [
 			IMAGETYPE_JPEG => 'jpg',
 			IMAGETYPE_PNG  => 'png',
 			IMAGETYPE_GIF  => 'gif',
 			IMAGETYPE_WEBP => 'webp',
 		];
-		$ext      = $ext_map[ $image_info[2] ] ?? 'jpg';
-		$filename = 'skwirrel-' . substr( $hash, 0, 12 ) . '-' . time() . '.' . $ext;
+		$ext     = $ext_map[ $image_info[2] ] ?? 'jpg';
 
 		$upload_dir = wp_upload_dir();
 		if ( $upload_dir['error'] ) {
@@ -102,7 +101,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
-		$dest = $upload_dir['path'] . '/' . $filename;
+		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'image', true );
+		$dest     = $upload_dir['path'] . '/' . $filename;
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning( 'Failed to copy image to uploads', [ 'url' => $url ] );
@@ -163,7 +163,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * Import file (PDF, etc.) from URL. Downloads and creates attachment directly (bypasses upload validation).
 	 * Attaches to $parent_id when given (product post ID).
 	 *
-	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta See import_image().
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null, file_name?: string|null} $api_meta See import_image().
 	 * @return int Attachment ID or 0 on failure.
 	 */
 	public function import_file( string $url, string $name = '', int $parent_id = 0, array $api_meta = [] ): int {
@@ -202,7 +202,6 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( ! preg_match( '/^[a-z0-9]{2,5}$/i', $ext ) ) {
 			$ext = 'pdf';
 		}
-		$filename = 'skwirrel-' . substr( $hash, 0, 12 ) . '-' . time() . '.' . $ext;
 
 		$upload_dir = wp_upload_dir();
 		if ( $upload_dir['error'] ) {
@@ -210,7 +209,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
-		$dest = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
+		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'file' );
+		$dest     = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning( 'Failed to copy file to uploads', [ 'url' => $url ] );
@@ -305,7 +305,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * the existing attachment untouched and only emit a warning — the
 	 * sync run as a whole must keep moving.
 	 *
-	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null, file_name?: string|null} $api_meta
 	 */
 	private function maybe_replace_image_content( int $attachment_id, string $url, string $alt_caption, string $description, array $api_meta ): void {
 		if ( ! $this->should_replace_content( $attachment_id, $api_meta ) ) {
@@ -341,14 +341,13 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return;
 		}
 
-		$ext_map  = [
+		$ext_map = [
 			IMAGETYPE_JPEG => 'jpg',
 			IMAGETYPE_PNG  => 'png',
 			IMAGETYPE_GIF  => 'gif',
 			IMAGETYPE_WEBP => 'webp',
 		];
-		$ext      = $ext_map[ $image_info[2] ] ?? 'jpg';
-		$filename = 'skwirrel-' . substr( $this->url_hash( $url ), 0, 12 ) . '-' . time() . '.' . $ext;
+		$ext     = $ext_map[ $image_info[2] ] ?? 'jpg';
 
 		$upload_dir = wp_upload_dir();
 		if ( $upload_dir['error'] ) {
@@ -362,7 +361,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			);
 			return;
 		}
-		$dest = $upload_dir['path'] . '/' . $filename;
+		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'image_replace', true );
+		$dest     = $upload_dir['path'] . '/' . $filename;
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning(
@@ -429,7 +429,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * file is deleted after the new one has been written, so a failed
 	 * download or copy never leaves the attachment in a half-written state.
 	 *
-	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null, file_name?: string|null} $api_meta
 	 */
 	private function maybe_replace_file_content( int $attachment_id, string $url, array $api_meta ): void {
 		if ( ! $this->should_replace_content( $attachment_id, $api_meta ) ) {
@@ -457,14 +457,14 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( ! preg_match( '/^[a-z0-9]{2,5}$/i', $ext ) ) {
 			$ext = 'pdf';
 		}
-		$filename = 'skwirrel-' . substr( $this->url_hash( $url ), 0, 12 ) . '-' . time() . '.' . $ext;
 
 		$upload_dir = wp_upload_dir();
 		if ( $upload_dir['error'] ) {
 			wp_delete_file( $tmp );
 			return;
 		}
-		$dest = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
+		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'file_replace' );
+		$dest     = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning(
@@ -551,7 +551,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * Stored values: attachment_id as string-cast int, file_checksum as lowercase
 	 * hex (so casing differences in subsequent comparisons don't cause false positives).
 	 *
-	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null, file_name?: string|null} $api_meta
 	 */
 	private function persist_api_meta( int $attachment_id, array $api_meta ): void {
 		$skwirrel_id = isset( $api_meta['attachment_id'] ) ? (int) $api_meta['attachment_id'] : 0;
@@ -576,7 +576,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * the first post-3.8 sync is invisible to us; the backfill establishes the
 	 * baseline, and only future changes get detected.
 	 *
-	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null, file_name?: string|null} $api_meta
 	 */
 	private function backfill_api_meta( int $attachment_id, array $api_meta ): void {
 		$skwirrel_id = isset( $api_meta['attachment_id'] ) ? (int) $api_meta['attachment_id'] : 0;
