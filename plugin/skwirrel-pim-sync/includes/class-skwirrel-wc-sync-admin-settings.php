@@ -658,6 +658,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			? $input['log_mode_scheduled']
 			: 'per_day';
 		$out[ Skwirrel_WC_Sync_File_Naming::SETTING_MODE ]   = Skwirrel_WC_Sync_File_Naming::sanitize_mode( $input[ Skwirrel_WC_Sync_File_Naming::SETTING_MODE ] ?? null );
+		$out[ Skwirrel_WC_Sync_File_Redirects::SETTING ]     = ! empty( $input[ Skwirrel_WC_Sync_File_Redirects::SETTING ] );
 		$out[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] = Skwirrel_WC_Sync_File_Naming::sanitize_prefix( $input[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] ?? '' );
 		$out['log_retention']                                = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
 			? $input['log_retention']

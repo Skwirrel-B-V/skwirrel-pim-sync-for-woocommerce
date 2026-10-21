@@ -2117,11 +2117,31 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<?php else : ?>
 				<p><a href="<?php echo esc_url( $preview_url ); ?>" class="skw-btn skw-btn-secondary"><?php esc_html_e( 'Preview renaming', 'skwirrel-pim-sync' ); ?></a></p>
 			<?php endif; ?>
+			<?php $this->render_file_redirect_option(); ?>
 			<?php
 			if ( $show_preview && $can_rename && Skwirrel_WC_Sync_File_Naming::MODE_CURRENT !== $mode ) {
 				$this->render_file_rename_preview( Skwirrel_WC_Sync_File_Renamer::preview( $page ), $preview_url );
 			}
 			?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the switch for redirecting old file links, with the server rule for servers that
+	 * answer missing files themselves. Part of the one settings form.
+	 */
+	private function render_file_redirect_option(): void {
+		$key     = Skwirrel_WC_Sync_File_Redirects::SETTING;
+		$enabled = Skwirrel_WC_Sync_File_Redirects::is_enabled();
+		?>
+		<div class="skw-field">
+			<label>
+				<input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $key ); ?>]" value="1" <?php checked( $enabled ); ?>>
+				<?php esc_html_e( 'Redirect old file links to the renamed file', 'skwirrel-pim-sync' ); ?>
+			</label>
+			<p class="skw-field-hint"><?php esc_html_e( 'Someone who opens the old URL of a renamed file is sent permanently (301) to the new one. Switch this off and the old URLs stop working.', 'skwirrel-pim-sync' ); ?></p>
+			<p class="skw-field-hint"><?php esc_html_e( 'This only works when your web server hands requests for missing files in the uploads folder to WordPress. Apache with the standard WordPress rules does. On nginx, make sure the uploads location ends in try_files $uri $uri/ /index.php?$args; instead of try_files $uri =404;. If the server answers the 404 itself, WordPress never sees the request and the old link stays broken.', 'skwirrel-pim-sync' ); ?></p>
 		</div>
 		<?php
 	}
