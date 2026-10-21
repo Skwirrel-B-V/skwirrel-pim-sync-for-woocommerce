@@ -44,6 +44,7 @@ final class Skwirrel_WC_Sync_Plugin {
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-jsonrpc-client.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-file-naming.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-file-renamer.php';
+		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-file-rename-job.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-media-importer.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-etim-extractor.php';
 		require_once SKWIRREL_WC_SYNC_PLUGIN_DIR . 'includes/class-skwirrel-wc-sync-custom-class-extractor.php';
@@ -117,6 +118,7 @@ final class Skwirrel_WC_Sync_Plugin {
 		Skwirrel_WC_Sync_Delete_Protection::instance();
 		Skwirrel_WC_Sync_Product_Sync_Meta_Box::instance();
 		Skwirrel_WC_Sync_Pim_Link::instance();
+		Skwirrel_WC_Sync_File_Rename_Job::instance();
 	}
 
 	/**

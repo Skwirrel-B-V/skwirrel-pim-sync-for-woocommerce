@@ -85,7 +85,7 @@ class Skwirrel_WC_Sync_File_Renamer {
 		$chunk    = 1;
 		$fetched  = 0;
 		do {
-			$ids = get_posts(
+			$ids     = get_posts(
 				[
 					'post_type'              => 'attachment',
 					'post_status'            => 'any',

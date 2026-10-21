@@ -2106,6 +2106,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<p class="skw-fg-desc"><?php esc_html_e( 'Give files that were imported earlier the name from Skwirrel. First see what would change; nothing is renamed by looking.', 'skwirrel-pim-sync' ); ?></p>
 				</div>
 			</div>
+			<?php $this->render_file_rename_progress(); ?>
 			<?php if ( ! $can_rename ) : ?>
 				<div class="skw-notice skw-notice-warning">
 					<p><?php esc_html_e( 'Renaming is switched off on this site, usually because uploads are stored on remote storage by another plugin. Renaming local copies would leave the remote files with the old name.', 'skwirrel-pim-sync' ); ?></p>
@@ -2121,6 +2122,44 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				$this->render_file_rename_preview( Skwirrel_WC_Sync_File_Renamer::preview( $page ), $preview_url );
 			}
 			?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render progress (or the result) of the rename job, and the notice after pressing the button.
+	 */
+	private function render_file_rename_progress(): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display only: picks a notice after the redirect.
+		$status = isset( $_GET['skw_rename_status'] ) ? sanitize_key( wp_unslash( $_GET['skw_rename_status'] ) ) : '';
+		if ( 'refused' === $status ) {
+			echo '<div class="skw-notice skw-notice-warning"><p>' . esc_html__( 'Renaming could not be started. Check that a naming mode other than the plugin naming is saved, and that a rename is not already running.', 'skwirrel-pim-sync' ) . '</p></div>';
+		}
+		$state = Skwirrel_WC_Sync_File_Rename_Job::state();
+		if ( empty( $state ) ) {
+			return;
+		}
+		$running = Skwirrel_WC_Sync_File_Rename_Job::STATUS_RUNNING === $state['status'];
+		?>
+		<div class="skw-notice <?php echo $running ? 'skw-notice-info' : 'skw-notice-success'; ?>" id="skwirrel-rename-progress">
+			<p>
+				<strong><?php echo $running ? esc_html__( 'Renaming files…', 'skwirrel-pim-sync' ) : esc_html__( 'Renaming finished.', 'skwirrel-pim-sync' ); ?></strong>
+				<?php
+				printf(
+					/* translators: 1: files handled so far, 2: files to handle in total, 3: renamed, 4: skipped, 5: failed */
+					esc_html__( '%1$s of %2$s handled: %3$s renamed, %4$s skipped, %5$s failed. Every rename is in the log.', 'skwirrel-pim-sync' ),
+					esc_html( number_format_i18n( $state['processed'] ) ),
+					esc_html( number_format_i18n( $state['total'] ) ),
+					esc_html( number_format_i18n( $state['renamed'] ) ),
+					esc_html( number_format_i18n( $state['skipped'] ) ),
+					esc_html( number_format_i18n( $state['failed'] ) )
+				);
+				?>
+			</p>
+			<?php if ( $running ) : ?>
+				<progress max="<?php echo esc_attr( (string) max( 1, $state['total'] ) ); ?>" value="<?php echo esc_attr( (string) min( $state['processed'], max( 1, $state['total'] ) ) ); ?>" style="width: 100%;"></progress>
+				<script>setTimeout(function () { window.location.reload(); }, 5000);</script>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
@@ -2143,6 +2182,11 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		<div class="skw-notice skw-notice-warning">
 			<p><strong><?php esc_html_e( 'Make a backup first.', 'skwirrel-pim-sync' ); ?></strong> <?php esc_html_e( 'Renaming changes files on disk and the links to them. Back up your uploads folder and database before you continue.', 'skwirrel-pim-sync' ); ?></p>
 		</div>
+		<?php if ( (int) $counts[ Skwirrel_WC_Sync_File_Renamer::STATUS_RENAME ] > 0 && ! Skwirrel_WC_Sync_File_Rename_Job::is_running() ) : ?>
+			<p>
+				<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=' . Skwirrel_WC_Sync_File_Rename_Job::ACTION_START ), Skwirrel_WC_Sync_File_Rename_Job::ACTION_START ) ); ?>" class="skw-btn" onclick="return confirm('<?php echo esc_js( __( 'Rename these files now? Make sure you have a backup of your uploads folder and database.', 'skwirrel-pim-sync' ) ); ?>');"><?php esc_html_e( 'Rename files', 'skwirrel-pim-sync' ); ?></a>
+			</p>
+		<?php endif; ?>
 		<p>
 			<?php
 			printf(

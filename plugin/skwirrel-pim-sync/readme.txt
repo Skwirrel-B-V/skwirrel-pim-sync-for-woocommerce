@@ -84,6 +84,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * New filter skwirrel_wc_sync_upload_filename to change the final file name.
 * With file names that follow Skwirrel, renaming a file in Skwirrel adds a new file on the next sync. The old file stays in the media library, unattached.
 * New: preview of renaming files that were imported earlier (Settings → Files). Nothing is renamed by looking at the preview.
+* New: rename files that were imported earlier in the background, including all image sizes. Links to the old files in your content are updated.
 
 = 4.2.0 =
 * New: attribute groups under Skwirrel → Attribute groups. Synced attributes are grouped automatically: ETIM (when ETIM is synced), one group per custom class, identifiers and variant. The groups fill during the next sync.
