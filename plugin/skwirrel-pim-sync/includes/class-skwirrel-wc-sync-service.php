@@ -302,22 +302,23 @@ class Skwirrel_WC_Sync_Service {
 
 		// Build API include flags — keep the fetch lightweight (no ETIM/custom classes).
 		$api_includes = [
-			'include_product_status'       => true,
-			'include_product_translations' => true,
-			'include_attachments'          => true,
-			'include_trade_items'          => true,
-			'include_trade_item_prices'    => true,
-			'include_categories'           => ! empty( $options['sync_categories'] ),
-			'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
-			'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
-			'include_related_products'     => ! empty( $options['sync_related_products'] ),
-			'include_languages'            => $this->get_include_languages(),
+			'include_product_status'          => true,
+			'include_product_translations'    => true,
+			'include_attachments'             => true,
+			'include_attachment_translations' => true,
+			'include_trade_items'             => true,
+			'include_trade_item_prices'       => true,
+			'include_categories'              => ! empty( $options['sync_categories'] ),
+			'include_product_groups'          => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
+			'include_grouped_products'        => ! empty( $options['sync_grouped_products'] ),
+			'include_related_products'        => ! empty( $options['sync_related_products'] ),
+			'include_languages'               => $this->get_include_languages(),
 			// From the run's own settings snapshot, not the live option. Everything else this run
 			// does with the context — the category tree, the membership sweep, the per-product
 			// writes — resolves it from `$options`, and a save landing between that snapshot and
 			// this line would otherwise fetch products from one context while the rest of the run
 			// reasoned about another.
-			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ],
+			'include_contexts'                => Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ],
 		];
 
 		$sync_cc        = ! empty( $options['sync_custom_classes'] );
@@ -2046,19 +2047,20 @@ class Skwirrel_WC_Sync_Service {
 		}
 
 		$req_options = [
-			'include_product_status'       => true,
-			'include_product_translations' => true,
-			'include_attachments'          => true,
-			'include_trade_items'          => true,
-			'include_trade_item_prices'    => true,
-			'include_categories'           => ! empty( $options['sync_categories'] ),
-			'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
-			'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
-			'include_related_products'     => ! empty( $options['sync_related_products'] ),
-			'include_etim'                 => self::needs_etim_payload( $options ),
-			'include_etim_translations'    => self::needs_etim_payload( $options ),
-			'include_languages'            => $this->get_include_languages(),
-			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ],
+			'include_product_status'          => true,
+			'include_product_translations'    => true,
+			'include_attachments'             => true,
+			'include_attachment_translations' => true,
+			'include_trade_items'             => true,
+			'include_trade_item_prices'       => true,
+			'include_categories'              => ! empty( $options['sync_categories'] ),
+			'include_product_groups'          => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
+			'include_grouped_products'        => ! empty( $options['sync_grouped_products'] ),
+			'include_related_products'        => ! empty( $options['sync_related_products'] ),
+			'include_etim'                    => self::needs_etim_payload( $options ),
+			'include_etim_translations'       => self::needs_etim_payload( $options ),
+			'include_languages'               => $this->get_include_languages(),
+			'include_contexts'                => Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ],
 		];
 
 		$sync_cc              = ! empty( $options['sync_custom_classes'] );
@@ -2363,19 +2365,20 @@ class Skwirrel_WC_Sync_Service {
 		}
 
 		$req_options = [
-			'include_product_status'       => true,
-			'include_product_translations' => true,
-			'include_attachments'          => true,
-			'include_trade_items'          => true,
-			'include_trade_item_prices'    => true,
-			'include_categories'           => ! empty( $options['sync_categories'] ),
-			'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
-			'include_grouped_products'     => true,
-			'include_related_products'     => ! empty( $options['sync_related_products'] ),
-			'include_etim'                 => true,
-			'include_etim_translations'    => true,
-			'include_languages'            => $this->get_include_languages(),
-			'include_contexts'             => $context_ids ?? [ 1 ],
+			'include_product_status'          => true,
+			'include_product_translations'    => true,
+			'include_attachments'             => true,
+			'include_attachment_translations' => true,
+			'include_trade_items'             => true,
+			'include_trade_item_prices'       => true,
+			'include_categories'              => ! empty( $options['sync_categories'] ),
+			'include_product_groups'          => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
+			'include_grouped_products'        => true,
+			'include_related_products'        => ! empty( $options['sync_related_products'] ),
+			'include_etim'                    => true,
+			'include_etim_translations'       => true,
+			'include_languages'               => $this->get_include_languages(),
+			'include_contexts'                => $context_ids ?? [ 1 ],
 		];
 
 		$sync_cc              = ! empty( $options['sync_custom_classes'] );

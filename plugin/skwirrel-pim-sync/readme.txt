@@ -86,6 +86,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * New: preview of renaming files that were imported earlier (Settings → Files). Nothing is renamed by looking at the preview.
 * New: rename files that were imported earlier in the background, including all image sizes. Links to the old files in your content are updated.
 * New: the old URL of a renamed file redirects (301) to the new one. Can be switched off. Servers that answer missing files themselves need a rewrite rule; the Files tab explains which.
+* New: the Skwirrel attachment title and description are placed on the WordPress attachment as Title and Caption, for images and documents, and updated on every sync.
 
 = 4.2.0 =
 * New: attribute groups under Skwirrel → Attribute groups. Synced attributes are grouped automatically: ETIM (when ETIM is synced), one group per custom class, identifiers and variant. The groups fill during the next sync.

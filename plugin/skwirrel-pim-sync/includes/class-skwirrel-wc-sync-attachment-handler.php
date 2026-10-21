@@ -377,23 +377,40 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 	}
 
 	/**
-	 * Extract Skwirrel-side identifiers from a `_attachments[]` payload entry.
+	 * Extract Skwirrel-side identifiers and texts from a `_attachments[]` payload entry.
 	 *
 	 * Returns the shape expected by Skwirrel_WC_Sync_Media_Importer::import_image()
 	 * / import_file() so the importer can persist the stable attachment_id and
 	 * file_checksum onto the WordPress attachment for cross-sync deduplication.
 	 *
-	 * @param array<string,mixed> $att Single Skwirrel _attachments[] entry.
 	 * `file_name` is the name entered in Skwirrel; the importer names the stored file after it
 	 * when the site owner chose so (Settings → Files).
 	 *
-	 * @return array{attachment_id: int|null, file_checksum: string|null, file_name: string|null}
+	 * `title` and `caption` are the Skwirrel attachment title and description in the configured
+	 * language, for the WordPress attachment Title and Caption. Unlike the display name of a
+	 * document they have no fallback: an empty value means Skwirrel has no text, and the importer
+	 * then leaves the attachment's own texts alone.
+	 *
+	 * @param array<string,mixed> $att Single Skwirrel _attachments[] entry.
+	 * @return array{attachment_id: int|null, file_checksum: string|null, file_name: string|null, title: string, caption: string}
 	 */
 	private function build_api_meta( array $att ): array {
+		$translation = $this->pick_attachment_translation( $att );
+		$title       = trim( (string) ( $translation['product_attachment_title'] ?? '' ) );
+		if ( '' === $title ) {
+			$title = trim( (string) ( $att['product_attachment_title'] ?? '' ) );
+		}
+		$caption = trim( (string) ( $translation['product_attachment_description'] ?? '' ) );
+		if ( '' === $caption ) {
+			$caption = trim( (string) ( $att['product_attachment_description'] ?? '' ) );
+		}
+
 		return [
 			'attachment_id' => isset( $att['product_attachment_id'] ) ? (int) $att['product_attachment_id'] : null,
 			'file_checksum' => isset( $att['file_sha256_checksum'] ) ? (string) $att['file_sha256_checksum'] : null,
 			'file_name'     => isset( $att['file_name'] ) && is_string( $att['file_name'] ) ? $att['file_name'] : null,
+			'title'         => wp_strip_all_tags( $title ),
+			'caption'       => wp_kses_post( $caption ),
 		];
 	}
 }
