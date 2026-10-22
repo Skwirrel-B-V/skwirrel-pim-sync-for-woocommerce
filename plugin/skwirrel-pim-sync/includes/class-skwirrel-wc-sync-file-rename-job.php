@@ -217,6 +217,9 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			);
 		}
 		set_transient( self::ACTIVE_TRANSIENT, 1, 2 * MINUTE_IN_SECONDS );
+		// The heartbeat is saved before the work and after every attachment, so a slow batch on a big
+		// library never looks stalled and cannot be restarted while it is still working.
+		update_option( self::OPTION, $state, false );
 		try {
 			foreach ( $ids as $id ) {
 				$result = self::rename_attachment( $id );
@@ -229,6 +232,8 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 					++$state['skipped'];
 				}
 				$state['last_id'] = $id;
+				$state['updated'] = time();
+				update_option( self::OPTION, $state, false );
 			}
 		} finally {
 			delete_transient( self::ACTIVE_TRANSIENT );

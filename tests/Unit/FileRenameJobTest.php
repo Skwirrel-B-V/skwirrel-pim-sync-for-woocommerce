@@ -183,3 +183,11 @@ test('the naming configuration used by a running job is frozen at start', functi
 	expect(Skwirrel_WC_Sync_File_Naming::get_mode())->toBe('original');
 	unset($GLOBALS['_test_options']['skwirrel_wc_sync_settings'], $GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
 });
+
+test('a batch saves its heartbeat before it starts working', function () {
+	$GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'] = ['status' => 'running', 'started' => 1000, 'updated' => 1000, 'last_id' => 0, 'mode' => 'original', 'prefix' => ''];
+	Skwirrel_WC_Sync_File_Rename_Job::run_batch();
+	// The stub finds no attachments, so the job ends at once; what matters is the saved time moved.
+	expect(Skwirrel_WC_Sync_File_Rename_Job::state()['updated'])->toBeGreaterThan(1000);
+	unset($GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
+});

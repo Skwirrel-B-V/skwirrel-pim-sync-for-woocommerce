@@ -312,7 +312,7 @@ class Skwirrel_WC_Sync_Service {
 			'include_product_groups'          => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
 			'include_grouped_products'        => ! empty( $options['sync_grouped_products'] ),
 			'include_related_products'        => ! empty( $options['sync_related_products'] ),
-			'include_languages'               => $this->get_include_languages(),
+			'include_languages'               => $this->get_product_request_languages(),
 			// From the run's own settings snapshot, not the live option. Everything else this run
 			// does with the context — the category tree, the membership sweep, the per-product
 			// writes — resolves it from `$options`, and a save landing between that snapshot and
@@ -2059,7 +2059,7 @@ class Skwirrel_WC_Sync_Service {
 			'include_related_products'        => ! empty( $options['sync_related_products'] ),
 			'include_etim'                    => self::needs_etim_payload( $options ),
 			'include_etim_translations'       => self::needs_etim_payload( $options ),
-			'include_languages'               => $this->get_include_languages(),
+			'include_languages'               => $this->get_product_request_languages(),
 			'include_contexts'                => Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ],
 		];
 
@@ -2377,7 +2377,7 @@ class Skwirrel_WC_Sync_Service {
 			'include_related_products'        => ! empty( $options['sync_related_products'] ),
 			'include_etim'                    => true,
 			'include_etim_translations'       => true,
-			'include_languages'               => $this->get_include_languages(),
+			'include_languages'               => $this->get_product_request_languages(),
 			'include_contexts'                => $context_ids ?? [ 1 ],
 		];
 
@@ -2773,6 +2773,40 @@ class Skwirrel_WC_Sync_Service {
 	/** Warning shown when an unattended empty sweep is not trusted as authoritative. */
 	private static function scheduled_empty_sweep_warning(): string {
 		return __( 'Removal skipped: the membership sweep returned an empty selection. Nothing was removed during this scheduled run; run a manual sync to confirm and apply an intentionally empty selection.', 'skwirrel-pim-sync' );
+	}
+
+	/**
+	 * Languages for the product requests: the configured include_languages, plus the content
+	 * language (image_language), which the attachment titles and captions are picked in. Without it
+	 * a content language outside include_languages gets no translation back, and the texts would
+	 * fall back to some other language.
+	 *
+	 * @return string[]
+	 */
+	private function get_product_request_languages(): array {
+		$opts = get_option( 'skwirrel_wc_sync_settings', [] );
+		return self::merge_content_language( $this->get_include_languages(), (string) ( is_array( $opts ) ? ( $opts['image_language'] ?? 'nl' ) : 'nl' ) );
+	}
+
+	/**
+	 * Add the content language to a language list unless it is already there (compared without case).
+	 *
+	 * @param string[] $languages        Requested languages.
+	 * @param string   $content_language Content language, e.g. `nl` or `fr-FR`.
+	 * @return string[]
+	 */
+	public static function merge_content_language( array $languages, string $content_language ): array {
+		$content_language = trim( sanitize_text_field( $content_language ) );
+		if ( '' === $content_language ) {
+			return $languages;
+		}
+		foreach ( $languages as $language ) {
+			if ( 0 === strcasecmp( $language, $content_language ) ) {
+				return $languages;
+			}
+		}
+		$languages[] = $content_language;
+		return $languages;
 	}
 
 	private function get_include_languages(): array {
