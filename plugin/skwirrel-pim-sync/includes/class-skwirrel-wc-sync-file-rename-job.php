@@ -35,6 +35,9 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	/** Rows read per query when rewriting links. */
 	private const REPLACE_CHUNK = 200;
 
+	/** Seconds without a finished batch after which a running job counts as stalled. */
+	private const STALL_AFTER = 900;
+
 	/** Seconds to wait before trying again while a sync is running. */
 	private const SYNC_BUSY_DELAY = 60;
 
@@ -59,7 +62,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	/**
 	 * Current (or last) job.
 	 *
-	 * @return array{status:string,total:int,processed:int,renamed:int,skipped:int,failed:int,last_id:int,started:int,finished:int}|array{}
+	 * @return array{status:string,total:int,processed:int,renamed:int,skipped:int,failed:int,last_id:int,started:int,finished:int,updated:int}|array{}
 	 */
 	public static function state(): array {
 		$state = get_option( self::OPTION, [] );
@@ -76,12 +79,33 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			'last_id'   => (int) ( $state['last_id'] ?? 0 ),
 			'started'   => (int) ( $state['started'] ?? 0 ),
 			'finished'  => (int) ( $state['finished'] ?? 0 ),
+			'updated'   => (int) ( $state['updated'] ?? ( $state['started'] ?? 0 ) ),
 		];
 	}
 
+	/**
+	 * A job that is working: running, and a batch finished recently.
+	 */
 	public static function is_running(): bool {
 		$state = self::state();
-		return ! empty( $state ) && self::STATUS_RUNNING === $state['status'];
+		return ! empty( $state ) && self::STATUS_RUNNING === $state['status'] && ! self::is_stalled();
+	}
+
+	/**
+	 * A job that says it is running but has not finished a batch for a long time: its queued
+	 * action was lost or failed. It can be started again.
+	 */
+	public static function is_stalled( ?int $now = null ): bool {
+		$state = self::state();
+		return ! empty( $state ) && self::STATUS_RUNNING === $state['status'] && ( ( $now ?? time() ) - $state['updated'] ) > self::STALL_AFTER;
+	}
+
+	/**
+	 * Whether a rename job was ever started on this site. The redirect handler only looks for old
+	 * paths after that, so sites that never renamed anything pay nothing on a 404.
+	 */
+	public static function has_run(): bool {
+		return ! empty( self::state() );
 	}
 
 	/**
@@ -106,6 +130,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				'last_id'   => 0,
 				'started'   => time(),
 				'finished'  => 0,
+				'updated'   => time(),
 			],
 			false
 		);
@@ -162,6 +187,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		if ( empty( $state ) || self::STATUS_RUNNING !== $state['status'] ) {
 			return;
 		}
+		$state['updated'] = time();
 		// Never move files under a running sync: it looks attachments up by their file.
 		if ( get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ) ) {
 			self::enqueue( self::SYNC_BUSY_DELAY );
@@ -516,8 +542,15 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	 */
 	public static function replace_in_string( string $subject, array $pairs ): string {
 		foreach ( $pairs as $old => $new ) {
-			$subject = str_replace( $old, $new, $subject );
-			$subject = str_replace( str_replace( '/', '\\/', $old ), str_replace( '/', '\\/', $new ), $subject );
+			foreach ( [ [ $old, $new ], [ str_replace( '/', '\\/', $old ), str_replace( '/', '\\/', $new ) ] ] as [ $from, $to ] ) {
+				// A path boundary on both sides: with no month folders the old path is a bare
+				// file name, which must not match inside "barfoo.jpg" or "foo.jpg.webp".
+				$subject = (string) preg_replace_callback(
+					'~(?<![A-Za-z0-9._-])' . preg_quote( $from, '~' ) . '(?![A-Za-z0-9_-]|\.[A-Za-z0-9])~',
+					static fn (): string => $to,
+					$subject
+				);
+			}
 		}
 		return $subject;
 	}

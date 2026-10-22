@@ -3258,3 +3258,7 @@ msgstr "Non géré dans Skwirrel"
 #: includes/class-skwirrel-wc-sync-product-list-filter.php
 msgid "Filter by Skwirrel management"
 msgstr "Filtrer selon la gestion dans Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming has stalled. You can preview and start it again; files that are already renamed are skipped."
+msgstr "Le renommage est bloqué. Vous pouvez l’afficher et le relancer ; les fichiers déjà renommés sont ignorés."

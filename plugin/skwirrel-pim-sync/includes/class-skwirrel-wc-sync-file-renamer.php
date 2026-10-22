@@ -161,7 +161,7 @@ class Skwirrel_WC_Sync_File_Renamer {
 			$item['status'] = self::STATUS_UNUSABLE;
 			return $item;
 		}
-		if ( $bare === $old ) {
+		if ( self::is_named_like( $old, $bare ) ) {
 			$item['status'] = self::STATUS_DONE;
 			return $item;
 		}
@@ -177,6 +177,25 @@ class Skwirrel_WC_Sync_File_Renamer {
 		$item['new']    = $new;
 		$item['status'] = self::STATUS_RENAME;
 		return $item;
+	}
+
+	/**
+	 * Whether a file already carries the name the mode gives it.
+	 *
+	 * Besides the bare name, that includes what WordPress and the duplicate rule make of it: a
+	 * `-N` suffix (a clash with an existing file) and a `-scaled` copy of a big image. Without this
+	 * those files look unrenamed after every run and would be renamed again to `-N+1`.
+	 *
+	 * @param string $current Current file name.
+	 * @param string $bare    Name the mode gives the file, before any uniqueness suffix.
+	 */
+	public static function is_named_like( string $current, string $bare ): bool {
+		if ( $current === $bare ) {
+			return true;
+		}
+		$stem = pathinfo( $bare, PATHINFO_FILENAME );
+		$ext  = pathinfo( $bare, PATHINFO_EXTENSION );
+		return 1 === preg_match( '/^' . preg_quote( $stem, '/' ) . '(-[0-9]+)?(-scaled)?\.' . preg_quote( $ext, '/' ) . '$/', $current );
 	}
 
 	/**

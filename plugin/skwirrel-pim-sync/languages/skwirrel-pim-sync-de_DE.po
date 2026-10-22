@@ -3254,3 +3254,7 @@ msgstr "Nicht in Skwirrel verwaltet"
 #: includes/class-skwirrel-wc-sync-product-list-filter.php
 msgid "Filter by Skwirrel management"
 msgstr "Nach Skwirrel-Verwaltung filtern"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming has stalled. You can preview and start it again; files that are already renamed are skipped."
+msgstr "Das Umbenennen ist hängen geblieben. Sie können es erneut ansehen und starten; bereits umbenannte Dateien werden übersprungen."

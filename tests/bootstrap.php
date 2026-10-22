@@ -349,13 +349,24 @@ if (!function_exists('get_posts')) {
     }
 }
 
-// Stub wp_update_post() — merges the given fields into $GLOBALS['_test_post_fields'][$ID].
+// Stub wp_slash() — like core: backslash-escapes strings, recursively through arrays.
+if (!function_exists('wp_slash')) {
+    function wp_slash($value) {
+        if (is_array($value)) {
+            return array_map('wp_slash', $value);
+        }
+        return is_string($value) ? addslashes($value) : $value;
+    }
+}
+
+// Stub wp_update_post() — like core it unslashes its input, then merges the fields into
+// $GLOBALS['_test_post_fields'][$ID].
 if (!function_exists('wp_update_post')) {
     function wp_update_post(array $postarr) {
         $id = (int) ($postarr['ID'] ?? 0);
         foreach ($postarr as $field => $value) {
             if ($field !== 'ID') {
-                $GLOBALS['_test_post_fields'][$id][$field] = $value;
+                $GLOBALS['_test_post_fields'][$id][$field] = is_string($value) ? stripslashes($value) : $value;
             }
         }
         return $id;

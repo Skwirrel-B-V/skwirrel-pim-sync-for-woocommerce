@@ -116,8 +116,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$label      = $alt_caption ? $alt_caption : ( $title ? $title : preg_replace( '/\.[^.]+$/', '', $filename ) );
 		$attachment = [
 			'post_mime_type' => $filetype['type'],
-			'post_title'     => '' !== $this->incoming_text( $api_meta, 'title' ) ? $this->incoming_text( $api_meta, 'title' ) : $label,
-			'post_excerpt'   => $this->incoming_text( $api_meta, 'caption' ),
+			'post_title'     => wp_slash( '' !== $this->incoming_text( $api_meta, 'title' ) ? $this->incoming_text( $api_meta, 'title' ) : $label ),
+			'post_excerpt'   => wp_slash( $this->incoming_text( $api_meta, 'caption' ) ),
 			'post_content'   => $description,
 			'post_status'    => 'inherit',
 		];
@@ -224,8 +224,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$filetype   = wp_check_filetype( $dest, null );
 		$attachment = [
 			'post_mime_type' => $filetype['type'] ? $filetype['type'] : 'application/octet-stream',
-			'post_title'     => '' !== $this->incoming_text( $api_meta, 'title' ) ? $this->incoming_text( $api_meta, 'title' ) : preg_replace( '/\.[^.]+$/', '', $filename ),
-			'post_excerpt'   => $this->incoming_text( $api_meta, 'caption' ),
+			'post_title'     => wp_slash( '' !== $this->incoming_text( $api_meta, 'title' ) ? $this->incoming_text( $api_meta, 'title' ) : preg_replace( '/\.[^.]+$/', '', $filename ) ),
+			'post_excerpt'   => wp_slash( $this->incoming_text( $api_meta, 'caption' ) ),
 			'post_content'   => '',
 			'post_status'    => 'inherit',
 		];
@@ -385,14 +385,16 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 		$filetype = wp_check_filetype( $filename, null );
 		if ( ! empty( $filetype['type'] ) ) {
-			wp_update_post(
-				[
-					'ID'             => $attachment_id,
-					'post_mime_type' => $filetype['type'],
-					'post_excerpt'   => $this->incoming_text( $api_meta, 'caption' ),
-					'post_content'   => $description,
-				]
-			);
+			$update = [
+				'ID'             => $attachment_id,
+				'post_mime_type' => $filetype['type'],
+				'post_content'   => $description,
+			];
+			// Only when Skwirrel has a description: an empty one must not wipe a caption typed by hand.
+			if ( '' !== $this->incoming_text( $api_meta, 'caption' ) ) {
+				$update['post_excerpt'] = $this->incoming_text( $api_meta, 'caption' );
+			}
+			wp_update_post( wp_slash( $update ) );
 		}
 		update_attached_file( $attachment_id, $dest );
 		$new_meta = wp_generate_attachment_metadata( $attachment_id, $dest );
@@ -605,7 +607,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 			$fields['post_excerpt'] = $caption;
 		}
 		if ( ! empty( $fields ) ) {
-			wp_update_post( [ 'ID' => $attachment_id ] + $fields );
+			wp_update_post( wp_slash( [ 'ID' => $attachment_id ] + $fields ) );
 		}
 	}
 

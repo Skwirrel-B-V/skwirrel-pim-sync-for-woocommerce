@@ -82,3 +82,9 @@ test('a title without a description clears the caption but keeps a title', funct
 	texts_call($this->importer, 'sync_texts', [5, ['title' => '', 'caption' => 'Only a caption']]);
 	expect($GLOBALS['_test_post_fields'][5]['post_title'])->toBe('Foto');
 });
+
+test('a backslash in a title survives the slashing WordPress undoes', function () {
+	$GLOBALS['_test_post_fields'][5] = ['post_title' => 'old', 'post_excerpt' => ''];
+	texts_call($this->importer, 'sync_texts', [5, ['title' => 'C:\\docs\\a', 'caption' => '']]);
+	expect($GLOBALS['_test_post_fields'][5]['post_title'])->toBe('C:\\docs\\a');
+});

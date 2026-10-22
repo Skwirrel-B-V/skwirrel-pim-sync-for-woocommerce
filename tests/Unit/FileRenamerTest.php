@@ -125,3 +125,19 @@ test('can_rename follows the filter and defaults to true', function () {
 	$GLOBALS['_test_filters']['skwirrel_wc_sync_can_rename_files'][] = static fn (): bool => false;
 	expect(Skwirrel_WC_Sync_File_Renamer::can_rename())->toBeFalse();
 });
+
+test('a scaled copy and a -N duplicate already count as named', function (string $current) {
+	expect(Skwirrel_WC_Sync_File_Renamer::is_named_like($current, 'foo.jpg'))->toBeTrue();
+})->with(['foo.jpg', 'foo-scaled.jpg', 'foo-1.jpg', 'foo-12.jpg', 'foo-1-scaled.jpg']);
+
+test('a different name does not count as named', function (string $current) {
+	expect(Skwirrel_WC_Sync_File_Renamer::is_named_like($current, 'foo.jpg'))->toBeFalse();
+})->with(['skwirrel-a-1.jpg', 'barfoo.jpg', 'foo-bar.jpg', 'foo.png', 'foo-scaled-x.jpg']);
+
+test('a scaled image is not listed again after it was renamed', function () {
+	renamer_mode('original');
+	renamer_attachment($this, 1, 'foto-scaled.jpg', 'foto.jpg');
+	$preview = Skwirrel_WC_Sync_File_Renamer::preview();
+	expect($preview['counts']['rename'])->toBe(0);
+	expect($preview['counts']['done'])->toBe(1);
+});

@@ -138,3 +138,28 @@ test('start is refused when the can-rename filter says no', function () {
 	expect(Skwirrel_WC_Sync_File_Rename_Job::start())->toBeFalse();
 	unset($GLOBALS['_test_options']['skwirrel_wc_sync_settings'], $GLOBALS['_test_filters']);
 });
+
+test('a bare file name does not match inside longer names', function () {
+	$pairs = ['foo.jpg' => 'new.jpg'];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('<img src="/uploads/foo.jpg"> barfoo.jpg other-foo.jpg foo.jpg.webp foo.jpg', $pairs))
+		->toBe('<img src="/uploads/new.jpg"> barfoo.jpg other-foo.jpg foo.jpg.webp new.jpg');
+});
+
+test('replacement text with dollar signs and backslashes is kept literally', function () {
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('/u/a.jpg', ['a.jpg' => 'b$1\\0.jpg']))->toBe('/u/b$1\\0.jpg');
+});
+
+test('a job without recent activity is stalled and can be started again', function () {
+	$GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'] = ['status' => 'running', 'started' => 1000, 'updated' => 1000];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::is_stalled(1000 + 100))->toBeFalse();
+	expect(Skwirrel_WC_Sync_File_Rename_Job::is_stalled(1000 + 901))->toBeTrue();
+	expect(Skwirrel_WC_Sync_File_Rename_Job::is_running())->toBeFalse();
+	unset($GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
+});
+
+test('has_run is false until a job was started', function () {
+	expect(Skwirrel_WC_Sync_File_Rename_Job::has_run())->toBeFalse();
+	$GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'] = ['status' => 'done'];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::has_run())->toBeTrue();
+	unset($GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
+});

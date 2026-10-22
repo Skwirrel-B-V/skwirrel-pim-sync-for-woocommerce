@@ -30,6 +30,9 @@ Applies to `includes/class-admin-settings.php`.
 | `verbose_logging` | bool | `false` | — | Per-product log output |
 | `purge_stale_products` | bool | `false` | — | Trash removed products |
 | `show_delete_warning` | bool | `true` | — | Warning banners on Skwirrel items |
+| `file_naming_mode` | select | `'current'` | current\|prefix\|original | How downloaded files are named (Files tab) |
+| `file_naming_prefix` | string | `''` | file-name safe, max 40 | Prefix for mode `prefix` |
+| `file_redirect_old_links` | bool | `true` | missing key = on | Redirect old upload URLs of renamed files |
 
 ## Sanitization Rules
 

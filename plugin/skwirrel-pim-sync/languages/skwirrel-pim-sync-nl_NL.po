@@ -3218,3 +3218,7 @@ msgstr "Niet beheerd in Skwirrel"
 #: includes/class-skwirrel-wc-sync-product-list-filter.php
 msgid "Filter by Skwirrel management"
 msgstr "Filter op beheer in Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming has stalled. You can preview and start it again; files that are already renamed are skipped."
+msgstr "Het hernoemen is vastgelopen. Je kunt het opnieuw bekijken en starten; bestanden die al zijn hernoemd worden overgeslagen."

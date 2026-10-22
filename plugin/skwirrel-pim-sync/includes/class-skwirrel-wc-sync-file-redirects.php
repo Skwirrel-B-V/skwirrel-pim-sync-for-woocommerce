@@ -46,7 +46,8 @@ class Skwirrel_WC_Sync_File_Redirects {
 	 * Redirect a 404 under the uploads folder when the path belongs to a renamed file.
 	 */
 	public function maybe_redirect(): void {
-		if ( ! is_404() || ! self::is_enabled() ) {
+		// Sites that never renamed anything have no old paths to look up: no query on their 404s.
+		if ( ! is_404() || ! self::is_enabled() || ! Skwirrel_WC_Sync_File_Rename_Job::has_run() ) {
 			return;
 		}
 		$uploads = wp_upload_dir();
@@ -90,7 +91,7 @@ class Skwirrel_WC_Sync_File_Redirects {
 	 */
 	public static function find_target( string $relative ): string {
 		global $wpdb;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- one indexed prefix lookup on a 404; the result is the redirect target.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- one lookup on a 404, only after a rename has run; meta_key narrows it to the renamed files' rows.
 		$rows = $wpdb->get_col(
 			$wpdb->prepare(
 				"SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value LIKE %s LIMIT 20",

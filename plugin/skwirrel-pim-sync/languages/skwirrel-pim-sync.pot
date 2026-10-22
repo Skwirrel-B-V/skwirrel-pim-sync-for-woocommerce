@@ -2745,3 +2745,7 @@ msgstr ""
 #: includes/class-skwirrel-wc-sync-product-list-filter.php
 msgid "Filter by Skwirrel management"
 msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming has stalled. You can preview and start it again; files that are already renamed are skipped."
+msgstr ""

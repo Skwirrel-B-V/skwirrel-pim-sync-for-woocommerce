@@ -2159,11 +2159,22 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		if ( empty( $state ) ) {
 			return;
 		}
-		$running = Skwirrel_WC_Sync_File_Rename_Job::STATUS_RUNNING === $state['status'];
+		$running = Skwirrel_WC_Sync_File_Rename_Job::is_running();
+		$stalled = Skwirrel_WC_Sync_File_Rename_Job::is_stalled();
 		?>
-		<div class="skw-notice <?php echo $running ? 'skw-notice-info' : 'skw-notice-success'; ?>" id="skwirrel-rename-progress">
+		<div class="skw-notice <?php echo $stalled ? 'skw-notice-warning' : ( $running ? 'skw-notice-info' : 'skw-notice-success' ); ?>" id="skwirrel-rename-progress">
 			<p>
-				<strong><?php echo $running ? esc_html__( 'Renaming files…', 'skwirrel-pim-sync' ) : esc_html__( 'Renaming finished.', 'skwirrel-pim-sync' ); ?></strong>
+				<strong>
+					<?php
+					if ( $stalled ) {
+						esc_html_e( 'Renaming has stalled. You can preview and start it again; files that are already renamed are skipped.', 'skwirrel-pim-sync' );
+					} elseif ( $running ) {
+						esc_html_e( 'Renaming files…', 'skwirrel-pim-sync' );
+					} else {
+						esc_html_e( 'Renaming finished.', 'skwirrel-pim-sync' );
+					}
+					?>
+				</strong>
 				<?php
 				printf(
 					/* translators: 1: files handled so far, 2: files to handle in total, 3: renamed, 4: skipped, 5: failed */
