@@ -191,3 +191,17 @@ test('a batch saves its heartbeat before it starts working', function () {
 	expect(Skwirrel_WC_Sync_File_Rename_Job::state()['updated'])->toBeGreaterThan(1000);
 	unset($GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
 });
+
+test('a size that is listed but gone from disk is neither moved nor renamed in the metadata', function () {
+	$meta = [
+		'file'  => '2024/05/skwirrel-a-1.jpg',
+		'sizes' => [
+			'thumbnail' => ['file' => 'skwirrel-a-1-150x150.jpg'],
+			'medium'    => ['file' => 'skwirrel-a-1-300x200.jpg'],
+		],
+	];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('skwirrel-a-1.jpg', 'foto.jpg', $meta, ['skwirrel-a-1.jpg', 'skwirrel-a-1-150x150.jpg']);
+	expect($plan['moves'])->toBe(['skwirrel-a-1.jpg' => 'foto.jpg', 'skwirrel-a-1-150x150.jpg' => 'foto-150x150.jpg']);
+	expect($plan['meta']['sizes']['thumbnail']['file'])->toBe('foto-150x150.jpg');
+	expect($plan['meta']['sizes']['medium']['file'])->toBe('skwirrel-a-1-300x200.jpg');
+});

@@ -23,6 +23,9 @@ class Skwirrel_WC_Sync_Product_List_Filter {
 	/** Post meta that marks a product as managed in Skwirrel. */
 	private const META_EXTERNAL_ID = '_skwirrel_external_id';
 
+	/** Post meta on a variable product that was built from a Skwirrel group. */
+	private const META_GROUPED_ID = '_skwirrel_grouped_product_id';
+
 	private static ?self $instance = null;
 
 	public static function instance(): self {
@@ -49,19 +52,35 @@ class Skwirrel_WC_Sync_Product_List_Filter {
 	/**
 	 * The meta query clause for a chosen value, or [] for "all products" and anything unknown.
 	 *
-	 * @return array<string,string>
+	 * @return array<int|string,mixed>
 	 */
 	public static function meta_clause( string $value ): array {
 		if ( self::MANAGED === $value ) {
+			// Synced simple products carry the external ID; the variable products built from a group
+			// carry the grouped product ID instead. Both are managed in Skwirrel.
 			return [
-				'key'     => self::META_EXTERNAL_ID,
-				'compare' => 'EXISTS',
+				'relation' => 'OR',
+				[
+					'key'     => self::META_EXTERNAL_ID,
+					'compare' => 'EXISTS',
+				],
+				[
+					'key'     => self::META_GROUPED_ID,
+					'compare' => 'EXISTS',
+				],
 			];
 		}
 		if ( self::NOT_MANAGED === $value ) {
 			return [
-				'key'     => self::META_EXTERNAL_ID,
-				'compare' => 'NOT EXISTS',
+				'relation' => 'AND',
+				[
+					'key'     => self::META_EXTERNAL_ID,
+					'compare' => 'NOT EXISTS',
+				],
+				[
+					'key'     => self::META_GROUPED_ID,
+					'compare' => 'NOT EXISTS',
+				],
 			];
 		}
 		return [];
@@ -72,7 +91,7 @@ class Skwirrel_WC_Sync_Product_List_Filter {
 	 * Appending to an existing top-level OR query would make it "either", and show unrelated products.
 	 *
 	 * @param array<int|string,mixed> $existing Existing meta query, possibly empty.
-	 * @param array<string,string>    $clause   Clause to require.
+	 * @param array<int|string,mixed> $clause   Clause to require.
 	 * @return array<int|string,mixed>
 	 */
 	public static function merge_meta_query( array $existing, array $clause ): array {

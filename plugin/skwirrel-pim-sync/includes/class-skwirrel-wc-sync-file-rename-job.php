@@ -234,6 +234,8 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				$state['last_id'] = $id;
 				$state['updated'] = time();
 				update_option( self::OPTION, $state, false );
+				// Keep the guard alive for as long as the batch takes.
+				set_transient( self::ACTIVE_TRANSIENT, 1, 2 * MINUTE_IN_SECONDS );
 			}
 		} finally {
 			delete_transient( self::ACTIVE_TRANSIENT );
@@ -319,7 +321,15 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		$meta     = wp_get_attachment_metadata( $attachment_id );
 		$meta     = is_array( $meta ) ? $meta : [];
 
-		$plan = self::plan_moves( basename( $old_path ), $item['new'], $meta );
+		// Only files that exist are planned: a size listed in the metadata but gone from disk stays as it
+		// is, so its (possibly occupied) target is neither moved onto nor written into the metadata.
+		$present = [];
+		foreach ( self::listed_files( basename( $old_path ), $meta ) as $name ) {
+			if ( file_exists( $dir . '/' . $name ) ) {
+				$present[] = $name;
+			}
+		}
+		$plan = self::plan_moves( basename( $old_path ), $item['new'], $meta, $present );
 
 		// Targets must be free, so nothing is moved only to be rolled back.
 		foreach ( $plan['moves'] as $from => $to ) {
@@ -383,9 +393,10 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	 * @param string              $old_main Current main file name.
 	 * @param string              $new_name New name for the file the attachment is known by.
 	 * @param array<string,mixed> $meta     Attachment metadata.
+	 * @param string[]|null       $present  File names that exist on disk; null plans every listed file.
 	 * @return array{moves: array<string,string>, main: string, meta: array<string,mixed>}
 	 */
-	public static function plan_moves( string $old_main, string $new_name, array $meta ): array {
+	public static function plan_moves( string $old_main, string $new_name, array $meta, ?array $present = null ): array {
 		$ext      = pathinfo( $old_main, PATHINFO_EXTENSION );
 		$old_stem = pathinfo( $old_main, PATHINFO_FILENAME );
 		$new_stem = pathinfo( $new_name, PATHINFO_FILENAME );
@@ -413,6 +424,9 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				if ( ! is_array( $size ) || empty( $size['file'] ) || ! is_string( $size['file'] ) ) {
 					continue;
 				}
+				if ( null !== $present && ! in_array( $size['file'], $present, true ) ) {
+					continue;
+				}
 				foreach ( $prefixes as $from_prefix => $to_prefix ) {
 					if ( str_starts_with( $size['file'], $from_prefix . '-' ) ) {
 						$new_file                      = $to_prefix . substr( $size['file'], strlen( $from_prefix ) );
@@ -423,7 +437,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				}
 			}
 		}
-		if ( $scaled ) {
+		if ( $scaled && ( null === $present || in_array( $original, $present, true ) ) ) {
 			$meta['original_image'] = $new_name;
 		}
 
@@ -432,6 +446,25 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			'main'  => $new_main,
 			'meta'  => $meta,
 		];
+	}
+
+	/**
+	 * Every file name the attachment's metadata lists (main file, original, generated sizes).
+	 *
+	 * @param array<string,mixed> $meta Attachment metadata.
+	 * @return string[]
+	 */
+	private static function listed_files( string $old_main, array $meta ): array {
+		$files = [ $old_main ];
+		if ( isset( $meta['original_image'] ) && is_string( $meta['original_image'] ) ) {
+			$files[] = $meta['original_image'];
+		}
+		foreach ( (array) ( $meta['sizes'] ?? [] ) as $size ) {
+			if ( is_array( $size ) && ! empty( $size['file'] ) && is_string( $size['file'] ) ) {
+				$files[] = $size['file'];
+			}
+		}
+		return array_values( array_unique( $files ) );
 	}
 
 	/**

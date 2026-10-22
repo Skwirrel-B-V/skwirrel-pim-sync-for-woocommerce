@@ -257,6 +257,12 @@ if (!function_exists('wp_unique_filename')) {
     }
 }
 
+if (!function_exists('has_filter')) {
+    function has_filter(string $hook, $callback = false) {
+        return !empty($GLOBALS['_test_filters'][$hook]);
+    }
+}
+
 if (!function_exists('apply_filters')) {
     function apply_filters(string $hook, $value, ...$args) {
         foreach ($GLOBALS['_test_filters'][$hook] ?? [] as $callback) {

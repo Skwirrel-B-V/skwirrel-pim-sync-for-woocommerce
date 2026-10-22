@@ -6,14 +6,20 @@ afterEach(function () {
 	unset($GLOBALS['_test_options']['skwirrel_wc_sync_settings']);
 });
 
-test('managed products are those that have a Skwirrel external ID', function () {
-	expect(Skwirrel_WC_Sync_Product_List_Filter::meta_clause('managed'))
-		->toBe(['key' => '_skwirrel_external_id', 'compare' => 'EXISTS']);
+test('managed products have a Skwirrel external ID or, for variable products built from a group, a grouped product ID', function () {
+	expect(Skwirrel_WC_Sync_Product_List_Filter::meta_clause('managed'))->toBe([
+		'relation' => 'OR',
+		['key' => '_skwirrel_external_id', 'compare' => 'EXISTS'],
+		['key' => '_skwirrel_grouped_product_id', 'compare' => 'EXISTS'],
+	]);
 });
 
-test('not managed products are those without one', function () {
-	expect(Skwirrel_WC_Sync_Product_List_Filter::meta_clause('not_managed'))
-		->toBe(['key' => '_skwirrel_external_id', 'compare' => 'NOT EXISTS']);
+test('not managed products have neither', function () {
+	expect(Skwirrel_WC_Sync_Product_List_Filter::meta_clause('not_managed'))->toBe([
+		'relation' => 'AND',
+		['key' => '_skwirrel_external_id', 'compare' => 'NOT EXISTS'],
+		['key' => '_skwirrel_grouped_product_id', 'compare' => 'NOT EXISTS'],
+	]);
 });
 
 test('all products and unknown values add no clause', function (string $value) {

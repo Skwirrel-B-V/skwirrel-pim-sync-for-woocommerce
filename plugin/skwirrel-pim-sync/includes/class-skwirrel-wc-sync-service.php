@@ -493,6 +493,30 @@ class Skwirrel_WC_Sync_Service {
 	 * @return string 'continue' (more work — re-invoke), 'done', or 'failed'.
 	 */
 	public function run_step( array &$ctx, float $deadline ): string {
+		// File naming comes from the run's own settings snapshot, like every other output-affecting
+		// setting: saving another mode between two steps must not name later files differently.
+		$snapshot = is_array( $ctx['options'] ?? null ) ? $ctx['options'] : [];
+		Skwirrel_WC_Sync_File_Naming::override_config(
+			[
+				'mode'   => (string) ( $snapshot[ Skwirrel_WC_Sync_File_Naming::SETTING_MODE ] ?? Skwirrel_WC_Sync_File_Naming::MODE_CURRENT ),
+				'prefix' => (string) ( $snapshot[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] ?? '' ),
+			]
+		);
+		try {
+			return $this->run_step_frozen( $ctx, $deadline );
+		} finally {
+			Skwirrel_WC_Sync_File_Naming::override_config( null );
+		}
+	}
+
+	/**
+	 * The sync step itself, running under the run's frozen file naming.
+	 *
+	 * @param array<string, mixed> $ctx      Run context (by reference).
+	 * @param float                $deadline Microtime after which the step must yield.
+	 * @return string 'continue', 'done' or 'failed'.
+	 */
+	private function run_step_frozen( array &$ctx, float $deadline ): string {
 		// Re-attach to this run's log file (no-op on the synchronous path where it is already open).
 		$this->logger->resume_sync_log( (string) ( $ctx['log_file'] ?? '' ) );
 		// Apply the change gate for every step's upserter operations (grouped products, commits, …),

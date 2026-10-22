@@ -151,7 +151,8 @@ class Skwirrel_WC_Sync_File_Renamer {
 		$ext    = pathinfo( $old, PATHINFO_EXTENSION );
 		$prefix = Skwirrel_WC_Sync_File_Naming::MODE_PREFIX === Skwirrel_WC_Sync_File_Naming::get_mode() ? Skwirrel_WC_Sync_File_Naming::get_prefix() : '';
 
-		if ( '' !== $prefix && str_starts_with( $old, $prefix ) ) {
+		// The prefix shortcut is exact only without a filter: a filter can ask for a different name.
+		if ( '' !== $prefix && str_starts_with( $old, $prefix ) && ! has_filter( 'skwirrel_wc_sync_upload_filename' ) ) {
 			$item['status'] = self::STATUS_DONE;
 			return $item;
 		}

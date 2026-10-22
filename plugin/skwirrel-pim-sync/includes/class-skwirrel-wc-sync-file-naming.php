@@ -72,7 +72,7 @@ class Skwirrel_WC_Sync_File_Naming {
 		// trailing "-" or "_" (the usual separator) that sanitize_file_name() would otherwise trim.
 		$safe = sanitize_file_name( $value . 'x.jpg' );
 		$safe = (string) preg_replace( '/x\.jpg$/', '', $safe );
-		return substr( $safe, 0, self::MAX_PREFIX_LENGTH );
+		return self::utf8_cut( $safe, self::MAX_PREFIX_LENGTH );
 	}
 
 	/**
@@ -247,6 +247,17 @@ class Skwirrel_WC_Sync_File_Naming {
 	}
 
 	/**
+	 * Cut a string to at most `$max` bytes without leaving half of a multibyte character.
+	 */
+	private static function utf8_cut( string $value, int $max ): string {
+		$cut = substr( $value, 0, $max );
+		while ( '' !== $cut && 1 !== preg_match( '//u', $cut ) ) {
+			$cut = substr( $cut, 0, -1 );
+		}
+		return $cut;
+	}
+
+	/**
 	 * Shorten the stem of a name that is too long for a file system, keeping the extension and not
 	 * cutting a multibyte character in half.
 	 */
@@ -256,11 +267,7 @@ class Skwirrel_WC_Sync_File_Naming {
 		}
 		$ext  = pathinfo( $name, PATHINFO_EXTENSION );
 		$stem = pathinfo( $name, PATHINFO_FILENAME );
-		$cut  = substr( $stem, 0, max( 1, self::MAX_NAME_BYTES - strlen( $ext ) - 1 ) );
-		while ( '' !== $cut && 1 !== preg_match( '//u', $cut ) ) {
-			$cut = substr( $cut, 0, -1 );
-		}
-		$cut = rtrim( $cut, '-_. ' );
+		$cut  = rtrim( self::utf8_cut( $stem, max( 1, self::MAX_NAME_BYTES - strlen( $ext ) - 1 ) ), '-_. ' );
 		return '' !== $ext ? $cut . '.' . $ext : $cut;
 	}
 

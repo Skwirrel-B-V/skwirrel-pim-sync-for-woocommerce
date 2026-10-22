@@ -117,3 +117,9 @@ test('the override configuration wins over the saved settings and can be removed
 	Skwirrel_WC_Sync_File_Naming::override_config(null);
 	expect(Skwirrel_WC_Sync_File_Naming::get_mode())->toBe('original');
 });
+
+test('a 40 byte prefix limit never cuts a multibyte character in half', function () {
+	$prefix = Skwirrel_WC_Sync_File_Naming::sanitize_prefix(str_repeat('a', 39) . 'é');
+	expect(preg_match('//u', $prefix))->toBe(1);
+	expect(strlen($prefix))->toBeLessThanOrEqual(40);
+});

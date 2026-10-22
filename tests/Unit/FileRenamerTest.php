@@ -159,3 +159,12 @@ test('with a filter a file that still has the plain mode name is listed for rena
 	expect($preview['counts']['rename'])->toBe(1);
 	expect($preview['rows'][0]['new'])->toBe('shop-foto.jpg');
 });
+
+test('with a filter the prefix shortcut no longer decides, the filtered name does', function () {
+	renamer_mode('prefix', 'acme-');
+	$GLOBALS['_test_filters']['skwirrel_wc_sync_upload_filename'][] = static fn (string $name): string => 'shop-' . $name;
+	renamer_attachment($this, 1, 'acme-photo.jpg', 'photo.jpg');
+	$preview = Skwirrel_WC_Sync_File_Renamer::preview();
+	expect($preview['counts']['rename'])->toBe(1);
+	expect($preview['rows'][0]['new'])->toBe('shop-acme-photo.jpg');
+});
