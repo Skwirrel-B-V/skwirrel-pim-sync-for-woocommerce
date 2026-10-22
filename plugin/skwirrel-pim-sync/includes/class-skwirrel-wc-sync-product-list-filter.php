@@ -68,6 +68,25 @@ class Skwirrel_WC_Sync_Product_List_Filter {
 	}
 
 	/**
+	 * Add a clause to a meta query so that BOTH must hold, whatever relation the existing one uses.
+	 * Appending to an existing top-level OR query would make it "either", and show unrelated products.
+	 *
+	 * @param array<int|string,mixed> $existing Existing meta query, possibly empty.
+	 * @param array<string,string>    $clause   Clause to require.
+	 * @return array<int|string,mixed>
+	 */
+	public static function merge_meta_query( array $existing, array $clause ): array {
+		if ( empty( $existing ) ) {
+			return [ $clause ];
+		}
+		return [
+			'relation' => 'AND',
+			$existing,
+			$clause,
+		];
+	}
+
+	/**
 	 * Render the dropdown on the product list.
 	 *
 	 * @param string $post_type Current post type.
@@ -104,10 +123,8 @@ class Skwirrel_WC_Sync_Product_List_Filter {
 		if ( empty( $clause ) ) {
 			return;
 		}
-		$existing     = $query->get( 'meta_query' );
-		$meta_query   = is_array( $existing ) ? $existing : [];
-		$meta_query[] = $clause;
-		$query->set( 'meta_query', $meta_query );
+		$existing = $query->get( 'meta_query' );
+		$query->set( 'meta_query', self::merge_meta_query( is_array( $existing ) ? $existing : [], $clause ) );
 	}
 
 	private function requested_value(): string {

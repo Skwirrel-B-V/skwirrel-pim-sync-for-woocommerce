@@ -935,7 +935,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				'label'  => __( 'Files', 'skwirrel-pim-sync' ),
 				'order'  => 30,
 				'render' => 'render_settings_panel_files',
-				'fields' => array( 'file_naming_prefix' ),
+				'fields' => array( 'file_naming_mode', 'file_naming_prefix', 'file_redirect_old_links' ),
 			),
 			'advanced'      => array(
 				'label'  => __( 'Advanced', 'skwirrel-pim-sync' ),

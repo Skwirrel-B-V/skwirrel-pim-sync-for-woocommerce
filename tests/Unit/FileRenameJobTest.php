@@ -171,3 +171,15 @@ test('waiting for a running sync counts as activity and is saved', function () {
 	expect(Skwirrel_WC_Sync_File_Rename_Job::state()['updated'])->toBeGreaterThan(1000);
 	unset($GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'], $GLOBALS['_test_transients']);
 });
+
+test('the naming configuration used by a running job is frozen at start', function () {
+	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = ['file_naming_mode' => 'prefix', 'file_naming_prefix' => 'acme-'];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::start())->toBeTrue();
+	$state = Skwirrel_WC_Sync_File_Rename_Job::state();
+	expect([$state['mode'], $state['prefix']])->toBe(['prefix', 'acme-']);
+	// The settings change while the job runs; a batch still uses the frozen configuration and then lets go of it.
+	$GLOBALS['_test_options']['skwirrel_wc_sync_settings'] = ['file_naming_mode' => 'original'];
+	Skwirrel_WC_Sync_File_Rename_Job::run_batch();
+	expect(Skwirrel_WC_Sync_File_Naming::get_mode())->toBe('original');
+	unset($GLOBALS['_test_options']['skwirrel_wc_sync_settings'], $GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
+});

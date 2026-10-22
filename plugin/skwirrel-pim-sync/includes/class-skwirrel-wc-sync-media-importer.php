@@ -27,6 +27,15 @@ class Skwirrel_WC_Sync_Media_Importer {
 	/** File extensions that are never images (even if the type code says otherwise). */
 	private const NON_IMAGE_EXTENSIONS = [ 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'txt', 'zip', 'rar' ];
 
+	/**
+	 * Attachment whose Skwirrel file name changed, to be let go once its replacement is imported.
+	 * Releasing it earlier would leave nothing to reuse when the download then fails.
+	 */
+	private int $pending_release = 0;
+
+	/** @var array{attachment_id?: int|string|null, file_name?: string|null}|array{} */
+	private array $pending_release_meta = [];
+
 	public function __construct() {
 		$this->logger = new Skwirrel_WC_Sync_Logger();
 	}
@@ -51,8 +60,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
-		$hash     = $this->url_hash( $url );
-		$existing = $this->find_valid_existing_attachment( $hash, $api_meta );
+		$this->pending_release = 0;
+		$hash                  = $this->url_hash( $url );
+		$existing              = $this->find_valid_existing_attachment( $hash, $api_meta );
 		if ( $existing ) {
 			// Backfill BEFORE checking for a content update — pre-3.8 attachments
 			// have no stored checksum, so the first post-3.8 sync just records
@@ -148,6 +158,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		update_post_meta( $id, self::META_SKWIRREL_URL, $url );
 		update_post_meta( $id, self::META_SKWIRREL_HASH, $hash );
 		$this->persist_api_meta( $id, $api_meta );
+		$this->release_pending();
 
 		$this->logger->debug(
 			'Imported image',
@@ -174,8 +185,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
-		$hash     = $this->url_hash( $url );
-		$existing = $this->find_valid_existing_attachment( $hash, $api_meta );
+		$this->pending_release = 0;
+		$hash                  = $this->url_hash( $url );
+		$existing              = $this->find_valid_existing_attachment( $hash, $api_meta );
 		if ( $existing ) {
 			// See backfill rationale in import_image().
 			$this->backfill_api_meta( $existing, $api_meta );
@@ -246,6 +258,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		update_post_meta( $id, self::META_SKWIRREL_URL, $url );
 		update_post_meta( $id, self::META_SKWIRREL_HASH, $hash );
 		$this->persist_api_meta( $id, $api_meta );
+		$this->release_pending();
 
 		return $id;
 	}
@@ -781,7 +794,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 		if ( $this->file_name_changed( $existing, $api_meta ) ) {
-			$this->release_renamed_attachment( $existing, $api_meta );
+			$this->pending_release      = $existing;
+			$this->pending_release_meta = $api_meta;
 			return 0;
 		}
 
@@ -806,6 +820,11 @@ class Skwirrel_WC_Sync_Media_Importer {
 		);
 
 		if ( $is_valid ) {
+			return $existing;
+		}
+
+		// A rename batch is moving files right now: this one may be in transit, not missing.
+		if ( get_transient( Skwirrel_WC_Sync_File_Rename_Job::ACTIVE_TRANSIENT ) ) {
 			return $existing;
 		}
 
@@ -843,6 +862,18 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 		$stored = (string) get_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, true );
 		return '' !== $stored && $stored !== $incoming;
+	}
+
+	/**
+	 * Release the attachment that is being replaced after a file name change, now that its
+	 * replacement exists.
+	 */
+	private function release_pending(): void {
+		if ( $this->pending_release > 0 ) {
+			$this->release_renamed_attachment( $this->pending_release, $this->pending_release_meta );
+		}
+		$this->pending_release      = 0;
+		$this->pending_release_meta = [];
 	}
 
 	/**

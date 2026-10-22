@@ -26,6 +26,9 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	/** Old upload path of a renamed attachment, as "old relative path<TAB>current relative path" (one row per file). */
 	public const META_OLD_PATH = '_skwirrel_old_upload_path';
 
+	/** Set while a batch moves files, so the sync does not mistake a file in transit for a missing one. */
+	public const ACTIVE_TRANSIENT = 'skwirrel_wc_sync_rename_active';
+
 	public const STATUS_RUNNING = 'running';
 	public const STATUS_DONE    = 'done';
 
@@ -62,7 +65,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	/**
 	 * Current (or last) job.
 	 *
-	 * @return array{status:string,total:int,processed:int,renamed:int,skipped:int,failed:int,last_id:int,started:int,finished:int,updated:int}|array{}
+	 * @return array{status:string,total:int,processed:int,renamed:int,skipped:int,failed:int,last_id:int,started:int,finished:int,updated:int,mode:string,prefix:string}|array{}
 	 */
 	public static function state(): array {
 		$state = get_option( self::OPTION, [] );
@@ -80,6 +83,8 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			'started'   => (int) ( $state['started'] ?? 0 ),
 			'finished'  => (int) ( $state['finished'] ?? 0 ),
 			'updated'   => (int) ( $state['updated'] ?? ( $state['started'] ?? 0 ) ),
+			'mode'      => (string) ( $state['mode'] ?? '' ),
+			'prefix'    => (string) ( $state['prefix'] ?? '' ),
 		];
 	}
 
@@ -117,7 +122,10 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			|| self::is_running() ) {
 			return false;
 		}
-		$total = Skwirrel_WC_Sync_File_Renamer::preview( 1, 1 )['counts'][ Skwirrel_WC_Sync_File_Renamer::STATUS_RENAME ];
+		// Total is every imported attachment the job walks through (also the ones it will skip), so
+		// "handled" can never exceed it. The mode and prefix are frozen: saving other settings while
+		// the job runs must not rename the rest of the library under a different configuration.
+		$total = self::count_imported();
 		update_option(
 			self::OPTION,
 			[
@@ -131,10 +139,12 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				'started'   => time(),
 				'finished'  => 0,
 				'updated'   => time(),
+				'mode'      => Skwirrel_WC_Sync_File_Naming::get_mode(),
+				'prefix'    => Skwirrel_WC_Sync_File_Naming::get_prefix(),
 			],
 			false
 		);
-		( new Skwirrel_WC_Sync_Logger() )->info( 'File rename started', [ 'files_to_rename' => $total ] );
+		( new Skwirrel_WC_Sync_Logger() )->info( 'File rename started', [ 'imported_files' => $total ] );
 		self::enqueue( 0 );
 		return true;
 	}
@@ -197,17 +207,32 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		}
 
 		$ids = self::next_ids( $state['last_id'], self::BATCH );
-		foreach ( $ids as $id ) {
-			$result = self::rename_attachment( $id );
-			++$state['processed'];
-			if ( 'renamed' === $result ) {
-				++$state['renamed'];
-			} elseif ( 'failed' === $result ) {
-				++$state['failed'];
-			} else {
-				++$state['skipped'];
+		// A job started by an older version has no frozen configuration: use the saved one.
+		if ( '' !== $state['mode'] ) {
+			Skwirrel_WC_Sync_File_Naming::override_config(
+				[
+					'mode'   => $state['mode'],
+					'prefix' => $state['prefix'],
+				]
+			);
+		}
+		set_transient( self::ACTIVE_TRANSIENT, 1, 2 * MINUTE_IN_SECONDS );
+		try {
+			foreach ( $ids as $id ) {
+				$result = self::rename_attachment( $id );
+				++$state['processed'];
+				if ( 'renamed' === $result ) {
+					++$state['renamed'];
+				} elseif ( 'failed' === $result ) {
+					++$state['failed'];
+				} else {
+					++$state['skipped'];
+				}
+				$state['last_id'] = $id;
 			}
-			$state['last_id'] = $id;
+		} finally {
+			delete_transient( self::ACTIVE_TRANSIENT );
+			Skwirrel_WC_Sync_File_Naming::override_config( null );
 		}
 
 		if ( count( $ids ) < self::BATCH ) {
@@ -226,6 +251,20 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		}
 		update_option( self::OPTION, $state, false );
 		self::enqueue( 0 );
+	}
+
+	/**
+	 * Number of attachments the plugin imported, which is what the job walks through.
+	 */
+	private static function count_imported(): int {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- one count over the plugin's own meta key.
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(DISTINCT post_id) FROM {$wpdb->postmeta} WHERE meta_key = %s",
+				'_skwirrel_url_hash'
+			)
+		);
 	}
 
 	/**

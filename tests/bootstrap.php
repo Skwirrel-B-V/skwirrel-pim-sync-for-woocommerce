@@ -196,6 +196,14 @@ if (!isset($GLOBALS['wpdb'])) {
         public function get_results(string $query, $output = 'OBJECT') {
             return [];
         }
+
+        public function get_col(string $query) {
+            return [];
+        }
+
+        public function esc_like(string $text): string {
+            return addcslashes($text, '_%\\');
+        }
     };
 }
 
@@ -674,6 +682,10 @@ if (!function_exists('wp_cache_delete')) {
 // Load plugin classes (order matters — dependencies first).
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-logger.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-attribute-sources.php';
+if (!defined('MINUTE_IN_SECONDS')) {
+    define('MINUTE_IN_SECONDS', 60);
+}
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-history.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-file-naming.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-file-renamer.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-file-rename-job.php';

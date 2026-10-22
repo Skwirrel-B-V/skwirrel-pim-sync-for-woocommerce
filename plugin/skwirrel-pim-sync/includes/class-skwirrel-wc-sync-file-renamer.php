@@ -161,15 +161,17 @@ class Skwirrel_WC_Sync_File_Renamer {
 			$item['status'] = self::STATUS_UNUSABLE;
 			return $item;
 		}
+		// The name the file should have is the filtered one: with a filter, a file still carrying the
+		// plain mode name is not done.
 		$url = (string) get_post_meta( $attachment_id, self::META_URL, true );
-		if ( self::is_named_like( $old, $bare ) || self::is_named_like( $old, Skwirrel_WC_Sync_File_Naming::filtered_name( $bare, $url, 'rename' ) ) ) {
+		if ( self::is_named_like( $old, Skwirrel_WC_Sync_File_Naming::filtered_name( $bare, $url, 'rename' ) ) ) {
 			$item['status'] = self::STATUS_DONE;
 			return $item;
 		}
 
 		$new = Skwirrel_WC_Sync_File_Naming::derive( $dir, $stored, $ext, true );
 		$new = Skwirrel_WC_Sync_File_Naming::finalize( $new, $dir, $url, 'rename' );
-		$new = self::reserve( $dir, $new, $reserved );
+		$new = self::reserve( $dir, $new, $reserved, $attachment_id );
 		if ( $new === $old ) {
 			$item['status'] = self::STATUS_DONE;
 			return $item;
@@ -204,12 +206,16 @@ class Skwirrel_WC_Sync_File_Renamer {
 	 *
 	 * @param array<string,bool> $reserved Names already given out (directory/name).
 	 */
-	private static function reserve( string $dir, string $name, array &$reserved ): string {
+	private static function reserve( string $dir, string $name, array &$reserved, int $attachment_id = 0 ): string {
 		$candidate = $name;
+		$rel_dir   = dirname( (string) get_post_meta( $attachment_id, '_wp_attached_file', true ) );
+		$rel_dir   = ( '.' === $rel_dir || '' === $rel_dir ) ? '' : $rel_dir . '/';
 		$stem      = pathinfo( $name, PATHINFO_FILENAME );
 		$ext       = pathinfo( $name, PATHINFO_EXTENSION );
 		$n         = 0;
-		while ( isset( $reserved[ $dir . '/' . $candidate ] ) ) {
+		// Also skip a name another renamed file used to have: its old link redirects there, and a new
+		// file in that place would be served instead of the redirect.
+		while ( isset( $reserved[ $dir . '/' . $candidate ] ) || ( $attachment_id > 0 && '' !== Skwirrel_WC_Sync_File_Redirects::find_target( $rel_dir . $candidate ) ) ) {
 			++$n;
 			$candidate = $stem . '-' . $n . ( '' !== $ext ? '.' . $ext : '' );
 			if ( file_exists( $dir . '/' . $candidate ) ) {

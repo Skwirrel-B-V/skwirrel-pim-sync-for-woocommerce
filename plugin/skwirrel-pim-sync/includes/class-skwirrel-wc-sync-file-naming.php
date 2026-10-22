@@ -27,6 +27,17 @@ class Skwirrel_WC_Sync_File_Naming {
 	public const SETTING_MODE   = 'file_naming_mode';
 	public const SETTING_PREFIX = 'file_naming_prefix';
 
+	/** Longest file name built from a Skwirrel name, in bytes. Leaves room for -N, -scaled and -WxH suffixes under the usual 255 byte limit. */
+	private const MAX_NAME_BYTES = 180;
+
+	/**
+	 * Mode and prefix to use instead of the saved settings, while a rename job runs, so changing the
+	 * settings halfway cannot leave the library renamed under two configurations.
+	 *
+	 * @var array{mode: string, prefix: string}|null
+	 */
+	private static ?array $override = null;
+
 	/** Longest prefix accepted, so prefix + file name stays well inside a file system's name limit. */
 	private const MAX_PREFIX_LENGTH = 40;
 
@@ -65,9 +76,21 @@ class Skwirrel_WC_Sync_File_Naming {
 	}
 
 	/**
+	 * Use this mode and prefix instead of the saved settings; null goes back to the saved settings.
+	 *
+	 * @param array{mode: string, prefix: string}|null $config Mode and prefix, or null.
+	 */
+	public static function override_config( ?array $config ): void {
+		self::$override = $config;
+	}
+
+	/**
 	 * Configured mode.
 	 */
 	public static function get_mode(): string {
+		if ( null !== self::$override ) {
+			return self::sanitize_mode( self::$override['mode'] );
+		}
 		$settings = get_option( 'skwirrel_wc_sync_settings', [] );
 		return self::sanitize_mode( is_array( $settings ) ? ( $settings[ self::SETTING_MODE ] ?? null ) : null );
 	}
@@ -76,6 +99,9 @@ class Skwirrel_WC_Sync_File_Naming {
 	 * Configured prefix (mode B).
 	 */
 	public static function get_prefix(): string {
+		if ( null !== self::$override ) {
+			return self::sanitize_prefix( self::$override['prefix'] );
+		}
 		$settings = get_option( 'skwirrel_wc_sync_settings', [] );
 		return self::sanitize_prefix( is_array( $settings ) ? ( $settings[ self::SETTING_PREFIX ] ?? '' ) : '' );
 	}
@@ -212,12 +238,30 @@ class Skwirrel_WC_Sync_File_Naming {
 			$given_ext = $ext;
 		}
 
-		$name = sanitize_file_name( $prefix . $stem . '.' . $given_ext );
+		$name = self::cap_length( sanitize_file_name( $prefix . $stem . '.' . $given_ext ) );
 		// Nothing but the extension left (a name of only unusable characters).
 		if ( '' === $name || str_starts_with( $name, '.' ) || '' === pathinfo( $name, PATHINFO_FILENAME ) ) {
 			return '';
 		}
 		return $name;
+	}
+
+	/**
+	 * Shorten the stem of a name that is too long for a file system, keeping the extension and not
+	 * cutting a multibyte character in half.
+	 */
+	private static function cap_length( string $name ): string {
+		if ( strlen( $name ) <= self::MAX_NAME_BYTES ) {
+			return $name;
+		}
+		$ext  = pathinfo( $name, PATHINFO_EXTENSION );
+		$stem = pathinfo( $name, PATHINFO_FILENAME );
+		$cut  = substr( $stem, 0, max( 1, self::MAX_NAME_BYTES - strlen( $ext ) - 1 ) );
+		while ( '' !== $cut && 1 !== preg_match( '//u', $cut ) ) {
+			$cut = substr( $cut, 0, -1 );
+		}
+		$cut = rtrim( $cut, '-_. ' );
+		return '' !== $ext ? $cut . '.' . $ext : $cut;
 	}
 
 	private static function same_extension( string $a, string $b ): bool {

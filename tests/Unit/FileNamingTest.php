@@ -98,3 +98,22 @@ test('prefix keeps its trailing separator and case, and loses path characters', 
 	expect(Skwirrel_WC_Sync_File_Naming::sanitize_prefix('a/b\\c'))->toBe('abc');
 	expect(Skwirrel_WC_Sync_File_Naming::sanitize_prefix(null))->toBe('');
 });
+
+test('a very long Skwirrel name is shortened but keeps its extension and stays valid UTF-8', function () {
+	set_file_naming('prefix', 'acme-');
+	$long = str_repeat('é', 200) . '.pdf';
+	$name = Skwirrel_WC_Sync_File_Naming::build('/up', $long, 'pdf', 'https://x.test/long', 'file');
+	expect(strlen($name))->toBeLessThanOrEqual(180);
+	expect($name)->toStartWith('acme-');
+	expect($name)->toEndWith('.pdf');
+	expect(preg_match('//u', $name))->toBe(1);
+});
+
+test('the override configuration wins over the saved settings and can be removed', function () {
+	set_file_naming('original');
+	Skwirrel_WC_Sync_File_Naming::override_config(['mode' => 'prefix', 'prefix' => 'frozen-']);
+	expect(Skwirrel_WC_Sync_File_Naming::get_mode())->toBe('prefix');
+	expect(Skwirrel_WC_Sync_File_Naming::build('/up', 'a.pdf', 'pdf', 'https://x.test/o', 'file'))->toBe('frozen-a.pdf');
+	Skwirrel_WC_Sync_File_Naming::override_config(null);
+	expect(Skwirrel_WC_Sync_File_Naming::get_mode())->toBe('original');
+});

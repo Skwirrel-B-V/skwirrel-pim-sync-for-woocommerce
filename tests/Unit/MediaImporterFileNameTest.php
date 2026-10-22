@@ -87,3 +87,31 @@ test('releasing a renamed attachment clears Skwirrel meta and detaches it', func
 	}
 	expect($GLOBALS['_test_post_fields'][10]['post_parent'])->toBe(0);
 });
+
+test('a changed file name releases the old attachment only after the replacement is imported', function () {
+	set_naming_mode('original');
+	$GLOBALS['_test_posts'] = [5];
+	update_post_meta(5, '_skwirrel_attachment_id', 7);
+	update_post_meta(5, '_skwirrel_url_hash', 'h');
+	update_post_meta(5, '_skwirrel_file_name', 'old.pdf');
+	$meta = ['attachment_id' => 7, 'file_name' => 'new.pdf'];
+
+	// The lookup misses (so a new file is imported) but the old record is still discoverable.
+	expect(importer_call($this->importer, 'find_valid_existing_attachment', ['h', $meta]))->toBe(0);
+	expect(get_post_meta(5, '_skwirrel_attachment_id', true))->toBe(7);
+
+	// A failed import never reaches release_pending(), so nothing is lost. A successful one does.
+	importer_call($this->importer, 'release_pending', []);
+	expect(get_post_meta(5, '_skwirrel_attachment_id', true))->toBe('');
+	expect(get_post_meta(5, '_skwirrel_url_hash', true))->toBe('');
+	$GLOBALS['_test_posts'] = [];
+});
+
+test('a file that looks missing while a rename batch runs is not released', function () {
+	$GLOBALS['_test_posts'] = [5];
+	update_post_meta(5, '_skwirrel_attachment_id', 7);
+	$GLOBALS['_test_transients'][Skwirrel_WC_Sync_File_Rename_Job::ACTIVE_TRANSIENT] = ['value' => 1, 'expires' => 0];
+	expect(importer_call($this->importer, 'find_valid_existing_attachment', ['h', ['attachment_id' => 7]]))->toBe(5);
+	expect(get_post_meta(5, '_skwirrel_attachment_id', true))->toBe(7);
+	unset($GLOBALS['_test_transients'], $GLOBALS['_test_posts']);
+});

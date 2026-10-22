@@ -31,3 +31,15 @@ test('without an endpoint the sync is not set up', function () {
 	unset($GLOBALS['_test_options']['skwirrel_wc_sync_settings']);
 	expect(Skwirrel_WC_Sync_Product_List_Filter::is_sync_set_up())->toBeFalse();
 });
+
+test('the managed clause is required together with an existing OR meta query', function () {
+	$existing = ['relation' => 'OR', ['key' => 'a', 'value' => '1'], ['key' => 'b', 'value' => '2']];
+	$clause   = Skwirrel_WC_Sync_Product_List_Filter::meta_clause('managed');
+	expect(Skwirrel_WC_Sync_Product_List_Filter::merge_meta_query($existing, $clause))
+		->toBe(['relation' => 'AND', $existing, $clause]);
+});
+
+test('without an existing meta query the clause stands alone', function () {
+	$clause = Skwirrel_WC_Sync_Product_List_Filter::meta_clause('not_managed');
+	expect(Skwirrel_WC_Sync_Product_List_Filter::merge_meta_query([], $clause))->toBe([$clause]);
+});
