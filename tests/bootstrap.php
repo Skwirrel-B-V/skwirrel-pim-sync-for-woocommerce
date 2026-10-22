@@ -667,6 +667,7 @@ require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-file-renamer.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-file-rename-job.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-file-redirects.php';
+require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-product-list-filter.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-media-importer.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-etim-extractor.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-custom-class-extractor.php';
