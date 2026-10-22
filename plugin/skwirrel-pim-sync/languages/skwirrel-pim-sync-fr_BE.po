@@ -3090,3 +3090,62 @@ msgid "%s shown as tab"
 msgid_plural "%s shown as tab"
 msgstr[0] "%s en onglet"
 msgstr[1] "%s en onglets"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:935
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1196
+msgid "Files"
+msgstr "Fichiers"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:536
+msgid "Choose a valid file naming mode."
+msgstr "Choisis une méthode valide pour les noms de fichiers."
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:542
+msgid "Enter a text prefix or leave it empty."
+msgstr "Saisis un préfixe sous forme de texte ou laisse le champ vide."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1198
+msgid ""
+"Applies to new downloads and content replacements for images and documents. "
+"Existing files are not renamed."
+msgstr ""
+"S’applique aux nouveaux téléchargements et au remplacement du contenu des "
+"images et documents. Les fichiers existants ne sont pas renommés."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1200
+msgid "File naming"
+msgstr "Noms de fichiers"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1201
+msgid "A: Automatic naming (default)"
+msgstr "A : Noms automatiques (par défaut)"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1202
+msgid "B: Prefix + Skwirrel file name"
+msgstr "B : Préfixe + nom de fichier Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1203
+msgid "C: Skwirrel file name"
+msgstr "C : Nom de fichier Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1204
+msgid ""
+"Without a prefix, names can collide with manual uploads or other imports. "
+"WordPress adds a numeric suffix to duplicates. Existing files are never "
+"overwritten."
+msgstr ""
+"Sans préfixe, les noms peuvent être identiques à ceux de téléversements "
+"manuels ou d’autres imports. WordPress ajoute un numéro aux doublons. Les "
+"fichiers existants ne sont jamais écrasés."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1207
+msgid "File name prefix (mode B)"
+msgstr "Préfixe du nom de fichier (méthode B)"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1209
+msgid ""
+"Optional. Include a separator if wanted, for example acme-. Unsafe "
+"characters are removed."
+msgstr ""
+"Facultatif. Ajoute un séparateur si souhaité, par exemple acme-. Les "
+"caractères non autorisés sont supprimés."

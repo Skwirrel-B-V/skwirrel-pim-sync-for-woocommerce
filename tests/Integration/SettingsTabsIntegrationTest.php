@@ -2,8 +2,8 @@
 /**
  * Integration tests for the tabbed settings screen (Story 5.1).
  *
- * The settings screen groups its field groups into five tabs (Connection, What to sync, Field
- * mapping, Advanced, Danger zone — Media & Language and Permalinks were later folded into the
+ * The settings screen groups its field groups into six tabs (Connection, What to sync, Field
+ * mapping, Files, Advanced, Danger zone — Media & Language and Permalinks were later folded into the
  * middle two, and Danger zone was later promoted from an always-visible section below the form
  * into a tab of its own). The refactor is only safe if the
  * rendered form is unchanged as a *payload*: every input still present, still inside the one
@@ -233,21 +233,21 @@ test( 'every input name the pre-tabs settings form rendered is still rendered', 
 	}
 } );
 
-test( 'the five tabs each own a panel; four settings panels live inside the form, Danger zone lives outside it', function (): void {
+test( 'the six tabs each own a panel; five settings panels live inside the form, Danger zone lives outside it', function (): void {
 	$html = skwRenderSettingsScreen();
 
 	preg_match_all( '/<button\b[^>]*role="tab"[^>]*>/', $html, $tab_matches );
 	preg_match_all( '/<div\b[^>]*role="tabpanel"[^>]*>/', $html, $panel_matches );
 
-	expect( $tab_matches[0] )->toHaveCount( 5 );
-	expect( $panel_matches[0] )->toHaveCount( 5 );
+	expect( $tab_matches[0] )->toHaveCount( 6 );
+	expect( $panel_matches[0] )->toHaveCount( 6 );
 
 	$form_open  = strpos( $html, '<form method="post" action="options.php"' );
 	$form_close = strpos( $html, '</form>', (int) $form_open );
 	expect( $form_open )->not->toBeFalse();
 	expect( $form_close )->not->toBeFalse();
 
-	foreach ( [ 'connection', 'what-to-sync', 'field-mapping', 'advanced' ] as $slug ) {
+	foreach ( [ 'connection', 'what-to-sync', 'field-mapping', 'files', 'advanced' ] as $slug ) {
 		$panel_at = strpos( $html, 'id="panel-' . $slug . '"' );
 		expect( $panel_at )->not->toBeFalse();
 		expect( $panel_at )->toBeGreaterThan( (int) $form_open );
@@ -286,7 +286,7 @@ test( 'the ARIA wiring resolves in both directions and exactly one tab is select
 	expect( $html )->toContain( 'role="tablist"' );
 
 	preg_match_all( '/aria-controls="(panel-[^"]+)"/', $html, $controls );
-	expect( $controls[1] )->toHaveCount( 5 );
+	expect( $controls[1] )->toHaveCount( 6 );
 
 	foreach ( $controls[1] as $panel_id ) {
 		$slug = substr( $panel_id, strlen( 'panel-' ) );
@@ -446,7 +446,7 @@ function skwSettingsXPath( ?string $html = null ): DOMXPath {
 	return new DOMXPath( $doc );
 }
 
-test( 'each of the nine field groups sits in exactly the tab the re-home map names', function (): void {
+test( 'each of the ten field groups sits in exactly the tab the re-home map names', function (): void {
 	$xpath = skwSettingsXPath();
 
 	// AC 1's table, by the group's own heading text.
@@ -461,6 +461,7 @@ test( 'each of the nine field groups sits in exactly the tab the re-home map nam
 		'Scheduling'               => 'advanced',
 		'Sync Logs'                => 'advanced',
 		'Advanced'                 => 'advanced',
+		'Files'                    => 'files',
 	];
 
 	foreach ( $map as $title => $slug ) {
@@ -480,9 +481,9 @@ test( 'each of the nine field groups sits in exactly the tab the re-home map nam
 		expect( $panel->getAttribute( 'id' ) )->toBe( 'panel-' . $slug, "field group '{$title}' landed on the wrong tab" );
 	}
 
-	// And nothing else crept into a panel as a tenth group.
+	// And nothing else crept into a panel as an eleventh group.
 	$groups = $xpath->query( '//div[@role="tabpanel"]//h3[contains(concat(" ", normalize-space(@class), " "), " skw-fieldgroup-title ")]' );
-	expect( $groups->length )->toBe( 9 );
+	expect( $groups->length )->toBe( 10 );
 } );
 
 /**
@@ -608,7 +609,7 @@ test( 'a tab registered with a named external renderer renders in its order posi
 		}
 
 		// AC 7: order comes from the registration, not from hash order.
-		expect( $slugs )->toBe( [ 'connection', 'what-to-sync', 'field-mapping', 'external-mapping', 'advanced', 'danger-zone' ] );
+		expect( $slugs )->toBe( [ 'connection', 'what-to-sync', 'field-mapping', 'external-mapping', 'files', 'advanced', 'danger-zone' ] );
 
 		// The panel exists, is wired to its tab, and holds what the outside renderer echoed.
 		$panel = $xpath->query( '//div[@role="tabpanel"][@id="panel-external-mapping"]' );

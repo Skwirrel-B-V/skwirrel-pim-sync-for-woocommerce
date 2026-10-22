@@ -31,6 +31,78 @@ class Skwirrel_WC_Sync_Media_Importer {
 	}
 
 	/**
+	 * Build a safe, unique name for every new download, including replacements.
+	 *
+	 * The source name is never inferred from a CDN URL in modes B/C. The URL
+	 * often contains an opaque token rather than the name chosen in Skwirrel.
+	 */
+	private function build_upload_filename( string $url, string $source_name, string $extension, string $directory, string $route ): string {
+		$settings = get_option( 'skwirrel_wc_sync_settings', [] );
+		$settings = is_array( $settings ) ? $settings : [];
+		$mode     = $settings['file_naming_mode'] ?? 'A';
+		$legacy   = 'skwirrel-' . substr( $this->url_hash( $url ), 0, 12 ) . '-' . time() . '.' . $extension;
+		$filename = $legacy;
+
+		if ( in_array( $mode, [ 'B', 'C' ], true ) ) {
+			$source_base = wp_basename( str_replace( '\\', '/', $source_name ) );
+			$source      = sanitize_file_name( $source_base );
+			$filetype    = wp_check_filetype( $source );
+			$expected    = wp_check_filetype( 'file.' . $extension );
+			$stem        = sanitize_file_name( pathinfo( $source_base, PATHINFO_FILENAME ) );
+			// Keep images' extension consistent with the downloaded bytes. Documents
+			// must use a type WordPress allows, rather than a runnable extension.
+			$usable = '' !== $stem && '' !== pathinfo( $source_base, PATHINFO_EXTENSION ) && ! empty( $filetype['ext'] ) &&
+				( ! str_starts_with( $route, 'image' ) || $filetype['type'] === $expected['type'] );
+			if ( $usable ) {
+				$prefix   = 'B' === $mode && is_string( $settings['file_naming_prefix'] ?? null ) ? $settings['file_naming_prefix'] : '';
+				$filename = $prefix . $source;
+			} else {
+				$this->logger->warning(
+					'Unusable Skwirrel file name; using automatic naming',
+					[
+						'url'       => $url,
+						'file_name' => $source_name,
+					]
+				);
+			}
+		}
+
+		/**
+		 * Filters the upload name before final sanitization and collision handling.
+		 *
+		 * @param string              $filename Proposed file name.
+		 * @param string              $url      Normalized source URL.
+		 * @param array<string,mixed> $context  Source name, mode and import route.
+		 */
+		$filtered = $this->filter_upload_filename(
+			$filename,
+			$url,
+			[
+				'file_name' => $source_name,
+				'mode'      => $mode,
+				'route'     => $route,
+			]
+		);
+		$filtered = is_string( $filtered ) ? sanitize_file_name( wp_basename( str_replace( '\\', '/', $filtered ) ) ) : '';
+		// A filter may change the stem, but cannot make an image executable or
+		// strip/change the file type. Uniqueness is always checked after filtering.
+		if ( '' !== pathinfo( $filtered, PATHINFO_FILENAME ) &&
+			strtolower( pathinfo( $filtered, PATHINFO_EXTENSION ) ) === strtolower( pathinfo( $filename, PATHINFO_EXTENSION ) ) ) {
+			$filename = $filtered;
+		}
+		return wp_unique_filename( $directory, sanitize_file_name( $filename ) );
+	}
+
+	/**
+	 * Keep external filter return values untrusted until validated by the caller.
+	 *
+	 * @param array<string,mixed> $context Naming context.
+	 */
+	private function filter_upload_filename( string $filename, string $url, array $context ): mixed {
+		return apply_filters( 'skwirrel_wc_sync_upload_filename', $filename, $url, $context );
+	}
+
+	/**
 	 * Import image from URL. Downloads file and creates attachment directly (bypasses upload validation).
 	 * Attaches to $parent_id when given (product post ID).
 	 * $title = product_attachment_title (alt text + caption). $description = product_attachment_description.
@@ -58,7 +130,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 			// the current state. From the second sync onwards, an api/stored
 			// checksum mismatch can cleanly trigger replace.
 			$this->backfill_api_meta( $existing, $api_meta );
-			$this->maybe_replace_image_content( $existing, $url, $alt_caption, $description, $api_meta );
+			$this->maybe_replace_image_content( $existing, $url, $title, $alt_caption, $description, $api_meta );
 			$this->ensure_post_parent( $existing, $parent_id );
 			return $existing;
 		}
@@ -86,14 +158,13 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
-		$ext_map  = [
+		$ext_map = [
 			IMAGETYPE_JPEG => 'jpg',
 			IMAGETYPE_PNG  => 'png',
 			IMAGETYPE_GIF  => 'gif',
 			IMAGETYPE_WEBP => 'webp',
 		];
-		$ext      = $ext_map[ $image_info[2] ] ?? 'jpg';
-		$filename = 'skwirrel-' . substr( $hash, 0, 12 ) . '-' . time() . '.' . $ext;
+		$ext     = $ext_map[ $image_info[2] ] ?? 'jpg';
 
 		$upload_dir = wp_upload_dir();
 		if ( $upload_dir['error'] ) {
@@ -102,7 +173,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
-		$dest = $upload_dir['path'] . '/' . $filename;
+		$filename = $this->build_upload_filename( $url, $title, $ext, $upload_dir['path'], 'image' );
+		$dest     = $upload_dir['path'] . '/' . $filename;
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning( 'Failed to copy image to uploads', [ 'url' => $url ] );
@@ -177,7 +249,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( $existing ) {
 			// See backfill rationale in import_image().
 			$this->backfill_api_meta( $existing, $api_meta );
-			$this->maybe_replace_file_content( $existing, $url, $api_meta );
+			$this->maybe_replace_file_content( $existing, $url, $name, $api_meta );
 			$this->ensure_post_parent( $existing, $parent_id );
 			return $existing;
 		}
@@ -202,7 +274,6 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( ! preg_match( '/^[a-z0-9]{2,5}$/i', $ext ) ) {
 			$ext = 'pdf';
 		}
-		$filename = 'skwirrel-' . substr( $hash, 0, 12 ) . '-' . time() . '.' . $ext;
 
 		$upload_dir = wp_upload_dir();
 		if ( $upload_dir['error'] ) {
@@ -210,7 +281,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
-		$dest = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
+		$filename = $this->build_upload_filename( $url, $name, $ext, $upload_dir['path'], 'file' );
+		$dest     = $upload_dir['path'] . '/' . $filename;
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning( 'Failed to copy file to uploads', [ 'url' => $url ] );
@@ -307,7 +379,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 *
 	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
 	 */
-	private function maybe_replace_image_content( int $attachment_id, string $url, string $alt_caption, string $description, array $api_meta ): void {
+	private function maybe_replace_image_content( int $attachment_id, string $url, string $source_name, string $alt_caption, string $description, array $api_meta ): void {
 		if ( ! $this->should_replace_content( $attachment_id, $api_meta ) ) {
 			return;
 		}
@@ -341,14 +413,13 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return;
 		}
 
-		$ext_map  = [
+		$ext_map = [
 			IMAGETYPE_JPEG => 'jpg',
 			IMAGETYPE_PNG  => 'png',
 			IMAGETYPE_GIF  => 'gif',
 			IMAGETYPE_WEBP => 'webp',
 		];
-		$ext      = $ext_map[ $image_info[2] ] ?? 'jpg';
-		$filename = 'skwirrel-' . substr( $this->url_hash( $url ), 0, 12 ) . '-' . time() . '.' . $ext;
+		$ext     = $ext_map[ $image_info[2] ] ?? 'jpg';
 
 		$upload_dir = wp_upload_dir();
 		if ( $upload_dir['error'] ) {
@@ -362,7 +433,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			);
 			return;
 		}
-		$dest = $upload_dir['path'] . '/' . $filename;
+		$filename = $this->build_upload_filename( $url, $source_name, $ext, $upload_dir['path'], 'image-replacement' );
+		$dest     = $upload_dir['path'] . '/' . $filename;
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning(
@@ -431,7 +503,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 *
 	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
 	 */
-	private function maybe_replace_file_content( int $attachment_id, string $url, array $api_meta ): void {
+	private function maybe_replace_file_content( int $attachment_id, string $url, string $source_name, array $api_meta ): void {
 		if ( ! $this->should_replace_content( $attachment_id, $api_meta ) ) {
 			return;
 		}
@@ -457,14 +529,14 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( ! preg_match( '/^[a-z0-9]{2,5}$/i', $ext ) ) {
 			$ext = 'pdf';
 		}
-		$filename = 'skwirrel-' . substr( $this->url_hash( $url ), 0, 12 ) . '-' . time() . '.' . $ext;
 
 		$upload_dir = wp_upload_dir();
 		if ( $upload_dir['error'] ) {
 			wp_delete_file( $tmp );
 			return;
 		}
-		$dest = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
+		$filename = $this->build_upload_filename( $url, $source_name, $ext, $upload_dir['path'], 'file-replacement' );
+		$dest     = $upload_dir['path'] . '/' . $filename;
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning(

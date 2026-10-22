@@ -2642,6 +2642,8 @@ class Skwirrel_WC_Sync_Service {
 			'batch_size'                    => 10,
 			'sync_categories'               => true,
 			'sync_grouped_products'         => false,
+			'file_naming_mode'              => 'A',
+			'file_naming_prefix'            => '',
 			'sync_images'                   => true,
 			'image_language'                => 'nl',
 			'include_languages'             => [ 'nl-NL', 'nl' ],

@@ -510,3 +510,91 @@ test( 'import_file replaces underlying bytes when checksum differs', function ()
 	$new_path = (string) get_attached_file( $second_id );
 	expect( file_get_contents( $new_path ) )->toBe( '%PDF-1.4 v2 with extra content' );
 } );
+
+// GH-61: exercise WordPress sanitization/uniqueness and the four actual import paths.
+test( 'naming modes apply to new images and documents and content replacements', function ( string $mode, string $prefix, string $expected_prefix ): void {
+	$previous = get_option( 'skwirrel_wc_sync_settings', [] );
+	update_option( 'skwirrel_wc_sync_settings', array_merge( $previous, [ 'file_naming_mode' => $mode, 'file_naming_prefix' => $prefix ] ) );
+	try {
+		foreach ( [ 'image' => 'png', 'file' => 'pdf' ] as $kind => $ext ) {
+			$url = 'https://cdn.example/naming-' . $kind . '.' . $ext;
+			$bytes = 'image' === $kind ? fakePngBytes() : '%PDF-1.4 document';
+			stubMediaDownload( 'cdn.example/naming-' . $kind, $bytes );
+			$source = 'CapitalName.' . $ext;
+			$meta = [ 'attachment_id' => 'image' === $kind ? 9101 : 9102, 'file_checksum' => 'before' ];
+			$id = 'image' === $kind
+				? $this->importer->import_image( $url, $source, 0, '', '', $meta )
+				: $this->importer->import_file( $url, $source, 0, $meta );
+			expect( $id )->toBeGreaterThan( 0 );
+			$old = get_attached_file( $id );
+			expect( basename( $old ) )->toBe( $expected_prefix . $source );
+			$meta['file_checksum'] = 'after';
+			$again = 'image' === $kind
+				? $this->importer->import_image( $url, $source, 0, '', '', $meta )
+				: $this->importer->import_file( $url, $source, 0, $meta );
+			expect( $again )->toBe( $id );
+			expect( basename( get_attached_file( $id ) ) )->toBe( $expected_prefix . 'CapitalName-1.' . $ext );
+			expect( file_exists( get_attached_file( $id ) ) )->toBeTrue();
+			expect( file_exists( $old ) )->toBeFalse();
+			expect( get_post_meta( $id, '_skwirrel_file_checksum', true ) )->toBe( 'after' );
+		}
+	} finally {
+		update_option( 'skwirrel_wc_sync_settings', $previous );
+	}
+} )->with( [ [ 'B', 'acme-', 'acme-' ], [ 'B', '', '' ], [ 'C', 'ignored-', '' ] ] );
+
+test( 'duplicate names including a manual upload and filter output never overwrite', function (): void {
+	$previous = get_option( 'skwirrel_wc_sync_settings', [] );
+	update_option( 'skwirrel_wc_sync_settings', array_merge( $previous, [ 'file_naming_mode' => 'C' ] ) );
+	$upload = wp_upload_bits( 'Manual.pdf', null, '%PDF-1.4 original manual upload' );
+	expect( $upload['error'] )->toBeFalse();
+	add_filter( 'skwirrel_wc_sync_upload_filename', fn () => 'Manual.pdf' );
+	try {
+		foreach ( [ 1, 2 ] as $number ) {
+			stubMediaDownload( 'cdn.example/collision-' . $number, '%PDF-1.4 imported' );
+			$id = $this->importer->import_file( 'https://cdn.example/collision-' . $number . '.pdf', 'Other.pdf' );
+			expect( basename( get_attached_file( $id ) ) )->toBe( 'Manual-' . $number . '.pdf' );
+		}
+		expect( file_get_contents( $upload['file'] ) )->toBe( '%PDF-1.4 original manual upload' );
+	} finally {
+		remove_all_filters( 'skwirrel_wc_sync_upload_filename' );
+		wp_delete_file( $upload['file'] );
+		update_option( 'skwirrel_wc_sync_settings', $previous );
+	}
+} );
+
+test( 'WordPress makes source names safe while retaining their capitalization', function (): void {
+	$previous = get_option( 'skwirrel_wc_sync_settings', [] );
+	update_option( 'skwirrel_wc_sync_settings', array_merge( $previous, [ 'file_naming_mode' => 'C' ] ) );
+	try {
+		stubMediaDownload( 'cdn.example/capitals', '%PDF-1.4 document' );
+		$id = $this->importer->import_file( 'https://cdn.example/capitals.pdf', 'My Datasheet?.pdf' );
+		expect( basename( get_attached_file( $id ) ) )->toBe( 'My-Datasheet.pdf' );
+	} finally {
+		update_option( 'skwirrel_wc_sync_settings', $previous );
+	}
+} );
+
+test( 'missing or extensionless source names fall back instead of using a CDN name', function ( string $source ): void {
+	$previous = get_option( 'skwirrel_wc_sync_settings', [] );
+	update_option( 'skwirrel_wc_sync_settings', array_merge( $previous, [ 'file_naming_mode' => 'C' ] ) );
+	try {
+		stubMediaDownload( 'cdn.example/fallback', '%PDF-1.4 document' );
+		$id = $this->importer->import_file( 'https://cdn.example/fallback.pdf', $source );
+		expect( basename( get_attached_file( $id ) ) )->toMatch( '/^skwirrel-[a-f0-9]{12}-[0-9]+\.pdf$/' );
+	} finally {
+		update_option( 'skwirrel_wc_sync_settings', $previous );
+	}
+} )->with( [ '', 'no-extension', '.pdf', 'pdf' ] );
+
+test( 'WordPress keeps capitalized stems and normalizes uppercase extensions', function (): void {
+	$previous = get_option( 'skwirrel_wc_sync_settings', [] );
+	update_option( 'skwirrel_wc_sync_settings', array_merge( $previous, [ 'file_naming_mode' => 'C' ] ) );
+	try {
+		stubMediaDownload( 'cdn.example/upper', '%PDF-1.4 document' );
+		$id = $this->importer->import_file( 'https://cdn.example/upper.pdf', 'UpperCase.PDF' );
+		expect( basename( get_attached_file( $id ) ) )->toBe( 'UpperCase.pdf' );
+	} finally {
+		update_option( 'skwirrel_wc_sync_settings', $previous );
+	}
+} );

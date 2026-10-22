@@ -634,3 +634,31 @@ if (!function_exists('wp_parse_url')) {
 
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-settings.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-dashboard.php';
+
+// Filename stubs for isolated naming tests. Collision and WordPress character handling
+// are additionally exercised against real core functions by the integration suite.
+if (!function_exists('sanitize_file_name')) {
+    function sanitize_file_name(string $name): string {
+        return trim(preg_replace('/[\\s]+/', '-', str_replace(['/', '\\', '?', '*', ':', '<', '>', '|', '"'], '', $name)), '.-_');
+    }
+}
+if (!function_exists('wp_basename')) {
+    function wp_basename(string $path): string { return basename($path); }
+}
+if (!function_exists('wp_check_filetype')) {
+    function wp_check_filetype(string $name, $mimes = null): array {
+        $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        $types = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'pdf' => 'application/pdf', 'zip' => 'application/zip'];
+        return ['ext' => isset($types[$ext]) ? $ext : false, 'type' => $types[$ext] ?? false];
+    }
+}
+if (!function_exists('wp_unique_filename')) {
+    function wp_unique_filename(string $dir, string $name): string {
+        $base = pathinfo($name, PATHINFO_FILENAME);
+        $ext = pathinfo($name, PATHINFO_EXTENSION);
+        for ($n = 1; file_exists($dir . '/' . $name); ++$n) {
+            $name = $base . '-' . $n . '.' . $ext;
+        }
+        return $name;
+    }
+}

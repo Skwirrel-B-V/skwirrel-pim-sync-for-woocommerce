@@ -2577,3 +2577,55 @@ msgid "%s shown as tab"
 msgid_plural "%s shown as tab"
 msgstr[0] ""
 msgstr[1] ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:935
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1196
+msgid "Files"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:536
+msgid "Choose a valid file naming mode."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:542
+msgid "Enter a text prefix or leave it empty."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1198
+msgid ""
+"Applies to new downloads and content replacements for images and documents. "
+"Existing files are not renamed."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1200
+msgid "File naming"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1201
+msgid "A: Automatic naming (default)"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1202
+msgid "B: Prefix + Skwirrel file name"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1203
+msgid "C: Skwirrel file name"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1204
+msgid ""
+"Without a prefix, names can collide with manual uploads or other imports. "
+"WordPress adds a numeric suffix to duplicates. Existing files are never "
+"overwritten."
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1207
+msgid "File name prefix (mode B)"
+msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1209
+msgid ""
+"Optional. Include a separator if wanted, for example acme-. Unsafe "
+"characters are removed."
+msgstr ""

@@ -3086,3 +3086,62 @@ msgid "%s shown as tab"
 msgid_plural "%s shown as tab"
 msgstr[0] "%s als Tab"
 msgstr[1] "%s als Tab"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:935
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1196
+msgid "Files"
+msgstr "Dateien"
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:536
+msgid "Choose a valid file naming mode."
+msgstr "Wähle eine gültige Methode für Dateinamen."
+
+#: includes/class-skwirrel-wc-sync-admin-settings.php:542
+msgid "Enter a text prefix or leave it empty."
+msgstr "Gib ein Präfix als Text ein oder lasse das Feld leer."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1198
+msgid ""
+"Applies to new downloads and content replacements for images and documents. "
+"Existing files are not renamed."
+msgstr ""
+"Gilt für neue Downloads und das Ersetzen der Inhalte von Bildern und "
+"Dokumenten. Vorhandene Dateien werden nicht umbenannt."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1200
+msgid "File naming"
+msgstr "Dateinamen"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1201
+msgid "A: Automatic naming (default)"
+msgstr "A: Automatische Dateinamen (Standard)"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1202
+msgid "B: Prefix + Skwirrel file name"
+msgstr "B: Präfix + Skwirrel-Dateiname"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1203
+msgid "C: Skwirrel file name"
+msgstr "C: Skwirrel-Dateiname"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1204
+msgid ""
+"Without a prefix, names can collide with manual uploads or other imports. "
+"WordPress adds a numeric suffix to duplicates. Existing files are never "
+"overwritten."
+msgstr ""
+"Ohne Präfix können Namen mit manuellen Uploads oder anderen Importen "
+"kollidieren. WordPress ergänzt bei doppelten Namen eine Nummer. Vorhandene "
+"Dateien werden niemals überschrieben."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1207
+msgid "File name prefix (mode B)"
+msgstr "Dateinamenpräfix (Methode B)"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php:1209
+msgid ""
+"Optional. Include a separator if wanted, for example acme-. Unsafe "
+"characters are removed."
+msgstr ""
+"Optional. Füge bei Bedarf ein Trennzeichen hinzu, zum Beispiel acme-. "
+"Unsichere Zeichen werden entfernt."

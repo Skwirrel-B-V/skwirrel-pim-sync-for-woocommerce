@@ -528,7 +528,20 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out['variant_label_field']         = in_array( $input['variant_label_field'] ?? '', [ 'internal_product_code', 'product_erp_description', 'product_name' ], true )
 			? $input['variant_label_field']
 			: 'internal_product_code';
-		$out['sync_images']                 = 'yes' === ( $input['sync_images'] ?? 'yes' );
+		$stored_files                       = get_option( self::OPTION_KEY, [] );
+		$stored_files                       = is_array( $stored_files ) ? $stored_files : [];
+		$mode                               = $input['file_naming_mode'] ?? $stored_files['file_naming_mode'] ?? 'A';
+		$out['file_naming_mode']            = in_array( $mode, [ 'A', 'B', 'C' ], true ) ? $mode : 'A';
+		if ( ! in_array( $mode, [ 'A', 'B', 'C' ], true ) ) {
+			add_settings_error( self::OPTION_KEY, 'file_naming_mode', __( 'Choose a valid file naming mode.', 'skwirrel-pim-sync' ), 'error' );
+		}
+		$prefix = $input['file_naming_prefix'] ?? $stored_files['file_naming_prefix'] ?? '';
+		// A suffix prevents sanitize_file_name() from trimming a trailing dash.
+		$out['file_naming_prefix'] = is_string( $prefix ) ? substr( sanitize_file_name( str_replace( [ '/', '\\' ], '', $prefix ) . 'skwirrelplaceholder' ), 0, -strlen( 'skwirrelplaceholder' ) ) : '';
+		if ( ! is_string( $prefix ) ) {
+			add_settings_error( self::OPTION_KEY, 'file_naming_prefix', __( 'Enter a text prefix or leave it empty.', 'skwirrel-pim-sync' ), 'error' );
+		}
+		$out['sync_images'] = 'yes' === ( $input['sync_images'] ?? 'yes' );
 		// Image language: dropdown or custom
 		$lang_select = $input['image_language_select'] ?? '';
 		$lang_custom = sanitize_text_field( $input['image_language_custom'] ?? '' );

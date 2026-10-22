@@ -931,6 +931,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				'render' => 'render_settings_panel_field_mapping',
 				'fields' => self::field_mapping_field_ids(),
 			),
+			'files'         => array(
+				'label'  => __( 'Files', 'skwirrel-pim-sync' ),
+				'order'  => 30,
+				'render' => 'render_settings_panel_files',
+				'fields' => array( 'file_naming_mode', 'file_naming_prefix' ),
+			),
 			'advanced'      => array(
 				'label'  => __( 'Advanced', 'skwirrel-pim-sync' ),
 				'order'  => 40,
@@ -1127,6 +1133,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			case 'render_settings_panel_field_mapping':
 				$this->render_settings_panel_field_mapping( $context );
 				return;
+			case 'render_settings_panel_files':
+				$this->render_settings_panel_files( $context );
+				return;
 			case 'render_settings_panel_advanced':
 				$this->render_settings_panel_advanced( $context );
 				return;
@@ -1173,6 +1182,38 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 */
 	private function render_settings_panel_field_mapping( array $context ): void {
 		$this->render_fieldgroup_field_mapping( (array) $context['opts'], (string) $context['base_url'] );
+	}
+
+	/**
+	 * Render file naming settings without changing other media settings.
+	 *
+	 * @param array<string,mixed> $context Render context.
+	 */
+	private function render_settings_panel_files( array $context ): void {
+		$opts = (array) $context['opts'];
+		$mode = $opts['file_naming_mode'] ?? 'A';
+		?>
+		<div class="skw-fieldgroup">
+		<div class="skw-fg-head"><span class="skw-fg-icon"><i class="ph ph-file" aria-hidden="true"></i></span><div><h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Files', 'skwirrel-pim-sync' ); ?></h3></div></div>
+		<div>
+			<p class="skw-field-hint"><?php esc_html_e( 'Applies to new downloads and content replacements for images and documents. Existing files are not renamed.', 'skwirrel-pim-sync' ); ?></p>
+			<fieldset class="skw-field"<?php $this->render_field_wrapper_attr( 'file_naming_mode' ); ?>>
+				<legend class="skw-label"><?php esc_html_e( 'File naming', 'skwirrel-pim-sync' ); ?></legend>
+				<p><label><input type="radio" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[file_naming_mode]" value="A" <?php checked( $mode, 'A' ); ?> /> <?php esc_html_e( 'A: Automatic naming (default)', 'skwirrel-pim-sync' ); ?></label></p>
+				<p><label><input type="radio" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[file_naming_mode]" value="B" <?php checked( $mode, 'B' ); ?> /> <?php esc_html_e( 'B: Prefix + Skwirrel file name', 'skwirrel-pim-sync' ); ?></label></p>
+				<p><label><input type="radio" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[file_naming_mode]" value="C" aria-describedby="file-naming-risk" <?php checked( $mode, 'C' ); ?> /> <?php esc_html_e( 'C: Skwirrel file name', 'skwirrel-pim-sync' ); ?></label></p>
+				<p id="file-naming-risk" class="skw-field-hint"><?php esc_html_e( 'Without a prefix, names can collide with manual uploads or other imports. WordPress adds a numeric suffix to duplicates. Existing files are never overwritten.', 'skwirrel-pim-sync' ); ?></p>
+				<?php $this->render_field_error( 'file_naming_mode' ); ?>
+			</fieldset>
+			<div class="skw-field"<?php $this->render_field_wrapper_attr( 'file_naming_prefix' ); ?>>
+				<label for="file_naming_prefix" class="skw-label"><?php esc_html_e( 'File name prefix (mode B)', 'skwirrel-pim-sync' ); ?></label>
+				<input type="text" id="file_naming_prefix" class="skw-input" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[file_naming_prefix]" value="<?php echo esc_attr( $opts['file_naming_prefix'] ?? '' ); ?>" placeholder="acme-" />
+				<?php $this->render_field_error( 'file_naming_prefix' ); ?>
+				<p class="skw-field-hint"><?php esc_html_e( 'Optional. Include a separator if wanted, for example acme-. Unsafe characters are removed.', 'skwirrel-pim-sync' ); ?></p>
+			</div>
+		</div>
+		</div>
+		<?php
 	}
 
 	/**

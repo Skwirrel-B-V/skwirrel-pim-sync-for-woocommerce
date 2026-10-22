@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 4.2.0
+Stable tag: 4.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -40,6 +40,14 @@ Skwirrel PIM sync for WooCommerce connects your WooCommerce webshop to the Skwir
 * WooCommerce 8.0 or higher (9.6+ recommended for native brand support; tested up to 10.6)
 * PHP 8.3 or higher
 * An active Skwirrel account with API access
+
+== File names ==
+
+Under Skwirrel > Settings > Files, choose automatic naming (A, the default), a prefix plus the Skwirrel file name (B), or the Skwirrel file name (C). Mode B allows an empty prefix. These settings apply only when files are downloaded, including changed content; already imported files are not renamed.
+
+WordPress makes names safe and unique, preserving capitalization in the stem and normalizing uppercase extensions to lowercase. Duplicates receive numeric suffixes. Missing or unusable source names fall back to automatic naming with a logged warning.
+
+Developers can use skwirrel_wc_sync_upload_filename (filename, source URL, context). Context contains file_name, mode and route (image, file, image-replacement or file-replacement). Keep the extension unchanged; the filtered name is sanitized and made unique before use.
 
 == Installation ==
 
@@ -77,6 +85,11 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 4.3.0 =
+* Added a Files settings tab with automatic, prefixed and original Skwirrel file names for new image/document downloads and content replacements. Automatic naming remains the default.
+* Filenames use WordPress sanitization and unique-name handling, including after the skwirrel_wc_sync_upload_filename filter. Existing files are not renamed.
+* Added file naming translations in all seven locales.
 
 = 4.2.0 =
 * New: attribute groups under Skwirrel → Attribute groups. Synced attributes are grouped automatically: ETIM (when ETIM is synced), one group per custom class, identifiers and variant. The groups fill during the next sync.

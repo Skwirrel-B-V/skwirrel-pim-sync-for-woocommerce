@@ -2,6 +2,14 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [4.3.0]
+
+### Added
+
+* Files settings tab with modes A (automatic, unchanged default), B (prefix + Skwirrel file name) and C (Skwirrel file name), for new downloads and content replacements of images and documents. Existing files are not renamed.
+* Shared naming helper using `sanitize_file_name()` and `wp_unique_filename()`. Unusable source names fall back to automatic naming with a warning. Filter `skwirrel_wc_sync_upload_filename` receives the proposed name, source URL and context (`file_name`, `mode`, `route`); the result is sanitized and made unique. Filters can change the stem, but must retain the extension.
+* All seven locale catalogues updated.
+
 ## [4.2.0]
 
 Product attributes can be managed in groups. Synced attributes are grouped automatically by where they come from, and each group can be hidden on the product page or shown as its own product tab.
