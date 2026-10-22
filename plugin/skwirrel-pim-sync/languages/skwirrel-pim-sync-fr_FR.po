@@ -3242,3 +3242,19 @@ msgstr "Quiconque ouvre l’ancienne URL d’un fichier renommé est redirigé d
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "This only works when your web server hands requests for missing files in the uploads folder to WordPress. Apache with the standard WordPress rules does. On nginx, make sure the uploads location ends in try_files $uri $uri/ /index.php?$args; instead of try_files $uri =404;. If the server answers the 404 itself, WordPress never sees the request and the old link stays broken."
 msgstr "Cela ne fonctionne que si votre serveur web transmet à WordPress les requêtes de fichiers manquants du dossier d’envois. Apache avec les règles WordPress standard le fait. Sur nginx, assurez-vous que la location des envois se termine par try_files $uri $uri/ /index.php?$args; au lieu de try_files $uri =404;. Si le serveur répond lui-même au 404, WordPress ne voit jamais la requête et l’ancien lien reste cassé."
+
+#: includes/class-skwirrel-wc-sync-product-list-filter.php
+msgid "All products"
+msgstr "Tous les produits"
+
+#: includes/class-skwirrel-wc-sync-product-list-filter.php
+msgid "Managed in Skwirrel"
+msgstr "Géré dans Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-product-list-filter.php
+msgid "Not managed in Skwirrel"
+msgstr "Non géré dans Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-product-list-filter.php
+msgid "Filter by Skwirrel management"
+msgstr "Filtrer selon la gestion dans Skwirrel"

@@ -3202,3 +3202,19 @@ msgstr "Wie de oude URL van een hernoemd bestand opent, wordt permanent (301) do
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "This only works when your web server hands requests for missing files in the uploads folder to WordPress. Apache with the standard WordPress rules does. On nginx, make sure the uploads location ends in try_files $uri $uri/ /index.php?$args; instead of try_files $uri =404;. If the server answers the 404 itself, WordPress never sees the request and the old link stays broken."
 msgstr "Dit werkt alleen als je webserver verzoeken om ontbrekende bestanden in de uploadmap doorgeeft aan WordPress. Apache met de standaard WordPress-regels doet dat. Zorg bij nginx dat de uploads-location eindigt op try_files $uri $uri/ /index.php?$args; in plaats van try_files $uri =404;. Beantwoordt de server de 404 zelf, dan ziet WordPress het verzoek nooit en blijft de oude link stuk."
+
+#: includes/class-skwirrel-wc-sync-product-list-filter.php
+msgid "All products"
+msgstr "Alle producten"
+
+#: includes/class-skwirrel-wc-sync-product-list-filter.php
+msgid "Managed in Skwirrel"
+msgstr "Beheerd in Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-product-list-filter.php
+msgid "Not managed in Skwirrel"
+msgstr "Niet beheerd in Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-product-list-filter.php
+msgid "Filter by Skwirrel management"
+msgstr "Filter op beheer in Skwirrel"
