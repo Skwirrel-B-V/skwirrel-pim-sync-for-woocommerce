@@ -163,3 +163,11 @@ test('has_run is false until a job was started', function () {
 	expect(Skwirrel_WC_Sync_File_Rename_Job::has_run())->toBeTrue();
 	unset($GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
 });
+
+test('waiting for a running sync counts as activity and is saved', function () {
+	$GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'] = ['status' => 'running', 'started' => 1000, 'updated' => 1000, 'last_id' => 0];
+	$GLOBALS['_test_transients'][Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS] = ['value' => true, 'expires' => 0];
+	Skwirrel_WC_Sync_File_Rename_Job::run_batch();
+	expect(Skwirrel_WC_Sync_File_Rename_Job::state()['updated'])->toBeGreaterThan(1000);
+	unset($GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'], $GLOBALS['_test_transients']);
+});

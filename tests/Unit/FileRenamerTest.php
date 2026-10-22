@@ -141,3 +141,12 @@ test('a scaled image is not listed again after it was renamed', function () {
 	expect($preview['counts']['rename'])->toBe(0);
 	expect($preview['counts']['done'])->toBe(1);
 });
+
+test('a file already carrying the name the upload filename filter gives is not listed again', function () {
+	renamer_mode('original');
+	$GLOBALS['_test_filters']['skwirrel_wc_sync_upload_filename'][] = static fn (string $name): string => 'shop-' . $name;
+	renamer_attachment($this, 1, 'shop-foto.jpg', 'foto.jpg');
+	$preview = Skwirrel_WC_Sync_File_Renamer::preview();
+	expect($preview['counts']['rename'])->toBe(0);
+	expect($preview['counts']['done'])->toBe(1);
+});

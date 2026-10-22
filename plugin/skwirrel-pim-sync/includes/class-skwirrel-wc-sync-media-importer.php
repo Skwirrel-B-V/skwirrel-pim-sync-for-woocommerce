@@ -118,7 +118,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 			'post_mime_type' => $filetype['type'],
 			'post_title'     => wp_slash( '' !== $this->incoming_text( $api_meta, 'title' ) ? $this->incoming_text( $api_meta, 'title' ) : $label ),
 			'post_excerpt'   => wp_slash( $this->incoming_text( $api_meta, 'caption' ) ),
-			'post_content'   => $description,
+			'post_content'   => wp_slash( $description ),
 			'post_status'    => 'inherit',
 		];
 
@@ -390,7 +390,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 				'post_mime_type' => $filetype['type'],
 				'post_content'   => $description,
 			];
-			// Only when Skwirrel has a description: an empty one must not wipe a caption typed by hand.
+			// Only when Skwirrel supplies a caption here: an empty one must not wipe a caption typed by hand. A
+			// caption cleared in Skwirrel is handled by sync_texts(), which ran before this.
 			if ( '' !== $this->incoming_text( $api_meta, 'caption' ) ) {
 				$update['post_excerpt'] = $this->incoming_text( $api_meta, 'caption' );
 			}

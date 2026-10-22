@@ -190,6 +190,8 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		$state['updated'] = time();
 		// Never move files under a running sync: it looks attachments up by their file.
 		if ( get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ) ) {
+			// Waiting is activity: without saving it, a long sync would make this job look stalled.
+			update_option( self::OPTION, $state, false );
 			self::enqueue( self::SYNC_BUSY_DELAY );
 			return;
 		}

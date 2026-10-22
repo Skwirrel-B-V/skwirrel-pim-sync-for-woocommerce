@@ -156,6 +156,23 @@ class Skwirrel_WC_Sync_File_Naming {
 	}
 
 	/**
+	 * The name the filter gives `$name`, made safe but not made unique. For recognising a file that
+	 * already has its (filtered) name.
+	 *
+	 * @param string $name    File name without directory.
+	 * @param string $url     Source URL the file was downloaded from.
+	 * @param string $context `image`, `file`, `image_replace`, `file_replace` or `rename`.
+	 */
+	public static function filtered_name( string $name, string $url, string $context ): string {
+		$filtered = self::filter_name( $name, $url, $context );
+		if ( is_string( $filtered ) && '' !== $filtered && $filtered !== $name ) {
+			$safe = sanitize_file_name( basename( $filtered ) );
+			return '' !== $safe ? $safe : $name;
+		}
+		return $name;
+	}
+
+	/**
 	 * Apply the file name filter without assuming every third-party callback honours its contract.
 	 *
 	 * @param string $name    File name without directory.

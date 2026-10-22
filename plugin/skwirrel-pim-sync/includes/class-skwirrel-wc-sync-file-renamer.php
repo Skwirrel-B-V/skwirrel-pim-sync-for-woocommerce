@@ -161,13 +161,14 @@ class Skwirrel_WC_Sync_File_Renamer {
 			$item['status'] = self::STATUS_UNUSABLE;
 			return $item;
 		}
-		if ( self::is_named_like( $old, $bare ) ) {
+		$url = (string) get_post_meta( $attachment_id, self::META_URL, true );
+		if ( self::is_named_like( $old, $bare ) || self::is_named_like( $old, Skwirrel_WC_Sync_File_Naming::filtered_name( $bare, $url, 'rename' ) ) ) {
 			$item['status'] = self::STATUS_DONE;
 			return $item;
 		}
 
 		$new = Skwirrel_WC_Sync_File_Naming::derive( $dir, $stored, $ext, true );
-		$new = Skwirrel_WC_Sync_File_Naming::finalize( $new, $dir, (string) get_post_meta( $attachment_id, self::META_URL, true ), 'rename' );
+		$new = Skwirrel_WC_Sync_File_Naming::finalize( $new, $dir, $url, 'rename' );
 		$new = self::reserve( $dir, $new, $reserved );
 		if ( $new === $old ) {
 			$item['status'] = self::STATUS_DONE;
