@@ -97,6 +97,8 @@
 .skw-settings-page .ph-clock-clockwise:before { content: '\e19e'; }
 .skw-settings-page .ph-file-text:before { content: '\e23a'; }
 .skw-settings-page .ph-link-simple:before { content: '\e2e6'; }
+.skw-settings-page .ph-file-image:before { content: '\ea24'; }
+.skw-settings-page .ph-pencil-simple:before { content: '\e3b4'; }
 .skw-settings-page .ph-sliders-horizontal:before { content: '\e434'; }
 .skw-settings-page .ph-warning-octagon:before { content: '\e4e4'; }
 .skw-settings-page .ph-bug:before { content: '\e5f4'; }
