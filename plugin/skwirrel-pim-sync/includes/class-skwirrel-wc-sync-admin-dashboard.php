@@ -2127,6 +2127,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				</div>
 			</div>
 			<?php $this->render_file_rename_progress(); ?>
+			<div id="skwirrel-rename-actions">
 			<?php if ( ! $can_rename ) : ?>
 				<div class="skw-notice skw-notice-warning">
 					<p><?php esc_html_e( 'Renaming is switched off on this site, usually because uploads are stored on remote storage by another plugin. Renaming local copies would leave the remote files with the old name.', 'skwirrel-pim-sync' ); ?></p>
@@ -2137,6 +2138,28 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<?php else : ?>
 				<p><a href="<?php echo esc_url( $preview_url ); ?>" class="skw-btn skw-btn-secondary"><?php esc_html_e( 'Preview renaming', 'skwirrel-pim-sync' ); ?></a></p>
 			<?php endif; ?>
+			</div>
+			<div id="skwirrel-rename-unsaved" class="skw-notice skw-notice-info" hidden>
+				<p><?php esc_html_e( 'You changed the file naming above. Save the settings first; then you can preview and rename the existing files.', 'skwirrel-pim-sync' ); ?></p>
+			</div>
+			<script>
+				( function () {
+					var saved = <?php echo wp_json_encode( $mode ); ?>;
+					var name = 'input[type="radio"][name="<?php echo esc_js( self::OPTION_KEY . '[' . Skwirrel_WC_Sync_File_Naming::SETTING_MODE . ']' ); ?>"]';
+					var actions = document.getElementById( 'skwirrel-rename-actions' );
+					var unsaved = document.getElementById( 'skwirrel-rename-unsaved' );
+					var radios = document.querySelectorAll( name );
+					if ( ! actions || ! unsaved || ! radios.length ) { return; }
+					function sync() {
+						var on = document.querySelector( name + ':checked' );
+						var changed = !! on && on.value !== saved;
+						actions.hidden = changed;
+						unsaved.hidden = ! changed;
+					}
+					Array.prototype.forEach.call( radios, function ( r ) { r.addEventListener( 'change', sync ); } );
+					sync();
+				}() );
+			</script>
 			<?php $this->render_file_redirect_option(); ?>
 			<?php
 			if ( $show_preview && $can_rename && Skwirrel_WC_Sync_File_Naming::MODE_CURRENT !== $mode ) {

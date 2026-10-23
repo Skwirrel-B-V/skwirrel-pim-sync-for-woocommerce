@@ -2749,3 +2749,7 @@ msgstr ""
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "Renaming has stalled. You can preview and start it again; files that are already renamed are skipped."
 msgstr ""
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "You changed the file naming above. Save the settings first; then you can preview and rename the existing files."
+msgstr ""

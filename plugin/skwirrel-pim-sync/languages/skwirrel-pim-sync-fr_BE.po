@@ -3262,3 +3262,7 @@ msgstr "Filtrer selon la gestion dans Skwirrel"
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "Renaming has stalled. You can preview and start it again; files that are already renamed are skipped."
 msgstr "Le renommage est bloqué. Vous pouvez l’afficher et le relancer ; les fichiers déjà renommés sont ignorés."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "You changed the file naming above. Save the settings first; then you can preview and rename the existing files."
+msgstr "Vous avez modifié le nommage des fichiers ci-dessus. Enregistrez d'abord les réglages ; vous pourrez ensuite prévisualiser et renommer les fichiers existants."

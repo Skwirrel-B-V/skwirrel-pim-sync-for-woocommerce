@@ -3258,3 +3258,7 @@ msgstr "Nach Skwirrel-Verwaltung filtern"
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "Renaming has stalled. You can preview and start it again; files that are already renamed are skipped."
 msgstr "Das Umbenennen ist hängen geblieben. Sie können es erneut ansehen und starten; bereits umbenannte Dateien werden übersprungen."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "You changed the file naming above. Save the settings first; then you can preview and rename the existing files."
+msgstr "Sie haben die Dateibenennung oben geändert. Speichern Sie zuerst die Einstellungen; danach können Sie eine Vorschau ansehen und die vorhandenen Dateien umbenennen."
