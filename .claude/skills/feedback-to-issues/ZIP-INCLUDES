@@ -1,0 +1,5 @@
+# Files from other skills that skill-zip adds to this skill's zip under
+# references/shared/ (paths relative to .claude/skills/). One per line.
+idea-to-spec/references/grilling.md
+idea-to-spec/references/shaping-issues.md
+idea-to-spec/references/document-template.md
