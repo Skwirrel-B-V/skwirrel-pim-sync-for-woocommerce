@@ -85,6 +85,28 @@ class Skwirrel_WC_Sync_File_Naming {
 	}
 
 	/**
+	 * The prefix offered when none was saved yet: the first label of the Skwirrel host, with a
+	 * trailing dash, so `https://acme.skwirrel.eu/jsonrpc` gives `acme-`. Empty when there is no
+	 * usable host.
+	 */
+	public static function default_prefix( string $endpoint_url ): string {
+		$endpoint_url = trim( $endpoint_url );
+		if ( '' === $endpoint_url ) {
+			return '';
+		}
+		if ( ! str_contains( $endpoint_url, '://' ) ) {
+			$endpoint_url = 'https://' . $endpoint_url;
+		}
+		$host = (string) wp_parse_url( $endpoint_url, PHP_URL_HOST );
+		if ( '' === $host ) {
+			return '';
+		}
+		$dot   = strpos( $host, '.' );
+		$label = false === $dot ? $host : substr( $host, 0, $dot );
+		return '' === $label ? '' : self::sanitize_prefix( $label . '-' );
+	}
+
+	/**
 	 * Configured mode.
 	 */
 	public static function get_mode(): string {

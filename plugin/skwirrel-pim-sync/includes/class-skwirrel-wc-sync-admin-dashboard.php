@@ -2036,11 +2036,17 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		$mode_key   = Skwirrel_WC_Sync_File_Naming::SETTING_MODE;
 		$prefix_key = Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX;
 		$mode       = Skwirrel_WC_Sync_File_Naming::sanitize_mode( $opts[ $mode_key ] ?? null );
-		$prefix     = Skwirrel_WC_Sync_File_Naming::sanitize_prefix( $opts[ $prefix_key ] ?? '' );
+		// Until a prefix was saved, offer the Skwirrel name from the endpoint (saving keeps whatever is shown,
+		// also an emptied field). The field is hidden, not disabled, unless the prefix mode is chosen: a
+		// disabled field is not submitted, which would wipe the saved prefix on every save in another mode.
+		$prefix      = array_key_exists( $prefix_key, $opts )
+			? Skwirrel_WC_Sync_File_Naming::sanitize_prefix( $opts[ $prefix_key ] )
+			: Skwirrel_WC_Sync_File_Naming::default_prefix( (string) ( $opts['endpoint_url'] ?? '' ) );
+		$prefix_wrap = 'skwirrel-file-prefix-field';
 		?>
 		<div class="skw-fieldgroup">
 			<div class="skw-fg-head">
-				<span class="skw-fg-icon skw-fg-icon-blue"><i class="ph ph-file-image" aria-hidden="true"></i></span>
+				<span class="skw-fg-icon"><i class="ph ph-file-image" aria-hidden="true"></i></span>
 				<div>
 					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'File names', 'skwirrel-pim-sync' ); ?></h3>
 					<p class="skw-fg-desc"><?php esc_html_e( 'How images and documents downloaded from Skwirrel are named in the media library. Applies to new downloads.', 'skwirrel-pim-sync' ); ?></p>
@@ -2070,11 +2076,25 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 					<span class="skw-field-hint"><?php esc_html_e( 'The file name from Skwirrel, unchanged. Risk: the name becomes part of the file\'s public URL, so whatever is entered as a file name in Skwirrel is visible there. Names are not guaranteed to be unique: a clash with a file that already exists (for example from a manual upload) gets -1, -2 appended.', 'skwirrel-pim-sync' ); ?></span>
 				</p>
 			</fieldset>
-			<div class="skw-field">
+			<div class="skw-field" id="<?php echo esc_attr( $prefix_wrap ); ?>"<?php echo Skwirrel_WC_Sync_File_Naming::MODE_PREFIX === $mode ? '' : ' hidden'; ?>>
 				<label for="<?php echo esc_attr( $prefix_key ); ?>" class="skw-label"><?php esc_html_e( 'Prefix', 'skwirrel-pim-sync' ); ?></label>
 				<input type="text" id="<?php echo esc_attr( $prefix_key ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $prefix_key ); ?>]" value="<?php echo esc_attr( $prefix ); ?>" class="skw-input" style="max-width: 240px;" maxlength="40" autocomplete="off">
 				<p class="skw-field-hint"><?php esc_html_e( 'Only used with "Prefix + Skwirrel file name". Capitals are kept; characters that are not safe in a file name are replaced.', 'skwirrel-pim-sync' ); ?></p>
 			</div>
+			<noscript><style>#<?php echo esc_html( $prefix_wrap ); ?>[hidden] { display: block; }</style></noscript>
+			<script>
+				( function () {
+					var field = document.getElementById( <?php echo wp_json_encode( $prefix_wrap ); ?> );
+					var radios = document.querySelectorAll( 'input[type="radio"][name="<?php echo esc_js( self::OPTION_KEY . '[' . $mode_key . ']' ); ?>"]' );
+					if ( ! field || ! radios.length ) { return; }
+					function sync() {
+						var on = document.querySelector( 'input[type="radio"][name="<?php echo esc_js( self::OPTION_KEY . '[' . $mode_key . ']' ); ?>"]:checked' );
+						field.hidden = ! on || <?php echo wp_json_encode( Skwirrel_WC_Sync_File_Naming::MODE_PREFIX ); ?> !== on.value;
+					}
+					Array.prototype.forEach.call( radios, function ( r ) { r.addEventListener( 'change', sync ); } );
+					sync();
+				}() );
+			</script>
 			<p class="skw-field-hint"><?php esc_html_e( 'If a file has no usable name or extension in Skwirrel, the plugin naming is used for that file and a warning is logged. A file name that already exists gets -1, -2 appended; existing files are never overwritten.', 'skwirrel-pim-sync' ); ?></p>
 		</div>
 		<?php
@@ -2100,7 +2120,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		?>
 		<div class="skw-fieldgroup" id="skwirrel-rename-files">
 			<div class="skw-fg-head">
-				<span class="skw-fg-icon skw-fg-icon-blue"><i class="ph ph-pencil-simple" aria-hidden="true"></i></span>
+				<span class="skw-fg-icon"><i class="ph ph-pencil-simple" aria-hidden="true"></i></span>
 				<div>
 					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Rename existing files', 'skwirrel-pim-sync' ); ?></h3>
 					<p class="skw-fg-desc"><?php esc_html_e( 'Give files that were imported earlier the name from Skwirrel. First see what would change; nothing is renamed by looking.', 'skwirrel-pim-sync' ); ?></p>

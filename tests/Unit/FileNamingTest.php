@@ -131,3 +131,14 @@ test('a name returned by the filter gets the same length cap', function () {
 	expect(strlen($name))->toBeLessThanOrEqual(180);
 	expect($name)->toEndWith('.pdf');
 });
+
+test('the default prefix is the first label of the Skwirrel host with a dash', function (string $url, string $expected) {
+	expect(Skwirrel_WC_Sync_File_Naming::default_prefix($url))->toBe($expected);
+})->with([
+	['https://acme.skwirrel.eu/jsonrpc', 'acme-'],
+	['https://conval.skwirrel.eu', 'conval-'],
+	['acme.skwirrel.eu/jsonrpc', 'acme-'],
+	['https://localhost/jsonrpc', 'localhost-'],
+	['', ''],
+	['   ', ''],
+]);
