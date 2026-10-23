@@ -98,7 +98,8 @@ class Skwirrel_WC_Sync_File_Naming {
 			$endpoint_url = 'https://' . $endpoint_url;
 		}
 		$host = (string) wp_parse_url( $endpoint_url, PHP_URL_HOST );
-		if ( '' === $host ) {
+		// An IP address has no name to take a label from (10.0.0.5 would give "10-").
+		if ( '' === $host || false !== filter_var( trim( $host, '[]' ), FILTER_VALIDATE_IP ) ) {
 			return '';
 		}
 		$dot   = strpos( $host, '.' );

@@ -660,6 +660,12 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		$out[ Skwirrel_WC_Sync_File_Naming::SETTING_MODE ]   = Skwirrel_WC_Sync_File_Naming::sanitize_mode( $input[ Skwirrel_WC_Sync_File_Naming::SETTING_MODE ] ?? null );
 		$out[ Skwirrel_WC_Sync_File_Redirects::SETTING ]     = ! empty( $input[ Skwirrel_WC_Sync_File_Redirects::SETTING ] );
 		$out[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] = Skwirrel_WC_Sync_File_Naming::sanitize_prefix( $input[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] ?? '' );
+		// Until a prefix was saved once, an empty field means "not chosen yet", not "no prefix": on a new
+		// site the endpoint is typed in the same form, so the field was still empty when it rendered.
+		$stored = get_option( self::OPTION_KEY, [] );
+		if ( '' === $out[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] && ! ( is_array( $stored ) && array_key_exists( Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX, $stored ) ) ) {
+			$out[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] = Skwirrel_WC_Sync_File_Naming::default_prefix( $out['endpoint_url'] );
+		}
 		$out['log_retention']                                = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
 			? $input['log_retention']
 			: '7days';

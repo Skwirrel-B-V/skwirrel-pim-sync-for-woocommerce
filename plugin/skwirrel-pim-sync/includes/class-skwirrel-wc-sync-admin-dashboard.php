@@ -25,6 +25,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	/** Files listed per step in the rename preview. */
 	private const RENAME_PAGE_SIZE = 10;
 
+	/** Most files the rename preview lists at once. */
+	private const RENAME_MAX_SHOWN = 500;
+
 	/**
 	 * Language options available in dropdowns.
 	 */
@@ -2119,7 +2122,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		$show_preview = isset( $_GET['skw_rename_preview'] ) && current_user_can( 'manage_woocommerce' )
 			&& isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'skwirrel_rename_preview' );
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- growing a read-only preview, nonce verified above.
-		$shown = isset( $_GET['rename_shown'] ) ? max( self::RENAME_PAGE_SIZE, absint( $_GET['rename_shown'] ) ) : self::RENAME_PAGE_SIZE;
+		$shown = isset( $_GET['rename_shown'] ) ? min( self::RENAME_MAX_SHOWN, max( self::RENAME_PAGE_SIZE, absint( $_GET['rename_shown'] ) ) ) : self::RENAME_PAGE_SIZE;
 		?>
 		<div class="skw-fieldgroup" id="skwirrel-rename-files">
 			<div class="skw-fg-head">
@@ -2148,27 +2151,32 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<script>
 				( function () {
 					var saved = <?php echo wp_json_encode( $mode ); ?>;
+					var savedPrefix = <?php echo wp_json_encode( Skwirrel_WC_Sync_File_Naming::get_prefix() ); ?>;
 					var name = 'input[type="radio"][name="<?php echo esc_js( self::OPTION_KEY . '[' . Skwirrel_WC_Sync_File_Naming::SETTING_MODE . ']' ); ?>"]';
-					var actions = document.getElementById( 'skwirrel-rename-actions' );
+					var shown = [ document.getElementById( 'skwirrel-rename-actions' ), document.getElementById( 'skwirrel-rename-preview' ) ];
 					var unsaved = document.getElementById( 'skwirrel-rename-unsaved' );
+					var prefix = document.getElementById( <?php echo wp_json_encode( Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ); ?> );
 					var radios = document.querySelectorAll( name );
-					if ( ! actions || ! unsaved || ! radios.length ) { return; }
+					if ( ! unsaved || ! radios.length ) { return; }
 					function sync() {
 						var on = document.querySelector( name + ':checked' );
-						var changed = !! on && on.value !== saved;
-						actions.hidden = changed;
+						var changed = !! on && ( on.value !== saved || ( 'prefix' === saved && !! prefix && prefix.value !== savedPrefix ) );
+						shown.forEach( function ( el ) { if ( el ) { el.hidden = changed; } } );
 						unsaved.hidden = ! changed;
 					}
 					Array.prototype.forEach.call( radios, function ( r ) { r.addEventListener( 'change', sync ); } );
+					if ( prefix ) { prefix.addEventListener( 'input', sync ); }
 					sync();
 				}() );
 			</script>
 			<?php $this->render_file_redirect_option(); ?>
+			<div id="skwirrel-rename-preview">
 			<?php
 			if ( $show_preview && $can_rename && Skwirrel_WC_Sync_File_Naming::MODE_CURRENT !== $mode ) {
 				$this->render_file_rename_preview( Skwirrel_WC_Sync_File_Renamer::preview( 1, $shown ), $preview_url, $shown );
 			}
 			?>
+			</div>
 		</div>
 		<?php
 	}
@@ -2245,7 +2253,8 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 * Render the result of {@see Skwirrel_WC_Sync_File_Renamer::preview()}.
 	 *
 	 * @param array<string,mixed> $preview     Preview data.
-	 * @param string              $preview_url Preview link (nonce included), for paging.
+	 * @param string              $preview_url Preview link (nonce included), the base of the "Load more" link.
+	 * @param int                 $shown       Number of files the preview was asked to list.
 	 */
 	private function render_file_rename_preview( array $preview, string $preview_url, int $shown ): void {
 		$counts = (array) $preview['counts'];

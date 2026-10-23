@@ -88,6 +88,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 * New: the old URL of a renamed file redirects (301) to the new one. Can be switched off. Servers that answer missing files themselves need a rewrite rule; the Files tab explains which.
 * New: the Skwirrel attachment title and description are placed on the WordPress attachment as Title and Caption, for images and documents, and updated on every sync.
 * New: filter the product list on products managed in Skwirrel or not managed in Skwirrel.
+* Saving the settings returns to the tab you were on. The prefix for file names starts as the first part of your Skwirrel address, for example acme-.
 
 = 4.2.0 =
 * New: attribute groups under Skwirrel → Attribute groups. Synced attributes are grouped automatically: ETIM (when ETIM is synced), one group per custom class, identifiers and variant. The groups fill during the next sync.

@@ -141,4 +141,6 @@ test('the default prefix is the first label of the Skwirrel host with a dash', f
 	['https://localhost/jsonrpc', 'localhost-'],
 	['', ''],
 	['   ', ''],
+	['http://10.0.0.5/jsonrpc', ''],
+	['http://[::1]/jsonrpc', ''],
 ]);

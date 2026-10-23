@@ -53,3 +53,26 @@ test( 'the Files tab field groups carry the same lime icon tile with a Phosphor 
 		expect( $xpath->query( './/i[contains(@class, "ph ph-")]', $tile->item( 0 ) )->length )->toBe( 1 );
 	}
 } );
+
+test( 'the first save fills an empty prefix from the endpoint, a later save keeps an emptied one', function (): void {
+	delete_option( 'skwirrel_wc_sync_settings' );
+	$input = [
+		'endpoint_url'       => 'https://acme.skwirrel.eu/jsonrpc',
+		'file_naming_mode'   => 'prefix',
+		'file_naming_prefix' => '',
+	];
+	$saved = Skwirrel_WC_Sync_Admin_Settings::instance()->sanitize_settings( $input );
+	expect( $saved['file_naming_prefix'] )->toBe( 'acme-' );
+
+	update_option( 'skwirrel_wc_sync_settings', [ 'file_naming_prefix' => 'acme-' ] );
+	$saved = Skwirrel_WC_Sync_Admin_Settings::instance()->sanitize_settings( $input );
+	expect( $saved['file_naming_prefix'] )->toBe( '' );
+} );
+
+test( 'the unsaved-change notice hides the preview as well as the preview button', function (): void {
+	update_option( 'skwirrel_wc_sync_settings', [ 'endpoint_url' => 'https://acme.skwirrel.eu/jsonrpc', 'file_naming_mode' => 'prefix', 'file_naming_prefix' => 'acme-' ] );
+	$xpath = skwSettingsXPath();
+	expect( $xpath->query( '//*[@id="skwirrel-rename-actions"]' )->length )->toBe( 1 );
+	expect( $xpath->query( '//*[@id="skwirrel-rename-preview"]' )->length )->toBe( 1 );
+	expect( $xpath->query( '//*[@id="skwirrel-rename-unsaved"][@hidden]' )->length )->toBe( 1 );
+} );
