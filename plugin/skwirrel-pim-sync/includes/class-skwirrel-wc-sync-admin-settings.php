@@ -666,7 +666,7 @@ class Skwirrel_WC_Sync_Admin_Settings {
 		if ( '' === $out[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] && ! ( is_array( $stored ) && array_key_exists( Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX, $stored ) ) ) {
 			$out[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] = Skwirrel_WC_Sync_File_Naming::default_prefix( $out['endpoint_url'] );
 		}
-		$out['log_retention']                                = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
+		$out['log_retention'] = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
 			? $input['log_retention']
 			: '7days';
 		return $out;
