@@ -48,3 +48,14 @@ test('the target comes from a row whose old path matches exactly', function () {
 	expect(Skwirrel_WC_Sync_File_Redirects::target_from_row($row, '2024/05/skwirrel-a-1'))->toBe('');
 	expect(Skwirrel_WC_Sync_File_Redirects::target_from_row('garbage', 'garbage'))->toBe('');
 });
+
+test('a path counts as a missing upload only when nothing exists behind it', function () {
+	$dir = sys_get_temp_dir() . '/skw-up-' . bin2hex(random_bytes(4));
+	mkdir($dir);
+	file_put_contents($dir . '/there.pdf', 'x');
+	expect(Skwirrel_WC_Sync_File_Redirects::is_missing_upload('there.pdf', $dir))->toBeFalse();
+	expect(Skwirrel_WC_Sync_File_Redirects::is_missing_upload('gone.pdf', $dir))->toBeTrue();
+	expect(Skwirrel_WC_Sync_File_Redirects::is_missing_upload('', $dir))->toBeFalse();
+	unlink($dir . '/there.pdf');
+	rmdir($dir);
+});

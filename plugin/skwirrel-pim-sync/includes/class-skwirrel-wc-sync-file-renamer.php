@@ -203,6 +203,18 @@ class Skwirrel_WC_Sync_File_Renamer {
 	}
 
 	/**
+	 * Whether a path is the old name of ANOTHER renamed file. A file's own earlier name is free for it
+	 * to take again, for example when switching back to the previous naming mode.
+	 */
+	private static function is_vacated_by_other( string $relative, int $attachment_id ): bool {
+		if ( $attachment_id <= 0 ) {
+			return false;
+		}
+		$row = Skwirrel_WC_Sync_File_Redirects::find_row( $relative );
+		return '' !== $row['target'] && $row['owner'] !== $attachment_id;
+	}
+
+	/**
 	 * Claim a name in a directory for this run, adding -1, -2 when an earlier file claimed it.
 	 *
 	 * @param array<string,bool> $reserved Names already given out (directory/name).
@@ -216,7 +228,7 @@ class Skwirrel_WC_Sync_File_Renamer {
 		$n         = 0;
 		// Also skip a name another renamed file used to have: its old link redirects there, and a new
 		// file in that place would be served instead of the redirect.
-		while ( isset( $reserved[ $dir . '/' . $candidate ] ) || ( $attachment_id > 0 && '' !== Skwirrel_WC_Sync_File_Redirects::find_target( $rel_dir . $candidate ) ) ) {
+		while ( isset( $reserved[ $dir . '/' . $candidate ] ) || self::is_vacated_by_other( $rel_dir . $candidate, $attachment_id ) ) {
 			++$n;
 			$candidate = $stem . '-' . $n . ( '' !== $ext ? '.' . $ext : '' );
 			if ( file_exists( $dir . '/' . $candidate ) ) {

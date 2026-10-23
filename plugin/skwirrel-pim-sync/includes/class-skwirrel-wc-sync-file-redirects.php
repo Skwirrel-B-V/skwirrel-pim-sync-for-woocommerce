@@ -43,11 +43,11 @@ class Skwirrel_WC_Sync_File_Redirects {
 	}
 
 	/**
-	 * Redirect a 404 under the uploads folder when the path belongs to a renamed file.
+	 * Redirect a request for a missing file in the uploads folder when the path belongs to a renamed file.
 	 */
 	public function maybe_redirect(): void {
-		// Sites that never renamed anything have no old paths to look up: no query on their 404s.
-		if ( ! is_404() || ! self::is_enabled() || ! Skwirrel_WC_Sync_File_Rename_Job::has_run() ) {
+		// Sites that never renamed anything have no old paths to look up: no query on any request.
+		if ( ! self::is_enabled() || ! Skwirrel_WC_Sync_File_Rename_Job::has_run() ) {
 			return;
 		}
 		$uploads = wp_upload_dir();
@@ -55,7 +55,10 @@ class Skwirrel_WC_Sync_File_Redirects {
 		$request = isset( $_SERVER['REQUEST_URI'] ) ? wp_parse_url( esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ), PHP_URL_PATH ) : '';
 
 		$relative = self::relative_upload_path( is_string( $request ) ? $request : '', is_string( $base ) ? $base : '' );
-		if ( '' === $relative ) {
+		// A request for a path in the uploads folder that reached WordPress and has no file behind it.
+		// This does not rely on WordPress reporting a 404 page: with plain permalinks it answers an
+		// unknown path with the home page, so is_404() would never be true there.
+		if ( ! self::is_missing_upload( $relative, $uploads['basedir'] ) ) {
 			return;
 		}
 		$target = self::find_target( $relative );
@@ -68,6 +71,13 @@ class Skwirrel_WC_Sync_File_Redirects {
 		// so wp_safe_redirect() would refuse it.
 		wp_redirect( $url, 301, 'Skwirrel PIM sync' ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect
 		exit;
+	}
+
+	/**
+	 * Whether a path relative to the uploads folder points at a file that does not exist.
+	 */
+	public static function is_missing_upload( string $relative, string $uploads_dir ): bool {
+		return '' !== $relative && ! file_exists( rtrim( $uploads_dir, '/' ) . '/' . $relative );
 	}
 
 	/**
@@ -90,22 +100,37 @@ class Skwirrel_WC_Sync_File_Redirects {
 	 * The current relative path of a renamed file, or '' when this path was never renamed.
 	 */
 	public static function find_target( string $relative ): string {
+		return self::find_row( $relative )['target'];
+	}
+
+	/**
+	 * The renamed file a path used to belong to: its current path and its attachment.
+	 *
+	 * @return array{target: string, owner: int} Empty target when this path was never renamed.
+	 */
+	public static function find_row( string $relative ): array {
 		global $wpdb;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- one lookup on a 404, only after a rename has run; meta_key narrows it to the renamed files' rows.
-		$rows = $wpdb->get_col(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- one lookup, only after a rename has run; meta_key narrows it to the renamed files' rows.
+		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value LIKE %s LIMIT 20",
+				"SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value LIKE %s LIMIT 20",
 				Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH,
 				$wpdb->esc_like( $relative . "\t" ) . '%'
 			)
 		);
 		foreach ( is_array( $rows ) ? $rows : [] as $row ) {
-			$target = self::target_from_row( (string) $row, $relative );
+			$target = self::target_from_row( (string) $row->meta_value, $relative );
 			if ( '' !== $target ) {
-				return $target;
+				return [
+					'target' => $target,
+					'owner'  => (int) $row->post_id,
+				];
 			}
 		}
-		return '';
+		return [
+			'target' => '',
+			'owner'  => 0,
+		];
 	}
 
 	/**

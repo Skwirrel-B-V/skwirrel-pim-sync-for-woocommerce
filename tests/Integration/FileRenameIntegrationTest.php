@@ -155,3 +155,25 @@ test( 'a second file wanting a name that another renamed file just left gets a s
 	expect( Skwirrel_WC_Sync_File_Rename_Job::rename_attachment( $second ) )->toBe( 'renamed' );
 	expect( basename( (string) get_attached_file( $second ) ) )->toBe( 'alpha-1.jpg' );
 } );
+
+test( 'a file can go back to an earlier name of its own without getting a suffix', function (): void {
+	$id = skwRenameImport( skwRenameJpeg( 400, 300 ), 'foto.jpg', 9105 );
+	expect( $id )->toBeGreaterThan( 0 );
+
+	update_option( 'skwirrel_wc_sync_settings', [ 'file_naming_mode' => 'original' ] );
+	expect( Skwirrel_WC_Sync_File_Rename_Job::rename_attachment( $id ) )->toBe( 'renamed' );
+	expect( basename( (string) get_attached_file( $id ) ) )->toBe( 'foto.jpg' );
+
+	update_option( 'skwirrel_wc_sync_settings', [ 'file_naming_mode' => 'prefix', 'file_naming_prefix' => 'acme-' ] );
+	expect( Skwirrel_WC_Sync_File_Rename_Job::rename_attachment( $id ) )->toBe( 'renamed' );
+	expect( basename( (string) get_attached_file( $id ) ) )->toBe( 'acme-foto.jpg' );
+
+	// Back to the previous mode: the old name "foto.jpg" is its own, so it is free again.
+	update_option( 'skwirrel_wc_sync_settings', [ 'file_naming_mode' => 'original' ] );
+	expect( Skwirrel_WC_Sync_File_Rename_Job::rename_attachment( $id ) )->toBe( 'renamed' );
+	expect( basename( (string) get_attached_file( $id ) ) )->toBe( 'foto.jpg' );
+
+	// And nothing is left to redirect from "foto.jpg" to itself.
+	$rel = dirname( (string) get_post_meta( $id, '_wp_attached_file', true ) ) . '/foto.jpg';
+	expect( Skwirrel_WC_Sync_File_Redirects::find_target( $rel ) )->toBe( '' );
+} );

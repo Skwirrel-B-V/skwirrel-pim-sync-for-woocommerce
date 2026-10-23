@@ -517,7 +517,10 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			[ $old, $current ] = explode( "\t", $row, 2 );
 			if ( isset( $pairs[ $current ] ) ) {
 				delete_post_meta( $attachment_id, self::META_OLD_PATH, $row );
-				add_post_meta( $attachment_id, self::META_OLD_PATH, $old . "\t" . $pairs[ $current ] );
+				// A file that went back to one of its earlier names needs no redirect for it any more.
+				if ( $old !== $pairs[ $current ] ) {
+					add_post_meta( $attachment_id, self::META_OLD_PATH, $old . "\t" . $pairs[ $current ] );
+				}
 			}
 		}
 		foreach ( $pairs as $old => $new ) {
