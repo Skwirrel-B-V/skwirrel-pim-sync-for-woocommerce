@@ -22,6 +22,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private const OPTION_KEY = 'skwirrel_wc_sync_settings';
 	private const MASK       = '••••••••';
 
+	/** Files listed per step in the rename preview. */
+	private const RENAME_PAGE_SIZE = 10;
+
+	/** Most files the rename preview lists at once. */
+	private const RENAME_MAX_SHOWN = 500;
+
 	/**
 	 * Language options available in dropdowns.
 	 */
@@ -931,6 +937,12 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				'render' => 'render_settings_panel_field_mapping',
 				'fields' => self::field_mapping_field_ids(),
 			),
+			'files'         => array(
+				'label'  => __( 'Files', 'skwirrel-pim-sync' ),
+				'order'  => 30,
+				'render' => 'render_settings_panel_files',
+				'fields' => array( 'file_naming_mode', 'file_naming_prefix', 'file_redirect_old_links' ),
+			),
 			'advanced'      => array(
 				'label'  => __( 'Advanced', 'skwirrel-pim-sync' ),
 				'order'  => 40,
@@ -1127,6 +1139,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			case 'render_settings_panel_field_mapping':
 				$this->render_settings_panel_field_mapping( $context );
 				return;
+			case 'render_settings_panel_files':
+				$this->render_settings_panel_files( $context );
+				return;
 			case 'render_settings_panel_advanced':
 				$this->render_settings_panel_advanced( $context );
 				return;
@@ -1173,6 +1188,16 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 */
 	private function render_settings_panel_field_mapping( array $context ): void {
 		$this->render_fieldgroup_field_mapping( (array) $context['opts'], (string) $context['base_url'] );
+	}
+
+	/**
+	 * Render the Files tab panel.
+	 *
+	 * @param array<string, mixed> $context Render context.
+	 */
+	private function render_settings_panel_files( array $context ): void {
+		$this->render_fieldgroup_file_naming( (array) $context['opts'] );
+		$this->render_fieldgroup_file_rename();
 	}
 
 	/**
@@ -2005,6 +2030,304 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 				<p class="skw-field-hint"><?php esc_html_e( 'How long to keep per-sync log files. Old files are cleaned up at the start of each sync.', 'skwirrel-pim-sync' ); ?></p>
 			</div>
 		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "File names" field group.
+	 *
+	 * @param array<string,mixed> $opts Stored plugin settings.
+	 */
+	private function render_fieldgroup_file_naming( array $opts ): void {
+		$mode_key   = Skwirrel_WC_Sync_File_Naming::SETTING_MODE;
+		$prefix_key = Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX;
+		$mode       = Skwirrel_WC_Sync_File_Naming::sanitize_mode( $opts[ $mode_key ] ?? null );
+		// Until a prefix was saved, offer the Skwirrel name from the endpoint (saving keeps whatever is shown,
+		// also an emptied field). The field is hidden, not disabled, unless the prefix mode is chosen: a
+		// disabled field is not submitted, which would wipe the saved prefix on every save in another mode.
+		$prefix      = array_key_exists( $prefix_key, $opts )
+			? Skwirrel_WC_Sync_File_Naming::sanitize_prefix( $opts[ $prefix_key ] )
+			: Skwirrel_WC_Sync_File_Naming::default_prefix( (string) ( $opts['endpoint_url'] ?? '' ) );
+		$prefix_wrap = 'skwirrel-file-prefix-field';
+		?>
+		<div class="skw-fieldgroup">
+			<div class="skw-fg-head">
+				<span class="skw-fg-icon"><i class="ph ph-file-image" aria-hidden="true"></i></span>
+				<div>
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'File names', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-fg-desc"><?php esc_html_e( 'How images and documents downloaded from Skwirrel are named in the media library. Applies to new downloads.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+			</div>
+			<fieldset class="skw-field">
+				<legend class="skw-label"><?php esc_html_e( 'Naming', 'skwirrel-pim-sync' ); ?></legend>
+				<p>
+					<label>
+						<input type="radio" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $mode_key ); ?>]" value="<?php echo esc_attr( Skwirrel_WC_Sync_File_Naming::MODE_CURRENT ); ?>" <?php checked( $mode, Skwirrel_WC_Sync_File_Naming::MODE_CURRENT ); ?>>
+						<?php esc_html_e( 'Plugin naming (default)', 'skwirrel-pim-sync' ); ?>
+					</label>
+					<span class="skw-field-hint"><?php esc_html_e( 'Files are saved as skwirrel-<code>-<number>.ext, whatever name was entered in Skwirrel.', 'skwirrel-pim-sync' ); ?></span>
+				</p>
+				<p>
+					<label>
+						<input type="radio" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $mode_key ); ?>]" value="<?php echo esc_attr( Skwirrel_WC_Sync_File_Naming::MODE_PREFIX ); ?>" <?php checked( $mode, Skwirrel_WC_Sync_File_Naming::MODE_PREFIX ); ?>>
+						<?php esc_html_e( 'Prefix + Skwirrel file name', 'skwirrel-pim-sync' ); ?>
+					</label>
+					<span class="skw-field-hint"><?php esc_html_e( 'The file name from Skwirrel with your own prefix in front, for example acme-datasheet.pdf.', 'skwirrel-pim-sync' ); ?></span>
+				</p>
+				<p>
+					<label>
+						<input type="radio" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $mode_key ); ?>]" value="<?php echo esc_attr( Skwirrel_WC_Sync_File_Naming::MODE_ORIGINAL ); ?>" <?php checked( $mode, Skwirrel_WC_Sync_File_Naming::MODE_ORIGINAL ); ?>>
+						<?php esc_html_e( 'Skwirrel file name as is', 'skwirrel-pim-sync' ); ?>
+					</label>
+					<span class="skw-field-hint"><?php esc_html_e( 'The file name from Skwirrel, unchanged. Risk: the name becomes part of the file\'s public URL, so whatever is entered as a file name in Skwirrel is visible there. Names are not guaranteed to be unique: a clash with a file that already exists (for example from a manual upload) gets -1, -2 appended.', 'skwirrel-pim-sync' ); ?></span>
+				</p>
+			</fieldset>
+			<div class="skw-field" id="<?php echo esc_attr( $prefix_wrap ); ?>"<?php echo Skwirrel_WC_Sync_File_Naming::MODE_PREFIX === $mode ? '' : ' hidden'; ?>>
+				<label for="<?php echo esc_attr( $prefix_key ); ?>" class="skw-label"><?php esc_html_e( 'Prefix', 'skwirrel-pim-sync' ); ?></label>
+				<input type="text" id="<?php echo esc_attr( $prefix_key ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $prefix_key ); ?>]" value="<?php echo esc_attr( $prefix ); ?>" class="skw-input" style="max-width: 240px;" maxlength="40" autocomplete="off">
+				<p class="skw-field-hint"><?php esc_html_e( 'Only used with "Prefix + Skwirrel file name". Capitals are kept; characters that are not safe in a file name are replaced.', 'skwirrel-pim-sync' ); ?></p>
+			</div>
+			<noscript><style>#<?php echo esc_html( $prefix_wrap ); ?>[hidden] { display: block; }</style></noscript>
+			<script>
+				( function () {
+					var field = document.getElementById( <?php echo wp_json_encode( $prefix_wrap ); ?> );
+					var radios = document.querySelectorAll( 'input[type="radio"][name="<?php echo esc_js( self::OPTION_KEY . '[' . $mode_key . ']' ); ?>"]' );
+					if ( ! field || ! radios.length ) { return; }
+					function sync() {
+						var on = document.querySelector( 'input[type="radio"][name="<?php echo esc_js( self::OPTION_KEY . '[' . $mode_key . ']' ); ?>"]:checked' );
+						field.hidden = ! on || <?php echo wp_json_encode( Skwirrel_WC_Sync_File_Naming::MODE_PREFIX ); ?> !== on.value;
+					}
+					Array.prototype.forEach.call( radios, function ( r ) { r.addEventListener( 'change', sync ); } );
+					sync();
+				}() );
+			</script>
+			<p class="skw-field-hint"><?php esc_html_e( 'If a file has no usable name or extension in Skwirrel, the plugin naming is used for that file and a warning is logged. A file name that already exists gets -1, -2 appended; existing files are never overwritten.', 'skwirrel-pim-sync' ); ?></p>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the "Rename existing files" field group: the read-only preview of the rename job.
+	 *
+	 * The preview is a plain GET link (a form here would nest inside the one settings form) and
+	 * changes nothing. It uses the saved settings, not unsaved changes in the form above.
+	 */
+	private function render_fieldgroup_file_rename(): void {
+		$mode        = Skwirrel_WC_Sync_File_Naming::get_mode();
+		$can_rename  = Skwirrel_WC_Sync_File_Renamer::can_rename();
+		$files_url   = add_query_arg( 'tab', 'settings', admin_url( 'admin.php?page=' . self::PAGE_SLUG ) );
+		$preview_url = wp_nonce_url( add_query_arg( 'skw_rename_preview', 1, $files_url ), 'skwirrel_rename_preview' ) . '#tab-files';
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- verified below with wp_verify_nonce(); the preview is read-only.
+		$show_preview = isset( $_GET['skw_rename_preview'] ) && current_user_can( 'manage_woocommerce' )
+			&& isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'skwirrel_rename_preview' );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- growing a read-only preview, nonce verified above.
+		$shown = isset( $_GET['rename_shown'] ) ? min( self::RENAME_MAX_SHOWN, max( self::RENAME_PAGE_SIZE, absint( $_GET['rename_shown'] ) ) ) : self::RENAME_PAGE_SIZE;
+		?>
+		<div class="skw-fieldgroup" id="skwirrel-rename-files">
+			<div class="skw-fg-head">
+				<span class="skw-fg-icon"><i class="ph ph-pencil-simple" aria-hidden="true"></i></span>
+				<div>
+					<h3 class="skw-fieldgroup-title"><?php esc_html_e( 'Rename existing files', 'skwirrel-pim-sync' ); ?></h3>
+					<p class="skw-fg-desc"><?php esc_html_e( 'Give files that were imported earlier the name from Skwirrel. First see what would change; nothing is renamed by looking.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+			</div>
+			<?php $this->render_file_rename_progress(); ?>
+			<div id="skwirrel-rename-actions">
+			<?php if ( ! $can_rename ) : ?>
+				<div class="skw-notice skw-notice-warning">
+					<p><?php esc_html_e( 'Renaming is switched off on this site, usually because uploads are stored on remote storage by another plugin. Renaming local copies would leave the remote files with the old name.', 'skwirrel-pim-sync' ); ?></p>
+				</div>
+				<p><span class="skw-btn skw-btn-secondary" aria-disabled="true" style="opacity: .5; pointer-events: none;"><?php esc_html_e( 'Preview renaming', 'skwirrel-pim-sync' ); ?></span></p>
+			<?php elseif ( Skwirrel_WC_Sync_File_Naming::MODE_CURRENT === $mode ) : ?>
+				<p class="skw-field-hint"><?php esc_html_e( 'Choose "Prefix + Skwirrel file name" or "Skwirrel file name as is" above and save the settings first. Renaming is not available with the plugin naming.', 'skwirrel-pim-sync' ); ?></p>
+			<?php else : ?>
+				<p><a href="<?php echo esc_url( $preview_url ); ?>" class="skw-btn skw-btn-secondary"><?php esc_html_e( 'Preview renaming', 'skwirrel-pim-sync' ); ?></a></p>
+			<?php endif; ?>
+			</div>
+			<div id="skwirrel-rename-unsaved" class="skw-notice skw-notice-info" hidden>
+				<p><?php esc_html_e( 'You changed the file naming above. Save the settings first; then you can preview and rename the existing files.', 'skwirrel-pim-sync' ); ?></p>
+			</div>
+			<script>
+				( function () {
+					var saved = <?php echo wp_json_encode( $mode ); ?>;
+					var savedPrefix = <?php echo wp_json_encode( Skwirrel_WC_Sync_File_Naming::get_prefix() ); ?>;
+					var name = 'input[type="radio"][name="<?php echo esc_js( self::OPTION_KEY . '[' . Skwirrel_WC_Sync_File_Naming::SETTING_MODE . ']' ); ?>"]';
+					var shown = [ document.getElementById( 'skwirrel-rename-actions' ), document.getElementById( 'skwirrel-rename-preview' ) ];
+					var unsaved = document.getElementById( 'skwirrel-rename-unsaved' );
+					var prefix = document.getElementById( <?php echo wp_json_encode( Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ); ?> );
+					var radios = document.querySelectorAll( name );
+					if ( ! unsaved || ! radios.length ) { return; }
+					function sync() {
+						var on = document.querySelector( name + ':checked' );
+						var changed = !! on && ( on.value !== saved || ( 'prefix' === saved && !! prefix && prefix.value !== savedPrefix ) );
+						shown.forEach( function ( el ) { if ( el ) { el.hidden = changed; } } );
+						unsaved.hidden = ! changed;
+					}
+					Array.prototype.forEach.call( radios, function ( r ) { r.addEventListener( 'change', sync ); } );
+					if ( prefix ) { prefix.addEventListener( 'input', sync ); }
+					sync();
+				}() );
+			</script>
+			<?php $this->render_file_redirect_option(); ?>
+			<div id="skwirrel-rename-preview">
+			<?php
+			if ( $show_preview && $can_rename && Skwirrel_WC_Sync_File_Naming::MODE_CURRENT !== $mode ) {
+				$this->render_file_rename_preview( Skwirrel_WC_Sync_File_Renamer::preview( 1, $shown ), $preview_url, $shown );
+			}
+			?>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the switch for redirecting old file links, with the server rule for servers that
+	 * answer missing files themselves. Part of the one settings form.
+	 */
+	private function render_file_redirect_option(): void {
+		$key     = Skwirrel_WC_Sync_File_Redirects::SETTING;
+		$enabled = Skwirrel_WC_Sync_File_Redirects::is_enabled();
+		?>
+		<div class="skw-field">
+			<label>
+				<input type="checkbox" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[<?php echo esc_attr( $key ); ?>]" value="1" <?php checked( $enabled ); ?>>
+				<?php esc_html_e( 'Redirect old file links to the renamed file', 'skwirrel-pim-sync' ); ?>
+			</label>
+			<p class="skw-field-hint"><?php esc_html_e( 'Someone who opens the old URL of a renamed file is sent permanently (301) to the new one. Switch this off and the old URLs stop working.', 'skwirrel-pim-sync' ); ?></p>
+			<p class="skw-field-hint"><?php esc_html_e( 'This only works when your web server hands requests for missing files in the uploads folder to WordPress. Apache with the standard WordPress rules does. On nginx, make sure the uploads location ends in try_files $uri $uri/ /index.php?$args; instead of try_files $uri =404;. If the server answers the 404 itself, WordPress never sees the request and the old link stays broken.', 'skwirrel-pim-sync' ); ?></p>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render progress (or the result) of the rename job, and the notice after pressing the button.
+	 */
+	private function render_file_rename_progress(): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display only: picks a notice after the redirect.
+		$status = isset( $_GET['skw_rename_status'] ) ? sanitize_key( wp_unslash( $_GET['skw_rename_status'] ) ) : '';
+		if ( 'refused' === $status ) {
+			echo '<div class="skw-notice skw-notice-warning"><p>' . esc_html__( 'Renaming could not be started. Check that a naming mode other than the plugin naming is saved, and that a rename is not already running.', 'skwirrel-pim-sync' ) . '</p></div>';
+		}
+		$state = Skwirrel_WC_Sync_File_Rename_Job::state();
+		if ( empty( $state ) ) {
+			return;
+		}
+		$running = Skwirrel_WC_Sync_File_Rename_Job::is_running();
+		$stalled = Skwirrel_WC_Sync_File_Rename_Job::is_stalled();
+		?>
+		<div class="skw-notice <?php echo $stalled ? 'skw-notice-warning' : ( $running ? 'skw-notice-info' : 'skw-notice-success' ); ?>" id="skwirrel-rename-progress">
+			<p>
+				<strong>
+					<?php
+					if ( $stalled ) {
+						esc_html_e( 'Renaming has stalled. You can preview and start it again; files that are already renamed are skipped.', 'skwirrel-pim-sync' );
+					} elseif ( $running ) {
+						esc_html_e( 'Renaming files…', 'skwirrel-pim-sync' );
+					} else {
+						esc_html_e( 'Renaming finished.', 'skwirrel-pim-sync' );
+					}
+					?>
+				</strong>
+				<?php
+				printf(
+					/* translators: 1: files handled so far, 2: files to handle in total, 3: renamed, 4: skipped, 5: failed */
+					esc_html__( '%1$s of %2$s handled: %3$s renamed, %4$s skipped, %5$s failed. Every rename is in the log.', 'skwirrel-pim-sync' ),
+					esc_html( number_format_i18n( $state['processed'] ) ),
+					esc_html( number_format_i18n( $state['total'] ) ),
+					esc_html( number_format_i18n( $state['renamed'] ) ),
+					esc_html( number_format_i18n( $state['skipped'] ) ),
+					esc_html( number_format_i18n( $state['failed'] ) )
+				);
+				?>
+			</p>
+			<?php if ( $running ) : ?>
+				<progress max="<?php echo esc_attr( (string) max( 1, $state['total'] ) ); ?>" value="<?php echo esc_attr( (string) min( $state['processed'], max( 1, $state['total'] ) ) ); ?>" style="width: 100%;"></progress>
+				<script>setTimeout(function () { window.location.reload(); }, 5000);</script>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the result of {@see Skwirrel_WC_Sync_File_Renamer::preview()}.
+	 *
+	 * @param array<string,mixed> $preview     Preview data.
+	 * @param string              $preview_url Preview link (nonce included), the base of the "Load more" link.
+	 * @param int                 $shown       Number of files the preview was asked to list.
+	 */
+	private function render_file_rename_preview( array $preview, string $preview_url, int $shown ): void {
+		$counts = (array) $preview['counts'];
+		$rows   = (array) $preview['rows'];
+		$labels = [
+			Skwirrel_WC_Sync_File_Renamer::STATUS_NO_NAME  => __( 'Skipped, run a sync first', 'skwirrel-pim-sync' ),
+			Skwirrel_WC_Sync_File_Renamer::STATUS_UNUSABLE => __( 'Skipped, no usable name in Skwirrel', 'skwirrel-pim-sync' ),
+			Skwirrel_WC_Sync_File_Renamer::STATUS_MISSING  => __( 'Skipped, file not on this server', 'skwirrel-pim-sync' ),
+		];
+		?>
+		<div class="skw-notice skw-notice-warning">
+			<p><strong><?php esc_html_e( 'Make a backup first.', 'skwirrel-pim-sync' ); ?></strong> <?php esc_html_e( 'Renaming changes files on disk and the links to them. Back up your uploads folder and database before you continue.', 'skwirrel-pim-sync' ); ?></p>
+		</div>
+		<?php if ( (int) $counts[ Skwirrel_WC_Sync_File_Renamer::STATUS_RENAME ] > 0 && ! Skwirrel_WC_Sync_File_Rename_Job::is_running() ) : ?>
+			<p>
+				<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=' . Skwirrel_WC_Sync_File_Rename_Job::ACTION_START ), Skwirrel_WC_Sync_File_Rename_Job::ACTION_START ) ); ?>" class="skw-btn" onclick="return confirm('<?php echo esc_js( __( 'Rename these files now? Make sure you have a backup of your uploads folder and database.', 'skwirrel-pim-sync' ) ); ?>');"><?php esc_html_e( 'Rename files', 'skwirrel-pim-sync' ); ?></a>
+			</p>
+		<?php endif; ?>
+		<p>
+			<?php
+			printf(
+				/* translators: 1: number of files to rename, 2: number already named correctly, 3: number skipped */
+				esc_html__( '%1$s to rename, %2$s already named correctly, %3$s skipped.', 'skwirrel-pim-sync' ),
+				'<strong>' . esc_html( number_format_i18n( (int) $counts[ Skwirrel_WC_Sync_File_Renamer::STATUS_RENAME ] ) ) . '</strong>',
+				esc_html( number_format_i18n( (int) $counts[ Skwirrel_WC_Sync_File_Renamer::STATUS_DONE ] ) ),
+				esc_html( number_format_i18n( (int) $counts[ Skwirrel_WC_Sync_File_Renamer::STATUS_NO_NAME ] + (int) $counts[ Skwirrel_WC_Sync_File_Renamer::STATUS_UNUSABLE ] + (int) $counts[ Skwirrel_WC_Sync_File_Renamer::STATUS_MISSING ] ) )
+			);
+			?>
+		</p>
+		<?php if ( empty( $rows ) && 0 === (int) $counts[ Skwirrel_WC_Sync_File_Renamer::STATUS_RENAME ] ) : ?>
+			<p class="skw-field-hint"><?php esc_html_e( 'There are no files to rename.', 'skwirrel-pim-sync' ); ?></p>
+		<?php else : ?>
+			<table class="skw-rename-table">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Current name', 'skwirrel-pim-sync' ); ?></th>
+						<th><?php esc_html_e( 'New name', 'skwirrel-pim-sync' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $rows as $row ) : ?>
+						<tr>
+							<td><?php echo esc_html( (string) $row['old'] ); ?></td>
+							<td><?php echo esc_html( (string) $row['new'] ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+			<?php $total = (int) $counts[ Skwirrel_WC_Sync_File_Renamer::STATUS_RENAME ]; ?>
+			<p class="skw-rename-more">
+				<span class="skw-field-hint">
+					<?php
+					printf(
+						/* translators: 1: number of files listed, 2: number of files to rename */
+						esc_html__( 'Showing %1$s of %2$s', 'skwirrel-pim-sync' ),
+						esc_html( number_format_i18n( count( $rows ) ) ),
+						esc_html( number_format_i18n( $total ) )
+					);
+					?>
+				</span>
+				<?php if ( $total > count( $rows ) ) : ?>
+					<a href="<?php echo esc_url( add_query_arg( 'rename_shown', $shown + self::RENAME_PAGE_SIZE, $preview_url ) ); ?>" class="skw-btn skw-btn-secondary"><?php esc_html_e( 'Load more', 'skwirrel-pim-sync' ); ?></a>
+				<?php endif; ?>
+			</p>
+		<?php endif; ?>
+		<?php if ( ! empty( $preview['skipped'] ) ) : ?>
+			<h4><?php esc_html_e( 'Skipped files', 'skwirrel-pim-sync' ); ?></h4>
+			<ul>
+				<?php foreach ( (array) $preview['skipped'] as $row ) : ?>
+					<li><?php echo esc_html( ( '' !== $row['old'] ? (string) $row['old'] : '#' . (int) $row['id'] ) . ' — ' . ( $labels[ $row['status'] ] ?? '' ) ); ?></li>
+				<?php endforeach; ?>
+			</ul>
+		<?php endif; ?>
 		<?php
 	}
 

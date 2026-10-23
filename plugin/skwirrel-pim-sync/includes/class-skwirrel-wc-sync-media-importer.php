@@ -19,12 +19,25 @@ class Skwirrel_WC_Sync_Media_Importer {
 	private const META_SKWIRREL_HASH          = '_skwirrel_url_hash';
 	private const META_SKWIRREL_ATTACHMENT_ID = '_skwirrel_attachment_id';
 	private const META_SKWIRREL_FILE_CHECKSUM = '_skwirrel_file_checksum';
+	private const META_SKWIRREL_FILE_NAME     = '_skwirrel_file_name';
+
+	/** Set while the attachment carries a Title/Caption that came from Skwirrel, so clearing it there clears it here. */
+	private const META_SKWIRREL_TEXTS_SYNCED = '_skwirrel_texts_synced';
 
 	/** Image attachment type codes (from Skwirrel schema: PPI=Picture, PHI=Picture print, LOG=Logo, SCH=Diagram, PRT=Presentation, OTV=Other visual). */
 	private const IMAGE_TYPES = [ 'IMG', 'PPI', 'PHI', 'LOG', 'SCH', 'PRT', 'OTV' ];
 
 	/** File extensions that are never images (even if the type code says otherwise). */
 	private const NON_IMAGE_EXTENSIONS = [ 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'txt', 'zip', 'rar' ];
+
+	/**
+	 * Attachment whose Skwirrel file name changed, to be let go once its replacement is imported.
+	 * Releasing it earlier would leave nothing to reuse when the download then fails.
+	 */
+	private int $pending_release = 0;
+
+	/** @var array{attachment_id?: int|string|null, file_name?: string|null}|array{} */
+	private array $pending_release_meta = [];
 
 	public function __construct() {
 		$this->logger = new Skwirrel_WC_Sync_Logger();
@@ -41,7 +54,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * When supplied, both are persisted as post meta so subsequent syncs can dedup
 	 * on the stable ID and detect content changes via checksum comparison.
 	 *
-	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null, file_name?: string|null, title?: string|null, caption?: string|null} $api_meta
 	 * @return int Attachment ID or 0 on failure.
 	 */
 	public function import_image( string $url, string $title = '', int $parent_id = 0, string $alt_caption = '', string $description = '', array $api_meta = [] ): int {
@@ -50,14 +63,16 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
-		$hash     = $this->url_hash( $url );
-		$existing = $this->find_valid_existing_attachment( $hash, $api_meta );
+		$this->pending_release = 0;
+		$hash                  = $this->url_hash( $url );
+		$existing              = $this->find_valid_existing_attachment( $hash, $api_meta );
 		if ( $existing ) {
 			// Backfill BEFORE checking for a content update — pre-3.8 attachments
 			// have no stored checksum, so the first post-3.8 sync just records
 			// the current state. From the second sync onwards, an api/stored
 			// checksum mismatch can cleanly trigger replace.
 			$this->backfill_api_meta( $existing, $api_meta );
+			$this->sync_texts( $existing, $api_meta );
 			$this->maybe_replace_image_content( $existing, $url, $alt_caption, $description, $api_meta );
 			$this->ensure_post_parent( $existing, $parent_id );
 			return $existing;
@@ -86,14 +101,13 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
-		$ext_map  = [
+		$ext_map = [
 			IMAGETYPE_JPEG => 'jpg',
 			IMAGETYPE_PNG  => 'png',
 			IMAGETYPE_GIF  => 'gif',
 			IMAGETYPE_WEBP => 'webp',
 		];
-		$ext      = $ext_map[ $image_info[2] ] ?? 'jpg';
-		$filename = 'skwirrel-' . substr( $hash, 0, 12 ) . '-' . time() . '.' . $ext;
+		$ext     = $ext_map[ $image_info[2] ] ?? 'jpg';
 
 		$upload_dir = wp_upload_dir();
 		if ( $upload_dir['error'] ) {
@@ -102,7 +116,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
-		$dest = $upload_dir['path'] . '/' . $filename;
+		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'image', true );
+		$dest     = $upload_dir['path'] . '/' . $filename;
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning( 'Failed to copy image to uploads', [ 'url' => $url ] );
@@ -114,9 +129,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$label      = $alt_caption ? $alt_caption : ( $title ? $title : preg_replace( '/\.[^.]+$/', '', $filename ) );
 		$attachment = [
 			'post_mime_type' => $filetype['type'],
-			'post_title'     => $label,
-			'post_excerpt'   => $alt_caption,
-			'post_content'   => $description,
+			'post_title'     => wp_slash( '' !== $this->incoming_text( $api_meta, 'title' ) ? $this->incoming_text( $api_meta, 'title' ) : $label ),
+			'post_excerpt'   => wp_slash( $this->incoming_text( $api_meta, 'caption' ) ),
+			'post_content'   => wp_slash( $description ),
 			'post_status'    => 'inherit',
 		];
 
@@ -146,6 +161,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		update_post_meta( $id, self::META_SKWIRREL_URL, $url );
 		update_post_meta( $id, self::META_SKWIRREL_HASH, $hash );
 		$this->persist_api_meta( $id, $api_meta );
+		$this->release_pending();
 
 		$this->logger->debug(
 			'Imported image',
@@ -163,7 +179,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * Import file (PDF, etc.) from URL. Downloads and creates attachment directly (bypasses upload validation).
 	 * Attaches to $parent_id when given (product post ID).
 	 *
-	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta See import_image().
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null, file_name?: string|null, title?: string|null, caption?: string|null} $api_meta See import_image().
 	 * @return int Attachment ID or 0 on failure.
 	 */
 	public function import_file( string $url, string $name = '', int $parent_id = 0, array $api_meta = [] ): int {
@@ -172,11 +188,13 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
-		$hash     = $this->url_hash( $url );
-		$existing = $this->find_valid_existing_attachment( $hash, $api_meta );
+		$this->pending_release = 0;
+		$hash                  = $this->url_hash( $url );
+		$existing              = $this->find_valid_existing_attachment( $hash, $api_meta );
 		if ( $existing ) {
 			// See backfill rationale in import_image().
 			$this->backfill_api_meta( $existing, $api_meta );
+			$this->sync_texts( $existing, $api_meta );
 			$this->maybe_replace_file_content( $existing, $url, $api_meta );
 			$this->ensure_post_parent( $existing, $parent_id );
 			return $existing;
@@ -202,7 +220,6 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( ! preg_match( '/^[a-z0-9]{2,5}$/i', $ext ) ) {
 			$ext = 'pdf';
 		}
-		$filename = 'skwirrel-' . substr( $hash, 0, 12 ) . '-' . time() . '.' . $ext;
 
 		$upload_dir = wp_upload_dir();
 		if ( $upload_dir['error'] ) {
@@ -210,7 +227,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return 0;
 		}
 
-		$dest = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
+		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'file' );
+		$dest     = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning( 'Failed to copy file to uploads', [ 'url' => $url ] );
@@ -221,7 +239,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$filetype   = wp_check_filetype( $dest, null );
 		$attachment = [
 			'post_mime_type' => $filetype['type'] ? $filetype['type'] : 'application/octet-stream',
-			'post_title'     => preg_replace( '/\.[^.]+$/', '', $filename ),
+			'post_title'     => wp_slash( '' !== $this->incoming_text( $api_meta, 'title' ) ? $this->incoming_text( $api_meta, 'title' ) : preg_replace( '/\.[^.]+$/', '', $filename ) ),
+			'post_excerpt'   => wp_slash( $this->incoming_text( $api_meta, 'caption' ) ),
 			'post_content'   => '',
 			'post_status'    => 'inherit',
 		];
@@ -242,6 +261,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		update_post_meta( $id, self::META_SKWIRREL_URL, $url );
 		update_post_meta( $id, self::META_SKWIRREL_HASH, $hash );
 		$this->persist_api_meta( $id, $api_meta );
+		$this->release_pending();
 
 		return $id;
 	}
@@ -305,7 +325,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * the existing attachment untouched and only emit a warning — the
 	 * sync run as a whole must keep moving.
 	 *
-	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null, file_name?: string|null, title?: string|null, caption?: string|null} $api_meta
 	 */
 	private function maybe_replace_image_content( int $attachment_id, string $url, string $alt_caption, string $description, array $api_meta ): void {
 		if ( ! $this->should_replace_content( $attachment_id, $api_meta ) ) {
@@ -341,14 +361,13 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return;
 		}
 
-		$ext_map  = [
+		$ext_map = [
 			IMAGETYPE_JPEG => 'jpg',
 			IMAGETYPE_PNG  => 'png',
 			IMAGETYPE_GIF  => 'gif',
 			IMAGETYPE_WEBP => 'webp',
 		];
-		$ext      = $ext_map[ $image_info[2] ] ?? 'jpg';
-		$filename = 'skwirrel-' . substr( $this->url_hash( $url ), 0, 12 ) . '-' . time() . '.' . $ext;
+		$ext     = $ext_map[ $image_info[2] ] ?? 'jpg';
 
 		$upload_dir = wp_upload_dir();
 		if ( $upload_dir['error'] ) {
@@ -362,7 +381,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			);
 			return;
 		}
-		$dest = $upload_dir['path'] . '/' . $filename;
+		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'image_replace', true );
+		$dest     = $upload_dir['path'] . '/' . $filename;
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning(
@@ -381,14 +401,17 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 		$filetype = wp_check_filetype( $filename, null );
 		if ( ! empty( $filetype['type'] ) ) {
-			wp_update_post(
-				[
-					'ID'             => $attachment_id,
-					'post_mime_type' => $filetype['type'],
-					'post_excerpt'   => $alt_caption,
-					'post_content'   => $description,
-				]
-			);
+			$update = [
+				'ID'             => $attachment_id,
+				'post_mime_type' => $filetype['type'],
+				'post_content'   => $description,
+			];
+			// Only when Skwirrel supplies a caption here: an empty one must not wipe a caption typed by hand. A
+			// caption cleared in Skwirrel is handled by sync_texts(), which ran before this.
+			if ( '' !== $this->incoming_text( $api_meta, 'caption' ) ) {
+				$update['post_excerpt'] = $this->incoming_text( $api_meta, 'caption' );
+			}
+			wp_update_post( wp_slash( $update ) );
 		}
 		update_attached_file( $attachment_id, $dest );
 		$new_meta = wp_generate_attachment_metadata( $attachment_id, $dest );
@@ -429,7 +452,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * file is deleted after the new one has been written, so a failed
 	 * download or copy never leaves the attachment in a half-written state.
 	 *
-	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null, file_name?: string|null, title?: string|null, caption?: string|null} $api_meta
 	 */
 	private function maybe_replace_file_content( int $attachment_id, string $url, array $api_meta ): void {
 		if ( ! $this->should_replace_content( $attachment_id, $api_meta ) ) {
@@ -457,14 +480,14 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( ! preg_match( '/^[a-z0-9]{2,5}$/i', $ext ) ) {
 			$ext = 'pdf';
 		}
-		$filename = 'skwirrel-' . substr( $this->url_hash( $url ), 0, 12 ) . '-' . time() . '.' . $ext;
 
 		$upload_dir = wp_upload_dir();
 		if ( $upload_dir['error'] ) {
 			wp_delete_file( $tmp );
 			return;
 		}
-		$dest = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
+		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'file_replace' );
+		$dest     = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning(
@@ -551,7 +574,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * Stored values: attachment_id as string-cast int, file_checksum as lowercase
 	 * hex (so casing differences in subsequent comparisons don't cause false positives).
 	 *
-	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null, file_name?: string|null, title?: string|null, caption?: string|null} $api_meta
 	 */
 	private function persist_api_meta( int $attachment_id, array $api_meta ): void {
 		$skwirrel_id = isset( $api_meta['attachment_id'] ) ? (int) $api_meta['attachment_id'] : 0;
@@ -562,6 +585,73 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( '' !== $checksum ) {
 			update_post_meta( $attachment_id, self::META_SKWIRREL_FILE_CHECKSUM, $checksum );
 		}
+		$file_name = $this->incoming_file_name( $api_meta );
+		if ( '' !== $file_name ) {
+			update_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, $file_name );
+		}
+		if ( '' !== $this->incoming_text( $api_meta, 'title' ) || '' !== $this->incoming_text( $api_meta, 'caption' ) ) {
+			update_post_meta( $attachment_id, self::META_SKWIRREL_TEXTS_SYNCED, 1 );
+		}
+	}
+
+	/**
+	 * A text (`title` or `caption`) carried by the payload, or '' when there is none.
+	 *
+	 * @param array<string,mixed> $api_meta
+	 */
+	private function incoming_text( array $api_meta, string $key ): string {
+		return isset( $api_meta[ $key ] ) ? trim( (string) $api_meta[ $key ] ) : '';
+	}
+
+	/**
+	 * Keep the attachment Title and Caption in step with Skwirrel on every sync.
+	 *
+	 * Only acts when Skwirrel supplied a title or a description; with neither, the texts on the
+	 * attachment (possibly edited by hand) are left alone. The Title is only replaced by a
+	 * non-empty Skwirrel title, so it never falls back to a worse value; the Caption follows the
+	 * description, which makes it empty when the description was cleared in Skwirrel.
+	 *
+	 * @param array<string,mixed> $api_meta
+	 */
+	private function sync_texts( int $attachment_id, array $api_meta ): void {
+		$title   = $this->incoming_text( $api_meta, 'title' );
+		$caption = $this->incoming_text( $api_meta, 'caption' );
+		if ( '' === $title && '' === $caption ) {
+			// Skwirrel supplied nothing now. If it supplied a text before, that text was cleared there:
+			// the Caption goes too. Otherwise the texts on the attachment are not ours to touch.
+			if ( '' !== (string) get_post_meta( $attachment_id, self::META_SKWIRREL_TEXTS_SYNCED, true ) ) {
+				if ( '' !== (string) get_post_field( 'post_excerpt', $attachment_id ) ) {
+					wp_update_post(
+						[
+							'ID'           => $attachment_id,
+							'post_excerpt' => '',
+						]
+					);
+				}
+				delete_post_meta( $attachment_id, self::META_SKWIRREL_TEXTS_SYNCED );
+			}
+			return;
+		}
+		update_post_meta( $attachment_id, self::META_SKWIRREL_TEXTS_SYNCED, 1 );
+		$fields = [];
+		if ( '' !== $title && (string) get_post_field( 'post_title', $attachment_id ) !== $title ) {
+			$fields['post_title'] = $title;
+		}
+		if ( (string) get_post_field( 'post_excerpt', $attachment_id ) !== $caption ) {
+			$fields['post_excerpt'] = $caption;
+		}
+		if ( ! empty( $fields ) ) {
+			wp_update_post( wp_slash( [ 'ID' => $attachment_id ] + $fields ) );
+		}
+	}
+
+	/**
+	 * The Skwirrel file name carried by the payload, or '' when there is none.
+	 *
+	 * @param array{file_name?: string|null, ...} $api_meta
+	 */
+	private function incoming_file_name( array $api_meta ): string {
+		return isset( $api_meta['file_name'] ) ? trim( (string) $api_meta['file_name'] ) : '';
 	}
 
 	/**
@@ -576,7 +666,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * the first post-3.8 sync is invisible to us; the backfill establishes the
 	 * baseline, and only future changes get detected.
 	 *
-	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null} $api_meta
+	 * @param array{attachment_id?: int|string|null, file_checksum?: string|null, file_name?: string|null, title?: string|null, caption?: string|null} $api_meta
 	 */
 	private function backfill_api_meta( int $attachment_id, array $api_meta ): void {
 		$skwirrel_id = isset( $api_meta['attachment_id'] ) ? (int) $api_meta['attachment_id'] : 0;
@@ -605,6 +695,15 @@ class Skwirrel_WC_Sync_Media_Importer {
 						'checksum'      => $checksum,
 					]
 				);
+			}
+		}
+		$file_name = $this->incoming_file_name( $api_meta );
+		if ( '' !== $file_name ) {
+			$stored_name = (string) get_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, true );
+			// Plugin naming ignores the name, so keep the record current there: a later switch
+			// to another mode then compares against the name Skwirrel has today, not an old one.
+			if ( '' === $stored_name || ( Skwirrel_WC_Sync_File_Naming::MODE_CURRENT === Skwirrel_WC_Sync_File_Naming::get_mode() && $stored_name !== $file_name ) ) {
+				update_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, $file_name );
 			}
 		}
 	}
@@ -714,6 +813,12 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( ! $existing ) {
 			return 0;
 		}
+		if ( $this->file_name_changed( $existing, $api_meta ) ) {
+			$this->pending_release      = $existing;
+			$this->pending_release_meta = $api_meta;
+			return 0;
+		}
+
 		$file         = get_attached_file( $existing );
 		$file_present = is_string( $file ) && '' !== $file && file_exists( $file );
 
@@ -738,6 +843,11 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return $existing;
 		}
 
+		// A rename batch is moving files right now: this one may be in transit, not missing.
+		if ( get_transient( Skwirrel_WC_Sync_File_Rename_Job::ACTIVE_TRANSIENT ) ) {
+			return $existing;
+		}
+
 		$this->logger->warning(
 			'Skwirrel attachment record points to a missing file; clearing Skwirrel meta so future lookups miss it (record itself preserved for offload-plugin safety)',
 			[
@@ -751,6 +861,71 @@ class Skwirrel_WC_Sync_Media_Importer {
 		delete_post_meta( $existing, self::META_SKWIRREL_HASH );
 		delete_post_meta( $existing, self::META_SKWIRREL_URL );
 		return 0;
+	}
+
+	/**
+	 * Whether Skwirrel now calls this file something else than when it was imported.
+	 *
+	 * Only matters when file names follow Skwirrel (modes B and C): the stored file then
+	 * carries the old name, so the changed name means a new file. Without a stored name
+	 * (earlier imports) or without an incoming name there is nothing to compare.
+	 *
+	 * @param array{file_name?: string|null, ...} $api_meta
+	 */
+	private function file_name_changed( int $attachment_id, array $api_meta ): bool {
+		if ( Skwirrel_WC_Sync_File_Naming::MODE_CURRENT === Skwirrel_WC_Sync_File_Naming::get_mode() ) {
+			return false;
+		}
+		$incoming = $this->incoming_file_name( $api_meta );
+		if ( '' === $incoming ) {
+			return false;
+		}
+		$stored = (string) get_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, true );
+		return '' !== $stored && $stored !== $incoming;
+	}
+
+	/**
+	 * Release the attachment that is being replaced after a file name change, now that its
+	 * replacement exists.
+	 */
+	private function release_pending(): void {
+		if ( $this->pending_release > 0 ) {
+			$this->release_renamed_attachment( $this->pending_release, $this->pending_release_meta );
+		}
+		$this->pending_release      = 0;
+		$this->pending_release_meta = [];
+	}
+
+	/**
+	 * Let go of an attachment whose Skwirrel file name changed, so the import path adds a new one.
+	 *
+	 * Same approach as the missing-file path: the Skwirrel identifiers are cleared so no lookup
+	 * finds the record again, and the record and its file stay in the media library. It is also
+	 * detached from the product it was uploaded to. Cleaning it up is left to the site owner.
+	 *
+	 * @param array{file_name?: string|null, attachment_id?: int|string|null, ...} $api_meta
+	 */
+	private function release_renamed_attachment( int $attachment_id, array $api_meta ): void {
+		$this->logger->info(
+			'Skwirrel file name changed; importing a new file and leaving the old one unattached',
+			[
+				'attachment_id' => $attachment_id,
+				'old_name'      => (string) get_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, true ),
+				'new_name'      => $this->incoming_file_name( $api_meta ),
+			]
+		);
+		delete_post_meta( $attachment_id, self::META_SKWIRREL_ATTACHMENT_ID );
+		delete_post_meta( $attachment_id, self::META_SKWIRREL_FILE_CHECKSUM );
+		delete_post_meta( $attachment_id, self::META_SKWIRREL_HASH );
+		delete_post_meta( $attachment_id, self::META_SKWIRREL_URL );
+		if ( (int) get_post_field( 'post_parent', $attachment_id ) > 0 ) {
+			wp_update_post(
+				[
+					'ID'          => $attachment_id,
+					'post_parent' => 0,
+				]
+			);
+		}
 	}
 
 	/**

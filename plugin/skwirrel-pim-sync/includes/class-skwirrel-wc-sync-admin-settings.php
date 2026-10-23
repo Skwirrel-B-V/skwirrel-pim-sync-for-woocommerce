@@ -644,20 +644,29 @@ class Skwirrel_WC_Sync_Admin_Settings {
 				}
 			}
 		}
-		$out['status_mapping']                = $status_mapping;
-		$out['status_mapping_default']        = in_array( $input['status_mapping_default'] ?? '', $valid_states, true )
+		$out['status_mapping']                               = $status_mapping;
+		$out['status_mapping_default']                       = in_array( $input['status_mapping_default'] ?? '', $valid_states, true )
 			? $input['status_mapping_default']
 			: 'publish';
-		$out['deprecated_remove_after_syncs'] = isset( $input['deprecated_remove_after_syncs'] )
+		$out['deprecated_remove_after_syncs']                = isset( $input['deprecated_remove_after_syncs'] )
 			? max( 0, (int) $input['deprecated_remove_after_syncs'] )
 			: 3;
-		$out['log_mode_manual']               = in_array( $input['log_mode_manual'] ?? '', [ 'per_sync', 'per_day' ], true )
+		$out['log_mode_manual']                              = in_array( $input['log_mode_manual'] ?? '', [ 'per_sync', 'per_day' ], true )
 			? $input['log_mode_manual']
 			: 'per_sync';
-		$out['log_mode_scheduled']            = in_array( $input['log_mode_scheduled'] ?? '', [ 'per_sync', 'per_day' ], true )
+		$out['log_mode_scheduled']                           = in_array( $input['log_mode_scheduled'] ?? '', [ 'per_sync', 'per_day' ], true )
 			? $input['log_mode_scheduled']
 			: 'per_day';
-		$out['log_retention']                 = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
+		$out[ Skwirrel_WC_Sync_File_Naming::SETTING_MODE ]   = Skwirrel_WC_Sync_File_Naming::sanitize_mode( $input[ Skwirrel_WC_Sync_File_Naming::SETTING_MODE ] ?? null );
+		$out[ Skwirrel_WC_Sync_File_Redirects::SETTING ]     = ! empty( $input[ Skwirrel_WC_Sync_File_Redirects::SETTING ] );
+		$out[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] = Skwirrel_WC_Sync_File_Naming::sanitize_prefix( $input[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] ?? '' );
+		// Until a prefix was saved once, an empty field means "not chosen yet", not "no prefix": on a new
+		// site the endpoint is typed in the same form, so the field was still empty when it rendered.
+		$stored = get_option( self::OPTION_KEY, [] );
+		if ( '' === $out[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] && ! ( is_array( $stored ) && array_key_exists( Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX, $stored ) ) ) {
+			$out[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] = Skwirrel_WC_Sync_File_Naming::default_prefix( $out['endpoint_url'] );
+		}
+		$out['log_retention'] = in_array( $input['log_retention'] ?? '', [ '12hours', '1day', '2days', '7days', '30days', 'manual' ], true )
 			? $input['log_retention']
 			: '7days';
 		return $out;
@@ -2468,6 +2477,18 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. ' if (!initial && window.location.hash.indexOf("#tab-") === 0) { initial = tabBySlug(window.location.hash.slice(5)); }'
 			. ' if (!initial) { for (var j = 0; j < tabs.length; j++) { if (tabs[j].getAttribute("aria-selected") === "true") { initial = tabs[j]; break; } } }'
 			. ' activate(initial || tabs[0], { focus: false, hash: false });'
+			// options.php sends the browser back to the referer after saving. A URL fragment is never part
+			// of the posted referer, so carry the open tab in it: the save then lands on the same tab.
+			. ' if (form) {'
+			. '  form.addEventListener("submit", function() {'
+			. '   var ref = form.querySelector("input[name=_wp_http_referer]");'
+			. '   var open = null;'
+			. '   tabs.forEach(function(t) { if (t.getAttribute("aria-selected") === "true") { open = t; } });'
+			. '   var slug = open ? open.getAttribute("data-skw-tab") : "";'
+			. '   if (!ref || !slug) return;'
+			. '   ref.value = ref.value.replace(/#.*$/, "") + "#tab-" + slug;'
+			. '  });'
+			. ' }'
 			// A required control inside a hidden panel is not focusable, so the browser refuses to
 			// report it ("An invalid form control ... is not focusable") and the save silently fails.
 			// Open the panel that holds the first invalid control before native validation runs.

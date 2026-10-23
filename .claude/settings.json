@@ -9,7 +9,12 @@
       "Bash(vendor/bin/phpcbf *)",
       "Bash(git *)",
       "Bash(ls *)",
-      "Bash(mkdir *)"
+      "Bash(mkdir *)",
+      "Bash(gh project field-list *)",
+      "Bash(gh project item-list *)",
+      "Bash(gh project view *)",
+      "Bash(gh project list *)",
+      "Bash(vendor/bin/pest)"
     ],
     "deny": [
       "Bash(rm -rf *)",

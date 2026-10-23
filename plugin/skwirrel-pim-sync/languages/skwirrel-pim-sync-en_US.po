@@ -2995,3 +2995,184 @@ msgid "%s shown as tab"
 msgid_plural "%s shown as tab"
 msgstr[0] "%s shown as tab"
 msgstr[1] "%s shown as tab"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Files"
+msgstr "Files"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "File names"
+msgstr "File names"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "How images and documents downloaded from Skwirrel are named in the media library. Applies to new downloads."
+msgstr "How images and documents downloaded from Skwirrel are named in the media library. Applies to new downloads."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Naming"
+msgstr "Naming"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Plugin naming (default)"
+msgstr "Plugin naming (default)"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Files are saved as skwirrel-<code>-<number>.ext, whatever name was entered in Skwirrel."
+msgstr "Files are saved as skwirrel-<code>-<number>.ext, whatever name was entered in Skwirrel."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Prefix + Skwirrel file name"
+msgstr "Prefix + Skwirrel file name"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "The file name from Skwirrel with your own prefix in front, for example acme-datasheet.pdf."
+msgstr "The file name from Skwirrel with your own prefix in front, for example acme-datasheet.pdf."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Skwirrel file name as is"
+msgstr "Skwirrel file name as is"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "The file name from Skwirrel, unchanged. Risk: the name becomes part of the file's public URL, so whatever is entered as a file name in Skwirrel is visible there. Names are not guaranteed to be unique: a clash with a file that already exists (for example from a manual upload) gets -1, -2 appended."
+msgstr "The file name from Skwirrel, unchanged. Risk: the name becomes part of the file's public URL, so whatever is entered as a file name in Skwirrel is visible there. Names are not guaranteed to be unique: a clash with a file that already exists (for example from a manual upload) gets -1, -2 appended."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Prefix"
+msgstr "Prefix"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Only used with \"Prefix + Skwirrel file name\". Capitals are kept; characters that are not safe in a file name are replaced."
+msgstr "Only used with \"Prefix + Skwirrel file name\". Capitals are kept; characters that are not safe in a file name are replaced."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "If a file has no usable name or extension in Skwirrel, the plugin naming is used for that file and a warning is logged. A file name that already exists gets -1, -2 appended; existing files are never overwritten."
+msgstr "If a file has no usable name or extension in Skwirrel, the plugin naming is used for that file and a warning is logged. A file name that already exists gets -1, -2 appended; existing files are never overwritten."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Rename existing files"
+msgstr "Rename existing files"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Give files that were imported earlier the name from Skwirrel. First see what would change; nothing is renamed by looking."
+msgstr "Give files that were imported earlier the name from Skwirrel. First see what would change; nothing is renamed by looking."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming is switched off on this site, usually because uploads are stored on remote storage by another plugin. Renaming local copies would leave the remote files with the old name."
+msgstr "Renaming is switched off on this site, usually because uploads are stored on remote storage by another plugin. Renaming local copies would leave the remote files with the old name."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Preview renaming"
+msgstr "Preview renaming"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Choose \"Prefix + Skwirrel file name\" or \"Skwirrel file name as is\" above and save the settings first. Renaming is not available with the plugin naming."
+msgstr "Choose \"Prefix + Skwirrel file name\" or \"Skwirrel file name as is\" above and save the settings first. Renaming is not available with the plugin naming."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Skipped, run a sync first"
+msgstr "Skipped, run a sync first"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Skipped, no usable name in Skwirrel"
+msgstr "Skipped, no usable name in Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Skipped, file not on this server"
+msgstr "Skipped, file not on this server"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Make a backup first."
+msgstr "Make a backup first."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming changes files on disk and the links to them. Back up your uploads folder and database before you continue."
+msgstr "Renaming changes files on disk and the links to them. Back up your uploads folder and database before you continue."
+
+#. translators: 1: number of files to rename, 2: number already named correctly, 3: number skipped
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+#, php-format
+msgid "%1$s to rename, %2$s already named correctly, %3$s skipped."
+msgstr "%1$s to rename, %2$s already named correctly, %3$s skipped."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "There are no files to rename."
+msgstr "There are no files to rename."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Current name"
+msgstr "Current name"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "New name"
+msgstr "New name"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Skipped files"
+msgstr "Skipped files"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Rename these files now? Make sure you have a backup of your uploads folder and database."
+msgstr "Rename these files now? Make sure you have a backup of your uploads folder and database."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Rename files"
+msgstr "Rename files"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming could not be started. Check that a naming mode other than the plugin naming is saved, and that a rename is not already running."
+msgstr "Renaming could not be started. Check that a naming mode other than the plugin naming is saved, and that a rename is not already running."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming files…"
+msgstr "Renaming files…"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming finished."
+msgstr "Renaming finished."
+
+#. translators: 1: files handled so far, 2: files to handle in total, 3: renamed, 4: skipped, 5: failed
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+#, php-format
+msgid "%1$s of %2$s handled: %3$s renamed, %4$s skipped, %5$s failed. Every rename is in the log."
+msgstr "%1$s of %2$s handled: %3$s renamed, %4$s skipped, %5$s failed. Every rename is in the log."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Redirect old file links to the renamed file"
+msgstr "Redirect old file links to the renamed file"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Someone who opens the old URL of a renamed file is sent permanently (301) to the new one. Switch this off and the old URLs stop working."
+msgstr "Someone who opens the old URL of a renamed file is sent permanently (301) to the new one. Switch this off and the old URLs stop working."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "This only works when your web server hands requests for missing files in the uploads folder to WordPress. Apache with the standard WordPress rules does. On nginx, make sure the uploads location ends in try_files $uri $uri/ /index.php?$args; instead of try_files $uri =404;. If the server answers the 404 itself, WordPress never sees the request and the old link stays broken."
+msgstr "This only works when your web server hands requests for missing files in the uploads folder to WordPress. Apache with the standard WordPress rules does. On nginx, make sure the uploads location ends in try_files $uri $uri/ /index.php?$args; instead of try_files $uri =404;. If the server answers the 404 itself, WordPress never sees the request and the old link stays broken."
+
+#: includes/class-skwirrel-wc-sync-product-list-filter.php
+msgid "All products"
+msgstr "All products"
+
+#: includes/class-skwirrel-wc-sync-product-list-filter.php
+msgid "Managed in Skwirrel"
+msgstr "Managed in Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-product-list-filter.php
+msgid "Not managed in Skwirrel"
+msgstr "Not managed in Skwirrel"
+
+#: includes/class-skwirrel-wc-sync-product-list-filter.php
+msgid "Filter by Skwirrel management"
+msgstr "Filter by Skwirrel management"
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Renaming has stalled. You can preview and start it again; files that are already renamed are skipped."
+msgstr "Renaming has stalled. You can preview and start it again; files that are already renamed are skipped."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "You changed the file naming above. Save the settings first; then you can preview and rename the existing files."
+msgstr "You changed the file naming above. Save the settings first; then you can preview and rename the existing files."
+
+#. translators: 1: number of files listed, 2: number of files to rename
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Showing %1$s of %2$s"
+msgstr "Showing %1$s of %2$s"

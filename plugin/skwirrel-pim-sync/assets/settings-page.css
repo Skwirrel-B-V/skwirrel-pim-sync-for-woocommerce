@@ -97,6 +97,8 @@
 .skw-settings-page .ph-clock-clockwise:before { content: '\e19e'; }
 .skw-settings-page .ph-file-text:before { content: '\e23a'; }
 .skw-settings-page .ph-link-simple:before { content: '\e2e6'; }
+.skw-settings-page .ph-file-image:before { content: '\ea24'; }
+.skw-settings-page .ph-pencil-simple:before { content: '\e3b4'; }
 .skw-settings-page .ph-sliders-horizontal:before { content: '\e434'; }
 .skw-settings-page .ph-warning-octagon:before { content: '\e4e4'; }
 .skw-settings-page .ph-bug:before { content: '\e5f4'; }
@@ -639,4 +641,50 @@
 	line-height: 1.2;
 	margin: 0;
 	color: var(--color-error);
+}
+
+/* Rename preview (Files tab): same plain card as the status mapping table. */
+.skw-settings-page .skw-rename-table {
+	width: 100%;
+	margin: 12px 0 0;
+	border: 1px solid rgb(28 31 38 / .1);
+	border-radius: var(--radius-sm);
+	border-collapse: separate;
+	border-spacing: 0;
+	overflow: hidden;
+	background: #fff;
+	table-layout: fixed;
+}
+.skw-settings-page .skw-rename-table thead th {
+	background: hsl(220 100% 98%);
+	border-bottom: 1px solid rgb(28 31 38 / .1);
+	padding: 10px 16px;
+	font-family: var(--font-display);
+	font-weight: 600;
+	font-size: 13px;
+	color: var(--color-neutral-light);
+	text-align: left;
+}
+.skw-settings-page .skw-rename-table tbody td {
+	padding: 10px 16px;
+	border-bottom: 1px solid rgb(28 31 38 / .06);
+	vertical-align: middle;
+	font-family: var(--font-body);
+	font-size: 14px;
+	font-weight: 300;
+	color: var(--color-neutral-light);
+	overflow-wrap: anywhere;
+}
+.skw-settings-page .skw-rename-table tbody td + td {
+	font-weight: 500;
+	color: var(--color-neutral);
+}
+.skw-settings-page .skw-rename-table tbody tr:last-child td {
+	border-bottom: 0;
+}
+.skw-settings-page .skw-rename-more {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin: 12px 0 20px;
 }

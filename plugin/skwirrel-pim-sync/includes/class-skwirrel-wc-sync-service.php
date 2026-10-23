@@ -302,22 +302,23 @@ class Skwirrel_WC_Sync_Service {
 
 		// Build API include flags — keep the fetch lightweight (no ETIM/custom classes).
 		$api_includes = [
-			'include_product_status'       => true,
-			'include_product_translations' => true,
-			'include_attachments'          => true,
-			'include_trade_items'          => true,
-			'include_trade_item_prices'    => true,
-			'include_categories'           => ! empty( $options['sync_categories'] ),
-			'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
-			'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
-			'include_related_products'     => ! empty( $options['sync_related_products'] ),
-			'include_languages'            => $this->get_include_languages(),
+			'include_product_status'          => true,
+			'include_product_translations'    => true,
+			'include_attachments'             => true,
+			'include_attachment_translations' => true,
+			'include_trade_items'             => true,
+			'include_trade_item_prices'       => true,
+			'include_categories'              => ! empty( $options['sync_categories'] ),
+			'include_product_groups'          => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
+			'include_grouped_products'        => ! empty( $options['sync_grouped_products'] ),
+			'include_related_products'        => ! empty( $options['sync_related_products'] ),
+			'include_languages'               => $this->get_product_request_languages(),
 			// From the run's own settings snapshot, not the live option. Everything else this run
 			// does with the context — the category tree, the membership sweep, the per-product
 			// writes — resolves it from `$options`, and a save landing between that snapshot and
 			// this line would otherwise fetch products from one context while the rest of the run
 			// reasoned about another.
-			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ],
+			'include_contexts'                => Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ],
 		];
 
 		$sync_cc        = ! empty( $options['sync_custom_classes'] );
@@ -492,6 +493,30 @@ class Skwirrel_WC_Sync_Service {
 	 * @return string 'continue' (more work — re-invoke), 'done', or 'failed'.
 	 */
 	public function run_step( array &$ctx, float $deadline ): string {
+		// File naming comes from the run's own settings snapshot, like every other output-affecting
+		// setting: saving another mode between two steps must not name later files differently.
+		$snapshot = is_array( $ctx['options'] ?? null ) ? $ctx['options'] : [];
+		Skwirrel_WC_Sync_File_Naming::override_config(
+			[
+				'mode'   => (string) ( $snapshot[ Skwirrel_WC_Sync_File_Naming::SETTING_MODE ] ?? Skwirrel_WC_Sync_File_Naming::MODE_CURRENT ),
+				'prefix' => (string) ( $snapshot[ Skwirrel_WC_Sync_File_Naming::SETTING_PREFIX ] ?? '' ),
+			]
+		);
+		try {
+			return $this->run_step_frozen( $ctx, $deadline );
+		} finally {
+			Skwirrel_WC_Sync_File_Naming::override_config( null );
+		}
+	}
+
+	/**
+	 * The sync step itself, running under the run's frozen file naming.
+	 *
+	 * @param array<string, mixed> $ctx      Run context (by reference).
+	 * @param float                $deadline Microtime after which the step must yield.
+	 * @return string 'continue', 'done' or 'failed'.
+	 */
+	private function run_step_frozen( array &$ctx, float $deadline ): string {
 		// Re-attach to this run's log file (no-op on the synchronous path where it is already open).
 		$this->logger->resume_sync_log( (string) ( $ctx['log_file'] ?? '' ) );
 		// Apply the change gate for every step's upserter operations (grouped products, commits, …),
@@ -2046,19 +2071,20 @@ class Skwirrel_WC_Sync_Service {
 		}
 
 		$req_options = [
-			'include_product_status'       => true,
-			'include_product_translations' => true,
-			'include_attachments'          => true,
-			'include_trade_items'          => true,
-			'include_trade_item_prices'    => true,
-			'include_categories'           => ! empty( $options['sync_categories'] ),
-			'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
-			'include_grouped_products'     => ! empty( $options['sync_grouped_products'] ),
-			'include_related_products'     => ! empty( $options['sync_related_products'] ),
-			'include_etim'                 => self::needs_etim_payload( $options ),
-			'include_etim_translations'    => self::needs_etim_payload( $options ),
-			'include_languages'            => $this->get_include_languages(),
-			'include_contexts'             => Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ],
+			'include_product_status'          => true,
+			'include_product_translations'    => true,
+			'include_attachments'             => true,
+			'include_attachment_translations' => true,
+			'include_trade_items'             => true,
+			'include_trade_item_prices'       => true,
+			'include_categories'              => ! empty( $options['sync_categories'] ),
+			'include_product_groups'          => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
+			'include_grouped_products'        => ! empty( $options['sync_grouped_products'] ),
+			'include_related_products'        => ! empty( $options['sync_related_products'] ),
+			'include_etim'                    => self::needs_etim_payload( $options ),
+			'include_etim_translations'       => self::needs_etim_payload( $options ),
+			'include_languages'               => $this->get_product_request_languages(),
+			'include_contexts'                => Skwirrel_WC_Sync_Admin_Settings::context_ids_from_options( $options ) ?? [ 1 ],
 		];
 
 		$sync_cc              = ! empty( $options['sync_custom_classes'] );
@@ -2363,19 +2389,20 @@ class Skwirrel_WC_Sync_Service {
 		}
 
 		$req_options = [
-			'include_product_status'       => true,
-			'include_product_translations' => true,
-			'include_attachments'          => true,
-			'include_trade_items'          => true,
-			'include_trade_item_prices'    => true,
-			'include_categories'           => ! empty( $options['sync_categories'] ),
-			'include_product_groups'       => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
-			'include_grouped_products'     => true,
-			'include_related_products'     => ! empty( $options['sync_related_products'] ),
-			'include_etim'                 => true,
-			'include_etim_translations'    => true,
-			'include_languages'            => $this->get_include_languages(),
-			'include_contexts'             => $context_ids ?? [ 1 ],
+			'include_product_status'          => true,
+			'include_product_translations'    => true,
+			'include_attachments'             => true,
+			'include_attachment_translations' => true,
+			'include_trade_items'             => true,
+			'include_trade_item_prices'       => true,
+			'include_categories'              => ! empty( $options['sync_categories'] ),
+			'include_product_groups'          => ! empty( $options['sync_categories'] ) || ! empty( $options['sync_grouped_products'] ),
+			'include_grouped_products'        => true,
+			'include_related_products'        => ! empty( $options['sync_related_products'] ),
+			'include_etim'                    => true,
+			'include_etim_translations'       => true,
+			'include_languages'               => $this->get_product_request_languages(),
+			'include_contexts'                => $context_ids ?? [ 1 ],
 		];
 
 		$sync_cc              = ! empty( $options['sync_custom_classes'] );
@@ -2770,6 +2797,40 @@ class Skwirrel_WC_Sync_Service {
 	/** Warning shown when an unattended empty sweep is not trusted as authoritative. */
 	private static function scheduled_empty_sweep_warning(): string {
 		return __( 'Removal skipped: the membership sweep returned an empty selection. Nothing was removed during this scheduled run; run a manual sync to confirm and apply an intentionally empty selection.', 'skwirrel-pim-sync' );
+	}
+
+	/**
+	 * Languages for the product requests: the configured include_languages, plus the content
+	 * language (image_language), which the attachment titles and captions are picked in. Without it
+	 * a content language outside include_languages gets no translation back, and the texts would
+	 * fall back to some other language.
+	 *
+	 * @return string[]
+	 */
+	private function get_product_request_languages(): array {
+		$opts = get_option( 'skwirrel_wc_sync_settings', [] );
+		return self::merge_content_language( $this->get_include_languages(), (string) ( is_array( $opts ) ? ( $opts['image_language'] ?? 'nl' ) : 'nl' ) );
+	}
+
+	/**
+	 * Add the content language to a language list unless it is already there (compared without case).
+	 *
+	 * @param string[] $languages        Requested languages.
+	 * @param string   $content_language Content language, e.g. `nl` or `fr-FR`.
+	 * @return string[]
+	 */
+	public static function merge_content_language( array $languages, string $content_language ): array {
+		$content_language = trim( sanitize_text_field( $content_language ) );
+		if ( '' === $content_language ) {
+			return $languages;
+		}
+		foreach ( $languages as $language ) {
+			if ( 0 === strcasecmp( $language, $content_language ) ) {
+				return $languages;
+			}
+		}
+		$languages[] = $content_language;
+		return $languages;
 	}
 
 	private function get_include_languages(): array {

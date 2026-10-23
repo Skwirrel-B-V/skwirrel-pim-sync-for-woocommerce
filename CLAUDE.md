@@ -71,6 +71,11 @@ All class files follow `class-skwirrel-wc-sync-{slug}.php` (the WordPress coding
 | `Skwirrel_WC_Sync_Attribute_Sources` | `class-skwirrel-wc-sync-attribute-sources.php` | Records per attribute where it comes from (ETIM, custom class, identifier, variant) during sync |
 | `Skwirrel_WC_Sync_Product_Sync_Meta_Box` | `class-skwirrel-wc-sync-product-sync-meta-box.php` | Admin meta box on product edit screen |
 | `Skwirrel_WC_Sync_Delete_Protection` | `class-skwirrel-wc-sync-delete-protection.php` | Delete warnings + force full sync after WC deletion |
+| `Skwirrel_WC_Sync_File_Naming` | `class-skwirrel-wc-sync-file-naming.php` | Decides the file name of downloaded images/documents (Settings → Files modes; filter `skwirrel_wc_sync_upload_filename`) |
+| `Skwirrel_WC_Sync_File_Renamer` | `class-skwirrel-wc-sync-file-renamer.php` | Read-only preview of renaming already imported files |
+| `Skwirrel_WC_Sync_File_Rename_Job` | `class-skwirrel-wc-sync-file-rename-job.php` | Renames imported files in Action Scheduler batches, rewrites links, records old paths |
+| `Skwirrel_WC_Sync_File_Redirects` | `class-skwirrel-wc-sync-file-redirects.php` | 301 redirects from old upload URLs of renamed files |
+| `Skwirrel_WC_Sync_Product_List_Filter` | `class-skwirrel-wc-sync-product-list-filter.php` | "Managed in Skwirrel" dropdown on Products → All Products |
 | `Skwirrel_WC_Sync_Theme_API` | `class-skwirrel-wc-sync-theme-api.php` (+ `theme-api-functions.php`) | Public theme helper API |
 
 ### External API
@@ -107,6 +112,9 @@ Authentication: Bearer token or `X-Skwirrel-Api-Token` header.
 | `_skwirrel_url_hash` | SHA-256 hash of source URL (media deduplication) |
 | `_skwirrel_document_attachments` | Serialized array of document metadata |
 | `_skwirrel_category_id` | Skwirrel category ID (term meta on WC product_cat terms) |
+| `_skwirrel_file_name` | Skwirrel `file_name` the attachment was imported with (compared in file naming modes B/C) |
+| `_skwirrel_previous_file_name` | Earlier file name of a renamed attachment (one row per rename) |
+| `_skwirrel_old_upload_path` | `old relative path<TAB>current relative path` of a renamed file, one row per file (redirects) |
 
 ## WP Options
 
@@ -121,6 +129,7 @@ Authentication: Bearer token or `X-Skwirrel-Api-Token` header.
 | `skwirrel_wc_sync_force_full_sync` | Flag: next scheduled sync runs as full sync (set after WC deletion) |
 | `skwirrel_wc_sync_attribute_groups` | Attribute groups `{groups: {id: {name, position, as_tab, hidden, admin_hidden, includes}}, assignments: {attribute slug: group id or '__none'}}`; automatic groups (`src-*`) store only overrides |
 | `skwirrel_wc_sync_attribute_sources` | Attribute source per slug `{slug: {source, class_key, class_name}}`, written by the sync (not autoloaded) |
+| `skwirrel_wc_sync_rename_job` | State of the file rename job `{status, total, processed, renamed, skipped, failed, last_id, started, finished, updated}` (not autoloaded) |
 
 ## Sync Flow
 
@@ -157,6 +166,9 @@ Authentication: Bearer token or `X-Skwirrel-Api-Token` header.
 | `include_languages` | array | `['nl-NL','nl']` | Language codes to include in API calls |
 | `image_language` | string | `'nl'` | Preferred language for image selection |
 | `verbose_logging` | bool | `false` | Enable verbose sync logging |
+| `file_naming_mode` | string | `current` | File naming for downloads: `current`, `prefix` (prefix + Skwirrel `file_name`) or `original` (`file_name` as is) |
+| `file_naming_prefix` | string | `''` | Prefix for mode `prefix` |
+| `file_redirect_old_links` | bool | `true` | 301-redirect old upload URLs of renamed files (missing key = on) |
 
 ### Permalink Settings (in `skwirrel_wc_sync_permalinks` option, configured via Settings → Permalinks)
 
