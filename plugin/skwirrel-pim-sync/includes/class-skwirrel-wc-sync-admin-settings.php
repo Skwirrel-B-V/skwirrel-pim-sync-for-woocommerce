@@ -2471,6 +2471,18 @@ class Skwirrel_WC_Sync_Admin_Settings {
 			. ' if (!initial && window.location.hash.indexOf("#tab-") === 0) { initial = tabBySlug(window.location.hash.slice(5)); }'
 			. ' if (!initial) { for (var j = 0; j < tabs.length; j++) { if (tabs[j].getAttribute("aria-selected") === "true") { initial = tabs[j]; break; } } }'
 			. ' activate(initial || tabs[0], { focus: false, hash: false });'
+			// options.php sends the browser back to the referer after saving. A URL fragment is never part
+			// of the posted referer, so carry the open tab in it: the save then lands on the same tab.
+			. ' if (form) {'
+			. '  form.addEventListener("submit", function() {'
+			. '   var ref = form.querySelector("input[name=_wp_http_referer]");'
+			. '   var open = null;'
+			. '   tabs.forEach(function(t) { if (t.getAttribute("aria-selected") === "true") { open = t; } });'
+			. '   var slug = open ? open.getAttribute("data-skw-tab") : "";'
+			. '   if (!ref || !slug) return;'
+			. '   ref.value = ref.value.replace(/#.*$/, "") + "#tab-" + slug;'
+			. '  });'
+			. ' }'
 			// A required control inside a hidden panel is not focusable, so the browser refuses to
 			// report it ("An invalid form control ... is not focusable") and the save silently fails.
 			// Open the panel that holds the first invalid control before native validation runs.

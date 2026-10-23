@@ -643,30 +643,44 @@
 	color: var(--color-error);
 }
 
-/* Rename preview (Files tab) */
+/* Rename preview (Files tab): same plain card as the status mapping table. */
 .skw-settings-page .skw-rename-table {
 	width: 100%;
-	border-collapse: collapse;
 	margin: 12px 0 0;
-	font-size: 13px;
-	border: 1px solid #e5e7eb;
-	border-radius: 8px;
+	border: 1px solid rgb(28 31 38 / .1);
+	border-radius: var(--radius-sm);
+	border-collapse: separate;
+	border-spacing: 0;
 	overflow: hidden;
-}
-.skw-settings-page .skw-rename-table th,
-.skw-settings-page .skw-rename-table td {
-	padding: 10px 14px;
-	text-align: left;
-	word-break: break-all;
+	background: #fff;
+	table-layout: fixed;
 }
 .skw-settings-page .skw-rename-table thead th {
-	background: #f9fafb;
+	background: hsl(220 100% 98%);
+	border-bottom: 1px solid rgb(28 31 38 / .1);
+	padding: 10px 16px;
+	font-family: var(--font-display);
 	font-weight: 600;
-	color: #374151;
-	border-bottom: 1px solid #e5e7eb;
+	font-size: 13px;
+	color: var(--color-neutral-light);
+	text-align: left;
 }
-.skw-settings-page .skw-rename-table tbody tr + tr td {
-	border-top: 1px solid #f3f4f6;
+.skw-settings-page .skw-rename-table tbody td {
+	padding: 10px 16px;
+	border-bottom: 1px solid rgb(28 31 38 / .06);
+	vertical-align: middle;
+	font-family: var(--font-body);
+	font-size: 14px;
+	font-weight: 300;
+	color: var(--color-neutral-light);
+	overflow-wrap: anywhere;
+}
+.skw-settings-page .skw-rename-table tbody td + td {
+	font-weight: 500;
+	color: var(--color-neutral);
+}
+.skw-settings-page .skw-rename-table tbody tr:last-child td {
+	border-bottom: 0;
 }
 .skw-settings-page .skw-rename-more {
 	display: flex;
