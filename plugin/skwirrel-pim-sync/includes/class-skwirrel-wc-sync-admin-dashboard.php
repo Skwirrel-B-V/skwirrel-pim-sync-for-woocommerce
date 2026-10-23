@@ -22,6 +22,9 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	private const OPTION_KEY = 'skwirrel_wc_sync_settings';
 	private const MASK       = '••••••••';
 
+	/** Files listed per step in the rename preview. */
+	private const RENAME_PAGE_SIZE = 10;
+
 	/**
 	 * Language options available in dropdowns.
 	 */
@@ -2115,8 +2118,8 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- verified below with wp_verify_nonce(); the preview is read-only.
 		$show_preview = isset( $_GET['skw_rename_preview'] ) && current_user_can( 'manage_woocommerce' )
 			&& isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'skwirrel_rename_preview' );
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- paging a read-only preview, nonce verified above.
-		$page = isset( $_GET['rename_page'] ) ? max( 1, absint( $_GET['rename_page'] ) ) : 1;
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- growing a read-only preview, nonce verified above.
+		$shown = isset( $_GET['rename_shown'] ) ? max( self::RENAME_PAGE_SIZE, absint( $_GET['rename_shown'] ) ) : self::RENAME_PAGE_SIZE;
 		?>
 		<div class="skw-fieldgroup" id="skwirrel-rename-files">
 			<div class="skw-fg-head">
@@ -2163,7 +2166,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<?php $this->render_file_redirect_option(); ?>
 			<?php
 			if ( $show_preview && $can_rename && Skwirrel_WC_Sync_File_Naming::MODE_CURRENT !== $mode ) {
-				$this->render_file_rename_preview( Skwirrel_WC_Sync_File_Renamer::preview( $page ), $preview_url );
+				$this->render_file_rename_preview( Skwirrel_WC_Sync_File_Renamer::preview( 1, $shown ), $preview_url, $shown );
 			}
 			?>
 		</div>
@@ -2244,7 +2247,7 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 	 * @param array<string,mixed> $preview     Preview data.
 	 * @param string              $preview_url Preview link (nonce included), for paging.
 	 */
-	private function render_file_rename_preview( array $preview, string $preview_url ): void {
+	private function render_file_rename_preview( array $preview, string $preview_url, int $shown ): void {
 		$counts = (array) $preview['counts'];
 		$rows   = (array) $preview['rows'];
 		$labels = [
@@ -2275,37 +2278,38 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 		<?php if ( empty( $rows ) && 0 === (int) $counts[ Skwirrel_WC_Sync_File_Renamer::STATUS_RENAME ] ) : ?>
 			<p class="skw-field-hint"><?php esc_html_e( 'There are no files to rename.', 'skwirrel-pim-sync' ); ?></p>
 		<?php else : ?>
-			<div class="skw-table-wrap">
-				<table class="skw-table">
-					<thead>
+			<table class="skw-rename-table">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Current name', 'skwirrel-pim-sync' ); ?></th>
+						<th><?php esc_html_e( 'New name', 'skwirrel-pim-sync' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $rows as $row ) : ?>
 						<tr>
-							<th class="skw-th-left"><?php esc_html_e( 'Current name', 'skwirrel-pim-sync' ); ?></th>
-							<th class="skw-th-left"><?php esc_html_e( 'New name', 'skwirrel-pim-sync' ); ?></th>
+							<td><?php echo esc_html( (string) $row['old'] ); ?></td>
+							<td><?php echo esc_html( (string) $row['new'] ); ?></td>
 						</tr>
-					</thead>
-					<tbody>
-						<?php foreach ( $rows as $row ) : ?>
-							<tr>
-								<td><?php echo esc_html( (string) $row['old'] ); ?></td>
-								<td><?php echo esc_html( (string) $row['new'] ); ?></td>
-							</tr>
-						<?php endforeach; ?>
-					</tbody>
-				</table>
-			</div>
-			<?php if ( (int) $preview['pages'] > 1 ) : ?>
-				<p class="skw-field-hint">
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+			<?php $total = (int) $counts[ Skwirrel_WC_Sync_File_Renamer::STATUS_RENAME ]; ?>
+			<p class="skw-rename-more">
+				<span class="skw-field-hint">
 					<?php
-					for ( $i = 1; $i <= (int) $preview['pages']; $i++ ) {
-						if ( $i === (int) $preview['page'] ) {
-							echo '<strong>' . esc_html( (string) $i ) . '</strong> ';
-						} else {
-							printf( '<a href="%s">%s</a> ', esc_url( add_query_arg( 'rename_page', $i, $preview_url ) ), esc_html( (string) $i ) );
-						}
-					}
+					printf(
+						/* translators: 1: number of files listed, 2: number of files to rename */
+						esc_html__( 'Showing %1$s of %2$s', 'skwirrel-pim-sync' ),
+						esc_html( number_format_i18n( count( $rows ) ) ),
+						esc_html( number_format_i18n( $total ) )
+					);
 					?>
-				</p>
-			<?php endif; ?>
+				</span>
+				<?php if ( $total > count( $rows ) ) : ?>
+					<a href="<?php echo esc_url( add_query_arg( 'rename_shown', $shown + self::RENAME_PAGE_SIZE, $preview_url ) ); ?>" class="skw-btn skw-btn-secondary"><?php esc_html_e( 'Load more', 'skwirrel-pim-sync' ); ?></a>
+				<?php endif; ?>
+			</p>
 		<?php endif; ?>
 		<?php if ( ! empty( $preview['skipped'] ) ) : ?>
 			<h4><?php esc_html_e( 'Skipped files', 'skwirrel-pim-sync' ); ?></h4>

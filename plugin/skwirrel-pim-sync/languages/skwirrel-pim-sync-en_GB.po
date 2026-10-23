@@ -3171,3 +3171,8 @@ msgstr "Renaming has stalled. You can preview and start it again; files that are
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "You changed the file naming above. Save the settings first; then you can preview and rename the existing files."
 msgstr "You changed the file naming above. Save the settings first; then you can preview and rename the existing files."
+
+#. translators: 1: number of files listed, 2: number of files to rename
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
+msgid "Showing %1$s of %2$s"
+msgstr "Showing %1$s of %2$s"

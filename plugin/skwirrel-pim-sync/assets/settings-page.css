@@ -642,3 +642,35 @@
 	margin: 0;
 	color: var(--color-error);
 }
+
+/* Rename preview (Files tab) */
+.skw-settings-page .skw-rename-table {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 12px 0 0;
+	font-size: 13px;
+	border: 1px solid #e5e7eb;
+	border-radius: 8px;
+	overflow: hidden;
+}
+.skw-settings-page .skw-rename-table th,
+.skw-settings-page .skw-rename-table td {
+	padding: 10px 14px;
+	text-align: left;
+	word-break: break-all;
+}
+.skw-settings-page .skw-rename-table thead th {
+	background: #f9fafb;
+	font-weight: 600;
+	color: #374151;
+	border-bottom: 1px solid #e5e7eb;
+}
+.skw-settings-page .skw-rename-table tbody tr + tr td {
+	border-top: 1px solid #f3f4f6;
+}
+.skw-settings-page .skw-rename-more {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin: 12px 0 20px;
+}
