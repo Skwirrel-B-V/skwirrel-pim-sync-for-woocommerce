@@ -21,6 +21,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 	private const META_SKWIRREL_FILE_CHECKSUM = '_skwirrel_file_checksum';
 	private const META_SKWIRREL_FILE_NAME     = '_skwirrel_file_name';
 
+	/** Set while the attachment carries a Title/Caption that came from Skwirrel, so clearing it there clears it here. */
+	private const META_SKWIRREL_TEXTS_SYNCED = '_skwirrel_texts_synced';
+
 	/** Image attachment type codes (from Skwirrel schema: PPI=Picture, PHI=Picture print, LOG=Logo, SCH=Diagram, PRT=Presentation, OTV=Other visual). */
 	private const IMAGE_TYPES = [ 'IMG', 'PPI', 'PHI', 'LOG', 'SCH', 'PRT', 'OTV' ];
 
@@ -586,6 +589,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 		if ( '' !== $file_name ) {
 			update_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, $file_name );
 		}
+		if ( '' !== $this->incoming_text( $api_meta, 'title' ) || '' !== $this->incoming_text( $api_meta, 'caption' ) ) {
+			update_post_meta( $attachment_id, self::META_SKWIRREL_TEXTS_SYNCED, 1 );
+		}
 	}
 
 	/**
@@ -611,8 +617,22 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$title   = $this->incoming_text( $api_meta, 'title' );
 		$caption = $this->incoming_text( $api_meta, 'caption' );
 		if ( '' === $title && '' === $caption ) {
+			// Skwirrel supplied nothing now. If it supplied a text before, that text was cleared there:
+			// the Caption goes too. Otherwise the texts on the attachment are not ours to touch.
+			if ( '' !== (string) get_post_meta( $attachment_id, self::META_SKWIRREL_TEXTS_SYNCED, true ) ) {
+				if ( '' !== (string) get_post_field( 'post_excerpt', $attachment_id ) ) {
+					wp_update_post(
+						[
+							'ID'           => $attachment_id,
+							'post_excerpt' => '',
+						]
+					);
+				}
+				delete_post_meta( $attachment_id, self::META_SKWIRREL_TEXTS_SYNCED );
+			}
 			return;
 		}
+		update_post_meta( $attachment_id, self::META_SKWIRREL_TEXTS_SYNCED, 1 );
 		$fields = [];
 		if ( '' !== $title && (string) get_post_field( 'post_title', $attachment_id ) !== $title ) {
 			$fields['post_title'] = $title;

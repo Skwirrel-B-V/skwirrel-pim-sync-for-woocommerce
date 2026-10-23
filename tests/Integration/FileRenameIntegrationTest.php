@@ -74,7 +74,7 @@ test( 'an imported image is renamed with all its sizes, links are rewritten and 
 		[
 			'post_title'   => 'Uses the image',
 			'post_status'  => 'publish',
-			'post_content' => '<img src="' . $upload['baseurl'] . '/' . $old_rel . '"><img src="' . $upload['baseurl'] . '/' . $old_size_rel . '">',
+			'post_content' => '<img src="' . $upload['baseurl'] . '/' . $old_rel . '"><img src="' . $upload['baseurl'] . '/' . $old_size_rel . '"><a href="https://vendor.example/' . $old_rel . '">other site</a>',
 		]
 	);
 	update_post_meta( $post_id, '_hero', [ 'url' => $upload['baseurl'] . '/' . $old_rel ] );
@@ -99,7 +99,9 @@ test( 'an imported image is renamed with all its sizes, links are rewritten and 
 	// Links to the old file in content and in (serialized) meta now point at the new one.
 	$content = (string) get_post_field( 'post_content', $post_id );
 	expect( $content )->toContain( dirname( $old_rel ) . '/Vloerverwarming.jpg' );
-	expect( $content )->not->toContain( basename( $old_path ) );
+	// Another site's URL that happens to end in the same path is not ours to change.
+	expect( $content )->toContain( 'https://vendor.example/' . $old_rel );
+	expect( str_replace( 'https://vendor.example/' . $old_rel, '', $content ) )->not->toContain( basename( $old_path ) );
 	expect( get_post_meta( $post_id, '_hero', true )['url'] )->toContain( 'Vloerverwarming.jpg' );
 
 	// The old name is kept and the old URLs redirect to the new ones, sizes included.

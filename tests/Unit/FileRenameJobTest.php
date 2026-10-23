@@ -205,3 +205,17 @@ test('a size that is listed but gone from disk is neither moved nor renamed in t
 	expect($plan['meta']['sizes']['thumbnail']['file'])->toBe('foto-150x150.jpg');
 	expect($plan['meta']['sizes']['medium']['file'])->toBe('skwirrel-a-1-300x200.jpg');
 });
+
+test('with anchors only links into this site\'s uploads are rewritten', function () {
+	$pairs   = ['foo.jpg' => 'new.jpg'];
+	$anchors = ['/wp-content/uploads/', 'example.test/wp-content/uploads/'];
+	$html    = '<img src="https://example.test/wp-content/uploads/foo.jpg"> <a href="/wp-content/uploads/foo.jpg"> <a href="https://vendor.example/manuals/foo.jpg">';
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string($html, $pairs, $anchors))
+		->toBe('<img src="https://example.test/wp-content/uploads/new.jpg"> <a href="/wp-content/uploads/new.jpg"> <a href="https://vendor.example/manuals/foo.jpg">');
+});
+
+test('anchors also work for JSON escaped links', function () {
+	$pairs = ['2024/05/foo.jpg' => '2024/05/new.jpg'];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('{"a":"https:\\/\\/example.test\\/wp-content\\/uploads\\/2024\\/05\\/foo.jpg","b":"https:\\/\\/vendor.example\\/2024\\/05\\/foo.jpg"}', $pairs, ['/wp-content/uploads/']))
+		->toBe('{"a":"https:\\/\\/example.test\\/wp-content\\/uploads\\/2024\\/05\\/new.jpg","b":"https:\\/\\/vendor.example\\/2024\\/05\\/foo.jpg"}');
+});

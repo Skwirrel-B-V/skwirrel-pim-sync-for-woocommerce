@@ -173,7 +173,7 @@ class Skwirrel_WC_Sync_File_Naming {
 	public static function finalize( string $name, string $dir, string $url, string $context ): string {
 		$filtered = self::filter_name( $name, $url, $context );
 		if ( is_string( $filtered ) && '' !== $filtered && $filtered !== $name ) {
-			$safe = sanitize_file_name( basename( $filtered ) );
+			$safe = self::cap_length( sanitize_file_name( basename( $filtered ) ) );
 			if ( '' !== $safe ) {
 				return wp_unique_filename( $dir, $safe );
 			}
@@ -192,7 +192,7 @@ class Skwirrel_WC_Sync_File_Naming {
 	public static function filtered_name( string $name, string $url, string $context ): string {
 		$filtered = self::filter_name( $name, $url, $context );
 		if ( is_string( $filtered ) && '' !== $filtered && $filtered !== $name ) {
-			$safe = sanitize_file_name( basename( $filtered ) );
+			$safe = self::cap_length( sanitize_file_name( basename( $filtered ) ) );
 			return '' !== $safe ? $safe : $name;
 		}
 		return $name;

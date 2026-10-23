@@ -10,10 +10,12 @@ beforeEach(function () {
 	$this->handler  = new Skwirrel_WC_Sync_Attachment_Handler('nl');
 	$this->importer = new Skwirrel_WC_Sync_Media_Importer();
 	$GLOBALS['_test_post_fields'] = [];
+	$GLOBALS['_test_post_meta']   = [];
 });
 
 afterEach(function () {
 	$GLOBALS['_test_post_fields'] = [];
+	$GLOBALS['_test_post_meta']   = [];
 });
 
 function texts_att(array $translations, array $extra = []): array {
@@ -87,4 +89,17 @@ test('a backslash in a title survives the slashing WordPress undoes', function (
 	$GLOBALS['_test_post_fields'][5] = ['post_title' => 'old', 'post_excerpt' => ''];
 	texts_call($this->importer, 'sync_texts', [5, ['title' => 'C:\\docs\\a', 'caption' => '']]);
 	expect($GLOBALS['_test_post_fields'][5]['post_title'])->toBe('C:\\docs\\a');
+});
+
+test('a caption is cleared when Skwirrel had a description before and has none now', function () {
+	$GLOBALS['_test_post_fields'][5] = ['post_title' => 'Foto', 'post_excerpt' => ''];
+	texts_call($this->importer, 'sync_texts', [5, ['title' => '', 'caption' => 'Een foto']]);
+	expect($GLOBALS['_test_post_fields'][5]['post_excerpt'])->toBe('Een foto');
+	texts_call($this->importer, 'sync_texts', [5, ['title' => '', 'caption' => '']]);
+	expect($GLOBALS['_test_post_fields'][5]['post_excerpt'])->toBe('');
+	expect(get_post_meta(5, '_skwirrel_texts_synced', true))->toBe('');
+	// A caption typed by hand afterwards is then left alone again.
+	$GLOBALS['_test_post_fields'][5]['post_excerpt'] = 'by hand';
+	texts_call($this->importer, 'sync_texts', [5, ['title' => '', 'caption' => '']]);
+	expect($GLOBALS['_test_post_fields'][5]['post_excerpt'])->toBe('by hand');
 });

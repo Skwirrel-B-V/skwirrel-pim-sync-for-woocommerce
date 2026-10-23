@@ -547,6 +547,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			return 0;
 		}
 		$like    = '%' . $wpdb->esc_like( $needle ) . '%';
+		$anchors = self::uploads_anchors();
 		$changed = 0;
 		$fetched = 0;
 
@@ -567,8 +568,8 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			$fetched = count( $rows );
 			foreach ( $rows as $row ) {
 				$last    = (int) $row->ID;
-				$content = self::replace_in_string( (string) $row->post_content, $pairs );
-				$excerpt = self::replace_in_string( (string) $row->post_excerpt, $pairs );
+				$content = self::replace_in_string( (string) $row->post_content, $pairs, $anchors );
+				$excerpt = self::replace_in_string( (string) $row->post_excerpt, $pairs, $anchors );
 				if ( $content !== $row->post_content || $excerpt !== $row->post_excerpt ) {
 					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- wp_update_post() would create revisions and fire save hooks for a link fix.
 					$wpdb->update(
@@ -603,7 +604,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			foreach ( $rows as $row ) {
 				$last     = (int) $row->meta_id;
 				$value    = maybe_unserialize( $row->meta_value );
-				$replaced = self::replace_in_value( $value, $pairs );
+				$replaced = self::replace_in_value( $value, $pairs, $anchors );
 				if ( $replaced !== $value ) {
 					update_metadata_by_mid( 'post', $last, $replaced );
 					++$changed;
@@ -617,15 +618,21 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	/**
 	 * Replace old relative paths with new ones in a string, including the JSON-escaped form (`\/`).
 	 *
-	 * @param array<string,string> $pairs Old relative path => new relative path.
+	 * @param array<string,string> $pairs   Old relative path => new relative path.
+	 * @param string[]             $anchors Strings one of which must stand right before the path; empty for none.
 	 */
-	public static function replace_in_string( string $subject, array $pairs ): string {
+	public static function replace_in_string( string $subject, array $pairs, array $anchors = [] ): string {
 		foreach ( $pairs as $old => $new ) {
-			foreach ( [ [ $old, $new ], [ str_replace( '/', '\\/', $old ), str_replace( '/', '\\/', $new ) ] ] as [ $from, $to ] ) {
-				// A path boundary on both sides: with no month folders the old path is a bare
-				// file name, which must not match inside "barfoo.jpg" or "foo.jpg.webp".
+			foreach ( [ [ $old, $new, $anchors ], [ str_replace( '/', '\\/', $old ), str_replace( '/', '\\/', $new ), array_map( static fn ( string $a ): string => str_replace( '/', '\\/', $a ), $anchors ) ] ] as [ $from, $to, $before ] ) {
+				// Where the path may start: right after one of the uploads anchors when given, so another
+				// site's URL that ends in the same path is left alone; otherwise after a path boundary
+				// (with no month folders the old path is a bare file name, which must not match inside
+				// "barfoo.jpg"). It must also end at a boundary, so "foo.jpg.webp" is left alone.
+				$start   = array() === $before
+					? '(?<![A-Za-z0-9._-])'
+					: '(?<=' . implode( '|', array_map( static fn ( string $a ): string => preg_quote( $a, '~' ), $before ) ) . ')';
 				$subject = (string) preg_replace_callback(
-					'~(?<![A-Za-z0-9._-])' . preg_quote( $from, '~' ) . '(?![A-Za-z0-9_-]|\.[A-Za-z0-9])~',
+					'~' . $start . preg_quote( $from, '~' ) . '(?![A-Za-z0-9_-]|\.[A-Za-z0-9])~',
 					static fn (): string => $to,
 					$subject
 				);
@@ -635,19 +642,41 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	}
 
 	/**
+	 * What must stand right before a path to make it a link to this site's uploads: the uploads
+	 * path (`/wp-content/uploads/`, which also ends an absolute URL) and the uploads host
+	 * (for uploads served from a CDN host at its root).
+	 *
+	 * @return string[]
+	 */
+	private static function uploads_anchors(): array {
+		$base    = wp_upload_dir()['baseurl'];
+		$host    = (string) wp_parse_url( $base, PHP_URL_HOST );
+		$path    = trim( (string) wp_parse_url( $base, PHP_URL_PATH ), '/' );
+		$anchors = [];
+		if ( '' !== $path ) {
+			$anchors[] = '/' . $path . '/';
+		}
+		if ( '' !== $host ) {
+			$anchors[] = $host . ( '' !== $path ? '/' . $path : '' ) . '/';
+		}
+		return $anchors;
+	}
+
+	/**
 	 * Replace in a value that may be a string or a (nested) array, as stored in post meta.
 	 *
-	 * @param mixed                $value Unserialized meta value.
-	 * @param array<string,string> $pairs Old relative path => new relative path.
+	 * @param mixed                $value   Unserialized meta value.
+	 * @param array<string,string> $pairs   Old relative path => new relative path.
+	 * @param string[]             $anchors See replace_in_string().
 	 * @return mixed
 	 */
-	public static function replace_in_value( mixed $value, array $pairs ): mixed {
+	public static function replace_in_value( mixed $value, array $pairs, array $anchors = [] ): mixed {
 		if ( is_string( $value ) ) {
-			return self::replace_in_string( $value, $pairs );
+			return self::replace_in_string( $value, $pairs, $anchors );
 		}
 		if ( is_array( $value ) ) {
 			foreach ( $value as $key => $item ) {
-				$value[ $key ] = self::replace_in_value( $item, $pairs );
+				$value[ $key ] = self::replace_in_value( $item, $pairs, $anchors );
 			}
 		}
 		return $value;

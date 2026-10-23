@@ -123,3 +123,11 @@ test('a 40 byte prefix limit never cuts a multibyte character in half', function
 	expect(preg_match('//u', $prefix))->toBe(1);
 	expect(strlen($prefix))->toBeLessThanOrEqual(40);
 });
+
+test('a name returned by the filter gets the same length cap', function () {
+	set_file_naming('original');
+	$GLOBALS['_test_filters']['skwirrel_wc_sync_upload_filename'][] = static fn (string $name): string => str_repeat('b', 300) . '.pdf';
+	$name = Skwirrel_WC_Sync_File_Naming::build('/up', 'a.pdf', 'pdf', 'https://x.test/cap', 'file');
+	expect(strlen($name))->toBeLessThanOrEqual(180);
+	expect($name)->toEndWith('.pdf');
+});
