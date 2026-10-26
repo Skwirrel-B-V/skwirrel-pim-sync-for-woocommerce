@@ -2,6 +2,16 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [4.3.1]
+
+Safer attachment imports.
+
+### Fixed
+
+* **Only file types WordPress allows are imported** (#74). The importer accepted any 2-5 character extension, so a document called `x.php` or `x.phtml` in Skwirrel was written to uploads (this predates 4.3.0). Every download path (new image, new document, image replace, document replace) now checks the final file name with `wp_check_filetype()` against the site's allowed types before the file is copied, so types a site adds through `upload_mimes` count, and `.svg` is refused unless the site allows it. A name with a script extension in front of the real one (`x.php.pdf`) is refused too. A refused file is not imported, its temporary download is removed, and a warning names the extension (not the URL). An attachment that was going to be replaced stays linked. Types that WordPress does not allow by default (for example `.dwg`) are now refused as well; allow them with the `upload_mimes` filter. Covered by `tests/Unit/MediaImporterSafetyTest.php`.
+* **An empty Skwirrel description no longer wipes a description typed by hand** (#75). When an image file was replaced, its Description (`post_content`) was set to the incoming description even when that was empty. It is now only set when Skwirrel supplies one, the same rule the Caption already followed.
+* **A failed attachment insert no longer loses data** (#75). `wp_insert_attachment()` reports a failure as 0, which the importer did not recognise: it carried on writing meta and released the attachment it was replacing. A result of 0 or a `WP_Error` now removes the copied file, logs a warning and returns 0, and the old attachment stays linked.
+
 ## [4.3.0]
 
 Choose how imported files are named in WordPress.
