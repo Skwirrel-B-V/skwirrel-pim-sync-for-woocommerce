@@ -65,6 +65,7 @@ afterEach(function () {
 		$GLOBALS['_test_options']['skwirrel_wc_sync_settings'],
 		$GLOBALS['_test_http_error'],
 		$GLOBALS['_test_filters']['skwirrel_wc_sync_upload_filename'],
+		$GLOBALS['_test_filters']['skwirrel_wc_sync_allowed_document_types'],
 		$GLOBALS['_test_attached_files'],
 		$GLOBALS['_test_attachment_metadata']
 	);
@@ -324,8 +325,54 @@ test('a script extension stays refused even when a site filter allows it', funct
 	expect(safety_uploads())->toBe([]);
 });
 
-test('a CAD type is skipped by default and imported once the site allows it', function () {
-	expect($this->importer->import_file('https://cdn.example.test/files/plan.dwg', 'plan.dwg', 10, ['file_name' => 'plan.dwg']))->toBe(0);
-	add_filter('upload_mimes', fn (array $mimes) => $mimes + ['dwg' => 'application/acad']);
-	expect($this->importer->import_file('https://cdn.example.test/files/plan.dwg', 'plan.dwg', 10, ['file_name' => 'plan.dwg']))->toBe(1000);
+test('CAD/BIM document types are imported by default', function (string $file_name, string $mime) {
+	$id = $this->importer->import_file('https://cdn.example.test/files/' . $file_name, $file_name, 10, ['file_name' => $file_name]);
+	expect($id)->toBe(1000);
+	expect($GLOBALS['_test_inserted_attachments'][0]['args']['post_mime_type'])->toBe($mime);
+	expect($this->logs->warnings())->toBe([]);
+})->with([
+	['plan.dwg', 'image/vnd.dwg'],
+	['plan.dxf', 'image/vnd.dxf'],
+	['model.ifc', 'application/x-step'],
+	['part.step', 'application/step'],
+	['part.STP', 'application/step'],
+	['part.iges', 'model/iges'],
+	['family.rfa', 'application/octet-stream'],
+	['print.stl', 'model/stl'],
+	['logo.eps', 'application/postscript'],
+]);
+
+test('the extra document types do not change the site-wide upload allowlist', function () {
+	$this->importer->import_file('https://cdn.example.test/files/plan.dwg', 'plan.dwg', 10, ['file_name' => 'plan.dwg']);
+	expect(wp_check_filetype('plan.dwg')['ext'])->toBeFalse();
 });
+
+test('a shop can remove an extra document type through the filter', function () {
+	add_filter('skwirrel_wc_sync_allowed_document_types', function (array $types) {
+		unset($types['dwg']);
+		return $types;
+	});
+	expect($this->importer->import_file('https://cdn.example.test/files/plan.dwg', 'plan.dwg', 10, ['file_name' => 'plan.dwg']))->toBe(0);
+	expect($this->importer->import_file('https://cdn.example.test/files/plan.dxf', 'plan.dxf', 10, ['file_name' => 'plan.dxf']))->toBe(1000);
+});
+
+test('a shop can add a document type through the filter', function () {
+	add_filter('skwirrel_wc_sync_allowed_document_types', fn (array $types) => $types + ['3dm' => 'application/octet-stream']);
+	expect($this->importer->import_file('https://cdn.example.test/files/m.3dm', 'm.3dm', 10, ['file_name' => 'm.3dm']))->toBe(1000);
+});
+
+test('script types and svg added through the plugin filter stay refused', function (string $file_name) {
+	add_filter('skwirrel_wc_sync_allowed_document_types', fn (array $types) => $types + ['php|phtml|phar' => 'text/plain', 'svg' => 'image/svg+xml', 'php5' => 'text/plain']);
+	expect($this->importer->import_file('https://cdn.example.test/files/x', $file_name, 10, ['file_name' => $file_name]))->toBe(0);
+	expect(safety_uploads())->toBe([]);
+})->with(['x.php', 'x.phtml', 'x.phar', 'x.php5', 'x.svg']);
+
+test('svg is still refused by default', function () {
+	expect($this->importer->import_file('https://cdn.example.test/files/plan.svg', 'plan.svg', 10, ['file_name' => 'plan.svg']))->toBe(0);
+});
+
+test('a script extension in front of a CAD extension is refused', function (string $mode) {
+	safety_mode($mode);
+	expect($this->importer->import_file('https://cdn.example.test/files/x', 'x.php.dwg', 10, ['file_name' => 'x.php.dwg']))->toBe(0);
+	expect(safety_uploads())->toBe([]);
+})->with(['prefix', 'original']);
