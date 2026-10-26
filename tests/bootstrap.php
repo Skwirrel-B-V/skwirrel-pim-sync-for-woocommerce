@@ -168,9 +168,16 @@ if (!function_exists('sanitize_key')) {
     }
 }
 
+if (!interface_exists('WC_Logger_Interface')) {
+    interface WC_Logger_Interface {
+        public function log($level, $message, $context = []);
+    }
+}
+
+// Stub wc_get_logger() — null unless a test sets $GLOBALS['_test_wc_logger'] to a WC_Logger_Interface.
 if (!function_exists('wc_get_logger')) {
     function wc_get_logger() {
-        return null;
+        return $GLOBALS['_test_wc_logger'] ?? null;
     }
 }
 
@@ -518,7 +525,157 @@ if (!function_exists('delete_transient')) {
 if (!function_exists('wp_upload_dir')) {
     function wp_upload_dir(): array {
         $base = $GLOBALS['_test_upload_basedir'] ?? sys_get_temp_dir();
-        return ['basedir' => $base, 'baseurl' => 'https://example.test'];
+        return ['basedir' => $base, 'baseurl' => 'https://example.test', 'path' => $base, 'url' => 'https://example.test', 'subdir' => '', 'error' => false];
+    }
+}
+
+if (!class_exists('WP_User')) {
+    class WP_User {
+        public int $ID;
+        public function __construct($id = 0) {
+            $this->ID = (int) $id;
+        }
+    }
+}
+
+// Stub wp_get_mime_types() — a subset of core's full list, before any capability rule.
+if (!function_exists('wp_get_mime_types')) {
+    function wp_get_mime_types(): array {
+        return apply_filters('mime_types', [
+            'jpg|jpeg|jpe' => 'image/jpeg',
+            'gif'          => 'image/gif',
+            'png'          => 'image/png',
+            'webp'         => 'image/webp',
+            'pdf'          => 'application/pdf',
+            'doc'          => 'application/msword',
+            'docx'         => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls'          => 'application/vnd.ms-excel',
+            'xlsx'         => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'csv'          => 'text/csv',
+            'txt|asc|c|cc|h|srt' => 'text/plain',
+            'zip'          => 'application/zip',
+            'htm|html'     => 'text/html',
+            'js'           => 'application/javascript',
+            'swf'          => 'application/x-shockwave-flash',
+            'exe'          => 'application/x-msdownload',
+        ]);
+    }
+}
+
+// Stub get_allowed_mime_types() modelled on core 6.8: swf and exe never; html and js only when
+// the user has unfiltered_html. Core asks the current user when $user is falsy, and for a user
+// object it asks is_super_admin( $user->ID ), which also falls back to the current user for ID 0.
+// Tests set _test_current_user_unfiltered_html (admin) and _test_current_user_is_super_admin.
+if (!function_exists('get_allowed_mime_types')) {
+    function get_allowed_mime_types($user = null): array {
+        $mimes = wp_get_mime_types();
+        unset($mimes['swf'], $mimes['exe']);
+        if (! $user) {
+            $unfiltered = ! empty($GLOBALS['_test_current_user_unfiltered_html']);
+        } else {
+            $id         = is_object($user) ? (int) ($user->ID ?? 0) : (int) $user;
+            $unfiltered = 0 === $id && ! empty($GLOBALS['_test_current_user_is_super_admin']);
+        }
+        if (! $unfiltered) {
+            unset($mimes['htm|html'], $mimes['js']);
+        }
+        return apply_filters('upload_mimes', $mimes, $user);
+    }
+}
+
+// Stub wp_check_filetype() — same matching as core: the last extension against the allowed list.
+if (!function_exists('wp_check_filetype')) {
+    function wp_check_filetype(string $filename, $mimes = null): array {
+        if (empty($mimes)) {
+            $mimes = get_allowed_mime_types();
+        }
+        foreach ($mimes as $ext_preg => $mime_match) {
+            if (preg_match('!\.(' . $ext_preg . ')$!i', $filename, $m)) {
+                return ['ext' => $m[1], 'type' => $mime_match];
+            }
+        }
+        return ['ext' => false, 'type' => false];
+    }
+}
+
+// Stub wp_delete_file() — unlinks when the file exists.
+if (!function_exists('wp_delete_file')) {
+    function wp_delete_file(string $file): void {
+        if (is_file($file)) {
+            unlink($file);
+        }
+    }
+}
+
+// Stub wp_tempnam() — a real temp file so copy() works.
+if (!function_exists('wp_tempnam')) {
+    function wp_tempnam(string $filename = '', string $dir = '') {
+        return tempnam('' !== $dir ? $dir : sys_get_temp_dir(), 'skw');
+    }
+}
+
+// Stub wp_remote_get() — answers with $GLOBALS['_test_http_body'] (HTTP 200), or a WP_Error
+// set in $GLOBALS['_test_http_error'].
+if (!function_exists('wp_remote_get')) {
+    function wp_remote_get(string $url, array $args = []) {
+        if (isset($GLOBALS['_test_http_error'])) {
+            return $GLOBALS['_test_http_error'];
+        }
+        return ['response' => ['code' => 200, 'message' => 'OK'], 'body' => $GLOBALS['_test_http_body'] ?? ''];
+    }
+}
+if (!function_exists('wp_remote_retrieve_response_code')) {
+    function wp_remote_retrieve_response_code($response) {
+        return is_array($response) ? (int) ($response['response']['code'] ?? 0) : '';
+    }
+}
+if (!function_exists('wp_remote_retrieve_response_message')) {
+    function wp_remote_retrieve_response_message($response): string {
+        return is_array($response) ? (string) ($response['response']['message'] ?? '') : '';
+    }
+}
+if (!function_exists('wp_remote_retrieve_body')) {
+    function wp_remote_retrieve_body($response): string {
+        return is_array($response) ? (string) ($response['body'] ?? '') : '';
+    }
+}
+
+// Attachment file/metadata stubs — backed by $GLOBALS['_test_attached_files'] and
+// $GLOBALS['_test_attachment_metadata'].
+if (!function_exists('update_attached_file')) {
+    function update_attached_file(int $attachment_id, string $file): bool {
+        $GLOBALS['_test_attached_files'][$attachment_id] = $file;
+        return true;
+    }
+}
+if (!function_exists('wp_get_attachment_metadata')) {
+    function wp_get_attachment_metadata(int $attachment_id = 0, bool $unfiltered = false) {
+        return $GLOBALS['_test_attachment_metadata'][$attachment_id] ?? false;
+    }
+}
+if (!function_exists('wp_generate_attachment_metadata')) {
+    function wp_generate_attachment_metadata(int $attachment_id, string $file): array {
+        return ['file' => basename($file)];
+    }
+}
+if (!function_exists('wp_update_attachment_metadata')) {
+    function wp_update_attachment_metadata(int $attachment_id, array $data) {
+        $GLOBALS['_test_attachment_metadata'][$attachment_id] = $data;
+        return true;
+    }
+}
+if (!function_exists('wp_get_attachment_url')) {
+    function wp_get_attachment_url(int $attachment_id = 0) {
+        return 'https://example.test/uploads/' . $attachment_id;
+    }
+}
+
+// Stub wp_insert_attachment() — records each call in $GLOBALS['_test_inserted_attachments'] and returns
+// $GLOBALS['_test_insert_attachment_result'] (default 1000): set 0 or a WP_Error to simulate failure.
+if (!function_exists('wp_insert_attachment')) {
+    function wp_insert_attachment($args, $file = false, int $parent_id = 0, bool $wp_error = false, bool $fire_after_hooks = true) {
+        $GLOBALS['_test_inserted_attachments'][] = ['args' => $args, 'file' => $file, 'parent' => $parent_id];
+        return $GLOBALS['_test_insert_attachment_result'] ?? 1000;
     }
 }
 

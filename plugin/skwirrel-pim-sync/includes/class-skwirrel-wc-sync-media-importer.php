@@ -31,6 +31,37 @@ class Skwirrel_WC_Sync_Media_Importer {
 	private const NON_IMAGE_EXTENSIONS = [ 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'txt', 'zip', 'rar' ];
 
 	/**
+	 * Extensions a web server may run as a script. Never accepted anywhere in a file name, also not
+	 * in front of an allowed extension (`x.php.pdf` runs as PHP on some Apache set-ups).
+	 */
+	private const EXECUTABLE_EXTENSION_PATTERN = '/^(php\d*|phtml?|pht|phps|phar|cgi|aspx?|jsp|shtml?)$/i';
+
+	/**
+	 * Technical document types accepted for Skwirrel imports on top of the site's WordPress
+	 * allowlist (CAD/BIM files that wholesale catalogues carry and core does not list). Only used
+	 * for this plugin's imports, never added to the site-wide upload allowlist. Filterable through
+	 * `skwirrel_wc_sync_allowed_document_types`.
+	 */
+	private const EXTRA_DOCUMENT_TYPES = [
+		'dwg'      => 'application/acad',
+		'dxf'      => 'application/dxf',
+		'ifc'      => 'application/x-step',
+		'step|stp' => 'application/step',
+		'igs|iges' => 'model/iges',
+		'rfa'      => 'application/octet-stream',
+		'rvt'      => 'application/octet-stream',
+		'stl'      => 'model/stl',
+		'skp'      => 'application/vnd.sketchup.skp',
+		'eps'      => 'application/postscript',
+	];
+
+	/**
+	 * Extensions the plugin filter may never add: these run script in the browser (svg, html, xml,
+	 * xsl, mht, js, swf, hta), so only the site itself may allow them through `upload_mimes`.
+	 */
+	private const NEVER_EXTRA_EXTENSION_PATTERN = '/^(svgz?|html?|xhtml?|xht|xml|xslt?|mht|mhtml|m?js|swf|hta)$/i';
+
+	/**
 	 * Attachment whose Skwirrel file name changed, to be let go once its replacement is imported.
 	 * Releasing it earlier would leave nothing to reuse when the download then fails.
 	 */
@@ -38,6 +69,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 	/** @var array{attachment_id?: int|string|null, file_name?: string|null}|array{} */
 	private array $pending_release_meta = [];
+
+	/** Set when the last import_image()/import_file() call refused the file type (a skip, not a failure). */
+	private bool $last_refused = false;
 
 	public function __construct() {
 		$this->logger = new Skwirrel_WC_Sync_Logger();
@@ -58,7 +92,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * @return int Attachment ID or 0 on failure.
 	 */
 	public function import_image( string $url, string $title = '', int $parent_id = 0, string $alt_caption = '', string $description = '', array $api_meta = [] ): int {
-		$url = $this->normalize_download_url( $url );
+		$this->last_refused = false;
+		$url                = $this->normalize_download_url( $url );
 		if ( empty( $url ) || ! $this->is_valid_url( $url ) ) {
 			return 0;
 		}
@@ -117,7 +152,13 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'image', true );
-		$dest     = $upload_dir['path'] . '/' . $filename;
+		$mimes    = $this->import_mimes();
+		if ( ! $this->is_allowed_file_name( $filename, 'image', 0, $mimes ) ) {
+			wp_delete_file( $tmp );
+			$this->last_refused = true;
+			return 0;
+		}
+		$dest = $upload_dir['path'] . '/' . $filename;
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning( 'Failed to copy image to uploads', [ 'url' => $url ] );
@@ -125,7 +166,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 		wp_delete_file( $tmp );
 
-		$filetype   = wp_check_filetype( $filename, null );
+		$filetype   = wp_check_filetype( $filename, $mimes );
 		$label      = $alt_caption ? $alt_caption : ( $title ? $title : preg_replace( '/\.[^.]+$/', '', $filename ) );
 		$attachment = [
 			'post_mime_type' => $filetype['type'],
@@ -135,16 +176,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			'post_status'    => 'inherit',
 		];
 
-		$id = wp_insert_attachment( $attachment, $dest, $parent_id );
-		if ( is_wp_error( $id ) ) { // @phpstan-ignore function.impossibleType
-			wp_delete_file( $dest );
-			$this->logger->warning(
-				'Failed to create attachment',
-				[
-					'url'   => $url,
-					'error' => $id->get_error_message(),
-				]
-			);
+		$id = $this->insert_attachment( $attachment, $dest, $parent_id, $url );
+		if ( 0 === $id ) {
 			return 0;
 		}
 
@@ -183,7 +216,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * @return int Attachment ID or 0 on failure.
 	 */
 	public function import_file( string $url, string $name = '', int $parent_id = 0, array $api_meta = [] ): int {
-		$url = $this->normalize_download_url( $url );
+		$this->last_refused = false;
+		$url                = $this->normalize_download_url( $url );
 		if ( empty( $url ) || ! $this->is_valid_url( $url ) ) {
 			return 0;
 		}
@@ -228,7 +262,13 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'file' );
-		$dest     = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
+		$mimes    = $this->import_mimes();
+		if ( ! $this->is_allowed_file_name( $filename, 'file', 0, $mimes ) ) {
+			wp_delete_file( $tmp );
+			$this->last_refused = true;
+			return 0;
+		}
+		$dest = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning( 'Failed to copy file to uploads', [ 'url' => $url ] );
@@ -236,7 +276,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 		wp_delete_file( $tmp );
 
-		$filetype   = wp_check_filetype( $dest, null );
+		$filetype   = wp_check_filetype( $dest, $mimes );
 		$attachment = [
 			'post_mime_type' => $filetype['type'] ? $filetype['type'] : 'application/octet-stream',
 			'post_title'     => wp_slash( '' !== $this->incoming_text( $api_meta, 'title' ) ? $this->incoming_text( $api_meta, 'title' ) : preg_replace( '/\.[^.]+$/', '', $filename ) ),
@@ -245,16 +285,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			'post_status'    => 'inherit',
 		];
 
-		$id = wp_insert_attachment( $attachment, $dest, $parent_id );
-		if ( is_wp_error( $id ) ) { // @phpstan-ignore function.impossibleType
-			wp_delete_file( $dest );
-			$this->logger->warning(
-				'Failed to create attachment',
-				[
-					'url'   => $url,
-					'error' => $id->get_error_message(),
-				]
-			);
+		$id = $this->insert_attachment( $attachment, $dest, $parent_id, $url );
+		if ( 0 === $id ) {
 			return 0;
 		}
 
@@ -382,7 +414,12 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return;
 		}
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'image_replace', true );
-		$dest     = $upload_dir['path'] . '/' . $filename;
+		$mimes    = $this->import_mimes();
+		if ( ! $this->is_allowed_file_name( $filename, 'image_replace', $attachment_id, $mimes ) ) {
+			wp_delete_file( $tmp );
+			return;
+		}
+		$dest = $upload_dir['path'] . '/' . $filename;
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning(
@@ -399,19 +436,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$old_path = get_attached_file( $attachment_id );
 		$old_meta = wp_get_attachment_metadata( $attachment_id );
 
-		$filetype = wp_check_filetype( $filename, null );
+		$filetype = wp_check_filetype( $filename, $mimes );
 		if ( ! empty( $filetype['type'] ) ) {
-			$update = [
-				'ID'             => $attachment_id,
-				'post_mime_type' => $filetype['type'],
-				'post_content'   => $description,
-			];
-			// Only when Skwirrel supplies a caption here: an empty one must not wipe a caption typed by hand. A
-			// caption cleared in Skwirrel is handled by sync_texts(), which ran before this.
-			if ( '' !== $this->incoming_text( $api_meta, 'caption' ) ) {
-				$update['post_excerpt'] = $this->incoming_text( $api_meta, 'caption' );
-			}
-			wp_update_post( wp_slash( $update ) );
+			wp_update_post( wp_slash( $this->replacement_post_fields( $attachment_id, $filetype['type'], $description, $api_meta ) ) );
 		}
 		update_attached_file( $attachment_id, $dest );
 		$new_meta = wp_generate_attachment_metadata( $attachment_id, $dest );
@@ -487,7 +514,12 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return;
 		}
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'file_replace' );
-		$dest     = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
+		$mimes    = $this->import_mimes();
+		if ( ! $this->is_allowed_file_name( $filename, 'file_replace', $attachment_id, $mimes ) ) {
+			wp_delete_file( $tmp );
+			return;
+		}
+		$dest = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning(
@@ -503,7 +535,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 		$old_path = get_attached_file( $attachment_id );
 
-		$filetype = wp_check_filetype( $dest, null );
+		$filetype = wp_check_filetype( $dest, $mimes );
 		wp_update_post(
 			[
 				'ID'             => $attachment_id,
@@ -531,6 +563,166 @@ class Skwirrel_WC_Sync_Media_Importer {
 				'new_checksum'           => $api_meta['file_checksum'] ?? null,
 			]
 		);
+	}
+
+	/**
+	 * Whether a file may be written to uploads under this name: its extension must be allowed for
+	 * this site (`wp_check_filetype()`, so `upload_mimes` additions count) or be one of the extra
+	 * document types (import_mimes()), and no part of the name
+	 * may be a script extension (`x.php.pdf`). Checked on the name as built and as it is stored, so
+	 * the outcome never depends on how `sanitize_file_name()` treats a double extension. A refused
+	 * name is logged with its extension only, not the URL.
+	 *
+	 * @param string $filename      File name without directory.
+	 * @param string $context       `image`, `file`, `image_replace` or `file_replace`.
+	 * @param int    $attachment_id Existing attachment being replaced, or 0.
+	 * @param array<string,string> $mimes The import_mimes() list the caller also stores the file with.
+	 */
+	private function is_allowed_file_name( string $filename, string $context, int $attachment_id, array $mimes ): bool {
+		foreach ( array_unique( [ $filename, sanitize_file_name( $filename ) ] ) as $name ) {
+			$refused = '';
+			$parts   = explode( '.', strtolower( $name ) );
+			$ext     = count( $parts ) > 1 ? (string) array_pop( $parts ) : '';
+			array_shift( $parts );
+			foreach ( $parts as $inner ) {
+				if ( preg_match( self::EXECUTABLE_EXTENSION_PATTERN, $inner ) ) {
+					$refused = $inner;
+					break;
+				}
+			}
+			if ( '' === $refused ) {
+				$check = wp_check_filetype( $name, $mimes );
+				if ( empty( $check['ext'] ) || preg_match( self::EXECUTABLE_EXTENSION_PATTERN, $ext ) ) {
+					$refused = '' !== $ext ? $ext : '(none)';
+				}
+			}
+			if ( '' !== $refused ) {
+				$this->logger->warning(
+					'File type not allowed for import; file not imported',
+					[
+						'extension'     => $refused,
+						'context'       => $context,
+						'attachment_id' => $attachment_id > 0 ? $attachment_id : null,
+					]
+				);
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * File types this plugin may import: the site's allowlist without any per-user rule
+	 * (site_mimes(), including `upload_mimes` additions) plus the extra technical document types.
+	 * The extra types pass through `skwirrel_wc_sync_allowed_document_types` and are cleaned: an extension must be
+	 * 2-5 plain letters/digits (the length import_file() and File_Naming recognise as an extension),
+	 * and script and browser-script extensions are dropped, whatever the filter returns.
+	 *
+	 * @return array<string,string> Extension pattern (`a|b`) => MIME type, as wp_check_filetype() expects.
+	 */
+	private function import_mimes(): array {
+		$extra = $this->filtered_document_types();
+		$mimes = $this->site_mimes();
+		if ( ! is_array( $extra ) ) {
+			return $mimes;
+		}
+		foreach ( $extra as $pattern => $mime ) {
+			if ( ! is_string( $mime ) || '' === $mime ) {
+				continue;
+			}
+			$exts = array_filter(
+				explode( '|', strtolower( (string) $pattern ) ),
+				fn( string $ext ): bool => 1 === preg_match( '/^[a-z0-9]{2,5}$/', $ext )
+					&& ! preg_match( self::EXECUTABLE_EXTENSION_PATTERN, $ext )
+					&& ! preg_match( self::NEVER_EXTRA_EXTENSION_PATTERN, $ext )
+			);
+			if ( ! empty( $exts ) ) {
+				$mimes[ implode( '|', $exts ) ] = $mime;
+			}
+		}
+		return $mimes;
+	}
+
+	/**
+	 * The site's allowed types as core builds them for a user without `unfiltered_html`, whoever
+	 * runs the sync. get_allowed_mime_types() cannot do this: it asks about a user, and a
+	 * `WP_User( 0 )` still resolves to the current user through is_super_admin(), so a single-product
+	 * resync started by a multisite super admin would get html and js. `upload_mimes` still runs, so
+	 * the site decides (also on multisite, where core limits this list through that filter).
+	 *
+	 * @return array<string,string>
+	 */
+	private function site_mimes(): array {
+		$mimes = wp_get_mime_types();
+		unset( $mimes['swf'], $mimes['exe'], $mimes['htm|html'], $mimes['js'] );
+		/** This filter is documented in wp-includes/functions.php */
+		$mimes = apply_filters( 'upload_mimes', $mimes, null );
+		return is_array( $mimes ) ? $mimes : [];
+	}
+
+	/**
+	 * The extra document types after the filter, unvalidated: a third-party callback may return
+	 * anything, so import_mimes() checks every entry.
+	 */
+	private function filtered_document_types(): mixed {
+		/**
+		 * Filters the extra document types Skwirrel imports accept on top of the site's allowlist.
+		 * Extensions must be 2-5 letters/digits. Script extensions and types that run script in the
+		 * browser (svg, html, xml, xsl, mht, js, swf, hta) are always dropped from the result. An
+		 * entry with exactly the same key as a site type (for example `png`) overrides that type's
+		 * MIME type for Skwirrel imports, images included.
+		 *
+		 * @param array<string,string> $types Extension pattern (`step|stp`) => MIME type.
+		 */
+		return apply_filters( 'skwirrel_wc_sync_allowed_document_types', self::EXTRA_DOCUMENT_TYPES );
+	}
+
+	/**
+	 * Create the attachment post for a file already copied to uploads.
+	 *
+	 * `wp_insert_attachment()` reports a failure as 0 (or a `WP_Error` when asked for one). Either
+	 * way the copied file is removed and 0 returned, so the caller stops before it records Skwirrel
+	 * meta or lets go of the attachment it was replacing.
+	 *
+	 * @param array<string,mixed> $attachment Post fields.
+	 * @return int Attachment ID, or 0 on failure.
+	 */
+	private function insert_attachment( array $attachment, string $dest, int $parent_id, string $url ): int {
+		$id = wp_insert_attachment( $attachment, $dest, $parent_id );
+		if ( is_wp_error( $id ) || (int) $id <= 0 ) { // @phpstan-ignore function.impossibleType
+			wp_delete_file( $dest );
+			$this->logger->warning(
+				'Failed to create attachment',
+				[
+					'url'   => $url,
+					'error' => is_wp_error( $id ) ? $id->get_error_message() : 'wp_insert_attachment() returned 0', // @phpstan-ignore function.impossibleType
+				]
+			);
+			return 0;
+		}
+		return (int) $id;
+	}
+
+	/**
+	 * Post fields for an image whose file was replaced. The description and caption are only set
+	 * when Skwirrel supplies them: an empty one must not wipe text typed by hand. A caption cleared
+	 * in Skwirrel is handled by sync_texts(), which ran before this.
+	 *
+	 * @param array<string,mixed> $api_meta
+	 * @return array{ID: int, post_mime_type: string, post_content?: string, post_excerpt?: string}
+	 */
+	private function replacement_post_fields( int $attachment_id, string $mime, string $description, array $api_meta ): array {
+		$update = [
+			'ID'             => $attachment_id,
+			'post_mime_type' => $mime,
+		];
+		if ( '' !== trim( $description ) ) {
+			$update['post_content'] = $description;
+		}
+		if ( '' !== $this->incoming_text( $api_meta, 'caption' ) ) {
+			$update['post_excerpt'] = $this->incoming_text( $api_meta, 'caption' );
+		}
+		return $update;
 	}
 
 	/**
@@ -706,6 +898,16 @@ class Skwirrel_WC_Sync_Media_Importer {
 				update_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, $file_name );
 			}
 		}
+	}
+
+	/**
+	 * Whether the last import_image()/import_file() call returned 0 because the file type is not
+	 * allowed for import (not on the site's allowlist nor the plugin's extra document types). Such a
+	 * refusal is permanent, so callers treat it as a skip rather than a failure that should hold the
+	 * product for a retry.
+	 */
+	public function last_import_was_refused(): bool {
+		return $this->last_refused;
 	}
 
 	public function is_image_attachment_type( string $code ): bool {

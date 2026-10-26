@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 4.3.0
+Stable tag: 4.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,12 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 4.3.1 =
+* Security: images and documents are only imported when their file type is allowed (for example never .php or .phtml, and .svg only when your site allows it). Refused files are skipped with a warning in the log. File types your site adds through the upload_mimes filter are allowed.
+* CAD/BIM documents (.dwg, .dxf, .ifc, .step, .stp, .igs, .iges, .rfa, .rvt, .stl, .skp, .eps) keep importing, without being allowed for other uploads on your site. Remove or add types (extensions of 2-5 letters/digits) with the skwirrel_wc_sync_allowed_document_types filter. Types that can run script in a browser (.svg, .html, .xml, .xsl, .mht, .js, .swf, .hta) are only imported when your site allows them through upload_mimes; an administrator starting the sync does not change that by itself.
+* Fix: an empty description in Skwirrel no longer overwrites a description you typed on a replaced image.
+* Fix: when WordPress fails to create an attachment, the downloaded file is removed and the existing attachment is kept.
 
 = 4.3.0 =
 * New: Files tab in the settings. Choose how downloaded images and documents are named: the plugin naming (default), your own prefix plus the Skwirrel file name, or the Skwirrel file name as is.

@@ -226,9 +226,7 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			$api_meta = $this->build_api_meta( $att );
 			$id       = $this->media_importer->import_image( $url, $att['file_name'] ?? '', $product_id, $meta['title'], $meta['description'], $api_meta );
 			if ( ! $id ) {
-				// Valid image URL that the importer could not download/store — a real failure
-				// (network/copy/upload), not a skip. Count it so the caller can hold the change gate.
-				++$this->last_image_failures;
+				$this->last_image_failures += $this->failure_count();
 			} elseif ( ! in_array( $id, array_column( $ids, 'id' ), true ) ) {
 				$ids[] = [
 					'id'    => $id,
@@ -294,8 +292,7 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			$api_meta = $this->build_api_meta( $att );
 			$id       = $this->media_importer->import_file( $url, $name, $product_id, $api_meta );
 			if ( ! $id ) {
-				// Valid file URL the importer could not download/store — a real failure.
-				++$this->last_file_failures;
+				$this->last_file_failures += $this->failure_count();
 				continue;
 			}
 			$guid = wp_get_attachment_url( $id );
@@ -346,8 +343,7 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			$api_meta    = $this->build_api_meta( $att );
 			$id          = $this->media_importer->import_file( $url, $import_name, $product_id, $api_meta );
 			if ( ! $id ) {
-				// Valid document URL the importer could not download/store — a real failure.
-				++$this->last_doc_failures;
+				$this->last_doc_failures += $this->failure_count();
 				continue;
 			}
 			$guid = wp_get_attachment_url( $id );
@@ -412,5 +408,15 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			'title'         => wp_strip_all_tags( $title ),
 			'caption'       => wp_kses_post( $caption ),
 		];
+	}
+
+	/**
+	 * How much a 0 from the importer adds to a failure counter. A valid URL the importer could not
+	 * download or store is a real failure (1), so the caller can hold the product's change gate. A
+	 * refused file type is a permanent skip (0): counting it would keep the product as draft and
+	 * unstamped on every sync.
+	 */
+	private function failure_count(): int {
+		return $this->media_importer->last_import_was_refused() ? 0 : 1;
 	}
 }
