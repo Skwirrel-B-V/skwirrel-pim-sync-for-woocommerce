@@ -152,7 +152,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'image', true );
-		if ( ! $this->is_allowed_file_name( $filename, 'image' ) ) {
+		$mimes    = $this->import_mimes();
+		if ( ! $this->is_allowed_file_name( $filename, 'image', 0, $mimes ) ) {
 			wp_delete_file( $tmp );
 			$this->last_refused = true;
 			return 0;
@@ -165,7 +166,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 		wp_delete_file( $tmp );
 
-		$filetype   = wp_check_filetype( $filename, $this->import_mimes() );
+		$filetype   = wp_check_filetype( $filename, $mimes );
 		$label      = $alt_caption ? $alt_caption : ( $title ? $title : preg_replace( '/\.[^.]+$/', '', $filename ) );
 		$attachment = [
 			'post_mime_type' => $filetype['type'],
@@ -261,7 +262,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'file' );
-		if ( ! $this->is_allowed_file_name( $filename, 'file' ) ) {
+		$mimes    = $this->import_mimes();
+		if ( ! $this->is_allowed_file_name( $filename, 'file', 0, $mimes ) ) {
 			wp_delete_file( $tmp );
 			$this->last_refused = true;
 			return 0;
@@ -274,7 +276,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 		wp_delete_file( $tmp );
 
-		$filetype   = wp_check_filetype( $dest, $this->import_mimes() );
+		$filetype   = wp_check_filetype( $dest, $mimes );
 		$attachment = [
 			'post_mime_type' => $filetype['type'] ? $filetype['type'] : 'application/octet-stream',
 			'post_title'     => wp_slash( '' !== $this->incoming_text( $api_meta, 'title' ) ? $this->incoming_text( $api_meta, 'title' ) : preg_replace( '/\.[^.]+$/', '', $filename ) ),
@@ -512,7 +514,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return;
 		}
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'file_replace' );
-		if ( ! $this->is_allowed_file_name( $filename, 'file_replace', $attachment_id ) ) {
+		$mimes    = $this->import_mimes();
+		if ( ! $this->is_allowed_file_name( $filename, 'file_replace', $attachment_id, $mimes ) ) {
 			wp_delete_file( $tmp );
 			return;
 		}
@@ -532,7 +535,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 		$old_path = get_attached_file( $attachment_id );
 
-		$filetype = wp_check_filetype( $dest, $this->import_mimes() );
+		$filetype = wp_check_filetype( $dest, $mimes );
 		wp_update_post(
 			[
 				'ID'             => $attachment_id,
@@ -573,10 +576,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * @param string $filename      File name without directory.
 	 * @param string $context       `image`, `file`, `image_replace` or `file_replace`.
 	 * @param int    $attachment_id Existing attachment being replaced, or 0.
-	 * @param array<string,string>|null $mimes Types from import_mimes() when the caller already has them.
+	 * @param array<string,string> $mimes The import_mimes() list the caller also stores the file with.
 	 */
-	private function is_allowed_file_name( string $filename, string $context, int $attachment_id = 0, ?array $mimes = null ): bool {
-		$mimes ??= $this->import_mimes();
+	private function is_allowed_file_name( string $filename, string $context, int $attachment_id, array $mimes ): bool {
 		foreach ( array_unique( [ $filename, sanitize_file_name( $filename ) ] ) as $name ) {
 			$refused = '';
 			$parts   = explode( '.', strtolower( $name ) );

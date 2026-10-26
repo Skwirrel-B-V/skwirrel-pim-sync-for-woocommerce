@@ -583,7 +583,6 @@ if (!function_exists('get_allowed_mime_types')) {
     }
 }
 
-
 // Stub wp_check_filetype() — same matching as core: the last extension against the allowed list.
 if (!function_exists('wp_check_filetype')) {
     function wp_check_filetype(string $filename, $mimes = null): array {

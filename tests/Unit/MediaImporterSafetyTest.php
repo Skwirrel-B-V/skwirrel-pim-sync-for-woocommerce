@@ -160,7 +160,7 @@ test('the Skwirrel name is kept as given in mode original', function () {
 
 test('the image paths use the same gate', function (string $name, bool $allowed) {
 	// Image names come from the bytes or the Skwirrel name, but a site filter can still rename them.
-	expect(safety_call($this->importer, 'is_allowed_file_name', [$name, 'image']))->toBe($allowed);
+	expect(safety_call($this->importer, 'is_allowed_file_name', [$name, 'image', 0, safety_call($this->importer, 'import_mimes', [])]))->toBe($allowed);
 })->with([
 	['photo.jpg', true],
 	['photo.WEBP', true],
@@ -389,6 +389,7 @@ test('a sync started by a multisite super admin does not inherit html and js eit
 	// Core's is_super_admin( 0 ) asks about the current user, so new WP_User( 0 ) is not enough.
 	$GLOBALS['_test_current_user_unfiltered_html'] = true;
 	$GLOBALS['_test_current_user_is_super_admin']  = true;
+	// Guard on the stub: core's own list really leaks html and js here, so the import below is the proof.
 	expect(get_allowed_mime_types(new WP_User(0)))->toHaveKeys(['htm|html', 'js']);
 	expect($this->importer->import_file('https://cdn.example.test/files/x', $file_name, 10, ['file_name' => $file_name]))->toBe(0);
 	expect($this->importer->last_import_was_refused())->toBeTrue();
