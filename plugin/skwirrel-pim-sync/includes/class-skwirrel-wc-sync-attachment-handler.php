@@ -226,9 +226,13 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			$api_meta = $this->build_api_meta( $att );
 			$id       = $this->media_importer->import_image( $url, $att['file_name'] ?? '', $product_id, $meta['title'], $meta['description'], $api_meta );
 			if ( ! $id ) {
-				// Valid image URL that the importer could not download/store — a real failure
-				// (network/copy/upload), not a skip. Count it so the caller can hold the change gate.
-				++$this->last_image_failures;
+				// A file type WordPress does not allow is a permanent skip; counting it would hold the
+				// product as draft and unstamped on every sync.
+				if ( ! $this->media_importer->last_import_was_refused() ) {
+					// Valid image URL that the importer could not download/store — a real failure
+					// (network/copy/upload), not a skip. Count it so the caller can hold the change gate.
+					++$this->last_image_failures;
+				}
 			} elseif ( ! in_array( $id, array_column( $ids, 'id' ), true ) ) {
 				$ids[] = [
 					'id'    => $id,
@@ -294,8 +298,11 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			$api_meta = $this->build_api_meta( $att );
 			$id       = $this->media_importer->import_file( $url, $name, $product_id, $api_meta );
 			if ( ! $id ) {
-				// Valid file URL the importer could not download/store — a real failure.
-				++$this->last_file_failures;
+				// Valid file URL the importer could not download/store — a real failure. A refused
+				// file type is a permanent skip and is not counted.
+				if ( ! $this->media_importer->last_import_was_refused() ) {
+					++$this->last_file_failures;
+				}
 				continue;
 			}
 			$guid = wp_get_attachment_url( $id );
@@ -346,8 +353,11 @@ class Skwirrel_WC_Sync_Attachment_Handler {
 			$api_meta    = $this->build_api_meta( $att );
 			$id          = $this->media_importer->import_file( $url, $import_name, $product_id, $api_meta );
 			if ( ! $id ) {
-				// Valid document URL the importer could not download/store — a real failure.
-				++$this->last_doc_failures;
+				// Valid document URL the importer could not download/store — a real failure. A refused
+				// file type is a permanent skip and is not counted.
+				if ( ! $this->media_importer->last_import_was_refused() ) {
+					++$this->last_doc_failures;
+				}
 				continue;
 			}
 			$guid = wp_get_attachment_url( $id );

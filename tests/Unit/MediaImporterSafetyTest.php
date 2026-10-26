@@ -29,7 +29,7 @@ beforeAll(function () {
 });
 
 beforeEach(function () {
-	$this->uploads = sys_get_temp_dir() . '/skw-safety-' . bin2hex(random_bytes(4));
+	$this->uploads = sys_get_temp_dir() . '/media-safety-uploads-' . bin2hex(random_bytes(4));
 	mkdir($this->uploads);
 	$GLOBALS['_test_upload_basedir']         = $this->uploads;
 	$GLOBALS['_test_http_body']              = '%PDF-1.4 test';
@@ -62,7 +62,11 @@ afterEach(function () {
 		$GLOBALS['_test_insert_attachment_result'],
 		$GLOBALS['_test_wc_logger'],
 		$GLOBALS['_test_filters']['upload_mimes'],
-		$GLOBALS['_test_options']['skwirrel_wc_sync_settings']
+		$GLOBALS['_test_options']['skwirrel_wc_sync_settings'],
+		$GLOBALS['_test_http_error'],
+		$GLOBALS['_test_filters']['skwirrel_wc_sync_upload_filename'],
+		$GLOBALS['_test_attached_files'],
+		$GLOBALS['_test_attachment_metadata']
 	);
 	$GLOBALS['_test_inserted_attachments'] = [];
 	$GLOBALS['_test_post_meta']            = [];
@@ -223,4 +227,105 @@ test('a successful insert returns the new attachment ID and keeps the file', fun
 	$id = safety_call($this->importer, 'insert_attachment', [['post_title' => 'Photo'], $dest, 10, 'https://cdn.example.test/photo.jpg']);
 	expect($id)->toBe(1000);
 	expect(is_file($dest))->toBeTrue();
+});
+
+/** A 1x1 transparent PNG. */
+function safety_png(): string {
+	return base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=');
+}
+
+test('re-importing a changed image with an empty Skwirrel description keeps the description typed by hand', function () {
+	$GLOBALS['_test_http_body'] = safety_png();
+	$old                        = $this->uploads . '/old.png';
+	file_put_contents($old, safety_png());
+	$GLOBALS['_test_posts']             = [5];
+	$GLOBALS['_test_attached_files'][5] = $old;
+	update_post_meta(5, '_skwirrel_attachment_id', 7);
+	update_post_meta(5, '_skwirrel_file_checksum', 'aaa');
+	$GLOBALS['_test_post_fields'][5] = ['post_content' => 'Typed by hand', 'post_excerpt' => 'My caption', 'post_parent' => 10];
+
+	$id = $this->importer->import_image('https://cdn.example.test/img/photo.png', 'photo.png', 10, '', '', ['attachment_id' => 7, 'file_checksum' => 'bbb', 'caption' => '']);
+
+	expect($id)->toBe(5);
+	// The file was replaced (new checksum stored, new file attached) ...
+	expect(get_post_meta(5, '_skwirrel_file_checksum', true))->toBe('bbb');
+	expect($GLOBALS['_test_attached_files'][5])->not->toBe($old);
+	// ... and the texts typed by hand survived.
+	expect($GLOBALS['_test_post_fields'][5]['post_content'])->toBe('Typed by hand');
+	expect($GLOBALS['_test_post_fields'][5]['post_excerpt'])->toBe('My caption');
+	expect($GLOBALS['_test_post_fields'][5]['post_mime_type'])->toBe('image/png');
+});
+
+// ------------------------------------------------------------------
+// A refusal is a skip, not a media failure (it is permanent, so it must not hold the product)
+// ------------------------------------------------------------------
+
+test('a refused document is skipped without counting as a media failure', function () {
+	$handler = new Skwirrel_WC_Sync_Attachment_Handler('nl');
+	$product = ['_attachments' => [
+		['product_attachment_type_code' => 'MAN', 'source_url' => 'https://cdn.example.test/files/x.php', 'file_name' => 'x.php'],
+		['product_attachment_type_code' => 'MAN', 'source_url' => 'https://cdn.example.test/files/ok.pdf', 'file_name' => 'ok.pdf'],
+	]];
+
+	$docs = $handler->get_document_attachments($product, 10);
+
+	expect($docs)->toHaveCount(1);
+	expect($handler->get_last_media_failure_count())->toBe(0);
+});
+
+test('a refused downloadable file is skipped without counting as a media failure', function () {
+	$handler = new Skwirrel_WC_Sync_Attachment_Handler('nl');
+	$product = ['_attachments' => [
+		['product_attachment_type_code' => 'MAN', 'source_url' => 'https://cdn.example.test/files/x.phtml', 'file_name' => 'x.phtml'],
+	]];
+
+	expect($handler->get_downloadable_files($product, 10))->toBe([]);
+	expect($handler->get_last_media_failure_count())->toBe(0);
+});
+
+test('a refused image is skipped without counting as a media failure', function () {
+	$GLOBALS['_test_http_body'] = safety_png();
+	add_filter('skwirrel_wc_sync_upload_filename', fn () => 'evil.php');
+	$handler = new Skwirrel_WC_Sync_Attachment_Handler('nl');
+	$product = ['_attachments' => [
+		['product_attachment_type_code' => 'PPI', 'source_url' => 'https://cdn.example.test/img/photo.png', 'file_name' => 'photo.png'],
+	]];
+
+	expect($handler->get_image_attachment_ids($product, 10))->toBe([]);
+	expect($handler->get_last_media_failure_count())->toBe(0);
+	expect(safety_uploads())->toBe([]);
+});
+
+test('a document that fails to download still counts as a media failure', function () {
+	$GLOBALS['_test_http_error'] = new WP_Error('http_request_failed', 'timeout');
+	$handler                     = new Skwirrel_WC_Sync_Attachment_Handler('nl');
+	$product                     = ['_attachments' => [
+		['product_attachment_type_code' => 'MAN', 'source_url' => 'https://cdn.example.test/files/ok.pdf', 'file_name' => 'ok.pdf'],
+	]];
+
+	expect($handler->get_document_attachments($product, 10))->toBe([]);
+	expect($handler->get_last_media_failure_count())->toBe(1);
+});
+
+test('a failed insert still counts as a media failure', function () {
+	$GLOBALS['_test_insert_attachment_result'] = 0;
+	$handler                                   = new Skwirrel_WC_Sync_Attachment_Handler('nl');
+	$product                                   = ['_attachments' => [
+		['product_attachment_type_code' => 'MAN', 'source_url' => 'https://cdn.example.test/files/ok.pdf', 'file_name' => 'ok.pdf'],
+	]];
+
+	expect($handler->get_document_attachments($product, 10))->toBe([]);
+	expect($handler->get_last_media_failure_count())->toBe(1);
+});
+
+test('a script extension stays refused even when a site filter allows it', function () {
+	add_filter('upload_mimes', fn (array $mimes) => $mimes + ['php' => 'text/x-php']);
+	expect($this->importer->import_file('https://cdn.example.test/files/x.php', 'x.php', 10, ['file_name' => 'x.php']))->toBe(0);
+	expect(safety_uploads())->toBe([]);
+});
+
+test('a CAD type is skipped by default and imported once the site allows it', function () {
+	expect($this->importer->import_file('https://cdn.example.test/files/plan.dwg', 'plan.dwg', 10, ['file_name' => 'plan.dwg']))->toBe(0);
+	add_filter('upload_mimes', fn (array $mimes) => $mimes + ['dwg' => 'application/acad']);
+	expect($this->importer->import_file('https://cdn.example.test/files/plan.dwg', 'plan.dwg', 10, ['file_name' => 'plan.dwg']))->toBe(1000);
 });

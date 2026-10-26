@@ -45,6 +45,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 	/** @var array{attachment_id?: int|string|null, file_name?: string|null}|array{} */
 	private array $pending_release_meta = [];
 
+	/** Set when the last import_image()/import_file() call refused the file type (a skip, not a failure). */
+	private bool $last_refused = false;
+
 	public function __construct() {
 		$this->logger = new Skwirrel_WC_Sync_Logger();
 	}
@@ -64,7 +67,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * @return int Attachment ID or 0 on failure.
 	 */
 	public function import_image( string $url, string $title = '', int $parent_id = 0, string $alt_caption = '', string $description = '', array $api_meta = [] ): int {
-		$url = $this->normalize_download_url( $url );
+		$this->last_refused = false;
+		$url                = $this->normalize_download_url( $url );
 		if ( empty( $url ) || ! $this->is_valid_url( $url ) ) {
 			return 0;
 		}
@@ -125,6 +129,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'image', true );
 		if ( ! $this->is_allowed_file_name( $filename, 'image' ) ) {
 			wp_delete_file( $tmp );
+			$this->last_refused = true;
 			return 0;
 		}
 		$dest = $upload_dir['path'] . '/' . $filename;
@@ -185,7 +190,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * @return int Attachment ID or 0 on failure.
 	 */
 	public function import_file( string $url, string $name = '', int $parent_id = 0, array $api_meta = [] ): int {
-		$url = $this->normalize_download_url( $url );
+		$this->last_refused = false;
+		$url                = $this->normalize_download_url( $url );
 		if ( empty( $url ) || ! $this->is_valid_url( $url ) ) {
 			return 0;
 		}
@@ -232,6 +238,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'file' );
 		if ( ! $this->is_allowed_file_name( $filename, 'file' ) ) {
 			wp_delete_file( $tmp );
+			$this->last_refused = true;
 			return 0;
 		}
 		$dest = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
@@ -794,6 +801,15 @@ class Skwirrel_WC_Sync_Media_Importer {
 				update_post_meta( $attachment_id, self::META_SKWIRREL_FILE_NAME, $file_name );
 			}
 		}
+	}
+
+	/**
+	 * Whether the last import_image()/import_file() call returned 0 because WordPress does not allow
+	 * the file type. Such a refusal is permanent, so callers treat it as a skip rather than a failure
+	 * that should hold the product for a retry.
+	 */
+	public function last_import_was_refused(): bool {
+		return $this->last_refused;
 	}
 
 	public function is_image_attachment_type( string $code ): bool {

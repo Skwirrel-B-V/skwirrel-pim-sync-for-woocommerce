@@ -80,6 +80,7 @@ Returning `true` tells the sync the attachment is still valid even though the lo
 
 = 4.3.1 =
 * Security: images and documents are only imported when WordPress allows their file type on your site (for example no .php or .phtml, and .svg only when your site allows it). Refused files are skipped with a warning in the log. File types your site adds through the upload_mimes filter are allowed.
+* Note: file types WordPress does not allow by default, such as CAD/BIM files (.dwg, .dxf, .ifc, .step, .rfa) and .svg, are now skipped. Files imported earlier stay. To keep importing them, allow the types with the upload_mimes filter (see the changelog on GitHub for an example).
 * Fix: an empty description in Skwirrel no longer overwrites a description you typed on a replaced image.
 * Fix: when WordPress fails to create an attachment, the downloaded file is removed and the existing attachment stays linked to the product.
 

@@ -607,6 +607,36 @@ if (!function_exists('wp_remote_retrieve_body')) {
     }
 }
 
+// Attachment file/metadata stubs — backed by $GLOBALS['_test_attached_files'] and
+// $GLOBALS['_test_attachment_metadata'].
+if (!function_exists('update_attached_file')) {
+    function update_attached_file(int $attachment_id, string $file): bool {
+        $GLOBALS['_test_attached_files'][$attachment_id] = $file;
+        return true;
+    }
+}
+if (!function_exists('wp_get_attachment_metadata')) {
+    function wp_get_attachment_metadata(int $attachment_id = 0, bool $unfiltered = false) {
+        return $GLOBALS['_test_attachment_metadata'][$attachment_id] ?? false;
+    }
+}
+if (!function_exists('wp_generate_attachment_metadata')) {
+    function wp_generate_attachment_metadata(int $attachment_id, string $file): array {
+        return ['file' => basename($file)];
+    }
+}
+if (!function_exists('wp_update_attachment_metadata')) {
+    function wp_update_attachment_metadata(int $attachment_id, array $data) {
+        $GLOBALS['_test_attachment_metadata'][$attachment_id] = $data;
+        return true;
+    }
+}
+if (!function_exists('wp_get_attachment_url')) {
+    function wp_get_attachment_url(int $attachment_id = 0) {
+        return 'https://example.test/uploads/' . $attachment_id;
+    }
+}
+
 // Stub wp_insert_attachment() — records each call in $GLOBALS['_test_inserted_attachments'] and returns
 // $GLOBALS['_test_insert_attachment_result'] (default 1000): set 0 or a WP_Error to simulate failure.
 if (!function_exists('wp_insert_attachment')) {
