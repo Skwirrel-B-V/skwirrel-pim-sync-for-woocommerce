@@ -68,7 +68,8 @@ afterEach(function () {
 		$GLOBALS['_test_filters']['skwirrel_wc_sync_allowed_document_types'],
 		$GLOBALS['_test_attached_files'],
 		$GLOBALS['_test_attachment_metadata'],
-		$GLOBALS['_test_current_user_unfiltered_html']
+		$GLOBALS['_test_current_user_unfiltered_html'],
+		$GLOBALS['_test_current_user_is_super_admin']
 	);
 	$GLOBALS['_test_inserted_attachments'] = [];
 	$GLOBALS['_test_post_meta']            = [];
@@ -383,6 +384,21 @@ test('a sync started by an admin does not inherit the admin\'s html and js uploa
 	expect($this->importer->last_import_was_refused())->toBeTrue();
 	expect(safety_uploads())->toBe([]);
 })->with(['x.html', 'x.htm', 'x.js']);
+
+test('a sync started by a multisite super admin does not inherit html and js either', function (string $file_name) {
+	// Core's is_super_admin( 0 ) asks about the current user, so new WP_User( 0 ) is not enough.
+	$GLOBALS['_test_current_user_unfiltered_html'] = true;
+	$GLOBALS['_test_current_user_is_super_admin']  = true;
+	expect(get_allowed_mime_types(new WP_User(0)))->toHaveKeys(['htm|html', 'js']);
+	expect($this->importer->import_file('https://cdn.example.test/files/x', $file_name, 10, ['file_name' => $file_name]))->toBe(0);
+	expect($this->importer->last_import_was_refused())->toBeTrue();
+	expect(safety_uploads())->toBe([]);
+})->with(['x.html', 'x.js']);
+
+test('a site that allows html through upload_mimes still decides', function () {
+	add_filter('upload_mimes', fn (array $mimes) => $mimes + ['htm|html' => 'text/html']);
+	expect($this->importer->import_file('https://cdn.example.test/files/page.html', 'page.html', 10, ['file_name' => 'page.html']))->toBe(1000);
+});
 
 test('a replaced image whose name the upload filter gives an extra type gets that type and its texts', function () {
 	$GLOBALS['_test_http_body'] = safety_png();

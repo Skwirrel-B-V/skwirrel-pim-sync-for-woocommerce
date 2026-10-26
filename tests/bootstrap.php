@@ -538,10 +538,10 @@ if (!class_exists('WP_User')) {
     }
 }
 
-// Stub get_allowed_mime_types() — a subset of core's default list, run through `upload_mimes` like core.
-if (!function_exists('get_allowed_mime_types')) {
-    function get_allowed_mime_types($user = null): array {
-        $mimes = [
+// Stub wp_get_mime_types() — a subset of core's full list, before any capability rule.
+if (!function_exists('wp_get_mime_types')) {
+    function wp_get_mime_types(): array {
+        return apply_filters('mime_types', [
             'jpg|jpeg|jpe' => 'image/jpeg',
             'gif'          => 'image/gif',
             'png'          => 'image/png',
@@ -556,16 +556,33 @@ if (!function_exists('get_allowed_mime_types')) {
             'zip'          => 'application/zip',
             'htm|html'     => 'text/html',
             'js'           => 'application/javascript',
-        ];
-        // Like core: html and js only for a user with unfiltered_html. Without a user argument core
-        // asks about the current user; tests set _test_current_user_unfiltered_html for an admin.
-        $unfiltered = null === $user ? ! empty($GLOBALS['_test_current_user_unfiltered_html']) : false;
+            'swf'          => 'application/x-shockwave-flash',
+            'exe'          => 'application/x-msdownload',
+        ]);
+    }
+}
+
+// Stub get_allowed_mime_types() modelled on core 6.8: swf and exe never; html and js only when
+// the user has unfiltered_html. Core asks the current user when $user is falsy, and for a user
+// object it asks is_super_admin( $user->ID ), which also falls back to the current user for ID 0.
+// Tests set _test_current_user_unfiltered_html (admin) and _test_current_user_is_super_admin.
+if (!function_exists('get_allowed_mime_types')) {
+    function get_allowed_mime_types($user = null): array {
+        $mimes = wp_get_mime_types();
+        unset($mimes['swf'], $mimes['exe']);
+        if (! $user) {
+            $unfiltered = ! empty($GLOBALS['_test_current_user_unfiltered_html']);
+        } else {
+            $id         = is_object($user) ? (int) ($user->ID ?? 0) : (int) $user;
+            $unfiltered = 0 === $id && ! empty($GLOBALS['_test_current_user_is_super_admin']);
+        }
         if (! $unfiltered) {
             unset($mimes['htm|html'], $mimes['js']);
         }
         return apply_filters('upload_mimes', $mimes, $user);
     }
 }
+
 
 // Stub wp_check_filetype() — same matching as core: the last extension against the allowed list.
 if (!function_exists('wp_check_filetype')) {

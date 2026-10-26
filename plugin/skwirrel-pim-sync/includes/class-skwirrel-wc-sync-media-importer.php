@@ -412,7 +412,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return;
 		}
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'image_replace', true );
-		if ( ! $this->is_allowed_file_name( $filename, 'image_replace', $attachment_id ) ) {
+		$mimes    = $this->import_mimes();
+		if ( ! $this->is_allowed_file_name( $filename, 'image_replace', $attachment_id, $mimes ) ) {
 			wp_delete_file( $tmp );
 			return;
 		}
@@ -433,7 +434,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$old_path = get_attached_file( $attachment_id );
 		$old_meta = wp_get_attachment_metadata( $attachment_id );
 
-		$filetype = wp_check_filetype( $filename, $this->import_mimes() );
+		$filetype = wp_check_filetype( $filename, $mimes );
 		if ( ! empty( $filetype['type'] ) ) {
 			wp_update_post( wp_slash( $this->replacement_post_fields( $attachment_id, $filetype['type'], $description, $api_meta ) ) );
 		}
@@ -572,9 +573,10 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * @param string $filename      File name without directory.
 	 * @param string $context       `image`, `file`, `image_replace` or `file_replace`.
 	 * @param int    $attachment_id Existing attachment being replaced, or 0.
+	 * @param array<string,string>|null $mimes Types from import_mimes() when the caller already has them.
 	 */
-	private function is_allowed_file_name( string $filename, string $context, int $attachment_id = 0 ): bool {
-		$mimes = $this->import_mimes();
+	private function is_allowed_file_name( string $filename, string $context, int $attachment_id = 0, ?array $mimes = null ): bool {
+		$mimes ??= $this->import_mimes();
 		foreach ( array_unique( [ $filename, sanitize_file_name( $filename ) ] ) as $name ) {
 			$refused = '';
 			$parts   = explode( '.', strtolower( $name ) );
@@ -608,9 +610,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 	}
 
 	/**
-	 * File types this plugin may import: the site's WordPress allowlist for a user without
-	 * capabilities (`get_allowed_mime_types()`, including `upload_mimes` additions) plus the extra technical document types. The extra types
-	 * pass through `skwirrel_wc_sync_allowed_document_types` and are cleaned: an extension must be
+	 * File types this plugin may import: the site's allowlist without any per-user rule
+	 * (site_mimes(), including `upload_mimes` additions) plus the extra technical document types.
+	 * The extra types pass through `skwirrel_wc_sync_allowed_document_types` and are cleaned: an extension must be
 	 * 2-5 plain letters/digits (the length import_file() and File_Naming recognise as an extension),
 	 * and script and browser-script extensions are dropped, whatever the filter returns.
 	 *
@@ -618,9 +620,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 */
 	private function import_mimes(): array {
 		$extra = $this->filtered_document_types();
-		// Asked as a user without capabilities: a sync started in an admin's session (the
-		// single-product resync) must not inherit the admin's unfiltered_html rights to html and js.
-		$mimes = get_allowed_mime_types( new WP_User( 0 ) );
+		$mimes = $this->site_mimes();
 		if ( ! is_array( $extra ) ) {
 			return $mimes;
 		}
@@ -639,6 +639,23 @@ class Skwirrel_WC_Sync_Media_Importer {
 			}
 		}
 		return $mimes;
+	}
+
+	/**
+	 * The site's allowed types as core builds them for a user without `unfiltered_html`, whoever
+	 * runs the sync. get_allowed_mime_types() cannot do this: it asks about a user, and a
+	 * `WP_User( 0 )` still resolves to the current user through is_super_admin(), so a single-product
+	 * resync started by a multisite super admin would get html and js. `upload_mimes` still runs, so
+	 * the site decides (also on multisite, where core limits this list through that filter).
+	 *
+	 * @return array<string,string>
+	 */
+	private function site_mimes(): array {
+		$mimes = wp_get_mime_types();
+		unset( $mimes['swf'], $mimes['exe'], $mimes['htm|html'], $mimes['js'] );
+		/** This filter is documented in wp-includes/functions.php */
+		$mimes = apply_filters( 'upload_mimes', $mimes, null );
+		return is_array( $mimes ) ? $mimes : [];
 	}
 
 	/**
