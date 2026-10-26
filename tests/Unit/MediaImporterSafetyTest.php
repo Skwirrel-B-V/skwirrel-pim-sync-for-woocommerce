@@ -67,7 +67,8 @@ afterEach(function () {
 		$GLOBALS['_test_filters']['skwirrel_wc_sync_upload_filename'],
 		$GLOBALS['_test_filters']['skwirrel_wc_sync_allowed_document_types'],
 		$GLOBALS['_test_attached_files'],
-		$GLOBALS['_test_attachment_metadata']
+		$GLOBALS['_test_attachment_metadata'],
+		$GLOBALS['_test_current_user_unfiltered_html']
 	);
 	$GLOBALS['_test_inserted_attachments'] = [];
 	$GLOBALS['_test_post_meta']            = [];
@@ -368,11 +369,37 @@ test('script types and svg added through the plugin filter stay refused', functi
 })->with(['x.php', 'x.phtml', 'x.phar', 'x.php5', 'x.svg']);
 
 test('types that run script in the browser stay refused when the plugin filter adds them', function (string $file_name) {
-	add_filter('skwirrel_wc_sync_allowed_document_types', fn (array $types) => $types + ['html|htm|xhtml|xht' => 'text/html', 'xml' => 'text/xml', 'js|mjs' => 'text/javascript', 'swf' => 'application/x-shockwave-flash']);
+	add_filter('skwirrel_wc_sync_allowed_document_types', fn (array $types) => $types + ['html|htm|xhtml|xht' => 'text/html', 'xml' => 'text/xml', 'js|mjs' => 'text/javascript', 'swf' => 'application/x-shockwave-flash', 'mht|mhtml' => 'message/rfc822', 'xsl|xslt' => 'application/xslt+xml', 'hta' => 'application/hta']);
 	expect($this->importer->import_file('https://cdn.example.test/files/x', $file_name, 10, ['file_name' => $file_name]))->toBe(0);
 	expect($this->importer->last_import_was_refused())->toBeTrue();
 	expect(safety_uploads())->toBe([]);
-})->with(['x.html', 'x.htm', 'x.xhtml', 'x.xht', 'x.xml', 'x.js', 'x.mjs', 'x.swf']);
+})->with(['x.html', 'x.htm', 'x.xhtml', 'x.xht', 'x.xml', 'x.js', 'x.mjs', 'x.swf', 'x.mht', 'x.mhtml', 'x.xsl', 'x.xslt', 'x.hta']);
+
+test('a sync started by an admin does not inherit the admin\'s html and js upload rights', function (string $file_name) {
+	// The single-product resync runs in the admin's session; core keeps html and js for unfiltered_html.
+	$GLOBALS['_test_current_user_unfiltered_html'] = true;
+	expect(get_allowed_mime_types())->toHaveKeys(['htm|html', 'js']);
+	expect($this->importer->import_file('https://cdn.example.test/files/x', $file_name, 10, ['file_name' => $file_name]))->toBe(0);
+	expect($this->importer->last_import_was_refused())->toBeTrue();
+	expect(safety_uploads())->toBe([]);
+})->with(['x.html', 'x.htm', 'x.js']);
+
+test('a replaced image whose name the upload filter gives an extra type gets that type and its texts', function () {
+	$GLOBALS['_test_http_body'] = safety_png();
+	$old                        = $this->uploads . '/old.png';
+	file_put_contents($old, safety_png());
+	$GLOBALS['_test_posts']             = [5];
+	$GLOBALS['_test_attached_files'][5] = $old;
+	update_post_meta(5, '_skwirrel_attachment_id', 7);
+	update_post_meta(5, '_skwirrel_file_checksum', 'aaa');
+	$GLOBALS['_test_post_fields'][5] = ['post_content' => 'Old', 'post_excerpt' => '', 'post_parent' => 10];
+	add_filter('skwirrel_wc_sync_upload_filename', fn ($name) => preg_replace('/\.[^.]+$/', '.eps', (string) $name));
+
+	$this->importer->import_image('https://cdn.example.test/img/logo.png', 'logo.png', 10, '', 'New description', ['attachment_id' => 7, 'file_checksum' => 'bbb']);
+
+	expect($GLOBALS['_test_post_fields'][5]['post_mime_type'] ?? null)->toBe('application/postscript');
+	expect($GLOBALS['_test_post_fields'][5]['post_content'])->toBe('New description');
+});
 
 test('the plugin filter only takes extensions the importer can name (2-5 letters/digits)', function () {
 	add_filter('skwirrel_wc_sync_allowed_document_types', fn (array $types) => $types + ['sldprt|x|3dm' => 'application/octet-stream']);

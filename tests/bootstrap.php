@@ -529,6 +529,15 @@ if (!function_exists('wp_upload_dir')) {
     }
 }
 
+if (!class_exists('WP_User')) {
+    class WP_User {
+        public int $ID;
+        public function __construct($id = 0) {
+            $this->ID = (int) $id;
+        }
+    }
+}
+
 // Stub get_allowed_mime_types() — a subset of core's default list, run through `upload_mimes` like core.
 if (!function_exists('get_allowed_mime_types')) {
     function get_allowed_mime_types($user = null): array {
@@ -545,7 +554,15 @@ if (!function_exists('get_allowed_mime_types')) {
             'csv'          => 'text/csv',
             'txt|asc|c|cc|h|srt' => 'text/plain',
             'zip'          => 'application/zip',
+            'htm|html'     => 'text/html',
+            'js'           => 'application/javascript',
         ];
+        // Like core: html and js only for a user with unfiltered_html. Without a user argument core
+        // asks about the current user; tests set _test_current_user_unfiltered_html for an admin.
+        $unfiltered = null === $user ? ! empty($GLOBALS['_test_current_user_unfiltered_html']) : false;
+        if (! $unfiltered) {
+            unset($mimes['htm|html'], $mimes['js']);
+        }
         return apply_filters('upload_mimes', $mimes, $user);
     }
 }

@@ -57,9 +57,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 	/**
 	 * Extensions the plugin filter may never add: these run script in the browser (svg, html, xml,
-	 * js, swf), so only the site itself may allow them through `upload_mimes`.
+	 * xsl, mht, js, swf, hta), so only the site itself may allow them through `upload_mimes`.
 	 */
-	private const NEVER_EXTRA_EXTENSION_PATTERN = '/^(svgz?|html?|xhtml?|xht|xml|m?js|swf)$/i';
+	private const NEVER_EXTRA_EXTENSION_PATTERN = '/^(svgz?|html?|xhtml?|xht|xml|xslt?|mht|mhtml|m?js|swf|hta)$/i';
 
 	/**
 	 * Attachment whose Skwirrel file name changed, to be let go once its replacement is imported.
@@ -433,7 +433,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		$old_path = get_attached_file( $attachment_id );
 		$old_meta = wp_get_attachment_metadata( $attachment_id );
 
-		$filetype = wp_check_filetype( $filename, null );
+		$filetype = wp_check_filetype( $filename, $this->import_mimes() );
 		if ( ! empty( $filetype['type'] ) ) {
 			wp_update_post( wp_slash( $this->replacement_post_fields( $attachment_id, $filetype['type'], $description, $api_meta ) ) );
 		}
@@ -608,8 +608,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 	}
 
 	/**
-	 * File types this plugin may import: the site's WordPress allowlist (`get_allowed_mime_types()`,
-	 * including `upload_mimes` additions) plus the extra technical document types. The extra types
+	 * File types this plugin may import: the site's WordPress allowlist for a user without
+	 * capabilities (`get_allowed_mime_types()`, including `upload_mimes` additions) plus the extra technical document types. The extra types
 	 * pass through `skwirrel_wc_sync_allowed_document_types` and are cleaned: an extension must be
 	 * 2-5 plain letters/digits (the length import_file() and File_Naming recognise as an extension),
 	 * and script and browser-script extensions are dropped, whatever the filter returns.
@@ -618,7 +618,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 */
 	private function import_mimes(): array {
 		$extra = $this->filtered_document_types();
-		$mimes = get_allowed_mime_types();
+		// Asked as a user without capabilities: a sync started in an admin's session (the
+		// single-product resync) must not inherit the admin's unfiltered_html rights to html and js.
+		$mimes = get_allowed_mime_types( new WP_User( 0 ) );
 		if ( ! is_array( $extra ) ) {
 			return $mimes;
 		}
@@ -647,7 +649,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 		/**
 		 * Filters the extra document types Skwirrel imports accept on top of the site's allowlist.
 		 * Extensions must be 2-5 letters/digits. Script extensions and types that run script in the
-		 * browser (svg, html, xml, js, swf) are always dropped from the result.
+		 * browser (svg, html, xml, xsl, mht, js, swf, hta) are always dropped from the result. An
+		 * entry with exactly the same key as a site type (for example `png`) overrides that type's
+		 * MIME type for Skwirrel imports, images included.
 		 *
 		 * @param array<string,string> $types Extension pattern (`step|stp`) => MIME type.
 		 */
@@ -879,8 +883,9 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 	/**
 	 * Whether the last import_image()/import_file() call returned 0 because the file type is not
-	 * allowed for import (not on the site's allowlist nor the plugin's extra document types). Such a refusal is permanent, so callers treat it as a skip rather than a failure
-	 * that should hold the product for a retry.
+	 * allowed for import (not on the site's allowlist nor the plugin's extra document types). Such a
+	 * refusal is permanent, so callers treat it as a skip rather than a failure that should hold the
+	 * product for a retry.
 	 */
 	public function last_import_was_refused(): bool {
 		return $this->last_refused;
