@@ -331,8 +331,8 @@ test('CAD/BIM document types are imported by default', function (string $file_na
 	expect($GLOBALS['_test_inserted_attachments'][0]['args']['post_mime_type'])->toBe($mime);
 	expect($this->logs->warnings())->toBe([]);
 })->with([
-	['plan.dwg', 'image/vnd.dwg'],
-	['plan.dxf', 'image/vnd.dxf'],
+	['plan.dwg', 'application/acad'],
+	['plan.dxf', 'application/dxf'],
 	['model.ifc', 'application/x-step'],
 	['part.step', 'application/step'],
 	['part.STP', 'application/step'],
@@ -366,6 +366,29 @@ test('script types and svg added through the plugin filter stay refused', functi
 	expect($this->importer->import_file('https://cdn.example.test/files/x', $file_name, 10, ['file_name' => $file_name]))->toBe(0);
 	expect(safety_uploads())->toBe([]);
 })->with(['x.php', 'x.phtml', 'x.phar', 'x.php5', 'x.svg']);
+
+test('types that run script in the browser stay refused when the plugin filter adds them', function (string $file_name) {
+	add_filter('skwirrel_wc_sync_allowed_document_types', fn (array $types) => $types + ['html|htm|xhtml|xht' => 'text/html', 'xml' => 'text/xml', 'js|mjs' => 'text/javascript', 'swf' => 'application/x-shockwave-flash']);
+	expect($this->importer->import_file('https://cdn.example.test/files/x', $file_name, 10, ['file_name' => $file_name]))->toBe(0);
+	expect($this->importer->last_import_was_refused())->toBeTrue();
+	expect(safety_uploads())->toBe([]);
+})->with(['x.html', 'x.htm', 'x.xhtml', 'x.xht', 'x.xml', 'x.js', 'x.mjs', 'x.swf']);
+
+test('the plugin filter only takes extensions the importer can name (2-5 letters/digits)', function () {
+	add_filter('skwirrel_wc_sync_allowed_document_types', fn (array $types) => $types + ['sldprt|x|3dm' => 'application/octet-stream']);
+	$mimes = (new ReflectionMethod($this->importer, 'import_mimes'))->invoke($this->importer);
+	expect($mimes)->toHaveKey('3dm')->not->toHaveKey('sldprt|x|3dm');
+	expect(implode('|', array_keys($mimes)))->not->toContain('sldprt');
+});
+
+test('the refusal warning does not blame WordPress when the plugin list decided', function () {
+	add_filter('skwirrel_wc_sync_allowed_document_types', function (array $types) {
+		unset($types['dwg']);
+		return $types;
+	});
+	$this->importer->import_file('https://cdn.example.test/files/plan.dwg', 'plan.dwg', 10, ['file_name' => 'plan.dwg']);
+	expect(implode(' ', $this->logs->warnings()))->toContain('File type not allowed for import')->not->toContain('by WordPress');
+});
 
 test('svg is still refused by default', function () {
 	expect($this->importer->import_file('https://cdn.example.test/files/plan.svg', 'plan.svg', 10, ['file_name' => 'plan.svg']))->toBe(0);

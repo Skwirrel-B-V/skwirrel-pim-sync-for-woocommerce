@@ -43,8 +43,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * `skwirrel_wc_sync_allowed_document_types`.
 	 */
 	private const EXTRA_DOCUMENT_TYPES = [
-		'dwg'      => 'image/vnd.dwg',
-		'dxf'      => 'image/vnd.dxf',
+		'dwg'      => 'application/acad',
+		'dxf'      => 'application/dxf',
 		'ifc'      => 'application/x-step',
 		'step|stp' => 'application/step',
 		'igs|iges' => 'model/iges',
@@ -55,8 +55,11 @@ class Skwirrel_WC_Sync_Media_Importer {
 		'eps'      => 'application/postscript',
 	];
 
-	/** Extensions the plugin filter may never add: svg can carry script, so only the site may allow it. */
-	private const NEVER_EXTRA_EXTENSION_PATTERN = '/^svgz?$/i';
+	/**
+	 * Extensions the plugin filter may never add: these run script in the browser (svg, html, xml,
+	 * js, swf), so only the site itself may allow them through `upload_mimes`.
+	 */
+	private const NEVER_EXTRA_EXTENSION_PATTERN = '/^(svgz?|html?|xhtml?|xht|xml|m?js|swf)$/i';
 
 	/**
 	 * Attachment whose Skwirrel file name changed, to be let go once its replacement is imported.
@@ -162,7 +165,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 		wp_delete_file( $tmp );
 
-		$filetype   = wp_check_filetype( $filename, null );
+		$filetype   = wp_check_filetype( $filename, $this->import_mimes() );
 		$label      = $alt_caption ? $alt_caption : ( $title ? $title : preg_replace( '/\.[^.]+$/', '', $filename ) );
 		$attachment = [
 			'post_mime_type' => $filetype['type'],
@@ -571,6 +574,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * @param int    $attachment_id Existing attachment being replaced, or 0.
 	 */
 	private function is_allowed_file_name( string $filename, string $context, int $attachment_id = 0 ): bool {
+		$mimes = $this->import_mimes();
 		foreach ( array_unique( [ $filename, sanitize_file_name( $filename ) ] ) as $name ) {
 			$refused = '';
 			$parts   = explode( '.', strtolower( $name ) );
@@ -583,14 +587,14 @@ class Skwirrel_WC_Sync_Media_Importer {
 				}
 			}
 			if ( '' === $refused ) {
-				$check = wp_check_filetype( $name, $this->import_mimes() );
+				$check = wp_check_filetype( $name, $mimes );
 				if ( empty( $check['ext'] ) || preg_match( self::EXECUTABLE_EXTENSION_PATTERN, $ext ) ) {
 					$refused = '' !== $ext ? $ext : '(none)';
 				}
 			}
 			if ( '' !== $refused ) {
 				$this->logger->warning(
-					'File type not allowed by WordPress; file not imported',
+					'File type not allowed for import; file not imported',
 					[
 						'extension'     => $refused,
 						'context'       => $context,
@@ -607,7 +611,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 	 * File types this plugin may import: the site's WordPress allowlist (`get_allowed_mime_types()`,
 	 * including `upload_mimes` additions) plus the extra technical document types. The extra types
 	 * pass through `skwirrel_wc_sync_allowed_document_types` and are cleaned: an extension must be
-	 * plain letters/digits, and script extensions and svg are dropped, whatever the filter returns.
+	 * 2-5 plain letters/digits (the length import_file() and File_Naming recognise as an extension),
+	 * and script and browser-script extensions are dropped, whatever the filter returns.
 	 *
 	 * @return array<string,string> Extension pattern (`a|b`) => MIME type, as wp_check_filetype() expects.
 	 */
@@ -623,7 +628,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 			}
 			$exts = array_filter(
 				explode( '|', strtolower( (string) $pattern ) ),
-				fn( string $ext ): bool => 1 === preg_match( '/^[a-z0-9]{1,10}$/', $ext )
+				fn( string $ext ): bool => 1 === preg_match( '/^[a-z0-9]{2,5}$/', $ext )
 					&& ! preg_match( self::EXECUTABLE_EXTENSION_PATTERN, $ext )
 					&& ! preg_match( self::NEVER_EXTRA_EXTENSION_PATTERN, $ext )
 			);
@@ -641,7 +646,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 	private function filtered_document_types(): mixed {
 		/**
 		 * Filters the extra document types Skwirrel imports accept on top of the site's allowlist.
-		 * Script extensions and svg are always dropped from the result.
+		 * Extensions must be 2-5 letters/digits. Script extensions and types that run script in the
+		 * browser (svg, html, xml, js, swf) are always dropped from the result.
 		 *
 		 * @param array<string,string> $types Extension pattern (`step|stp`) => MIME type.
 		 */
@@ -872,8 +878,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 	}
 
 	/**
-	 * Whether the last import_image()/import_file() call returned 0 because WordPress does not allow
-	 * the file type. Such a refusal is permanent, so callers treat it as a skip rather than a failure
+	 * Whether the last import_image()/import_file() call returned 0 because the file type is not
+	 * allowed for import (not on the site's allowlist nor the plugin's extra document types). Such a refusal is permanent, so callers treat it as a skip rather than a failure
 	 * that should hold the product for a retry.
 	 */
 	public function last_import_was_refused(): bool {
