@@ -31,6 +31,12 @@ class Skwirrel_WC_Sync_Media_Importer {
 	private const NON_IMAGE_EXTENSIONS = [ 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'txt', 'zip', 'rar' ];
 
 	/**
+	 * Extensions a web server may run as a script. Never accepted anywhere in a file name, also not
+	 * in front of an allowed extension (`x.php.pdf` runs as PHP on some Apache set-ups).
+	 */
+	private const EXECUTABLE_EXTENSION_PATTERN = '/^(php\d*|phtml?|pht|phps|phar|cgi|aspx?|jsp|shtml?)$/i';
+
+	/**
 	 * Attachment whose Skwirrel file name changed, to be let go once its replacement is imported.
 	 * Releasing it earlier would leave nothing to reuse when the download then fails.
 	 */
@@ -117,7 +123,11 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'image', true );
-		$dest     = $upload_dir['path'] . '/' . $filename;
+		if ( ! $this->is_allowed_file_name( $filename, 'image' ) ) {
+			wp_delete_file( $tmp );
+			return 0;
+		}
+		$dest = $upload_dir['path'] . '/' . $filename;
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning( 'Failed to copy image to uploads', [ 'url' => $url ] );
@@ -135,16 +145,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			'post_status'    => 'inherit',
 		];
 
-		$id = wp_insert_attachment( $attachment, $dest, $parent_id );
-		if ( is_wp_error( $id ) ) { // @phpstan-ignore function.impossibleType
-			wp_delete_file( $dest );
-			$this->logger->warning(
-				'Failed to create attachment',
-				[
-					'url'   => $url,
-					'error' => $id->get_error_message(),
-				]
-			);
+		$id = $this->insert_attachment( $attachment, $dest, $parent_id, $url );
+		if ( 0 === $id ) {
 			return 0;
 		}
 
@@ -228,7 +230,11 @@ class Skwirrel_WC_Sync_Media_Importer {
 		}
 
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'file' );
-		$dest     = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
+		if ( ! $this->is_allowed_file_name( $filename, 'file' ) ) {
+			wp_delete_file( $tmp );
+			return 0;
+		}
+		$dest = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning( 'Failed to copy file to uploads', [ 'url' => $url ] );
@@ -245,16 +251,8 @@ class Skwirrel_WC_Sync_Media_Importer {
 			'post_status'    => 'inherit',
 		];
 
-		$id = wp_insert_attachment( $attachment, $dest, $parent_id );
-		if ( is_wp_error( $id ) ) { // @phpstan-ignore function.impossibleType
-			wp_delete_file( $dest );
-			$this->logger->warning(
-				'Failed to create attachment',
-				[
-					'url'   => $url,
-					'error' => $id->get_error_message(),
-				]
-			);
+		$id = $this->insert_attachment( $attachment, $dest, $parent_id, $url );
+		if ( 0 === $id ) {
 			return 0;
 		}
 
@@ -382,7 +380,11 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return;
 		}
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'image_replace', true );
-		$dest     = $upload_dir['path'] . '/' . $filename;
+		if ( ! $this->is_allowed_file_name( $filename, 'image_replace', $attachment_id ) ) {
+			wp_delete_file( $tmp );
+			return;
+		}
+		$dest = $upload_dir['path'] . '/' . $filename;
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning(
@@ -401,17 +403,7 @@ class Skwirrel_WC_Sync_Media_Importer {
 
 		$filetype = wp_check_filetype( $filename, null );
 		if ( ! empty( $filetype['type'] ) ) {
-			$update = [
-				'ID'             => $attachment_id,
-				'post_mime_type' => $filetype['type'],
-				'post_content'   => $description,
-			];
-			// Only when Skwirrel supplies a caption here: an empty one must not wipe a caption typed by hand. A
-			// caption cleared in Skwirrel is handled by sync_texts(), which ran before this.
-			if ( '' !== $this->incoming_text( $api_meta, 'caption' ) ) {
-				$update['post_excerpt'] = $this->incoming_text( $api_meta, 'caption' );
-			}
-			wp_update_post( wp_slash( $update ) );
+			wp_update_post( wp_slash( $this->replacement_post_fields( $attachment_id, $filetype['type'], $description, $api_meta ) ) );
 		}
 		update_attached_file( $attachment_id, $dest );
 		$new_meta = wp_generate_attachment_metadata( $attachment_id, $dest );
@@ -487,7 +479,11 @@ class Skwirrel_WC_Sync_Media_Importer {
 			return;
 		}
 		$filename = Skwirrel_WC_Sync_File_Naming::build( $upload_dir['path'], (string) ( $api_meta['file_name'] ?? '' ), $ext, $url, 'file_replace' );
-		$dest     = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
+		if ( ! $this->is_allowed_file_name( $filename, 'file_replace', $attachment_id ) ) {
+			wp_delete_file( $tmp );
+			return;
+		}
+		$dest = $upload_dir['path'] . '/' . sanitize_file_name( $filename );
 		if ( ! copy( $tmp, $dest ) ) {
 			wp_delete_file( $tmp );
 			$this->logger->warning(
@@ -531,6 +527,98 @@ class Skwirrel_WC_Sync_Media_Importer {
 				'new_checksum'           => $api_meta['file_checksum'] ?? null,
 			]
 		);
+	}
+
+	/**
+	 * Whether a file may be written to uploads under this name: WordPress must allow its extension for
+	 * this site (`wp_check_filetype()`, so `upload_mimes` additions count), and no part of the name
+	 * may be a script extension (`x.php.pdf`). Checked on the name as built and as it is stored, so
+	 * the outcome never depends on how `sanitize_file_name()` treats a double extension. A refused
+	 * name is logged with its extension only, not the URL.
+	 *
+	 * @param string $filename      File name without directory.
+	 * @param string $context       `image`, `file`, `image_replace` or `file_replace`.
+	 * @param int    $attachment_id Existing attachment being replaced, or 0.
+	 */
+	private function is_allowed_file_name( string $filename, string $context, int $attachment_id = 0 ): bool {
+		foreach ( array_unique( [ $filename, sanitize_file_name( $filename ) ] ) as $name ) {
+			$refused = '';
+			$parts   = explode( '.', strtolower( $name ) );
+			$ext     = count( $parts ) > 1 ? (string) array_pop( $parts ) : '';
+			array_shift( $parts );
+			foreach ( $parts as $inner ) {
+				if ( preg_match( self::EXECUTABLE_EXTENSION_PATTERN, $inner ) ) {
+					$refused = $inner;
+					break;
+				}
+			}
+			if ( '' === $refused ) {
+				$check = wp_check_filetype( $name );
+				if ( empty( $check['ext'] ) || preg_match( self::EXECUTABLE_EXTENSION_PATTERN, $ext ) ) {
+					$refused = '' !== $ext ? $ext : '(none)';
+				}
+			}
+			if ( '' !== $refused ) {
+				$this->logger->warning(
+					'File type not allowed by WordPress; file not imported',
+					[
+						'extension'     => $refused,
+						'context'       => $context,
+						'attachment_id' => $attachment_id > 0 ? $attachment_id : null,
+					]
+				);
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Create the attachment post for a file already copied to uploads.
+	 *
+	 * `wp_insert_attachment()` reports a failure as 0 (or a `WP_Error` when asked for one). Either
+	 * way the copied file is removed and 0 returned, so the caller stops before it records Skwirrel
+	 * meta or lets go of the attachment it was replacing.
+	 *
+	 * @param array<string,mixed> $attachment Post fields.
+	 * @return int Attachment ID, or 0 on failure.
+	 */
+	private function insert_attachment( array $attachment, string $dest, int $parent_id, string $url ): int {
+		$id = wp_insert_attachment( $attachment, $dest, $parent_id );
+		if ( is_wp_error( $id ) || (int) $id <= 0 ) { // @phpstan-ignore function.impossibleType
+			wp_delete_file( $dest );
+			$this->logger->warning(
+				'Failed to create attachment',
+				[
+					'url'   => $url,
+					'error' => is_wp_error( $id ) ? $id->get_error_message() : 'wp_insert_attachment() returned 0', // @phpstan-ignore function.impossibleType
+				]
+			);
+			return 0;
+		}
+		return (int) $id;
+	}
+
+	/**
+	 * Post fields for an image whose file was replaced. The description and caption are only set
+	 * when Skwirrel supplies them: an empty one must not wipe text typed by hand. A caption cleared
+	 * in Skwirrel is handled by sync_texts(), which ran before this.
+	 *
+	 * @param array<string,mixed> $api_meta
+	 * @return array{ID: int, post_mime_type: string, post_content?: string, post_excerpt?: string}
+	 */
+	private function replacement_post_fields( int $attachment_id, string $mime, string $description, array $api_meta ): array {
+		$update = [
+			'ID'             => $attachment_id,
+			'post_mime_type' => $mime,
+		];
+		if ( '' !== trim( $description ) ) {
+			$update['post_content'] = $description;
+		}
+		if ( '' !== $this->incoming_text( $api_meta, 'caption' ) ) {
+			$update['post_excerpt'] = $this->incoming_text( $api_meta, 'caption' );
+		}
+		return $update;
 	}
 
 	/**
