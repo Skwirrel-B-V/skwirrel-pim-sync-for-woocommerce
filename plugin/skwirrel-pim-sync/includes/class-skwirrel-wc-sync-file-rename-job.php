@@ -26,6 +26,16 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	/** Old upload path of a renamed attachment, as "old relative path<TAB>current relative path" (one row per file). */
 	public const META_OLD_PATH = '_skwirrel_old_upload_path';
 
+	/**
+	 * A rename that has started but not finished: `stage` `move` (files may be moving) or `links`
+	 * (files, metadata and old paths done, links still to rewrite), plus what is needed to finish it.
+	 * Written before the first file moves and removed once the links are rewritten.
+	 */
+	public const META_PENDING = '_skwirrel_rename_pending';
+
+	/** Times an unfinished rename is resumed before it is given up and counted as failed. */
+	private const MAX_RESUME_ATTEMPTS = 3;
+
 	/** Set while a batch moves files, so the sync does not mistake a file in transit for a missing one. */
 	public const ACTIVE_TRANSIENT = 'skwirrel_wc_sync_rename_active';
 
@@ -222,7 +232,19 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		update_option( self::OPTION, $state, false );
 		try {
 			foreach ( $ids as $id ) {
-				$result = self::rename_attachment( $id );
+				try {
+					$result = self::rename_attachment( $id );
+				} catch ( \Throwable $e ) {
+					// One broken attachment must not stop the job; the cursor moves past it below.
+					( new Skwirrel_WC_Sync_Logger() )->error(
+						'File rename failed with an error',
+						[
+							'attachment_id' => $id,
+							'error'         => $e->getMessage(),
+						]
+					);
+					$result = 'failed';
+				}
 				++$state['processed'];
 				if ( 'renamed' === $result ) {
 					++$state['renamed'];
@@ -303,7 +325,11 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	 * @return string `renamed`, `skipped` (nothing to do) or `failed` (rolled back and logged).
 	 */
 	public static function rename_attachment( int $attachment_id ): string {
-		$logger   = new Skwirrel_WC_Sync_Logger();
+		$logger  = new Skwirrel_WC_Sync_Logger();
+		$pending = get_post_meta( $attachment_id, self::META_PENDING, true );
+		if ( is_array( $pending ) && ! empty( $pending['stage'] ) ) {
+			return self::resume( $attachment_id, $pending, $logger );
+		}
 		$reserved = [];
 		$item     = Skwirrel_WC_Sync_File_Renamer::classify( $attachment_id, $reserved );
 		if ( Skwirrel_WC_Sync_File_Renamer::STATUS_RENAME !== $item['status'] ) {
@@ -345,38 +371,110 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			}
 		}
 
+		// Recorded before anything moves, so a run that stops halfway is finished by the next one.
+		$pending = [
+			'stage'    => 'move',
+			'attempts' => 0,
+			'dir'      => $dir,
+			'rel_dir'  => $rel_dir,
+			'moves'    => $plan['moves'],
+			'main'     => $plan['main'],
+			'meta'     => $plan['meta'],
+			'old_name' => basename( $old_path ),
+			'stem'     => self::shared_stem( basename( $old_path ), $meta ),
+		];
+		update_post_meta( $attachment_id, self::META_PENDING, $pending );
+
 		if ( ! self::move_files( $dir, $plan['moves'] ) ) {
+			delete_post_meta( $attachment_id, self::META_PENDING );
 			$logger->warning( 'File rename failed and was rolled back', [ 'attachment_id' => $attachment_id ] );
 			return 'failed';
 		}
 
-		$new_main = $plan['main'];
-		update_attached_file( $attachment_id, $dir . '/' . $new_main );
-		$new_meta = $plan['meta'];
-		if ( ! empty( $new_meta ) ) {
-			$new_meta['file'] = ( '' !== $rel_dir ? $rel_dir . '/' : '' ) . $new_main;
-			wp_update_attachment_metadata( $attachment_id, $new_meta );
-		}
+		return self::finish( $attachment_id, $pending, $logger );
+	}
 
-		// Old path → new path for every file that really moved, minus the directory prefix handled below.
-		$pairs = [];
-		foreach ( $plan['moves'] as $from => $to ) {
-			if ( file_exists( $dir . '/' . $to ) ) {
-				$pairs[ ( '' !== $rel_dir ? $rel_dir . '/' : '' ) . $from ] = ( '' !== $rel_dir ? $rel_dir . '/' : '' ) . $to;
+	/**
+	 * Pick up a rename an earlier run did not finish. Each attempt is counted before any work, so a
+	 * fatal error counts too; after a few attempts it is given up and counted as failed.
+	 *
+	 * @param array<string,mixed> $pending See META_PENDING.
+	 * @return string `renamed` or `failed`.
+	 */
+	private static function resume( int $attachment_id, array $pending, Skwirrel_WC_Sync_Logger $logger ): string {
+		$attempts = (int) ( $pending['attempts'] ?? 0 );
+		if ( $attempts >= self::MAX_RESUME_ATTEMPTS ) {
+			$logger->error(
+				'File rename given up, links could not be finished',
+				[
+					'attachment_id' => $attachment_id,
+					'attempts'      => $attempts,
+				]
+			);
+			return 'failed';
+		}
+		$pending['attempts'] = $attempts + 1;
+		update_post_meta( $attachment_id, self::META_PENDING, $pending );
+
+		if ( 'move' === $pending['stage'] ) {
+			// Move what was left behind; a file already at its target, or gone, is left as it is.
+			$dir = (string) ( $pending['dir'] ?? '' );
+			foreach ( (array) ( $pending['moves'] ?? [] ) as $from => $to ) {
+				if ( file_exists( $dir . '/' . $from ) && ! file_exists( $dir . '/' . $to ) ) {
+					self::move_files( $dir, [ (string) $from => (string) $to ] );
+				}
 			}
 		}
+		$logger->info( 'Unfinished file rename resumed', [ 'attachment_id' => $attachment_id ] );
+		return self::finish( $attachment_id, $pending, $logger );
+	}
 
-		add_post_meta( $attachment_id, self::META_PREVIOUS_NAME, basename( $old_path ) );
-		self::record_old_paths( $attachment_id, $pairs );
+	/**
+	 * After the files moved: point the attachment at them, record the old paths, rewrite links,
+	 * and only then forget the pending rename.
+	 *
+	 * @param array<string,mixed> $pending See META_PENDING.
+	 */
+	private static function finish( int $attachment_id, array $pending, Skwirrel_WC_Sync_Logger $logger ): string {
+		if ( 'move' === $pending['stage'] ) {
+			$dir      = (string) $pending['dir'];
+			$rel_dir  = (string) $pending['rel_dir'];
+			$new_main = (string) $pending['main'];
+			$prefix   = '' !== $rel_dir ? $rel_dir . '/' : '';
+			update_attached_file( $attachment_id, $dir . '/' . $new_main );
+			$new_meta = (array) $pending['meta'];
+			if ( ! empty( $new_meta ) ) {
+				$new_meta['file'] = $prefix . $new_main;
+				wp_update_attachment_metadata( $attachment_id, $new_meta );
+			}
 
-		$replaced = self::replace_references( $pairs, self::shared_stem( basename( $old_path ), $meta ) );
+			// Old path → new path for every file that really moved.
+			$pairs = [];
+			foreach ( (array) $pending['moves'] as $from => $to ) {
+				if ( file_exists( $dir . '/' . $to ) ) {
+					$pairs[ $prefix . $from ] = $prefix . $to;
+				}
+			}
+
+			add_post_meta( $attachment_id, self::META_PREVIOUS_NAME, (string) $pending['old_name'] );
+			self::record_old_paths( $attachment_id, $pairs );
+
+			$pending['stage'] = 'links';
+			$pending['pairs'] = $pairs;
+			unset( $pending['meta'] );
+			update_post_meta( $attachment_id, self::META_PENDING, $pending );
+		}
+
+		$pairs    = array_map( 'strval', (array) ( $pending['pairs'] ?? [] ) );
+		$replaced = self::replace_references( $pairs, (string) ( $pending['stem'] ?? '' ) );
+		delete_post_meta( $attachment_id, self::META_PENDING );
 
 		$logger->info(
 			'File renamed',
 			[
 				'attachment_id'    => $attachment_id,
-				'old_name'         => basename( $old_path ),
-				'new_name'         => $new_main,
+				'old_name'         => (string) ( $pending['old_name'] ?? '' ),
+				'new_name'         => basename( (string) get_attached_file( $attachment_id ) ),
 				'files_moved'      => count( $pairs ),
 				'references_fixed' => $replaced,
 			]
@@ -598,12 +696,13 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- see above.
 			$rows    = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT meta_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE meta_id > %d AND (meta_value LIKE %s OR meta_value LIKE %s) AND meta_key NOT IN ('_wp_attached_file', '_wp_attachment_metadata', %s, %s) ORDER BY meta_id ASC LIMIT %d",
+					"SELECT meta_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE meta_id > %d AND (meta_value LIKE %s OR meta_value LIKE %s) AND meta_key NOT IN ('_wp_attached_file', '_wp_attachment_metadata', %s, %s, %s) ORDER BY meta_id ASC LIMIT %d",
 					$last,
 					$like,
 					$like_encoded,
 					self::META_OLD_PATH,
 					self::META_PREVIOUS_NAME,
+					self::META_PENDING,
 					self::REPLACE_CHUNK
 				)
 			);

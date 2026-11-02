@@ -214,3 +214,45 @@ test( 'percent-encoded links in content, srcset and downloadable files are rewri
 	expect( $content )->toContain( $base . '/2024/05/foto-300x200.jpg 300w' );
 	expect( get_post_meta( $post_id, '_downloadable_files', true )['k']['file'] )->toBe( $base . '/2024/05/foto.jpg' );
 } );
+
+test( 'a rename that stops before the link rewrite is finished by the next run (#79)', function (): void {
+	$id = skwRenameImport( skwRenameJpeg( 400, 300 ), 'Onderbroken.jpg', 9201 );
+	expect( $id )->toBeGreaterThan( 0 );
+	$old_rel = (string) get_post_meta( $id, '_wp_attached_file', true );
+	$base    = wp_upload_dir()['baseurl'];
+	$post_id = wp_insert_post(
+		[
+			'post_title'   => 'Uses the interrupted image',
+			'post_status'  => 'publish',
+			'post_content' => '<img src="' . $base . '/' . $old_rel . '">',
+		]
+	);
+
+	update_option( 'skwirrel_wc_sync_settings', [ 'file_naming_mode' => 'original' ] );
+	// The process "dies" on the link search: after the files moved and the metadata was saved.
+	$die = static function ( string $sql ): string {
+		if ( str_contains( $sql, 'post_content LIKE' ) ) {
+			throw new RuntimeException( 'simulated crash' );
+		}
+		return $sql;
+	};
+	add_filter( 'query', $die );
+	try {
+		Skwirrel_WC_Sync_File_Rename_Job::rename_attachment( $id );
+		$this->fail( 'expected the simulated crash' );
+	} catch ( RuntimeException $e ) {
+		expect( $e->getMessage() )->toBe( 'simulated crash' );
+	} finally {
+		remove_filter( 'query', $die );
+	}
+	expect( basename( (string) get_attached_file( $id ) ) )->toBe( 'Onderbroken.jpg' );
+	expect( (string) get_post_field( 'post_content', $post_id ) )->toContain( $old_rel );
+	expect( get_post_meta( $id, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true )['stage'] )->toBe( 'links' );
+
+	// The next run sees the file as already renamed, but still finishes the links.
+	expect( Skwirrel_WC_Sync_File_Rename_Job::rename_attachment( $id ) )->toBe( 'renamed' );
+	expect( (string) get_post_field( 'post_content', $post_id ) )->toContain( dirname( $old_rel ) . '/Onderbroken.jpg' );
+	expect( get_post_meta( $id, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true ) )->toBe( '' );
+	expect( get_post_meta( $id, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, false ) )->toHaveCount( 1 );
+	expect( Skwirrel_WC_Sync_File_Rename_Job::rename_attachment( $id ) )->toBe( 'skipped' );
+} );
