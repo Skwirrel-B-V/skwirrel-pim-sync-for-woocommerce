@@ -281,3 +281,9 @@ test('lowercase percent-encoding is rewritten too, but the rest of the name stay
 	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('<a href="/u/2024/05/caf%c3%a9.jpg"> /u/2024/05/CAF%C3%A9.jpg', $pairs))
 		->toBe('<a href="/u/2024/05/foto.jpg"> /u/2024/05/CAF%C3%A9.jpg');
 });
+
+test('a raw name with a literal percent sign matches exactly', function () {
+	$pairs = ['2024/05/100%AB.jpg' => '2024/05/foto.jpg'];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('/u/2024/05/100%AB.jpg /u/2024/05/100%ab.jpg', $pairs))
+		->toBe('/u/2024/05/foto.jpg /u/2024/05/100%ab.jpg');
+});

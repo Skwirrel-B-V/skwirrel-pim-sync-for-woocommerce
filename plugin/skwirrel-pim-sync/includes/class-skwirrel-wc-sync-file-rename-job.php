@@ -636,6 +636,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	 * while the rest of the name stays case-sensitive.
 	 *
 	 * @param string $quoted Output of preg_quote().
+	 * @return string
 	 */
 	private static function hex_insensitive( string $quoted ): string {
 		return (string) preg_replace_callback(
@@ -673,6 +674,8 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	public static function replace_in_string( string $subject, array $pairs, array $anchors = [] ): string {
 		foreach ( self::with_encoded_pairs( $pairs ) as $old => $new ) {
 			$old = (string) $old;
+			// Only an added encoded form gets case-free hex: a raw name with a literal "%AB" is exact.
+			$encoded = ! array_key_exists( $old, $pairs );
 			foreach ( [ [ $old, $new, $anchors ], [ str_replace( '/', '\\/', $old ), str_replace( '/', '\\/', $new ), array_map( static fn ( string $a ): string => str_replace( '/', '\\/', $a ), $anchors ) ] ] as [ $from, $to, $before ] ) {
 				// Where the path may start: right after one of the uploads anchors when given, so another
 				// site's URL that ends in the same path is left alone; otherwise after a path boundary
@@ -682,7 +685,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 					? '(?<![A-Za-z0-9._-])'
 					: '(?<=' . implode( '|', array_map( static fn ( string $a ): string => preg_quote( $a, '~' ), $before ) ) . ')';
 				$subject = (string) preg_replace_callback(
-					'~' . $start . self::hex_insensitive( preg_quote( $from, '~' ) ) . '(?![A-Za-z0-9_-]|\.[A-Za-z0-9])~',
+					'~' . $start . ( $encoded ? self::hex_insensitive( preg_quote( $from, '~' ) ) : preg_quote( $from, '~' ) ) . '(?![A-Za-z0-9_-]|\.[A-Za-z0-9])~',
 					static fn (): string => $to,
 					$subject
 				);
