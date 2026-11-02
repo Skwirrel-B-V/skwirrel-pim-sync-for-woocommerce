@@ -275,3 +275,9 @@ test('encoded_path encodes each segment and keeps the slashes', function () {
 	expect(Skwirrel_WC_Sync_File_Rename_Job::encoded_path('2024/05/Über café.jpg'))->toBe('2024/05/%C3%9Cber%20caf%C3%A9.jpg');
 	expect(Skwirrel_WC_Sync_File_Rename_Job::encoded_path('2024/05/plain-name_1.jpg'))->toBe('2024/05/plain-name_1.jpg');
 });
+
+test('lowercase percent-encoding is rewritten too, but the rest of the name stays case-sensitive', function () {
+	$pairs = ['2024/05/café.jpg' => '2024/05/foto.jpg'];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('<a href="/u/2024/05/caf%c3%a9.jpg"> /u/2024/05/CAF%C3%A9.jpg', $pairs))
+		->toBe('<a href="/u/2024/05/foto.jpg"> /u/2024/05/CAF%C3%A9.jpg');
+});

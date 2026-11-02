@@ -6,7 +6,7 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 
 ### Fixed
 
-* **Links with special characters are rewritten after a rename** (#72). Renaming `café.jpg` only rewrote the raw path and its JSON form, so a link to `caf%C3%A9.jpg` (in an `href`, a `srcset` or a downloadable-file URL) kept pointing at a file that no longer existed. The percent-encoded form of every old path (`rawurlencode()` per path segment, the form browsers and the redirect use) is now matched too and replaced by the encoded new path, in post content, excerpts, serialized and JSON meta; the row search also looks for the encoded file name stem. Names that need no encoding are rewritten exactly as before. Covered by `tests/Unit/FileRenameJobTest.php` and `tests/Integration/FileRenameIntegrationTest.php`.
+* **Links with special characters are rewritten after a rename** (#72). Renaming `café.jpg` only rewrote the raw path and its JSON form, so a link to `caf%C3%A9.jpg` (in an `href`, a `srcset` or a downloadable-file URL) kept pointing at a file that no longer existed. The percent-encoded form of every old path (`rawurlencode()` per path segment, the form browsers and the redirect use) is now matched too (hex digits in either case, `%C3%A9` or `%c3%a9`) and replaced by the encoded new path, in post content, excerpts, serialized and JSON meta; the row search also looks for the encoded file name stem. Names that need no encoding are rewritten exactly as before. Covered by `tests/Unit/FileRenameJobTest.php` and `tests/Integration/FileRenameIntegrationTest.php`.
 
 ## [4.3.1]
 

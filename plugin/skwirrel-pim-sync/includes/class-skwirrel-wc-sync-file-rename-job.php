@@ -632,6 +632,20 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	}
 
 	/**
+	 * Let the hex digits of every `%XX` escape in a regex match either case (`%C3` and `%c3`),
+	 * while the rest of the name stays case-sensitive.
+	 *
+	 * @param string $quoted Output of preg_quote().
+	 */
+	private static function hex_insensitive( string $quoted ): string {
+		return (string) preg_replace_callback(
+			'~%([0-9A-F])([0-9A-F])~',
+			static fn ( array $m ): string => '%' . ( ctype_alpha( $m[1] ) ? '[' . $m[1] . strtolower( $m[1] ) . ']' : $m[1] ) . ( ctype_alpha( $m[2] ) ? '[' . $m[2] . strtolower( $m[2] ) . ']' : $m[2] ),
+			$quoted
+		);
+	}
+
+	/**
 	 * Old => new pairs plus the percent-encoded form of every old path that needs encoding,
 	 * mapped to the encoded new path.
 	 *
@@ -668,7 +682,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 					? '(?<![A-Za-z0-9._-])'
 					: '(?<=' . implode( '|', array_map( static fn ( string $a ): string => preg_quote( $a, '~' ), $before ) ) . ')';
 				$subject = (string) preg_replace_callback(
-					'~' . $start . preg_quote( $from, '~' ) . '(?![A-Za-z0-9_-]|\.[A-Za-z0-9])~',
+					'~' . $start . self::hex_insensitive( preg_quote( $from, '~' ) ) . '(?![A-Za-z0-9_-]|\.[A-Za-z0-9])~',
 					static fn (): string => $to,
 					$subject
 				);
