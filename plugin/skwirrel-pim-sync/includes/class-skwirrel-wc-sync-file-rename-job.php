@@ -262,9 +262,11 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				set_transient( self::ACTIVE_TRANSIENT, 1, 2 * MINUTE_IN_SECONDS );
 			}
 			try {
+				// One pass over a big shop can take a while: keep the guard alive for it.
+				set_transient( self::ACTIVE_TRANSIENT, 1, 2 * MINUTE_IN_SECONDS );
 				self::finish_links( $renamed_ids );
 			} catch ( \Throwable $e ) {
-				// The renames stay pending; the next run rewrites their links one by one.
+				// The renames stay pending; the next batch, or a later job, rewrites their links.
 				( new Skwirrel_WC_Sync_Logger() )->error(
 					'File rename link rewrite failed with an error',
 					[
@@ -541,32 +543,74 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	 * @param int[] $attachment_ids Attachments renamed in this batch.
 	 */
 	private static function finish_links( array $attachment_ids ): void {
+		// Also the renames an earlier batch left at this stage (it died or its rewrite failed): the
+		// cursor never goes back to them, so without this they would wait for a new job.
+		$waiting = self::pending_links( array_values( array_unique( array_merge( self::waiting_ids(), $attachment_ids ) ) ) );
+		if ( empty( $waiting['pending'] ) ) {
+			return;
+		}
+		$replaced = self::replace_references_many( $waiting['pairs'], $waiting['needles'] );
+		$logger   = new Skwirrel_WC_Sync_Logger();
+		foreach ( $waiting['pending'] as $id => $pending ) {
+			delete_post_meta( $id, self::META_PENDING );
+			$logger->info(
+				'File renamed',
+				[
+					'attachment_id' => $id,
+					'old_name'      => (string) ( $pending['old_name'] ?? '' ),
+					'new_name'      => basename( (string) get_attached_file( $id ) ),
+					'files_moved'   => count( (array) ( $pending['pairs'] ?? [] ) ),
+				]
+			);
+		}
+		$logger->info(
+			'File rename links rewritten',
+			[
+				'attachments'      => count( $waiting['pending'] ),
+				'references_fixed' => $replaced,
+			]
+		);
+	}
+
+	/**
+	 * Attachments with a rename waiting for its links.
+	 *
+	 * @return int[]
+	 */
+	private static function waiting_ids(): array {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- the plugin's own meta key; usually no rows.
+		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s LIMIT 100", self::META_PENDING ) );
+		return array_map( 'intval', is_array( $ids ) ? $ids : [] );
+	}
+
+	/**
+	 * The pending renames at stage `links` among the given attachments, with their pairs merged
+	 * (keys kept, also an all-digit old path) and their file name stems.
+	 *
+	 * @param int[] $attachment_ids Attachments to look at.
+	 * @return array{pending: array<int,array<string,mixed>>, pairs: array<string,string>, needles: string[]}
+	 */
+	private static function pending_links( array $attachment_ids ): array {
+		$found   = [];
 		$pairs   = [];
 		$needles = [];
-		$ids     = [];
 		foreach ( $attachment_ids as $id ) {
 			$pending = get_post_meta( $id, self::META_PENDING, true );
 			if ( ! is_array( $pending ) || 'links' !== ( $pending['stage'] ?? '' ) ) {
 				continue;
 			}
-			$ids[]     = $id;
-			$pairs     = array_merge( $pairs, array_map( 'strval', (array) ( $pending['pairs'] ?? [] ) ) );
+			$found[ $id ] = $pending;
+			foreach ( (array) ( $pending['pairs'] ?? [] ) as $old => $new ) {
+				$pairs[ (string) $old ] = (string) $new;
+			}
 			$needles[] = (string) ( $pending['stem'] ?? '' );
 		}
-		if ( empty( $ids ) ) {
-			return;
-		}
-		$replaced = self::replace_references_many( $pairs, array_values( array_unique( $needles ) ) );
-		foreach ( $ids as $id ) {
-			delete_post_meta( $id, self::META_PENDING );
-		}
-		( new Skwirrel_WC_Sync_Logger() )->info(
-			'File rename links rewritten',
-			[
-				'attachments'      => count( $ids ),
-				'references_fixed' => $replaced,
-			]
-		);
+		return [
+			'pending' => $found,
+			'pairs'   => $pairs,
+			'needles' => array_values( array_unique( $needles ) ),
+		];
 	}
 
 	/**

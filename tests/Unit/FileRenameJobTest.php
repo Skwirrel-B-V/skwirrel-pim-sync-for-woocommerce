@@ -548,3 +548,40 @@ test('a normal rename still adds a previous-name row per rename, also for a name
 	expect(get_post_meta(16, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, false))->toBe(['old.jpg', 'old.jpg']);
 	unset($GLOBALS['_test_post_meta'][16]);
 });
+
+test('a batch also finishes renames an earlier batch left waiting for their links', function () {
+	$saved           = $GLOBALS['wpdb'];
+	// The cursor is past 30; the stub lists 30 as an attachment with a pending rename and 31 as next.
+	$wpdb            = new class extends stdClass {
+		public string $posts = 'wp_posts'; public string $postmeta = 'wp_postmeta'; public array $searches = [];
+		public function prepare(string $q, ...$a): string { return vsprintf(str_replace(['%s', '%d'], ["'%s'", '%d'], $q), $a); }
+		public function get_col(string $q) { return str_contains($q, '_skwirrel_rename_pending') ? [30] : [31]; }
+		public function get_var(string $q) { return '0'; }
+		public function get_results(string $q, $o = 'OBJECT') { $this->searches[] = $q; return []; }
+		public function esc_like(string $t): string { return addcslashes($t, '_%\\'); }
+	};
+	$GLOBALS['wpdb'] = $wpdb;
+	$logger          = skwJobLogger();
+	$GLOBALS['_test_wc_logger'] = $logger;
+	$GLOBALS['_test_post_meta'][30][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 0, 'pairs' => ['2024/05/a.jpg' => '2024/05/x.jpg'], 'stem' => 'a', 'old_name' => 'a.jpg'];
+	$GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'] = ['status' => 'running', 'started' => 1000, 'updated' => 1000, 'last_id' => 30, 'mode' => 'original', 'prefix' => ''];
+	try {
+		Skwirrel_WC_Sync_File_Rename_Job::run_batch();
+	} finally {
+		$GLOBALS['wpdb'] = $saved;
+		unset($GLOBALS['_test_wc_logger'], $GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
+	}
+	expect(get_post_meta(30, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	// Each finished attachment is still logged on its own.
+	$renamed = array_values(array_filter($logger->lines, static fn ($l) => str_starts_with((string) $l[1], 'File renamed')));
+	expect($renamed)->toHaveCount(1);
+	expect($renamed[0][1])->toContain('"attachment_id":30')->toContain('a.jpg');
+	unset($GLOBALS['_test_post_meta'][30]);
+});
+
+test('an all-digit old path keeps its key when the pairs of a batch are merged', function () {
+	$GLOBALS['_test_post_meta'][32][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 0, 'pairs' => ['123' => 'abc'], 'stem' => '123'];
+	$m = new ReflectionMethod(Skwirrel_WC_Sync_File_Rename_Job::class, 'pending_links');
+	expect($m->invoke(null, [32])['pairs'])->toBe(['123' => 'abc']);
+	unset($GLOBALS['_test_post_meta'][32]);
+});
