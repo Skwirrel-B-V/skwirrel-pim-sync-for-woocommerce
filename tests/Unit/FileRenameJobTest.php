@@ -325,15 +325,20 @@ test('an attachment that throws counts as failed, is logged, and the batch carri
 	$GLOBALS['wpdb']   = skwJobWpdb([5, 6], true);
 	$logger            = skwJobLogger();
 	$GLOBALS['_test_wc_logger'] = $logger;
-	// 5 still has links to rewrite, and the rewrite throws; 6 has no file and is skipped.
-	$GLOBALS['_test_post_meta'][5][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 0, 'pairs' => ['2024/05/a.jpg' => '2024/05/b.jpg'], 'stem' => 'a'];
+	// 5 throws while its new name is worked out; 6 has no file and is skipped.
+	file_put_contents($this->dir . '/skwirrel-a-1.jpg', 'x');
+	$GLOBALS['_test_attached_files'][5] = $this->dir . '/skwirrel-a-1.jpg';
+	$GLOBALS['_test_post_meta'][5]['_skwirrel_file_name'] = 'Foto.jpg';
+	$boom = static function () { throw new RuntimeException('database went away'); };
+	add_filter('skwirrel_wc_sync_upload_filename', $boom);
 	$GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'] = ['status' => 'running', 'started' => 1000, 'updated' => 1000, 'last_id' => 0, 'mode' => 'original', 'prefix' => ''];
 	try {
 		Skwirrel_WC_Sync_File_Rename_Job::run_batch();
 		$state = Skwirrel_WC_Sync_File_Rename_Job::state();
 	} finally {
 		$GLOBALS['wpdb'] = $saved;
-		unset($GLOBALS['_test_wc_logger'], $GLOBALS['_test_post_meta'][5], $GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
+		remove_filter('skwirrel_wc_sync_upload_filename', $boom);
+		unset($GLOBALS['_test_wc_logger'], $GLOBALS['_test_post_meta'][5], $GLOBALS['_test_attached_files'][5], $GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
 	}
 	expect([$state['processed'], $state['failed'], $state['skipped'], $state['last_id']])->toBe([2, 1, 1, 6]);
 	$errors = array_values(array_filter($logger->lines, static fn ($l) => 'error' === $l[0]));
@@ -397,4 +402,73 @@ test('a move interrupted halfway is completed on the next run', function () {
 	expect(get_post_meta(10, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, false))->toContain("2024/05/old.jpg\t2024/05/foto.jpg", "2024/05/old-300x200.jpg\t2024/05/foto-300x200.jpg");
 	expect(get_post_meta(10, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
 	unset($GLOBALS['_test_post_meta'][10]);
+});
+
+// ------------------------------------------------------------------
+// Faster link rewrite (#80)
+// ------------------------------------------------------------------
+
+/** A $wpdb stub that lists attachment IDs and records the link searches it gets. */
+function skwJobRecordingWpdb(array $ids): object {
+	return new class($ids) {
+		public string $posts    = 'wp_posts';
+		public string $postmeta = 'wp_postmeta';
+		public array $searches  = [];
+		public function __construct(private array $ids) {}
+		public function prepare(string $query, ...$args): string { return vsprintf(str_replace(['%s', '%d'], ["'%s'", '%d'], $query), $args); }
+		public function get_col(string $query) { return $this->ids; }
+		public function get_var(string $query) { return '0'; }
+		public function get_results(string $query, $output = 'OBJECT') { $this->searches[] = $query; return []; }
+		public function esc_like(string $text): string { return addcslashes($text, '_%\\'); }
+	};
+}
+
+test('a batch searches posts and meta once for all its renamed attachments', function () {
+	$saved           = $GLOBALS['wpdb'];
+	$wpdb            = skwJobRecordingWpdb([21, 22]);
+	$GLOBALS['wpdb'] = $wpdb;
+	$GLOBALS['_test_post_meta'][21][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 0, 'pairs' => ['2024/05/a.jpg' => '2024/05/x.jpg'], 'stem' => 'a'];
+	$GLOBALS['_test_post_meta'][22][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 0, 'pairs' => ['2024/05/café.jpg' => '2024/05/y.jpg'], 'stem' => 'café'];
+	$GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'] = ['status' => 'running', 'started' => 1000, 'updated' => 1000, 'last_id' => 0, 'mode' => 'original', 'prefix' => ''];
+	try {
+		Skwirrel_WC_Sync_File_Rename_Job::run_batch();
+		$state = Skwirrel_WC_Sync_File_Rename_Job::state();
+	} finally {
+		$GLOBALS['wpdb'] = $saved;
+		unset($GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
+	}
+	$post_searches = array_values(array_filter($wpdb->searches, static fn ($q) => str_contains($q, 'post_content LIKE')));
+	$meta_searches = array_values(array_filter($wpdb->searches, static fn ($q) => str_contains($q, 'meta_value LIKE')));
+	expect($post_searches)->toHaveCount(1);
+	expect($meta_searches)->toHaveCount(1);
+	// Every stem is in the one search, raw and encoded.
+	expect($post_searches[0])->toContain("'%a%'")->toContain("'%café%'")->toContain("'%caf\\%C3\\%A9%'");
+	expect($state['renamed'])->toBe(2);
+	expect(get_post_meta(21, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	expect(get_post_meta(22, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	unset($GLOBALS['_test_post_meta'][21], $GLOBALS['_test_post_meta'][22]);
+});
+
+test('replace_references_many rewrites the pairs of every attachment in one pass', function () {
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_references_many([], ['a']))->toBe(0);
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_references_many(['a.jpg' => 'b.jpg'], []))->toBe(0);
+});
+
+test('when the batch link rewrite fails the renames stay pending and the error is logged', function () {
+	$saved           = $GLOBALS['wpdb'];
+	$GLOBALS['wpdb'] = skwJobWpdb([23], true);
+	$logger          = skwJobLogger();
+	$GLOBALS['_test_wc_logger'] = $logger;
+	$GLOBALS['_test_post_meta'][23][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 0, 'pairs' => ['2024/05/a.jpg' => '2024/05/b.jpg'], 'stem' => 'a'];
+	$GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'] = ['status' => 'running', 'started' => 1000, 'updated' => 1000, 'last_id' => 0, 'mode' => 'original', 'prefix' => ''];
+	try {
+		Skwirrel_WC_Sync_File_Rename_Job::run_batch();
+	} finally {
+		$GLOBALS['wpdb'] = $saved;
+		unset($GLOBALS['_test_wc_logger'], $GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
+	}
+	expect(get_post_meta(23, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true)['stage'])->toBe('links');
+	$errors = array_values(array_filter($logger->lines, static fn ($l) => 'error' === $l[0]));
+	expect($errors[0][1] ?? '')->toContain('link rewrite failed')->toContain('database went away');
+	unset($GLOBALS['_test_post_meta'][23]);
 });
