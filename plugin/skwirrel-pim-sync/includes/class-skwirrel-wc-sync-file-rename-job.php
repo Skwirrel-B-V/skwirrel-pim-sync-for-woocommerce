@@ -550,6 +550,34 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			return;
 		}
 		$logger = new Skwirrel_WC_Sync_Logger();
+		// Count the attempt before the work, like resume(), so a fatal error (time limit, memory) in
+		// the rewrite counts too. Renames from this batch were already counted (or are new).
+		foreach ( $waiting['pending'] as $id => $pending ) {
+			if ( in_array( $id, $attachment_ids, true ) ) {
+				continue;
+			}
+			$attempts = (int) ( $pending['attempts'] ?? 0 ) + 1;
+			if ( $attempts > self::MAX_RESUME_ATTEMPTS ) {
+				// Given up like a failing resume: its old paths are recorded, so its old links redirect.
+				unset( $waiting['pending'][ $id ] );
+				delete_post_meta( $id, self::META_PENDING );
+				$logger->error(
+					'File rename given up, links could not be finished',
+					[
+						'attachment_id' => $id,
+						'attempts'      => $attempts - 1,
+					]
+				);
+				continue;
+			}
+			$pending['attempts']       = $attempts;
+			$waiting['pending'][ $id ] = $pending;
+			update_post_meta( $id, self::META_PENDING, $pending );
+		}
+		if ( empty( $waiting['pending'] ) ) {
+			return;
+		}
+		$waiting = self::pending_links( array_keys( $waiting['pending'] ) );
 		try {
 			$replaced = self::replace_references_many( $waiting['pairs'], $waiting['needles'] );
 		} catch ( \Throwable $e ) {
@@ -560,23 +588,16 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				try {
 					$replaced += self::replace_references( array_map( 'strval', (array) ( $pending['pairs'] ?? [] ) ), (string) ( $pending['stem'] ?? '' ) );
 				} catch ( \Throwable $one ) {
+					// Stays pending; its attempt was counted above, so it is given up in a later batch.
 					unset( $waiting['pending'][ $id ] );
-					// A rename resumed in this batch already counted this attempt in resume().
-					$attempts = (int) ( $pending['attempts'] ?? 0 ) + ( in_array( $id, $attachment_ids, true ) ? 0 : 1 );
-					if ( $attempts >= self::MAX_RESUME_ATTEMPTS ) {
-						// Given up like a failing resume: its old paths are recorded, so its old links redirect.
-						delete_post_meta( $id, self::META_PENDING );
-						$logger->error(
-							'File rename given up, links could not be finished',
-							[
-								'attachment_id' => $id,
-								'error'         => $one->getMessage(),
-							]
-						);
-					} else {
-						$pending['attempts'] = $attempts;
-						update_post_meta( $id, self::META_PENDING, $pending );
-					}
+					$logger->warning(
+						'File rename links could not be finished yet',
+						[
+							'attachment_id' => $id,
+							'attempts'      => (int) ( $pending['attempts'] ?? 0 ),
+							'error'         => $one->getMessage(),
+						]
+					);
 				}
 			}
 		}

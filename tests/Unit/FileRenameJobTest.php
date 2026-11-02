@@ -612,6 +612,9 @@ test('one rename whose links cannot be rewritten does not hold up the others, an
 		expect(get_post_meta(40, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true)['attempts'])->toBe(1);
 		$finish->invoke(null, []);
 		$finish->invoke(null, []);
+		expect(get_post_meta(40, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true)['attempts'])->toBe(3);
+		// Counted before the work, so even a fatal error would use up an attempt; the next batch gives up.
+		$finish->invoke(null, []);
 		expect(get_post_meta(40, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
 	} finally {
 		$GLOBALS['wpdb'] = $saved;
