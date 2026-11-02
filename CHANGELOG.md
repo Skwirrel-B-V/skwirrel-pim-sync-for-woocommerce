@@ -2,6 +2,12 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+* **A rename also moves WebP/AVIF copies and the backups of edited images** (#71). Only the main file, `original_image` and the generated sizes were renamed, so modern-format copies (`sources` in the attachment metadata, for the main file and for every size) and the backups WordPress keeps of an edited image (`_wp_attachment_backup_sizes`) kept the old name and their old URLs never redirected. They now move with the file they belong to, the metadata points at the new names and each moved file gets an old-path record, so its old URL redirects. Backups are named `<new name>-orig…`, so they never take the name of the edited files. A listed copy that is missing on disk is skipped; a target that already exists, or two files planned onto the same name, fails the rename before anything moves.
+
 ## [4.3.1]
 
 Safer attachment imports.

@@ -219,3 +219,74 @@ test('anchors also work for JSON escaped links', function () {
 	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('{"a":"https:\\/\\/example.test\\/wp-content\\/uploads\\/2024\\/05\\/foo.jpg","b":"https:\\/\\/vendor.example\\/2024\\/05\\/foo.jpg"}', $pairs, ['/wp-content/uploads/']))
 		->toBe('{"a":"https:\\/\\/example.test\\/wp-content\\/uploads\\/2024\\/05\\/new.jpg","b":"https:\\/\\/vendor.example\\/2024\\/05\\/foo.jpg"}');
 });
+
+// ------------------------------------------------------------------
+// Sibling files: modern-format copies and edit backups (#71)
+// ------------------------------------------------------------------
+
+test('webp and avif copies in sources move with the main file and its sizes', function () {
+	$meta = [
+		'sources' => [
+			'image/jpeg' => ['file' => 'skwirrel-a-1.jpg'],
+			'image/webp' => ['file' => 'skwirrel-a-1-jpg.webp'],
+		],
+		'sizes'   => [
+			'thumbnail' => [
+				'file'    => 'skwirrel-a-1-150x150.jpg',
+				'sources' => [
+					'image/webp' => ['file' => 'skwirrel-a-1-150x150-jpg.webp'],
+					'image/avif' => ['file' => 'skwirrel-a-1-150x150.jpg.avif'],
+				],
+			],
+		],
+	];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('skwirrel-a-1.jpg', 'foto.jpg', $meta);
+	expect($plan['moves'])->toBe([
+		'skwirrel-a-1.jpg'              => 'foto.jpg',
+		'skwirrel-a-1-150x150.jpg'      => 'foto-150x150.jpg',
+		'skwirrel-a-1-jpg.webp'         => 'foto-jpg.webp',
+		'skwirrel-a-1-150x150-jpg.webp' => 'foto-150x150-jpg.webp',
+		'skwirrel-a-1-150x150.jpg.avif' => 'foto-150x150.jpg.avif',
+	]);
+	expect($plan['meta']['sources']['image/jpeg']['file'])->toBe('foto.jpg');
+	expect($plan['meta']['sources']['image/webp']['file'])->toBe('foto-jpg.webp');
+	expect($plan['meta']['sizes']['thumbnail']['sources']['image/webp']['file'])->toBe('foto-150x150-jpg.webp');
+	expect($plan['meta']['sizes']['thumbnail']['sources']['image/avif']['file'])->toBe('foto-150x150.jpg.avif');
+});
+
+test('a copy in sources that is gone from disk is neither moved nor renamed in the metadata', function () {
+	$meta = ['sources' => ['image/webp' => ['file' => 'skwirrel-a-1.jpg.webp']]];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('skwirrel-a-1.jpg', 'foto.jpg', $meta, ['skwirrel-a-1.jpg']);
+	expect($plan['moves'])->toBe(['skwirrel-a-1.jpg' => 'foto.jpg']);
+	expect($plan['meta']['sources']['image/webp']['file'])->toBe('skwirrel-a-1.jpg.webp');
+});
+
+test('backups of an edited image move and get a name apart from the edited files', function () {
+	$meta    = [
+		'sizes' => ['thumbnail' => ['file' => 'skwirrel-a-1-e1700000000000-150x150.jpg']],
+	];
+	$backups = [
+		'full-orig'      => ['file' => 'skwirrel-a-1.jpg', 'width' => 800],
+		'thumbnail-orig' => ['file' => 'skwirrel-a-1-150x150.jpg'],
+	];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('skwirrel-a-1-e1700000000000.jpg', 'foto.jpg', $meta, null, $backups);
+	expect($plan['moves'])->toBe([
+		'skwirrel-a-1-e1700000000000.jpg'         => 'foto.jpg',
+		'skwirrel-a-1-e1700000000000-150x150.jpg' => 'foto-150x150.jpg',
+		'skwirrel-a-1.jpg'                        => 'foto-orig.jpg',
+		'skwirrel-a-1-150x150.jpg'                => 'foto-orig-150x150.jpg',
+	]);
+	expect($plan['backups']['full-orig'])->toBe(['file' => 'foto-orig.jpg', 'width' => 800]);
+	expect($plan['backups']['thumbnail-orig']['file'])->toBe('foto-orig-150x150.jpg');
+});
+
+test('an image without copies or backups plans exactly as before', function () {
+	$meta = ['sizes' => ['thumbnail' => ['file' => 'skwirrel-a-1-150x150.jpg']]];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('skwirrel-a-1.jpg', 'foto.jpg', $meta);
+	expect($plan['moves'])->toBe([
+		'skwirrel-a-1.jpg'         => 'foto.jpg',
+		'skwirrel-a-1-150x150.jpg' => 'foto-150x150.jpg',
+	]);
+	expect($plan['backups'])->toBe([]);
+	expect($plan['meta'])->toBe(['sizes' => ['thumbnail' => ['file' => 'foto-150x150.jpg']]]);
+});

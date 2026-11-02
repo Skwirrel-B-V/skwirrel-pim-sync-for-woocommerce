@@ -26,6 +26,9 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	/** Old upload path of a renamed attachment, as "old relative path<TAB>current relative path" (one row per file). */
 	public const META_OLD_PATH = '_skwirrel_old_upload_path';
 
+	/** WordPress meta with the backups of an edited image. */
+	private const META_BACKUP_SIZES = '_wp_attachment_backup_sizes';
+
 	/** Set while a batch moves files, so the sync does not mistake a file in transit for a missing one. */
 	public const ACTIVE_TRANSIENT = 'skwirrel_wc_sync_rename_active';
 
@@ -320,16 +323,24 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		$rel_dir  = ( '.' === $rel_dir ) ? '' : $rel_dir;
 		$meta     = wp_get_attachment_metadata( $attachment_id );
 		$meta     = is_array( $meta ) ? $meta : [];
+		$backups  = get_post_meta( $attachment_id, self::META_BACKUP_SIZES, true );
+		$backups  = is_array( $backups ) ? $backups : [];
 
 		// Only files that exist are planned: a size listed in the metadata but gone from disk stays as it
 		// is, so its (possibly occupied) target is neither moved onto nor written into the metadata.
 		$present = [];
-		foreach ( self::listed_files( basename( $old_path ), $meta ) as $name ) {
+		foreach ( self::listed_files( basename( $old_path ), $meta, $backups ) as $name ) {
 			if ( file_exists( $dir . '/' . $name ) ) {
 				$present[] = $name;
 			}
 		}
-		$plan = self::plan_moves( basename( $old_path ), $item['new'], $meta, $present );
+		$plan = self::plan_moves( basename( $old_path ), $item['new'], $meta, $present, $backups );
+
+		// Two files planned onto one name would overwrite each other.
+		if ( count( array_unique( $plan['moves'] ) ) < count( $plan['moves'] ) ) {
+			$logger->warning( 'File rename failed, two files would get the same name', [ 'attachment_id' => $attachment_id ] );
+			return 'failed';
+		}
 
 		// Targets must be free, so nothing is moved only to be rolled back.
 		foreach ( $plan['moves'] as $from => $to ) {
@@ -356,6 +367,9 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		if ( ! empty( $new_meta ) ) {
 			$new_meta['file'] = ( '' !== $rel_dir ? $rel_dir . '/' : '' ) . $new_main;
 			wp_update_attachment_metadata( $attachment_id, $new_meta );
+		}
+		if ( ! empty( $backups ) ) {
+			update_post_meta( $attachment_id, self::META_BACKUP_SIZES, $plan['backups'] );
 		}
 
 		// Old path → new path for every file that really moved, minus the directory prefix handled below.
@@ -389,14 +403,18 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	 *
 	 * Generated sizes keep their `-WxH` suffix; a scaled image ("-scaled") keeps its original
 	 * next to it, so the original gets the new name and the scaled copy `<new name>-scaled`.
+	 * Modern-format copies (`sources`, for example `foo-jpg.webp` or `foo.jpg.webp`) move with the file
+	 * they belong to. Backups of an edited image (`_wp_attachment_backup_sizes`) get `<new name>-orig`,
+	 * so they never take the name of the edited files.
 	 *
 	 * @param string              $old_main Current main file name.
 	 * @param string              $new_name New name for the file the attachment is known by.
 	 * @param array<string,mixed> $meta     Attachment metadata.
 	 * @param string[]|null       $present  File names that exist on disk; null plans every listed file.
-	 * @return array{moves: array<string,string>, main: string, meta: array<string,mixed>}
+	 * @param array<string,mixed> $backups  The `_wp_attachment_backup_sizes` meta.
+	 * @return array{moves: array<string,string>, main: string, meta: array<string,mixed>, backups: array<string,mixed>}
 	 */
-	public static function plan_moves( string $old_main, string $new_name, array $meta, ?array $present = null ): array {
+	public static function plan_moves( string $old_main, string $new_name, array $meta, ?array $present = null, array $backups = [] ): array {
 		$ext      = pathinfo( $old_main, PATHINFO_EXTENSION );
 		$old_stem = pathinfo( $old_main, PATHINFO_FILENAME );
 		$new_stem = pathinfo( $new_name, PATHINFO_FILENAME );
@@ -441,20 +459,80 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			$meta['original_image'] = $new_name;
 		}
 
+		$sibling = static function ( mixed $file, array $map ) use ( $present, &$moves ): ?string {
+			if ( ! is_string( $file ) || '' === $file || ( null !== $present && ! in_array( $file, $present, true ) ) ) {
+				return null;
+			}
+			$new_file = self::renamed_by_prefix( $file, $map );
+			if ( null !== $new_file ) {
+				$moves[ $file ] = $new_file;
+			}
+			return $new_file;
+		};
+
+		foreach ( (array) ( $meta['sources'] ?? [] ) as $mime => $source ) {
+			$new_file = is_array( $source ) ? $sibling( $source['file'] ?? null, $prefixes ) : null;
+			if ( null !== $new_file ) {
+				$meta['sources'][ $mime ]['file'] = $new_file;
+			}
+		}
+		foreach ( (array) ( $meta['sizes'] ?? [] ) as $key => $size ) {
+			foreach ( ( is_array( $size ) ? (array) ( $size['sources'] ?? [] ) : [] ) as $mime => $source ) {
+				$new_file = is_array( $source ) ? $sibling( $source['file'] ?? null, $prefixes ) : null;
+				if ( null !== $new_file ) {
+					$meta['sizes'][ $key ]['sources'][ $mime ]['file'] = $new_file;
+				}
+			}
+		}
+
+		if ( ! empty( $backups ) ) {
+			// The stem before WordPress added its `-e<timestamp>` edit suffix.
+			$base                = (string) preg_replace( '/-e\d+$/', '', self::shared_stem( $old_main, $meta ) );
+			$backup_map          = $prefixes;
+			$backup_map[ $base ] = $new_stem . '-orig';
+			uksort( $backup_map, static fn ( string $a, string $b ): int => strlen( $b ) <=> strlen( $a ) );
+			foreach ( $backups as $key => $backup ) {
+				$new_file = is_array( $backup ) ? $sibling( $backup['file'] ?? null, $backup_map ) : null;
+				if ( null !== $new_file ) {
+					$backups[ $key ]['file'] = $new_file;
+				}
+			}
+		}
+
 		return [
-			'moves' => $moves,
-			'main'  => $new_main,
-			'meta'  => $meta,
+			'moves'   => $moves,
+			'main'    => $new_main,
+			'meta'    => $meta,
+			'backups' => $backups,
 		];
 	}
 
 	/**
-	 * Every file name the attachment's metadata lists (main file, original, generated sizes).
+	 * A sibling file name with its stem prefix swapped, or null when no prefix matches. The prefix must
+	 * be followed by `-` or `.`, so `foo` never matches `foo10.jpg`.
 	 *
-	 * @param array<string,mixed> $meta Attachment metadata.
+	 * @param array<string,string> $map Old stem prefix => new stem prefix, longest first.
+	 */
+	private static function renamed_by_prefix( string $file, array $map ): ?string {
+		foreach ( $map as $from_prefix => $to_prefix ) {
+			$from_prefix = (string) $from_prefix;
+			$next        = substr( $file, strlen( $from_prefix ), 1 );
+			if ( str_starts_with( $file, $from_prefix ) && ( '-' === $next || '.' === $next ) ) {
+				return $to_prefix . substr( $file, strlen( $from_prefix ) );
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Every file name the attachment's metadata lists (main file, original, generated sizes, their
+	 * modern-format copies and the backups of an edited image).
+	 *
+	 * @param array<string,mixed> $meta    Attachment metadata.
+	 * @param array<string,mixed> $backups The `_wp_attachment_backup_sizes` meta.
 	 * @return string[]
 	 */
-	private static function listed_files( string $old_main, array $meta ): array {
+	private static function listed_files( string $old_main, array $meta, array $backups = [] ): array {
 		$files = [ $old_main ];
 		if ( isset( $meta['original_image'] ) && is_string( $meta['original_image'] ) ) {
 			$files[] = $meta['original_image'];
@@ -462,6 +540,17 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		foreach ( (array) ( $meta['sizes'] ?? [] ) as $size ) {
 			if ( is_array( $size ) && ! empty( $size['file'] ) && is_string( $size['file'] ) ) {
 				$files[] = $size['file'];
+			}
+		}
+		$entries = array_merge( (array) ( $meta['sources'] ?? [] ), $backups );
+		foreach ( (array) ( $meta['sizes'] ?? [] ) as $size ) {
+			if ( is_array( $size ) ) {
+				$entries = array_merge( $entries, array_values( (array) ( $size['sources'] ?? [] ) ) );
+			}
+		}
+		foreach ( $entries as $entry ) {
+			if ( is_array( $entry ) && ! empty( $entry['file'] ) && is_string( $entry['file'] ) ) {
+				$files[] = $entry['file'];
 			}
 		}
 		return array_values( array_unique( $files ) );
