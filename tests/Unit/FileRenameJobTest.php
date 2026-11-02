@@ -468,8 +468,9 @@ test('when the batch link rewrite fails the renames stay pending and the error i
 		unset($GLOBALS['_test_wc_logger'], $GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
 	}
 	expect(get_post_meta(23, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true)['stage'])->toBe('links');
-	$errors = array_values(array_filter($logger->lines, static fn ($l) => 'error' === $l[0]));
-	expect($errors[0][1] ?? '')->toContain('link rewrite failed')->toContain('database went away');
+	$warnings = array_values(array_filter($logger->lines, static fn ($l) => 'warning' === $l[0]));
+	expect($warnings[0][1] ?? '')->toContain('link rewrite failed')->toContain('database went away');
+	expect(get_post_meta(23, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true)['attempts'])->toBe(1);
 	unset($GLOBALS['_test_post_meta'][23]);
 });
 
@@ -584,4 +585,36 @@ test('an all-digit old path keeps its key when the pairs of a batch are merged',
 	$m = new ReflectionMethod(Skwirrel_WC_Sync_File_Rename_Job::class, 'pending_links');
 	expect($m->invoke(null, [32])['pairs'])->toBe(['123' => 'abc']);
 	unset($GLOBALS['_test_post_meta'][32]);
+});
+
+/** A $wpdb stub whose link search throws when it contains the given stem. */
+function skwJobPickyWpdb(string $bad): object {
+	return new class($bad) {
+		public string $posts = 'wp_posts'; public string $postmeta = 'wp_postmeta';
+		public function __construct(private string $bad) {}
+		public function prepare(string $q, ...$a): string { return vsprintf(str_replace(['%s', '%d'], ["'%s'", '%d'], $q), $a); }
+		public function get_col(string $q) { return str_contains($q, '_skwirrel_rename_pending') ? [40, 41] : []; }
+		public function get_var(string $q) { return '0'; }
+		public function get_results(string $q, $o = 'OBJECT') { if (str_contains($q, "'%" . $this->bad . "%'")) { throw new RuntimeException('bad row'); } return []; }
+		public function esc_like(string $t): string { return addcslashes($t, '_%\\'); }
+	};
+}
+
+test('one rename whose links cannot be rewritten does not hold up the others, and is given up after a few batches', function () {
+	$saved           = $GLOBALS['wpdb'];
+	$GLOBALS['wpdb'] = skwJobPickyWpdb('bad');
+	$GLOBALS['_test_post_meta'][40][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 0, 'pairs' => ['bad.jpg' => 'x.jpg'], 'stem' => 'bad'];
+	$GLOBALS['_test_post_meta'][41][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 0, 'pairs' => ['good.jpg' => 'y.jpg'], 'stem' => 'good'];
+	$finish = new ReflectionMethod(Skwirrel_WC_Sync_File_Rename_Job::class, 'finish_links');
+	try {
+		$finish->invoke(null, []);
+		expect(get_post_meta(41, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+		expect(get_post_meta(40, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true)['attempts'])->toBe(1);
+		$finish->invoke(null, []);
+		$finish->invoke(null, []);
+		expect(get_post_meta(40, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	} finally {
+		$GLOBALS['wpdb'] = $saved;
+		unset($GLOBALS['_test_post_meta'][40], $GLOBALS['_test_post_meta'][41]);
+	}
 });

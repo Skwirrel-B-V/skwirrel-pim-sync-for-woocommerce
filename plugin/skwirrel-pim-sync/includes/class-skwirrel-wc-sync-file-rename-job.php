@@ -549,8 +549,37 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		if ( empty( $waiting['pending'] ) ) {
 			return;
 		}
-		$replaced = self::replace_references_many( $waiting['pairs'], $waiting['needles'] );
-		$logger   = new Skwirrel_WC_Sync_Logger();
+		$logger = new Skwirrel_WC_Sync_Logger();
+		try {
+			$replaced = self::replace_references_many( $waiting['pairs'], $waiting['needles'] );
+		} catch ( \Throwable $e ) {
+			// One bad rename must not hold up the others: retry them one by one.
+			$logger->warning( 'File rename batch link rewrite failed, retrying one by one', [ 'error' => $e->getMessage() ] );
+			$replaced = 0;
+			foreach ( $waiting['pending'] as $id => $pending ) {
+				try {
+					$replaced += self::replace_references( array_map( 'strval', (array) ( $pending['pairs'] ?? [] ) ), (string) ( $pending['stem'] ?? '' ) );
+				} catch ( \Throwable $one ) {
+					unset( $waiting['pending'][ $id ] );
+					// A rename resumed in this batch already counted this attempt in resume().
+					$attempts = (int) ( $pending['attempts'] ?? 0 ) + ( in_array( $id, $attachment_ids, true ) ? 0 : 1 );
+					if ( $attempts >= self::MAX_RESUME_ATTEMPTS ) {
+						// Given up like a failing resume: its old paths are recorded, so its old links redirect.
+						delete_post_meta( $id, self::META_PENDING );
+						$logger->error(
+							'File rename given up, links could not be finished',
+							[
+								'attachment_id' => $id,
+								'error'         => $one->getMessage(),
+							]
+						);
+					} else {
+						$pending['attempts'] = $attempts;
+						update_post_meta( $id, self::META_PENDING, $pending );
+					}
+				}
+			}
+		}
 		foreach ( $waiting['pending'] as $id => $pending ) {
 			delete_post_meta( $id, self::META_PENDING );
 			$logger->info(
@@ -580,7 +609,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	private static function waiting_ids(): array {
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- the plugin's own meta key; usually no rows.
-		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s LIMIT 100", self::META_PENDING ) );
+		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value LIKE %s LIMIT 100", self::META_PENDING, '%' . $wpdb->esc_like( '"links"' ) . '%' ) );
 		return array_map( 'intval', is_array( $ids ) ? $ids : [] );
 	}
 
