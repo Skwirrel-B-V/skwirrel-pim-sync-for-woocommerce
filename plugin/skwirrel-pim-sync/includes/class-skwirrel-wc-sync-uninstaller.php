@@ -6,6 +6,7 @@
  * the plugin keeps everything.
  *
  * Removed: every option and transient with the `skwirrel_wc_sync_` prefix (settings, auth token,
+ * the Connectors API key `connectors_skwirrel_pim_api_key`,
  * history, permalink slugs, attribute groups and sources, rename job, run state), the sync queue
  * table, scheduled actions, and the file name metas `_skwirrel_file_name` and
  * `_skwirrel_previous_file_name`.
@@ -27,6 +28,9 @@ class Skwirrel_WC_Sync_Uninstaller {
 
 	/** Post meta removed on uninstall. `_skwirrel_old_upload_path` is deliberately not in here. */
 	public const META_KEYS = [ '_skwirrel_file_name', '_skwirrel_previous_file_name' ];
+
+	/** Options without the `skwirrel_wc_sync_` prefix: the Connectors API key (Skwirrel_WC_Sync_Connectors::CREDENTIAL_OPTION). */
+	private const EXTRA_OPTIONS = [ 'connectors_skwirrel_pim_api_key' ];
 
 	/** Scheduled hooks of the plugin (Action Scheduler and WP-Cron). */
 	private const HOOKS = [ 'skwirrel_wc_sync_run', 'skwirrel_wc_sync_step', 'skwirrel_wc_sync_rename_batch' ];
@@ -75,6 +79,10 @@ class Skwirrel_WC_Sync_Uninstaller {
 		);
 		foreach ( is_array( $options ) ? $options : [] as $option ) {
 			delete_option( (string) $option );
+		}
+
+		foreach ( self::EXTRA_OPTIONS as $option ) {
+			delete_option( $option );
 		}
 
 		foreach ( self::META_KEYS as $key ) {

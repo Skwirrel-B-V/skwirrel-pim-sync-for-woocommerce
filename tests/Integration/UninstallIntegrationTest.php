@@ -28,6 +28,9 @@ test( 'uninstall removes the plugin options and file name metas but keeps old up
 		update_option( $option, [ 'x' => 1 ] );
 	}
 	set_transient( 'skwirrel_wc_sync_bg_token', 'abc', 600 );
+	// The Connectors API key has no skwirrel_wc_sync_ prefix; it is stored as a plain string.
+	update_option( 'connectors_skwirrel_pim_api_key', 'test-key-not-real', false );
+	expect( get_option( 'connectors_skwirrel_pim_api_key' ) )->toBe( 'test-key-not-real' );
 	update_option( 'unrelated_plugin_option', 'stay' );
 
 	$attachment = wp_insert_post( [ 'post_type' => 'attachment', 'post_status' => 'inherit', 'post_title' => 'uninstall-test' ] );
@@ -53,6 +56,8 @@ test( 'uninstall removes the plugin options and file name metas but keeps old up
 		expect( get_option( $option, 'gone' ) )->toBe( 'gone' );
 	}
 	expect( get_transient( 'skwirrel_wc_sync_bg_token' ) )->toBeFalse();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	expect( $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s", 'connectors_skwirrel_pim_api_key' ) ) )->toBe( '0' );
 	expect( get_option( 'unrelated_plugin_option' ) )->toBe( 'stay' );
 
 	expect( get_post_meta( $attachment, '_skwirrel_file_name' ) )->toBe( [] );
