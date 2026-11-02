@@ -385,7 +385,9 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			}
 		}
 
-		// Recorded before anything moves, so a run that stops halfway is finished by the next one.
+		// Recorded before anything moves, so a run that stops halfway is finished by the next one. Until
+		// then the attachment can briefly point at a moved file: a process that dies right after the
+		// move leaves it so until the next job run resumes it (the sync treats it as missing meanwhile).
 		$pending = [
 			'stage'    => 'move',
 			'attempts' => 0,
@@ -425,6 +427,8 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 					'attempts'      => $attempts,
 				]
 			);
+			// Forgotten, so a later run can rename it again once the cause is fixed; old links still redirect.
+			delete_post_meta( $attachment_id, self::META_PENDING );
 			return 'failed';
 		}
 		$pending['attempts'] = $attempts + 1;
@@ -437,6 +441,14 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				if ( file_exists( $dir . '/' . $from ) && ! file_exists( $dir . '/' . $to ) ) {
 					self::move_files( $dir, [ (string) $from => (string) $to ] );
 				}
+			}
+			// A file still at its old name could not move (its target was taken meanwhile, or the move
+			// failed); finishing would point the attachment at another file. Never point it at a main
+			// file that is not there either. The rename stays pending for a later attempt.
+			$left = array_filter( array_keys( (array) ( $pending['moves'] ?? [] ) ), static fn ( $from ): bool => file_exists( $dir . '/' . $from ) );
+			if ( ! empty( $left ) || ! file_exists( $dir . '/' . (string) ( $pending['main'] ?? '' ) ) ) {
+				$logger->warning( 'Unfinished file rename could not be completed, files not in place', [ 'attachment_id' => $attachment_id ] );
+				return 'failed';
 			}
 		}
 		$logger->info( 'Unfinished file rename resumed', [ 'attachment_id' => $attachment_id ] );
@@ -470,8 +482,15 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				}
 			}
 
-			add_post_meta( $attachment_id, self::META_PREVIOUS_NAME, (string) $pending['old_name'] );
-			self::record_old_paths( $attachment_id, $pairs );
+			// A resume may come after these were already written: write each row only once.
+			if ( ! in_array( (string) $pending['old_name'], (array) get_post_meta( $attachment_id, self::META_PREVIOUS_NAME, false ), true ) ) {
+				add_post_meta( $attachment_id, self::META_PREVIOUS_NAME, (string) $pending['old_name'] );
+			}
+			$recorded = (array) get_post_meta( $attachment_id, self::META_OLD_PATH, false );
+			self::record_old_paths(
+				$attachment_id,
+				array_filter( $pairs, static fn ( string $to, string $from ): bool => ! in_array( $from . "\t" . $to, $recorded, true ), ARRAY_FILTER_USE_BOTH )
+			);
 
 			$pending['stage'] = 'links';
 			$pending['pairs'] = $pairs;
