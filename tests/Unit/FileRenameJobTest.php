@@ -447,3 +447,30 @@ test('a resumed move whose target was taken meanwhile is not finished onto the o
 	expect(get_post_meta(14, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->not->toBe('');
 	unset($GLOBALS['_test_post_meta'][14], $GLOBALS['_test_attached_files'][14]);
 });
+
+test('giving up a rename that was still moving files moves them back', function () {
+	file_put_contents($this->dir . '/old.jpg', 'ours');
+	file_put_contents($this->dir . '/foto.jpg', 'someone else');            // taken target: never ours
+	file_put_contents($this->dir . '/foto-300x200.jpg', 'our size');        // already moved
+	$GLOBALS['_test_post_meta'][15][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 3, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['old.jpg' => 'foto.jpg', 'old-300x200.jpg' => 'foto-300x200.jpg'], 'main' => 'foto.jpg', 'meta' => [], 'old_name' => 'old.jpg', 'stem' => 'old',
+	];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(15))->toBe('failed');
+	expect(file_get_contents($this->dir . '/old-300x200.jpg'))->toBe('our size');
+	expect(file_exists($this->dir . '/foto-300x200.jpg'))->toBeFalse();
+	expect(file_get_contents($this->dir . '/foto.jpg'))->toBe('someone else');
+	expect(file_get_contents($this->dir . '/old.jpg'))->toBe('ours');
+	expect(get_post_meta(15, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	unset($GLOBALS['_test_post_meta'][15]);
+});
+
+test('a normal rename still adds a previous-name row per rename, also for a name used before', function () {
+	file_put_contents($this->dir . '/foto.jpg', 'main');
+	add_post_meta(16, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, 'old.jpg');
+	$pending = ['stage' => 'move', 'attempts' => 0, 'dir' => $this->dir, 'rel_dir' => '', 'moves' => ['old.jpg' => 'foto.jpg'], 'main' => 'foto.jpg', 'meta' => [], 'old_name' => 'old.jpg', 'stem' => 'old'];
+	$finish  = new ReflectionMethod(Skwirrel_WC_Sync_File_Rename_Job::class, 'finish');
+	expect($finish->invoke(null, 16, $pending, new Skwirrel_WC_Sync_Logger()))->toBe('renamed');
+	expect(get_post_meta(16, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, false))->toBe(['old.jpg', 'old.jpg']);
+	unset($GLOBALS['_test_post_meta'][16]);
+});

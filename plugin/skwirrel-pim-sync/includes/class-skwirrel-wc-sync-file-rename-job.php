@@ -413,11 +413,23 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 					'attempts'      => $attempts,
 				]
 			);
-			// Forgotten, so a later run can rename it again once the cause is fixed; old links still redirect.
+			// Still moving files: nothing points at the new names yet, so move ours back (a file at a
+			// target that is not ours is left alone) and the attachment is whole under its old name.
+			if ( 'move' === ( $pending['stage'] ?? '' ) ) {
+				$dir = (string) ( $pending['dir'] ?? '' );
+				foreach ( (array) ( $pending['moves'] ?? [] ) as $from => $to ) {
+					if ( file_exists( $dir . '/' . $to ) && ! file_exists( $dir . '/' . $from ) ) {
+						self::move_files( $dir, [ (string) $to => (string) $from ] );
+					}
+				}
+			}
+			// Forgotten, so a later run can rename it again once the cause is fixed. At stage `links`
+			// the old paths are recorded, so the old links still redirect.
 			delete_post_meta( $attachment_id, self::META_PENDING );
 			return 'failed';
 		}
 		$pending['attempts'] = $attempts + 1;
+		$pending['resumed']  = true;
 		update_post_meta( $attachment_id, self::META_PENDING, $pending );
 
 		if ( 'move' === $pending['stage'] ) {
@@ -430,7 +442,8 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			}
 			// A file still at its old name could not move (its target was taken meanwhile, or the move
 			// failed); finishing would point the attachment at another file. Never point it at a main
-			// file that is not there either. The rename stays pending for a later attempt.
+			// file that is not there either. It stays pending and counts towards giving up, which moves the
+			// files back.
 			$left = array_filter( array_keys( (array) ( $pending['moves'] ?? [] ) ), static fn ( $from ): bool => file_exists( $dir . '/' . $from ) );
 			if ( ! empty( $left ) || ! file_exists( $dir . '/' . (string) ( $pending['main'] ?? '' ) ) ) {
 				$logger->warning( 'Unfinished file rename could not be completed, files not in place', [ 'attachment_id' => $attachment_id ] );
@@ -469,10 +482,11 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			}
 
 			// A resume may come after these were already written: write each row only once.
-			if ( ! in_array( (string) $pending['old_name'], (array) get_post_meta( $attachment_id, self::META_PREVIOUS_NAME, false ), true ) ) {
+			$resumed = ! empty( $pending['resumed'] );
+			if ( ! $resumed || ! in_array( (string) $pending['old_name'], (array) get_post_meta( $attachment_id, self::META_PREVIOUS_NAME, false ), true ) ) {
 				add_post_meta( $attachment_id, self::META_PREVIOUS_NAME, (string) $pending['old_name'] );
 			}
-			$recorded = (array) get_post_meta( $attachment_id, self::META_OLD_PATH, false );
+			$recorded = $resumed ? (array) get_post_meta( $attachment_id, self::META_OLD_PATH, false ) : [];
 			self::record_old_paths(
 				$attachment_id,
 				array_filter( $pairs, static fn ( string $to, string $from ): bool => ! in_array( $from . "\t" . $to, $recorded, true ), ARRAY_FILTER_USE_BOTH )
