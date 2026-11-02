@@ -58,9 +58,11 @@ class Skwirrel_WC_Sync_File_Redirects {
 		}
 		$uploads = wp_upload_dir();
 		$base    = wp_parse_url( $uploads['baseurl'], PHP_URL_PATH );
-		$request = isset( $_SERVER['REQUEST_URI'] ) ? wp_parse_url( esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ), PHP_URL_PATH ) : '';
+		$parts   = isset( $_SERVER['REQUEST_URI'] ) ? wp_parse_url( esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ) ) : [];
+		$request = is_array( $parts ) ? ( $parts['path'] ?? '' ) : '';
+		$query   = is_array( $parts ) ? ( $parts['query'] ?? '' ) : '';
 
-		$relative = self::relative_upload_path( is_string( $request ) ? $request : '', is_string( $base ) ? $base : '' );
+		$relative = self::relative_upload_path( $request, is_string( $base ) ? $base : '' );
 		// A request for a path in the uploads folder that reached WordPress and has no file behind it.
 		// This does not rely on WordPress reporting a 404 page: with plain permalinks it answers an
 		// unknown path with the home page, so is_404() would never be true there.
@@ -72,9 +74,7 @@ class Skwirrel_WC_Sync_File_Redirects {
 		if ( ! self::target_exists( $target, $uploads['basedir'] ) ) {
 			return;
 		}
-		$query = isset( $_SERVER['REQUEST_URI'] ) ? wp_parse_url( esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ), PHP_URL_QUERY ) : '';
-
-		$url = self::target_url( $uploads['baseurl'], $target, is_string( $query ) ? $query : '' );
+		$url = self::target_url( $uploads['baseurl'], $target, (string) $query );
 		if ( ! headers_sent() ) {
 			header( 'Cache-Control: ' . self::cache_control() );
 		}
@@ -88,7 +88,10 @@ class Skwirrel_WC_Sync_File_Redirects {
 	 * Whether the renamed file a redirect would point at exists as a file in the uploads folder.
 	 */
 	public static function target_exists( string $target, string $uploads_dir ): bool {
-		return '' !== $target && is_file( rtrim( $uploads_dir, '/' ) . '/' . $target );
+		if ( '' === $target || str_contains( $target, '..' ) || str_contains( $target, "\0" ) ) {
+			return false;
+		}
+		return is_file( rtrim( $uploads_dir, '/' ) . '/' . $target );
 	}
 
 	/**

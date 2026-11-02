@@ -79,6 +79,8 @@ test('the target must exist on disk', function () {
 		expect(Skwirrel_WC_Sync_File_Redirects::target_exists('2024/gone.jpg', $dir))->toBeFalse();
 		expect(Skwirrel_WC_Sync_File_Redirects::target_exists('', $dir))->toBeFalse();
 		expect(Skwirrel_WC_Sync_File_Redirects::target_exists('2024', $dir))->toBeFalse();
+		expect(Skwirrel_WC_Sync_File_Redirects::target_exists('2024/../2024/new.jpg', $dir))->toBeFalse();
+		expect(Skwirrel_WC_Sync_File_Redirects::target_exists("2024/new.jpg\0", $dir))->toBeFalse();
 	} finally {
 		unlink($dir . '/2024/new.jpg');
 		rmdir($dir . '/2024');
