@@ -398,3 +398,37 @@ test('a move interrupted halfway is completed on the next run', function () {
 	expect(get_post_meta(10, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
 	unset($GLOBALS['_test_post_meta'][10]);
 });
+
+test('a resumed move that cannot finish counts as failed and does not point the attachment at a missing file', function () {
+	// Neither the old nor the new main file is there: nothing can be finished.
+	$GLOBALS['_test_post_meta'][11][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 0, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['gone.jpg' => 'foto.jpg'], 'main' => 'foto.jpg', 'meta' => [], 'old_name' => 'gone.jpg', 'stem' => 'gone',
+	];
+	$GLOBALS['_test_attached_files'][11] = $this->dir . '/gone.jpg';
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(11))->toBe('failed');
+	expect(get_attached_file(11))->toBe($this->dir . '/gone.jpg');
+	expect(get_post_meta(11, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, false))->toBe([]);
+	unset($GLOBALS['_test_post_meta'][11], $GLOBALS['_test_attached_files'][11]);
+});
+
+test('a resume after the old paths were recorded does not record them twice', function () {
+	file_put_contents($this->dir . '/foto.jpg', 'main');
+	add_post_meta(12, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, 'old.jpg');
+	add_post_meta(12, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, "2024/05/old.jpg\t2024/05/foto.jpg");
+	$GLOBALS['_test_post_meta'][12][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 0, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['old.jpg' => 'foto.jpg'], 'main' => 'foto.jpg', 'meta' => [], 'old_name' => 'old.jpg', 'stem' => 'old',
+	];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(12))->toBe('renamed');
+	expect(get_post_meta(12, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, false))->toBe(['old.jpg']);
+	expect(get_post_meta(12, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, false))->toBe(["2024/05/old.jpg\t2024/05/foto.jpg"]);
+	unset($GLOBALS['_test_post_meta'][12]);
+});
+
+test('a rename that was given up is forgotten, so a later run can rename the file again', function () {
+	$GLOBALS['_test_post_meta'][13][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 3, 'pairs' => [], 'stem' => 'a'];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(13))->toBe('failed');
+	expect(get_post_meta(13, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	unset($GLOBALS['_test_post_meta'][13]);
+});
