@@ -428,9 +428,12 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 					self::move_files( $dir, [ (string) $from => (string) $to ] );
 				}
 			}
-			// Never point the attachment at a main file that is not there.
-			if ( ! file_exists( $dir . '/' . (string) ( $pending['main'] ?? '' ) ) ) {
-				$logger->warning( 'Unfinished file rename could not be completed, file not found', [ 'attachment_id' => $attachment_id ] );
+			// A file still at its old name could not move (its target was taken meanwhile, or the move
+			// failed); finishing would point the attachment at another file. Never point it at a main
+			// file that is not there either. The rename stays pending for a later attempt.
+			$left = array_filter( array_keys( (array) ( $pending['moves'] ?? [] ) ), static fn ( $from ): bool => file_exists( $dir . '/' . $from ) );
+			if ( ! empty( $left ) || ! file_exists( $dir . '/' . (string) ( $pending['main'] ?? '' ) ) ) {
+				$logger->warning( 'Unfinished file rename could not be completed, files not in place', [ 'attachment_id' => $attachment_id ] );
 				return 'failed';
 			}
 		}

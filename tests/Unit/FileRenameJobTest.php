@@ -432,3 +432,18 @@ test('a rename that was given up is forgotten, so a later run can rename the fil
 	expect(get_post_meta(13, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
 	unset($GLOBALS['_test_post_meta'][13]);
 });
+
+test('a resumed move whose target was taken meanwhile is not finished onto the other file', function () {
+	file_put_contents($this->dir . '/old.jpg', 'ours');
+	file_put_contents($this->dir . '/foto.jpg', 'someone else');
+	$GLOBALS['_test_post_meta'][14][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 0, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['old.jpg' => 'foto.jpg'], 'main' => 'foto.jpg', 'meta' => [], 'old_name' => 'old.jpg', 'stem' => 'old',
+	];
+	$GLOBALS['_test_attached_files'][14] = $this->dir . '/old.jpg';
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(14))->toBe('failed');
+	expect(get_attached_file(14))->toBe($this->dir . '/old.jpg');
+	expect(file_get_contents($this->dir . '/foto.jpg'))->toBe('someone else');
+	expect(get_post_meta(14, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->not->toBe('');
+	unset($GLOBALS['_test_post_meta'][14], $GLOBALS['_test_attached_files'][14]);
+});
