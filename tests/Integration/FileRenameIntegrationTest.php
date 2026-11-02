@@ -177,3 +177,40 @@ test( 'a file can go back to an earlier name of its own without getting a suffix
 	$rel = dirname( (string) get_post_meta( $id, '_wp_attached_file', true ) ) . '/foto.jpg';
 	expect( Skwirrel_WC_Sync_File_Redirects::find_target( $rel ) )->toBe( '' );
 } );
+
+test( 'percent-encoded links in content, srcset and downloadable files are rewritten (#72)', function (): void {
+	$upload  = wp_upload_dir();
+	$base    = $upload['baseurl'];
+	// Saved raw: without a user that may post unfiltered HTML, kses would strip the srcset on insert.
+	kses_remove_filters();
+	$post_id = wp_insert_post(
+		[
+			'post_title'   => 'Encoded links',
+			'post_status'  => 'publish',
+			'post_content' => '<a href="' . $base . '/2024/05/caf%C3%A9.jpg">x</a><img src="' . $base . '/2024/05/café.jpg" srcset="' . $base . '/2024/05/caf%C3%A9-300x200.jpg 300w">',
+		]
+	);
+	kses_init_filters();
+	update_post_meta(
+		$post_id,
+		'_downloadable_files',
+		[
+			'k' => [
+				'name' => 'Manual',
+				'file' => $base . '/2024/05/caf%C3%A9.jpg',
+			],
+		]
+	);
+	$pairs = [
+		'2024/05/café.jpg'         => '2024/05/foto.jpg',
+		'2024/05/café-300x200.jpg' => '2024/05/foto-300x200.jpg',
+	];
+
+	expect( Skwirrel_WC_Sync_File_Rename_Job::replace_references( $pairs, 'café' ) )->toBe( 2 );
+
+	$content = (string) get_post_field( 'post_content', $post_id );
+	expect( $content )->not->toContain( 'caf%C3%A9' );
+	expect( $content )->not->toContain( 'café' );
+	expect( $content )->toContain( $base . '/2024/05/foto-300x200.jpg 300w' );
+	expect( get_post_meta( $post_id, '_downloadable_files', true )['k']['file'] )->toBe( $base . '/2024/05/foto.jpg' );
+} );
