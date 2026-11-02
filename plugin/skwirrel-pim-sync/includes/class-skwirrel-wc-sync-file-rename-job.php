@@ -760,6 +760,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		$rows = [];
 		do {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- rewriting links in content is the point of this job.
+			// phpcs:disable WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- the LIKE placeholders are built per needle and filled by spreading $post_likes.
 			$rows = $wpdb->get_results(
 				$wpdb->prepare(
 					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $post_where is only "LIKE %s" placeholders, filled from $post_likes.
@@ -769,6 +770,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 					...[ self::REPLACE_CHUNK ]
 				)
 			);
+			// phpcs:enable WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
 			$rows    = is_array( $rows ) ? $rows : [];
 			$fetched = count( $rows );
 			foreach ( $rows as $row ) {
@@ -793,6 +795,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 
 		$last = 0;
 		do {
+			// phpcs:disable WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- the LIKE placeholders are built per needle and filled by spreading $likes.
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- see above.
 			$rows = $wpdb->get_results(
 				$wpdb->prepare(
@@ -808,6 +811,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 					]
 				)
 			);
+			// phpcs:enable WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
 			$rows    = is_array( $rows ) ? $rows : [];
 			$fetched = count( $rows );
 			foreach ( $rows as $row ) {
