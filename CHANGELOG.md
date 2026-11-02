@@ -2,6 +2,12 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+* **Redirects of old file links are safer and expire quickly** (#77). `Skwirrel_WC_Sync_File_Redirects::maybe_redirect()` only sends the 301 when the renamed file still exists in the uploads folder; otherwise the old URL gives a normal 404. The query string of the request is kept (`?v=2` ends up on the new URL). The response sends `Cache-Control: public, max-age=86400` (constant `CACHE_CONTROL`, filter `skwirrel_wc_sync_redirect_cache_control`), so after switching "Redirect old links" off or undoing a rename, browsers and CDNs stop following the redirect within about a day. Covered by `tests/Unit/FileRedirectsTest.php`.
+
 ## [4.3.1]
 
 Safer attachment imports.
