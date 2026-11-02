@@ -759,14 +759,28 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		if ( empty( $pairs ) || empty( $likes ) ) {
 			return 0;
 		}
-		$post_where = implode( ' OR ', array_fill( 0, count( $likes ), 'post_content LIKE %s OR post_excerpt LIKE %s' ) );
+		$anchors = self::uploads_anchors();
+		// A link is only rewritten right after an uploads anchor, so a row without one can never change.
+		// Checking for the anchor first lets the database drop most rows with one cheap LIKE, before it
+		// tries every file name: one search per stem on every row is what made big shops slow.
+		$gate = [];
+		if ( ! empty( $anchors ) ) {
+			usort( $anchors, static fn ( string $a, string $b ): int => strlen( $a ) <=> strlen( $b ) );
+			$anchor = trim( $anchors[0], '/' );
+			if ( '' !== $anchor ) {
+				$gate = array_values( array_unique( [ '%' . $wpdb->esc_like( $anchor ) . '%', '%' . $wpdb->esc_like( str_replace( '/', '\\/', $anchor ) ) . '%' ] ) );
+			}
+		}
+		$post_gate  = empty( $gate ) ? '1=1' : implode( ' OR ', array_fill( 0, count( $gate ), 'post_content LIKE %s OR post_excerpt LIKE %s' ) );
+		$meta_gate  = empty( $gate ) ? '1=1' : implode( ' OR ', array_fill( 0, count( $gate ), 'meta_value LIKE %s' ) );
+		$post_where = '(' . $post_gate . ') AND (' . implode( ' OR ', array_fill( 0, count( $likes ), 'post_content LIKE %s OR post_excerpt LIKE %s' ) ) . ')';
 		$post_likes = [];
-		foreach ( $likes as $like ) {
+		foreach ( array_merge( $gate, $likes ) as $like ) {
 			$post_likes[] = $like;
 			$post_likes[] = $like;
 		}
-		$meta_where = implode( ' OR ', array_fill( 0, count( $likes ), 'meta_value LIKE %s' ) );
-		$anchors    = self::uploads_anchors();
+		$meta_where = '(' . $meta_gate . ') AND (' . implode( ' OR ', array_fill( 0, count( $likes ), 'meta_value LIKE %s' ) ) . ')';
+		$meta_likes = array_merge( $gate, $likes );
 		$changed    = 0;
 		$fetched    = 0;
 
@@ -809,14 +823,14 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 
 		$last = 0;
 		do {
-			// phpcs:disable WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- the LIKE placeholders are built per needle and filled by spreading $likes.
+			// phpcs:disable WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- the LIKE placeholders are built per needle and filled by spreading $meta_likes.
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- see above.
 			$rows = $wpdb->get_results(
 				$wpdb->prepare(
-					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $meta_where is only "LIKE %s" placeholders, filled from $likes.
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $meta_where is only "LIKE %s" placeholders, filled from $meta_likes.
 					"SELECT meta_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE meta_id > %d AND ({$meta_where}) AND meta_key NOT IN ('_wp_attached_file', '_wp_attachment_metadata', %s, %s, %s) ORDER BY meta_id ASC LIMIT %d",
 					$last,
-					...$likes,
+					...$meta_likes,
 					...[
 						self::META_OLD_PATH,
 						self::META_PREVIOUS_NAME,
