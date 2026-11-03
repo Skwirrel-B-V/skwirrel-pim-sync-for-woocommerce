@@ -307,3 +307,43 @@ test('restored-image backups reuse the active main and thumbnail destinations', 
 	expect($plan['backups']['thumbnail-orig']['file'])->toBe('new-150x150.jpg');
 	expect($plan['backups']['full-123']['file'])->toBe('new-orig-e123.jpg');
 });
+
+
+test('a sync that starts mid-batch stops the batch after the current attachment', function () {
+	$original_wpdb   = $GLOBALS['wpdb'];
+	$GLOBALS['wpdb'] = new class {
+		public string $postmeta = 'wp_postmeta';
+		public function prepare(string $query, ...$args): string {
+			return $query;
+		}
+		public function get_col(string $query): array {
+			return ['11', '12', '13'];
+		}
+	};
+	// Looking up the file of the first attachment is where a sync "starts".
+	$GLOBALS['_test_attached_files'] = new class implements ArrayAccess {
+		public function offsetExists(mixed $offset): bool {
+			$GLOBALS['_test_transients'][Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS] = ['value' => true, 'expires' => 0];
+			return false;
+		}
+		public function offsetGet(mixed $offset): mixed {
+			return false;
+		}
+		public function offsetSet(mixed $offset, mixed $value): void {}
+		public function offsetUnset(mixed $offset): void {}
+	};
+	$GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'] = ['status' => 'running', 'started' => 1000, 'updated' => 1000, 'last_id' => 0, 'processed' => 0, 'renamed' => 0, 'skipped' => 0, 'failed' => 0, 'mode' => 'original', 'prefix' => ''];
+
+	try {
+		Skwirrel_WC_Sync_File_Rename_Job::run_batch();
+		$state = Skwirrel_WC_Sync_File_Rename_Job::state();
+		expect($state['last_id'])->toBe(11);
+		expect($state['processed'])->toBe(1);
+		expect($state['status'])->toBe('running');
+		// The rename's own guard is released again, so the sync is not blocked by it.
+		expect(get_transient(Skwirrel_WC_Sync_File_Rename_Job::ACTIVE_TRANSIENT))->toBeFalse();
+	} finally {
+		$GLOBALS['wpdb'] = $original_wpdb;
+		unset($GLOBALS['_test_attached_files'], $GLOBALS['_test_transients'], $GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
+	}
+});
