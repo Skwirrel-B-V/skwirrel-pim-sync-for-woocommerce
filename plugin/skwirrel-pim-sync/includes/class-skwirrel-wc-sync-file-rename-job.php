@@ -669,10 +669,12 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		if ( empty( $pairs ) || '' === $needle ) {
 			return 0;
 		}
-		$like    = '%' . $wpdb->esc_like( $needle ) . '%';
-		$anchors = self::uploads_anchors();
-		$changed = 0;
-		$fetched = 0;
+		$like = '%' . $wpdb->esc_like( $needle ) . '%';
+		// Links can hold the percent-encoded name (`caf%C3%A9.jpg`), which the raw stem does not match.
+		$like_encoded = '%' . $wpdb->esc_like( rawurlencode( $needle ) ) . '%';
+		$anchors      = self::uploads_anchors();
+		$changed      = 0;
+		$fetched      = 0;
 
 		$last = 0;
 		$rows = [];
@@ -680,10 +682,12 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- rewriting links in content is the point of this job.
 			$rows    = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT ID, post_content, post_excerpt FROM {$wpdb->posts} WHERE ID > %d AND post_type <> 'attachment' AND (post_content LIKE %s OR post_excerpt LIKE %s) ORDER BY ID ASC LIMIT %d",
+					"SELECT ID, post_content, post_excerpt FROM {$wpdb->posts} WHERE ID > %d AND post_type <> 'attachment' AND (post_content LIKE %s OR post_excerpt LIKE %s OR post_content LIKE %s OR post_excerpt LIKE %s) ORDER BY ID ASC LIMIT %d",
 					$last,
 					$like,
 					$like,
+					$like_encoded,
+					$like_encoded,
 					self::REPLACE_CHUNK
 				)
 			);
@@ -714,9 +718,10 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- see above.
 			$rows    = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT meta_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE meta_id > %d AND meta_value LIKE %s AND meta_key NOT IN ('_wp_attached_file', '_wp_attachment_metadata', %s, %s) ORDER BY meta_id ASC LIMIT %d",
+					"SELECT meta_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE meta_id > %d AND (meta_value LIKE %s OR meta_value LIKE %s) AND meta_key NOT IN ('_wp_attached_file', '_wp_attachment_metadata', %s, %s) ORDER BY meta_id ASC LIMIT %d",
 					$last,
 					$like,
+					$like_encoded,
 					self::META_OLD_PATH,
 					self::META_PREVIOUS_NAME,
 					self::REPLACE_CHUNK
@@ -739,13 +744,58 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	}
 
 	/**
-	 * Replace old relative paths with new ones in a string, including the JSON-escaped form (`\/`).
+	 * Percent-encode each segment of a relative path the way `rawurlencode()` and browsers do,
+	 * keeping the slashes: `2024/05/café.jpg` gives `2024/05/caf%C3%A9.jpg`.
+	 */
+	public static function encoded_path( string $path ): string {
+		return implode( '/', array_map( 'rawurlencode', explode( '/', $path ) ) );
+	}
+
+	/**
+	 * Let the hex digits of every `%XX` escape in a regex match either case (`%C3` and `%c3`),
+	 * while the rest of the name stays case-sensitive.
+	 *
+	 * @param string $quoted Output of preg_quote().
+	 * @return string
+	 */
+	private static function hex_insensitive( string $quoted ): string {
+		return (string) preg_replace_callback(
+			'~%([0-9A-F])([0-9A-F])~',
+			static fn ( array $m ): string => '%' . ( ctype_alpha( $m[1] ) ? '[' . $m[1] . strtolower( $m[1] ) . ']' : $m[1] ) . ( ctype_alpha( $m[2] ) ? '[' . $m[2] . strtolower( $m[2] ) . ']' : $m[2] ),
+			$quoted
+		);
+	}
+
+	/**
+	 * Old => new pairs plus the percent-encoded form of every old path that needs encoding,
+	 * mapped to the encoded new path.
+	 *
+	 * @param array<string,string> $pairs Old relative path => new relative path.
+	 * @return array<string,string>
+	 */
+	private static function with_encoded_pairs( array $pairs ): array {
+		$all = $pairs;
+		foreach ( $pairs as $old => $new ) {
+			$encoded = self::encoded_path( (string) $old );
+			if ( $encoded !== (string) $old && ! isset( $all[ $encoded ] ) ) {
+				$all[ $encoded ] = self::encoded_path( $new );
+			}
+		}
+		return $all;
+	}
+
+	/**
+	 * Replace old relative paths with new ones in a string, including the JSON-escaped form (`\/`)
+	 * and the percent-encoded form (`caf%C3%A9.jpg`).
 	 *
 	 * @param array<string,string> $pairs   Old relative path => new relative path.
 	 * @param string[]             $anchors Strings one of which must stand right before the path; empty for none.
 	 */
 	public static function replace_in_string( string $subject, array $pairs, array $anchors = [] ): string {
-		foreach ( $pairs as $old => $new ) {
+		foreach ( self::with_encoded_pairs( $pairs ) as $old => $new ) {
+			$old = (string) $old;
+			// Only an added encoded form gets case-free hex: a raw name with a literal "%AB" is exact.
+			$encoded = ! array_key_exists( $old, $pairs );
 			foreach ( [ [ $old, $new, $anchors ], [ str_replace( '/', '\\/', $old ), str_replace( '/', '\\/', $new ), array_map( static fn ( string $a ): string => str_replace( '/', '\\/', $a ), $anchors ) ] ] as [ $from, $to, $before ] ) {
 				// Where the path may start: right after one of the uploads anchors when given, so another
 				// site's URL that ends in the same path is left alone; otherwise after a path boundary
@@ -755,7 +805,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 					? '(?<![A-Za-z0-9._-])'
 					: '(?<=' . implode( '|', array_map( static fn ( string $a ): string => preg_quote( $a, '~' ), $before ) ) . ')';
 				$subject = (string) preg_replace_callback(
-					'~' . $start . preg_quote( $from, '~' ) . '(?![A-Za-z0-9_-]|\.[A-Za-z0-9])~',
+					'~' . $start . ( $encoded ? self::hex_insensitive( preg_quote( $from, '~' ) ) : preg_quote( $from, '~' ) ) . '(?![A-Za-z0-9_-]|\.[A-Za-z0-9])~',
 					static fn (): string => $to,
 					$subject
 				);
