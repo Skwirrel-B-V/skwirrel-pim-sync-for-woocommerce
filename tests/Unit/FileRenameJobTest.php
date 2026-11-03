@@ -416,3 +416,205 @@ test('a raw name with a literal percent sign matches exactly', function () {
 	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('/u/2024/05/100%AB.jpg /u/2024/05/100%ab.jpg', $pairs))
 		->toBe('/u/2024/05/foto.jpg /u/2024/05/100%ab.jpg');
 });
+
+// ------------------------------------------------------------------
+// Failure isolation and resume (#79)
+// ------------------------------------------------------------------
+
+/** A $wpdb stub that lists the given attachment IDs and can throw on the link search. */
+function skwJobWpdb(array $ids, bool $throw_on_search): object {
+	return new class($ids, $throw_on_search) {
+		public string $posts    = 'wp_posts';
+		public string $postmeta = 'wp_postmeta';
+		public function __construct(private array $ids, private bool $throw) {}
+		public function prepare(string $query, ...$args): string { return $query; }
+		public function get_col(string $query) { return $this->ids; }
+		public function get_var(string $query) { return '0'; }
+		public function get_results(string $query, $output = 'OBJECT') {
+			if ($this->throw) {
+				throw new RuntimeException('database went away');
+			}
+			return [];
+		}
+		public function esc_like(string $text): string { return addcslashes($text, '_%\\'); }
+	};
+}
+
+/** A logger that keeps what it was told. */
+function skwJobLogger(): object {
+	return new class implements WC_Logger_Interface {
+		public array $lines = [];
+		public function log($level, $message, $context = []) { $this->lines[] = [$level, $message, $context]; }
+		public function __call($level, $args) { $this->lines[] = [$level, $args[0] ?? '', $args[1] ?? []]; }
+	};
+}
+
+test('an attachment that throws counts as failed, is logged, and the batch carries on', function () {
+	$saved             = $GLOBALS['wpdb'];
+	$GLOBALS['wpdb']   = skwJobWpdb([5, 6], true);
+	$logger            = skwJobLogger();
+	$GLOBALS['_test_wc_logger'] = $logger;
+	// 5 still has links to rewrite, and the rewrite throws; 6 has no file and is skipped.
+	$GLOBALS['_test_post_meta'][5][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 0, 'pairs' => ['2024/05/a.jpg' => '2024/05/b.jpg'], 'stem' => 'a'];
+	$GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'] = ['status' => 'running', 'started' => 1000, 'updated' => 1000, 'last_id' => 0, 'mode' => 'original', 'prefix' => ''];
+	try {
+		Skwirrel_WC_Sync_File_Rename_Job::run_batch();
+		$state = Skwirrel_WC_Sync_File_Rename_Job::state();
+	} finally {
+		$GLOBALS['wpdb'] = $saved;
+		unset($GLOBALS['_test_wc_logger'], $GLOBALS['_test_post_meta'][5], $GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
+	}
+	expect([$state['processed'], $state['failed'], $state['skipped'], $state['last_id']])->toBe([2, 1, 1, 6]);
+	$errors = array_values(array_filter($logger->lines, static fn ($l) => 'error' === $l[0]));
+	expect($errors)->toHaveCount(1);
+	expect($errors[0][1])->toContain('"attachment_id":5');
+	expect($errors[0][1])->toContain('database went away');
+});
+
+test('an attachment whose links still need rewriting is finished on the next run', function () {
+	$GLOBALS['_test_post_meta'][7][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 0, 'pairs' => ['2024/05/a.jpg' => '2024/05/b.jpg'], 'stem' => 'a'];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(7))->toBe('renamed');
+	expect(get_post_meta(7, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	unset($GLOBALS['_test_post_meta'][7]);
+});
+
+test('a resume that keeps failing is given up after a few attempts instead of retried forever', function () {
+	$GLOBALS['_test_post_meta'][8][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 3, 'pairs' => ['2024/05/a.jpg' => '2024/05/b.jpg'], 'stem' => 'a'];
+	$saved           = $GLOBALS['wpdb'];
+	$GLOBALS['wpdb'] = skwJobWpdb([], true);
+	try {
+		// No database work is tried again: the throwing stub is never reached.
+		expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(8))->toBe('failed');
+	} finally {
+		$GLOBALS['wpdb'] = $saved;
+	}
+	unset($GLOBALS['_test_post_meta'][8]);
+});
+
+test('every resume attempt is counted before the work, so a fatal error also counts', function () {
+	$GLOBALS['_test_post_meta'][9][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 1, 'pairs' => ['2024/05/a.jpg' => '2024/05/b.jpg'], 'stem' => 'a'];
+	$saved           = $GLOBALS['wpdb'];
+	$GLOBALS['wpdb'] = skwJobWpdb([], true);
+	try {
+		Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(9);
+	} catch (RuntimeException) {
+		// Expected: the stub throws on the link search.
+	} finally {
+		$GLOBALS['wpdb'] = $saved;
+	}
+	expect(get_post_meta(9, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true)['attempts'])->toBe(2);
+	unset($GLOBALS['_test_post_meta'][9]);
+});
+
+test('a move interrupted halfway is completed on the next run', function () {
+	file_put_contents($this->dir . '/foto.jpg', 'main');            // already moved
+	file_put_contents($this->dir . '/old-300x200.jpg', 'size');     // not yet moved
+	$GLOBALS['_test_post_meta'][10][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage'    => 'move',
+		'attempts' => 0,
+		'dir'      => $this->dir,
+		'rel_dir'  => '2024/05',
+		'moves'    => ['old.jpg' => 'foto.jpg', 'old-300x200.jpg' => 'foto-300x200.jpg'],
+		'main'     => 'foto.jpg',
+		'meta'     => ['sizes' => ['medium' => ['file' => 'foto-300x200.jpg']]],
+		'old_name' => 'old.jpg',
+		'stem'     => 'old',
+	];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(10))->toBe('renamed');
+	expect(file_exists($this->dir . '/foto-300x200.jpg'))->toBeTrue();
+	expect(file_exists($this->dir . '/old-300x200.jpg'))->toBeFalse();
+	expect(get_post_meta(10, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, false))->toContain("2024/05/old.jpg\t2024/05/foto.jpg", "2024/05/old-300x200.jpg\t2024/05/foto-300x200.jpg");
+	expect(get_post_meta(10, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	unset($GLOBALS['_test_post_meta'][10]);
+});
+
+test('a resumed move that cannot finish counts as failed and does not point the attachment at a missing file', function () {
+	// Neither the old nor the new main file is there: nothing can be finished.
+	$GLOBALS['_test_post_meta'][11][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 0, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['gone.jpg' => 'foto.jpg'], 'main' => 'foto.jpg', 'meta' => [], 'old_name' => 'gone.jpg', 'stem' => 'gone',
+	];
+	$GLOBALS['_test_attached_files'][11] = $this->dir . '/gone.jpg';
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(11))->toBe('failed');
+	expect(get_attached_file(11))->toBe($this->dir . '/gone.jpg');
+	expect(get_post_meta(11, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, false))->toBe([]);
+	unset($GLOBALS['_test_post_meta'][11], $GLOBALS['_test_attached_files'][11]);
+});
+
+test('a resume after the old paths were recorded does not record them twice', function () {
+	file_put_contents($this->dir . '/foto.jpg', 'main');
+	add_post_meta(12, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, 'old.jpg');
+	add_post_meta(12, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, "2024/05/old.jpg\t2024/05/foto.jpg");
+	$GLOBALS['_test_post_meta'][12][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 0, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['old.jpg' => 'foto.jpg'], 'main' => 'foto.jpg', 'meta' => [], 'old_name' => 'old.jpg', 'stem' => 'old',
+	];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(12))->toBe('renamed');
+	expect(get_post_meta(12, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, false))->toBe(['old.jpg']);
+	expect(get_post_meta(12, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, false))->toBe(["2024/05/old.jpg\t2024/05/foto.jpg"]);
+	unset($GLOBALS['_test_post_meta'][12]);
+});
+
+test('a rename that was given up is forgotten, so a later run can rename the file again', function () {
+	$GLOBALS['_test_post_meta'][13][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 3, 'pairs' => [], 'stem' => 'a'];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(13))->toBe('failed');
+	expect(get_post_meta(13, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	unset($GLOBALS['_test_post_meta'][13]);
+});
+
+test('a resumed move whose target was taken meanwhile is not finished onto the other file', function () {
+	file_put_contents($this->dir . '/old.jpg', 'ours');
+	file_put_contents($this->dir . '/foto.jpg', 'someone else');
+	$GLOBALS['_test_post_meta'][14][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 0, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['old.jpg' => 'foto.jpg'], 'main' => 'foto.jpg', 'meta' => [], 'old_name' => 'old.jpg', 'stem' => 'old',
+	];
+	$GLOBALS['_test_attached_files'][14] = $this->dir . '/old.jpg';
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(14))->toBe('failed');
+	expect(get_attached_file(14))->toBe($this->dir . '/old.jpg');
+	expect(file_get_contents($this->dir . '/foto.jpg'))->toBe('someone else');
+	expect(get_post_meta(14, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->not->toBe('');
+	unset($GLOBALS['_test_post_meta'][14], $GLOBALS['_test_attached_files'][14]);
+});
+
+test('giving up a rename that was still moving files moves them back', function () {
+	file_put_contents($this->dir . '/old.jpg', 'ours');
+	file_put_contents($this->dir . '/foto.jpg', 'someone else');            // taken target: never ours
+	file_put_contents($this->dir . '/foto-300x200.jpg', 'our size');        // already moved
+	$GLOBALS['_test_post_meta'][15][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 3, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['old.jpg' => 'foto.jpg', 'old-300x200.jpg' => 'foto-300x200.jpg'], 'main' => 'foto.jpg', 'meta' => [], 'old_name' => 'old.jpg', 'stem' => 'old',
+	];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(15))->toBe('failed');
+	expect(file_get_contents($this->dir . '/old-300x200.jpg'))->toBe('our size');
+	expect(file_exists($this->dir . '/foto-300x200.jpg'))->toBeFalse();
+	expect(file_get_contents($this->dir . '/foto.jpg'))->toBe('someone else');
+	expect(file_get_contents($this->dir . '/old.jpg'))->toBe('ours');
+	expect(get_post_meta(15, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	unset($GLOBALS['_test_post_meta'][15]);
+});
+
+test('a normal rename still adds a previous-name row per rename, also for a name used before', function () {
+	file_put_contents($this->dir . '/foto.jpg', 'main');
+	add_post_meta(16, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, 'old.jpg');
+	$pending = ['stage' => 'move', 'attempts' => 0, 'dir' => $this->dir, 'rel_dir' => '', 'moves' => ['old.jpg' => 'foto.jpg'], 'main' => 'foto.jpg', 'meta' => [], 'old_name' => 'old.jpg', 'stem' => 'old'];
+	$finish  = new ReflectionMethod(Skwirrel_WC_Sync_File_Rename_Job::class, 'finish');
+	expect($finish->invoke(null, 16, $pending, new Skwirrel_WC_Sync_Logger()))->toBe('renamed');
+	expect(get_post_meta(16, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, false))->toBe(['old.jpg', 'old.jpg']);
+	unset($GLOBALS['_test_post_meta'][16]);
+});
+
+
+test('resuming a moved restored image also saves its planned backup metadata', function () {
+	file_put_contents($this->dir . '/restored.jpg', 'main');
+	$backups = ['full-orig' => ['file' => 'restored.jpg']];
+	$GLOBALS['_test_post_meta'][17][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 0, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['old.jpg' => 'restored.jpg'], 'main' => 'restored.jpg',
+		'meta' => [], 'backups' => $backups, 'old_name' => 'old.jpg', 'stem' => 'old',
+	];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(17))->toBe('renamed');
+	expect(get_post_meta(17, '_wp_attachment_backup_sizes', true))->toBe($backups);
+	expect(get_post_meta(17, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	unset($GLOBALS['_test_post_meta'][17]);
+});
