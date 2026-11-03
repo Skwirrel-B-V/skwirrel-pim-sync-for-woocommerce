@@ -463,6 +463,11 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			if ( ! is_string( $file ) || '' === $file || ( null !== $present && ! in_array( $file, $present, true ) ) ) {
 				return null;
 			}
+			// Restored-image backups can reference the active main file or a generated size.
+			// Keep that file's destination and point every metadata entry at the same move.
+			if ( isset( $moves[ $file ] ) ) {
+				return $moves[ $file ];
+			}
 			$new_file = self::renamed_by_prefix( $file, $map );
 			if ( null !== $new_file ) {
 				$moves[ $file ] = $new_file;

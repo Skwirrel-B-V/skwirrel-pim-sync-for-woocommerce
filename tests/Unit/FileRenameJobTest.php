@@ -290,3 +290,20 @@ test('an image without copies or backups plans exactly as before', function () {
 	expect($plan['backups'])->toBe([]);
 	expect($plan['meta'])->toBe(['sizes' => ['thumbnail' => ['file' => 'foto-150x150.jpg']]]);
 });
+
+
+test('restored-image backups reuse the active main and thumbnail destinations', function () {
+	$meta = ['sizes' => ['thumbnail' => ['file' => 'foo-150x150.jpg']]];
+	$backups = [
+		'full-orig' => ['file' => 'foo.jpg'],
+		'thumbnail-orig' => ['file' => 'foo-150x150.jpg'],
+		'full-123' => ['file' => 'foo-e123.jpg'],
+	];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('foo.jpg', 'new.jpg', $meta, null, $backups);
+	expect($plan['moves']['foo.jpg'])->toBe($plan['main'])->toBe('new.jpg');
+	expect($plan['moves']['foo-150x150.jpg'])->toBe('new-150x150.jpg');
+	expect($plan['meta']['sizes']['thumbnail']['file'])->toBe('new-150x150.jpg');
+	expect($plan['backups']['full-orig']['file'])->toBe('new.jpg');
+	expect($plan['backups']['thumbnail-orig']['file'])->toBe('new-150x150.jpg');
+	expect($plan['backups']['full-123']['file'])->toBe('new-orig-e123.jpg');
+});
