@@ -618,3 +618,28 @@ test('resuming a moved restored image also saves its planned backup metadata', f
 	expect(get_post_meta(17, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
 	unset($GLOBALS['_test_post_meta'][17]);
 });
+
+
+test('a failed give-up rollback keeps the recovery marker and moved bytes', function () {
+	file_put_contents($this->dir . '/foto.jpg', 'recover me');
+	$pending = [
+		'stage' => 'move', 'attempts' => 3, 'dir' => $this->dir,
+		// The absent parent forces a real filesystem rename failure, without permissions stubs.
+		'moves' => ['absent-parent/old.jpg' => 'foto.jpg'], 'main' => 'foto.jpg',
+	];
+	$GLOBALS['_test_post_meta'][18][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = $pending;
+	try {
+		// This deliberately triggers rename()'s warning as well as its false result.
+		set_error_handler(static fn (): bool => true);
+		try {
+			$result = Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(18);
+		} finally {
+			restore_error_handler();
+		}
+		expect($result)->toBe('failed');
+		expect(get_post_meta(18, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe($pending);
+		expect(file_get_contents($this->dir . '/foto.jpg'))->toBe('recover me');
+	} finally {
+		unset($GLOBALS['_test_post_meta'][18]);
+	}
+});

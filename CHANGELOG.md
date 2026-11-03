@@ -6,6 +6,8 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 
 ### Fixed
 
+* **A failed rollback retains the recovery marker** (#79). Do not discard the pending plan while files still need recovery.
+
 * **Interrupted sibling-file renames retain their backup metadata** (#71, #79). The recovery marker carries the planned backup names and saves them together with attachment metadata before the link stage.
 
 * **A rename also moves WebP/AVIF copies and the backups of edited images** (#71). Only the main file, `original_image` and the generated sizes were renamed, so modern-format copies (`sources` in the attachment metadata, for the main file and for every size) and the backups WordPress keeps of an edited image (`_wp_attachment_backup_sizes`) kept the old name and their old URLs never redirected. They now move with the file they belong to, the metadata points at the new names and each moved file gets an old-path record, so its old URL redirects. Separate backups are named `<new name>-orig…`. When a restored-image backup references an active main file or size, its metadata reuses that file’s planned destination instead of overwriting it. A listed copy that is missing on disk is skipped; a target that already exists, or two files planned onto the same name, fails the rename before anything moves.

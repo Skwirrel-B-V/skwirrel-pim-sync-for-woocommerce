@@ -426,6 +426,14 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		update_post_meta( $attachment_id, self::META_PENDING, $pending );
 
 		if ( ! self::move_files( $dir, $plan['moves'] ) ) {
+			// A filesystem failure can also prevent the rollback. Keep the recovery plan
+			// until every source is back, rather than forgetting a partially moved file.
+			foreach ( array_keys( $plan['moves'] ) as $from ) {
+				if ( ! file_exists( $dir . '/' . $from ) ) {
+					$logger->error( 'File rename rollback incomplete, recovery marker retained', [ 'attachment_id' => $attachment_id ] );
+					return 'failed';
+				}
+			}
 			delete_post_meta( $attachment_id, self::META_PENDING );
 			$logger->warning( 'File rename failed and was rolled back', [ 'attachment_id' => $attachment_id ] );
 			return 'failed';
@@ -457,7 +465,10 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				$dir = (string) ( $pending['dir'] ?? '' );
 				foreach ( (array) ( $pending['moves'] ?? [] ) as $from => $to ) {
 					if ( file_exists( $dir . '/' . $to ) && ! file_exists( $dir . '/' . $from ) ) {
-						self::move_files( $dir, [ (string) $to => (string) $from ] );
+						if ( ! self::move_files( $dir, [ (string) $to => (string) $from ] ) ) {
+							$logger->error( 'File rename rollback incomplete, recovery marker retained', [ 'attachment_id' => $attachment_id ] );
+							return 'failed';
+						}
 					}
 				}
 			}
