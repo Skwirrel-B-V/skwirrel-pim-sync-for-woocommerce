@@ -673,3 +673,21 @@ test('giving up a rename after its metadata was saved points the attachment back
 	expect(get_post_meta(19, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
 	unset($GLOBALS['_test_post_meta'][19], $GLOBALS['_test_attached_files'][19], $GLOBALS['_test_attachment_metadata'][19]);
 });
+
+
+test('giving up a second rename restores the redirects of the first one', function () {
+	file_put_contents($this->dir . '/c.jpg', 'ours');
+	// Renamed a.jpg → b.jpg earlier; this rename b.jpg → c.jpg died after record_old_paths().
+	$GLOBALS['_test_attached_files'][20] = $this->dir . '/c.jpg';
+	add_post_meta(20, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, "2024/05/a.jpg\t2024/05/c.jpg");
+	add_post_meta(20, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, "2024/05/b.jpg\t2024/05/c.jpg");
+	$GLOBALS['_test_post_meta'][20][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 3, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['b.jpg' => 'c.jpg'], 'main' => 'c.jpg', 'meta' => [], 'old_name' => 'b.jpg', 'stem' => 'b',
+		'undo' => ['file' => $this->dir . '/b.jpg', 'meta' => [], 'backups' => [], 'old_paths' => ["2024/05/a.jpg\t2024/05/b.jpg"]],
+	];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(20))->toBe('failed');
+	expect(file_get_contents($this->dir . '/b.jpg'))->toBe('ours');
+	expect(get_post_meta(20, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, false))->toBe(["2024/05/a.jpg\t2024/05/b.jpg"]);
+	unset($GLOBALS['_test_post_meta'][20], $GLOBALS['_test_attached_files'][20]);
+});

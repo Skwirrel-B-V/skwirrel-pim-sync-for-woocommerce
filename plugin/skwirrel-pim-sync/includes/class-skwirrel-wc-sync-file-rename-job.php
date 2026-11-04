@@ -424,9 +424,11 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			'stem'     => self::shared_stem( basename( $old_path ), $meta ),
 			// What the attachment pointed at before, so giving up can restore it after the files go back.
 			'undo'     => [
-				'file'    => $old_path,
-				'meta'    => $meta,
-				'backups' => $backups,
+				'file'      => $old_path,
+				'meta'      => $meta,
+				'backups'   => $backups,
+				// A second rename rewrites the redirects of the first one, so keep them as they were.
+				'old_paths' => array_values( (array) get_post_meta( $attachment_id, self::META_OLD_PATH, false ) ),
 			],
 		];
 		update_post_meta( $attachment_id, self::META_PENDING, $pending );
@@ -538,10 +540,19 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		} elseif ( ! empty( $pending['backups'] ) ) {
 			delete_post_meta( $attachment_id, self::META_BACKUP_SIZES );
 		}
-		$rel_dir = (string) ( $pending['rel_dir'] ?? '' );
-		$prefix  = '' !== $rel_dir ? $rel_dir . '/' : '';
-		foreach ( (array) ( $pending['moves'] ?? [] ) as $from => $to ) {
-			delete_post_meta( $attachment_id, self::META_OLD_PATH, $prefix . $from . "\t" . $prefix . $to );
+		// Put the old-path rows back as they were before this rename: drop its own rows and undo the
+		// redirect targets it rewrote (an earlier a → b that became a → c goes back to a → b).
+		if ( isset( $undo['old_paths'] ) && is_array( $undo['old_paths'] ) ) {
+			delete_post_meta( $attachment_id, self::META_OLD_PATH );
+			foreach ( $undo['old_paths'] as $row ) {
+				add_post_meta( $attachment_id, self::META_OLD_PATH, (string) $row );
+			}
+		} else {
+			$rel_dir = (string) ( $pending['rel_dir'] ?? '' );
+			$prefix  = '' !== $rel_dir ? $rel_dir . '/' : '';
+			foreach ( (array) ( $pending['moves'] ?? [] ) as $from => $to ) {
+				delete_post_meta( $attachment_id, self::META_OLD_PATH, $prefix . $from . "\t" . $prefix . $to );
+			}
 		}
 	}
 
