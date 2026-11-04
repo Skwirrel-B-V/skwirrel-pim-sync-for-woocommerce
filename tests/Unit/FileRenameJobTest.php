@@ -348,6 +348,75 @@ test('a sync that starts mid-batch stops the batch after the current attachment'
 	}
 });
 
+
+// ------------------------------------------------------------------
+// Encoded links (#72)
+// ------------------------------------------------------------------
+
+test('a percent-encoded link in an href is rewritten to the encoded new name', function () {
+	$pairs = ['2024/05/café.jpg' => '2024/05/skwirrel-a-1.jpg'];
+	$html  = '<a href="https://x.test/wp-content/uploads/2024/05/caf%C3%A9.jpg">';
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string($html, $pairs, ['/wp-content/uploads/']))
+		->toBe('<a href="https://x.test/wp-content/uploads/2024/05/skwirrel-a-1.jpg">');
+});
+
+test('a new name with special characters is written encoded where the old link was encoded', function () {
+	$pairs = ['2024/05/skwirrel-a-1.jpg' => '2024/05/Über café.jpg'];
+	$html  = '<a href="/wp-content/uploads/2024/05/skwirrel-a-1.jpg">';
+	// The raw form is replaced by the raw new name, as before.
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string($html, $pairs))
+		->toBe('<a href="/wp-content/uploads/2024/05/Über café.jpg">');
+	$pairs = ['2024/05/café.jpg' => '2024/05/Über café.jpg'];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('<a href="/u/2024/05/caf%C3%A9.jpg">', $pairs))
+		->toBe('<a href="/u/2024/05/%C3%9Cber%20caf%C3%A9.jpg">');
+});
+
+test('the encoded and the raw form in one post are both rewritten', function () {
+	$pairs = ['2024/05/café.jpg' => '2024/05/foto.jpg', '2024/05/café-300x200.jpg' => '2024/05/foto-300x200.jpg'];
+	$html  = '<img src="/wp-content/uploads/2024/05/café.jpg" srcset="/wp-content/uploads/2024/05/caf%C3%A9-300x200.jpg 300w, /wp-content/uploads/2024/05/caf%C3%A9.jpg 600w">';
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string($html, $pairs, ['/wp-content/uploads/']))
+		->toBe('<img src="/wp-content/uploads/2024/05/foto.jpg" srcset="/wp-content/uploads/2024/05/foto-300x200.jpg 300w, /wp-content/uploads/2024/05/foto.jpg 600w">');
+});
+
+test('encoded JSON-escaped links are rewritten', function () {
+	$pairs = ['2024/05/café.jpg' => '2024/05/foto.jpg'];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('{"u":"https:\/\/x.test\/wp-content\/uploads\/2024\/05\/caf%C3%A9.jpg"}', $pairs, ['/wp-content/uploads/']))
+		->toBe('{"u":"https:\/\/x.test\/wp-content\/uploads\/2024\/05\/foto.jpg"}');
+});
+
+test('encoded downloadable-file urls in serialized meta are rewritten with correct string lengths', function () {
+	$pairs = ['2024/05/café.pdf' => '2024/05/handleiding.pdf'];
+	$meta  = serialize(['abc' => ['name' => 'Manual', 'file' => 'https://x.test/wp-content/uploads/2024/05/caf%C3%A9.pdf']]);
+	$value = Skwirrel_WC_Sync_File_Rename_Job::replace_in_value(unserialize($meta), $pairs, ['/wp-content/uploads/']);
+	$again = unserialize(serialize($value));
+	expect($again['abc']['file'])->toBe('https://x.test/wp-content/uploads/2024/05/handleiding.pdf');
+	expect($again['abc']['name'])->toBe('Manual');
+});
+
+test('a name without special characters is rewritten exactly as before', function () {
+	$pairs = ['2024/05/skwirrel-a-1.jpg' => '2024/05/foto.jpg'];
+	$html  = '<a href="/wp-content/uploads/2024/05/skwirrel-a-1.jpg"> skwirrel-a-1.jpg.webp';
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string($html, $pairs, ['/wp-content/uploads/']))
+		->toBe('<a href="/wp-content/uploads/2024/05/foto.jpg"> skwirrel-a-1.jpg.webp');
+});
+
+test('encoded_path encodes each segment and keeps the slashes', function () {
+	expect(Skwirrel_WC_Sync_File_Rename_Job::encoded_path('2024/05/Über café.jpg'))->toBe('2024/05/%C3%9Cber%20caf%C3%A9.jpg');
+	expect(Skwirrel_WC_Sync_File_Rename_Job::encoded_path('2024/05/plain-name_1.jpg'))->toBe('2024/05/plain-name_1.jpg');
+});
+
+test('lowercase percent-encoding is rewritten too, but the rest of the name stays case-sensitive', function () {
+	$pairs = ['2024/05/café.jpg' => '2024/05/foto.jpg'];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('<a href="/u/2024/05/caf%c3%a9.jpg"> /u/2024/05/CAF%C3%A9.jpg', $pairs))
+		->toBe('<a href="/u/2024/05/foto.jpg"> /u/2024/05/CAF%C3%A9.jpg');
+});
+
+test('a raw name with a literal percent sign matches exactly', function () {
+	$pairs = ['2024/05/100%AB.jpg' => '2024/05/foto.jpg'];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('/u/2024/05/100%AB.jpg /u/2024/05/100%ab.jpg', $pairs))
+		->toBe('/u/2024/05/foto.jpg /u/2024/05/100%ab.jpg');
+});
+
 test('a second rename keeps a single -orig suffix on backups', function () {
 	$meta    = ['sizes' => ['thumbnail' => ['file' => 'foto-150x150.jpg']]];
 	$backups = [
