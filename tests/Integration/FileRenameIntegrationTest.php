@@ -178,6 +178,27 @@ test( 'a file can go back to an earlier name of its own without getting a suffix
 	expect( Skwirrel_WC_Sync_File_Redirects::find_target( $rel ) )->toBe( '' );
 } );
 
+
+test( 'rename polling observes a sync flag changed outside the request cache', function (): void {
+	global $wpdb;
+	$key = Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS;
+	$poll = new ReflectionMethod( Skwirrel_WC_Sync_File_Rename_Job::class, 'sync_running' );
+	delete_transient( $key );
+	try {
+		expect( $poll->invoke( null ) )->toBeFalse();
+		// Direct SQL simulates a second request without invalidating this request's caches.
+		$wpdb->insert( $wpdb->options, [ 'option_name' => '_transient_' . $key, 'option_value' => '1', 'autoload' => 'off' ] );
+		$wpdb->insert( $wpdb->options, [ 'option_name' => '_transient_timeout_' . $key, 'option_value' => (string) ( time() + 600 ), 'autoload' => 'off' ] );
+		expect( $poll->invoke( null ) )->toBeTrue();
+		$wpdb->delete( $wpdb->options, [ 'option_name' => '_transient_' . $key ] );
+		$wpdb->delete( $wpdb->options, [ 'option_name' => '_transient_timeout_' . $key ] );
+		expect( $poll->invoke( null ) )->toBeFalse();
+	} finally {
+		delete_transient( $key );
+	}
+});
+
+
 test( 'percent-encoded links in content, srcset and downloadable files are rewritten (#72)', function (): void {
 	$upload  = wp_upload_dir();
 	$base    = $upload['baseurl'];
@@ -219,6 +240,8 @@ test( 'a rename that stops before the link rewrite is finished by the next run (
 	$id = skwRenameImport( skwRenameJpeg( 400, 300 ), 'Onderbroken.jpg', 9201 );
 	expect( $id )->toBeGreaterThan( 0 );
 	$old_rel = (string) get_post_meta( $id, '_wp_attached_file', true );
+	// A restored image may keep a backup entry pointing at its active main file.
+	update_post_meta( $id, '_wp_attachment_backup_sizes', [ 'full-orig' => [ 'file' => basename( $old_rel ) ] ] );
 	$base    = wp_upload_dir()['baseurl'];
 	$post_id = wp_insert_post(
 		[
@@ -246,6 +269,8 @@ test( 'a rename that stops before the link rewrite is finished by the next run (
 		remove_filter( 'query', $die );
 	}
 	expect( basename( (string) get_attached_file( $id ) ) )->toBe( 'Onderbroken.jpg' );
+	expect( get_post_meta( $id, '_wp_attachment_backup_sizes', true )['full-orig']['file'] )->toBe( 'Onderbroken.jpg' );
+	expect( file_exists( (string) get_attached_file( $id ) ) )->toBeTrue();
 	expect( (string) get_post_field( 'post_content', $post_id ) )->toContain( $old_rel );
 	expect( get_post_meta( $id, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true )['stage'] )->toBe( 'links' );
 

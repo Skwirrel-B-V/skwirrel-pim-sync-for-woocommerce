@@ -5,6 +5,7 @@
     <!-- Scan these files -->
     <file>plugin/skwirrel-pim-sync/skwirrel-pim-sync.php</file>
     <file>plugin/skwirrel-pim-sync/includes/</file>
+    <file>plugin/skwirrel-pim-sync/uninstall.php</file>
 
     <!-- Exclude vendor -->
     <exclude-pattern>vendor/</exclude-pattern>

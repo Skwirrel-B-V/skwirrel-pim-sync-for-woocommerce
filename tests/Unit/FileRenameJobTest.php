@@ -221,6 +221,180 @@ test('anchors also work for JSON escaped links', function () {
 });
 
 // ------------------------------------------------------------------
+// Sibling files: modern-format copies and edit backups (#71)
+// ------------------------------------------------------------------
+
+test('webp and avif copies in sources move with the main file and its sizes', function () {
+	$meta = [
+		'sources' => [
+			'image/jpeg' => ['file' => 'skwirrel-a-1.jpg'],
+			'image/webp' => ['file' => 'skwirrel-a-1-jpg.webp'],
+		],
+		'sizes'   => [
+			'thumbnail' => [
+				'file'    => 'skwirrel-a-1-150x150.jpg',
+				'sources' => [
+					'image/webp' => ['file' => 'skwirrel-a-1-150x150-jpg.webp'],
+					'image/avif' => ['file' => 'skwirrel-a-1-150x150.jpg.avif'],
+				],
+			],
+		],
+	];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('skwirrel-a-1.jpg', 'foto.jpg', $meta);
+	expect($plan['moves'])->toBe([
+		'skwirrel-a-1.jpg'              => 'foto.jpg',
+		'skwirrel-a-1-150x150.jpg'      => 'foto-150x150.jpg',
+		'skwirrel-a-1-jpg.webp'         => 'foto-jpg.webp',
+		'skwirrel-a-1-150x150-jpg.webp' => 'foto-150x150-jpg.webp',
+		'skwirrel-a-1-150x150.jpg.avif' => 'foto-150x150.jpg.avif',
+	]);
+	expect($plan['meta']['sources']['image/jpeg']['file'])->toBe('foto.jpg');
+	expect($plan['meta']['sources']['image/webp']['file'])->toBe('foto-jpg.webp');
+	expect($plan['meta']['sizes']['thumbnail']['sources']['image/webp']['file'])->toBe('foto-150x150-jpg.webp');
+	expect($plan['meta']['sizes']['thumbnail']['sources']['image/avif']['file'])->toBe('foto-150x150.jpg.avif');
+});
+
+test('a copy in sources that is gone from disk is neither moved nor renamed in the metadata', function () {
+	$meta = ['sources' => ['image/webp' => ['file' => 'skwirrel-a-1.jpg.webp']]];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('skwirrel-a-1.jpg', 'foto.jpg', $meta, ['skwirrel-a-1.jpg']);
+	expect($plan['moves'])->toBe(['skwirrel-a-1.jpg' => 'foto.jpg']);
+	expect($plan['meta']['sources']['image/webp']['file'])->toBe('skwirrel-a-1.jpg.webp');
+});
+
+test('backups of an edited image move and get a name apart from the edited files', function () {
+	$meta    = [
+		'sizes' => ['thumbnail' => ['file' => 'skwirrel-a-1-e1700000000000-150x150.jpg']],
+	];
+	$backups = [
+		'full-orig'      => ['file' => 'skwirrel-a-1.jpg', 'width' => 800],
+		'thumbnail-orig' => ['file' => 'skwirrel-a-1-150x150.jpg'],
+	];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('skwirrel-a-1-e1700000000000.jpg', 'foto.jpg', $meta, null, $backups);
+	expect($plan['moves'])->toBe([
+		'skwirrel-a-1-e1700000000000.jpg'         => 'foto.jpg',
+		'skwirrel-a-1-e1700000000000-150x150.jpg' => 'foto-150x150.jpg',
+		'skwirrel-a-1.jpg'                        => 'foto-orig.jpg',
+		'skwirrel-a-1-150x150.jpg'                => 'foto-orig-150x150.jpg',
+	]);
+	expect($plan['backups']['full-orig'])->toBe(['file' => 'foto-orig.jpg', 'width' => 800]);
+	expect($plan['backups']['thumbnail-orig']['file'])->toBe('foto-orig-150x150.jpg');
+});
+
+test('an image without copies or backups plans exactly as before', function () {
+	$meta = ['sizes' => ['thumbnail' => ['file' => 'skwirrel-a-1-150x150.jpg']]];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('skwirrel-a-1.jpg', 'foto.jpg', $meta);
+	expect($plan['moves'])->toBe([
+		'skwirrel-a-1.jpg'         => 'foto.jpg',
+		'skwirrel-a-1-150x150.jpg' => 'foto-150x150.jpg',
+	]);
+	expect($plan['backups'])->toBe([]);
+	expect($plan['meta'])->toBe(['sizes' => ['thumbnail' => ['file' => 'foto-150x150.jpg']]]);
+});
+
+
+test('restored-image backups reuse the active main and thumbnail destinations', function () {
+	$meta = ['sizes' => ['thumbnail' => ['file' => 'foo-150x150.jpg']]];
+	$backups = [
+		'full-orig' => ['file' => 'foo.jpg'],
+		'thumbnail-orig' => ['file' => 'foo-150x150.jpg'],
+		'full-123' => ['file' => 'foo-e123.jpg'],
+	];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('foo.jpg', 'new.jpg', $meta, null, $backups);
+	expect($plan['moves']['foo.jpg'])->toBe($plan['main'])->toBe('new.jpg');
+	expect($plan['moves']['foo-150x150.jpg'])->toBe('new-150x150.jpg');
+	expect($plan['meta']['sizes']['thumbnail']['file'])->toBe('new-150x150.jpg');
+	expect($plan['backups']['full-orig']['file'])->toBe('new.jpg');
+	expect($plan['backups']['thumbnail-orig']['file'])->toBe('new-150x150.jpg');
+	expect($plan['backups']['full-123']['file'])->toBe('new-orig-e123.jpg');
+});
+
+
+test('a sync that starts mid-batch stops the batch after the current attachment', function () {
+	$original_wpdb   = $GLOBALS['wpdb'];
+	$GLOBALS['wpdb'] = new class {
+		public string $postmeta = 'wp_postmeta';
+		public function prepare(string $query, ...$args): string {
+			return $query;
+		}
+		public function get_col(string $query): array {
+			return ['11', '12', '13'];
+		}
+	};
+	// Looking up the file of the first attachment is where a sync "starts".
+	$GLOBALS['_test_attached_files'] = new class implements ArrayAccess {
+		public function offsetExists(mixed $offset): bool {
+			$GLOBALS['_test_transients'][Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS] = ['value' => true, 'expires' => 0];
+			return false;
+		}
+		public function offsetGet(mixed $offset): mixed {
+			return false;
+		}
+		public function offsetSet(mixed $offset, mixed $value): void {}
+		public function offsetUnset(mixed $offset): void {}
+	};
+	$GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'] = ['status' => 'running', 'started' => 1000, 'updated' => 1000, 'last_id' => 0, 'processed' => 0, 'renamed' => 0, 'skipped' => 0, 'failed' => 0, 'mode' => 'original', 'prefix' => ''];
+
+	try {
+		Skwirrel_WC_Sync_File_Rename_Job::run_batch();
+		$state = Skwirrel_WC_Sync_File_Rename_Job::state();
+		expect($state['last_id'])->toBe(11);
+		expect($state['processed'])->toBe(1);
+		expect($state['status'])->toBe('running');
+		// The rename's own guard is released again, so the sync is not blocked by it.
+		expect(get_transient(Skwirrel_WC_Sync_File_Rename_Job::ACTIVE_TRANSIENT))->toBeFalse();
+	} finally {
+		$GLOBALS['wpdb'] = $original_wpdb;
+		unset($GLOBALS['_test_attached_files'], $GLOBALS['_test_transients'], $GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
+	}
+});
+
+
+test('renames of a batch stopped by a sync keep waiting for their links and the next batch finishes them', function () {
+	$saved = $GLOBALS['wpdb'];
+	$wpdb  = new class {
+		public string $posts    = 'wp_posts';
+		public string $postmeta = 'wp_postmeta';
+		public array $searches  = [];
+		public bool $first      = true;
+		public function prepare(string $q, ...$a): string { return vsprintf(str_replace(['%s', '%d'], ["'%s'", '%d'], $q), $a); }
+		public function get_col(string $q) {
+			if (str_contains($q, '_skwirrel_rename_pending')) {
+				return [11];
+			}
+			if ($this->first) {
+				// The sync starts while attachment 11 is being renamed.
+				$this->first = false;
+				$GLOBALS['_test_transients'][Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS] = ['value' => true, 'expires' => 0];
+				return ['11', '12'];
+			}
+			return [];
+		}
+		public function get_var(string $q) { return '0'; }
+		public function get_results(string $q, $o = 'OBJECT') { $this->searches[] = $q; return []; }
+		public function esc_like(string $t): string { return addcslashes($t, '_%\\'); }
+	};
+	$GLOBALS['wpdb'] = $wpdb;
+	$GLOBALS['_test_post_meta'][11][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = ['stage' => 'links', 'attempts' => 0, 'pairs' => ['2024/05/a.jpg' => '2024/05/x.jpg'], 'stem' => 'a', 'old_name' => 'a.jpg'];
+	$GLOBALS['_test_options']['skwirrel_wc_sync_rename_job'] = ['status' => 'running', 'started' => 1000, 'updated' => 1000, 'last_id' => 0, 'processed' => 0, 'renamed' => 0, 'skipped' => 0, 'failed' => 0, 'total' => 2, 'mode' => 'original', 'prefix' => ''];
+	try {
+		Skwirrel_WC_Sync_File_Rename_Job::run_batch();
+		// Stopped after 11: its links are not rewritten under the sync, it stays pending.
+		expect(Skwirrel_WC_Sync_File_Rename_Job::state()['last_id'])->toBe(11);
+		expect(get_post_meta(11, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true)['stage'])->toBe('links');
+		expect($wpdb->searches)->toBe([]);
+
+		// The sync is over; the next batch has no new attachments but still finishes 11.
+		unset($GLOBALS['_test_transients'][Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS]);
+		Skwirrel_WC_Sync_File_Rename_Job::run_batch();
+		expect(get_post_meta(11, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+		expect($wpdb->searches)->not->toBe([]);
+	} finally {
+		$GLOBALS['wpdb'] = $saved;
+		unset($GLOBALS['_test_transients'], $GLOBALS['_test_post_meta'][11], $GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
+	}
+});
+
+// ------------------------------------------------------------------
 // Encoded links (#72)
 // ------------------------------------------------------------------
 
@@ -286,6 +460,30 @@ test('a raw name with a literal percent sign matches exactly', function () {
 	$pairs = ['2024/05/100%AB.jpg' => '2024/05/foto.jpg'];
 	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('/u/2024/05/100%AB.jpg /u/2024/05/100%ab.jpg', $pairs))
 		->toBe('/u/2024/05/foto.jpg /u/2024/05/100%ab.jpg');
+});
+
+test('a second rename keeps a single -orig suffix on backups', function () {
+	$meta    = ['sizes' => ['thumbnail' => ['file' => 'foto-150x150.jpg']]];
+	$backups = [
+		'full-orig'      => ['file' => 'foto-orig.jpg'],
+		'thumbnail-orig' => ['file' => 'foto-orig-150x150.jpg'],
+	];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('foto.jpg', 'lamp.jpg', $meta, null, $backups);
+	expect($plan['moves'])->toBe([
+		'foto.jpg'              => 'lamp.jpg',
+		'foto-150x150.jpg'      => 'lamp-150x150.jpg',
+		'foto-orig.jpg'         => 'lamp-orig.jpg',
+		'foto-orig-150x150.jpg' => 'lamp-orig-150x150.jpg',
+	]);
+	expect($plan['backups']['full-orig']['file'])->toBe('lamp-orig.jpg');
+	expect($plan['backups']['thumbnail-orig']['file'])->toBe('lamp-orig-150x150.jpg');
+});
+
+test('the reference search of an edited image also finds links to its backups', function () {
+	$backups = ['full-orig' => ['file' => 'foo.jpg']];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::search_stem('foo-e1700000000000.jpg', [], $backups))->toBe('foo');
+	expect(Skwirrel_WC_Sync_File_Rename_Job::search_stem('foo-e1700000000000.jpg', [], []))->toBe('foo-e1700000000000');
+	expect(Skwirrel_WC_Sync_File_Rename_Job::search_stem('foo-scaled.jpg', ['original_image' => 'foo.jpg'], []))->toBe('foo');
 });
 
 // ------------------------------------------------------------------
@@ -620,4 +818,91 @@ test('one rename whose links cannot be rewritten does not hold up the others, an
 		$GLOBALS['wpdb'] = $saved;
 		unset($GLOBALS['_test_post_meta'][40], $GLOBALS['_test_post_meta'][41]);
 	}
+});
+
+test('resuming a moved restored image also saves its planned backup metadata', function () {
+	file_put_contents($this->dir . '/restored.jpg', 'main');
+	$backups = ['full-orig' => ['file' => 'restored.jpg']];
+	$GLOBALS['_test_post_meta'][17][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 0, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['old.jpg' => 'restored.jpg'], 'main' => 'restored.jpg',
+		'meta' => [], 'backups' => $backups, 'old_name' => 'old.jpg', 'stem' => 'old',
+	];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(17))->toBe('renamed');
+	expect(get_post_meta(17, '_wp_attachment_backup_sizes', true))->toBe($backups);
+	expect(get_post_meta(17, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	unset($GLOBALS['_test_post_meta'][17]);
+});
+
+
+test('a failed give-up rollback keeps the recovery marker and moved bytes', function () {
+	file_put_contents($this->dir . '/foto.jpg', 'recover me');
+	$pending = [
+		'stage' => 'move', 'attempts' => 3, 'dir' => $this->dir,
+		// The absent parent forces a real filesystem rename failure, without permissions stubs.
+		'moves' => ['absent-parent/old.jpg' => 'foto.jpg'], 'main' => 'foto.jpg',
+	];
+	$GLOBALS['_test_post_meta'][18][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = $pending;
+	try {
+		// This deliberately triggers rename()'s warning as well as its false result.
+		set_error_handler(static fn (): bool => true);
+		try {
+			$result = Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(18);
+		} finally {
+			restore_error_handler();
+		}
+		expect($result)->toBe('failed');
+		expect(get_post_meta(18, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe($pending);
+		expect(file_get_contents($this->dir . '/foto.jpg'))->toBe('recover me');
+	} finally {
+		unset($GLOBALS['_test_post_meta'][18]);
+	}
+});
+
+
+test('giving up a rename after its metadata was saved points the attachment back at its old files', function () {
+	file_put_contents($this->dir . '/foto.jpg', 'ours');
+	file_put_contents($this->dir . '/foto-300x200.jpg', 'our size');
+	$old_meta    = ['file' => '2024/05/old.jpg', 'sizes' => ['medium' => ['file' => 'old-300x200.jpg']]];
+	$old_backups = ['full-orig' => ['file' => 'old-orig.jpg']];
+	// A run died inside finish(): the new name, metadata, backups and old paths are saved, the marker still says `move`.
+	$GLOBALS['_test_attached_files'][19]      = $this->dir . '/foto.jpg';
+	$GLOBALS['_test_attachment_metadata'][19] = ['file' => '2024/05/foto.jpg', 'sizes' => ['medium' => ['file' => 'foto-300x200.jpg']]];
+	update_post_meta(19, '_wp_attachment_backup_sizes', ['full-orig' => ['file' => 'foto-orig.jpg']]);
+	add_post_meta(19, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, 'old.jpg');
+	add_post_meta(19, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, "2024/05/old.jpg\t2024/05/foto.jpg");
+	$GLOBALS['_test_post_meta'][19][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 3, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['old.jpg' => 'foto.jpg', 'old-300x200.jpg' => 'foto-300x200.jpg'], 'main' => 'foto.jpg',
+		'meta' => [], 'backups' => ['full-orig' => ['file' => 'foto-orig.jpg']], 'old_name' => 'old.jpg', 'stem' => 'old',
+		'undo' => ['file' => $this->dir . '/old.jpg', 'meta' => $old_meta, 'backups' => $old_backups],
+	];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(19))->toBe('failed');
+	expect(file_get_contents($this->dir . '/old.jpg'))->toBe('ours');
+	expect(file_get_contents($this->dir . '/old-300x200.jpg'))->toBe('our size');
+	expect(get_attached_file(19))->toBe($this->dir . '/old.jpg');
+	expect(wp_get_attachment_metadata(19))->toBe($old_meta);
+	expect(get_post_meta(19, '_wp_attachment_backup_sizes', true))->toBe($old_backups);
+	expect(get_post_meta(19, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, false))->toBe([]);
+	expect(get_post_meta(19, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, false))->toBe([]);
+	expect(get_post_meta(19, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	unset($GLOBALS['_test_post_meta'][19], $GLOBALS['_test_attached_files'][19], $GLOBALS['_test_attachment_metadata'][19]);
+});
+
+
+test('giving up a second rename restores the redirects of the first one', function () {
+	file_put_contents($this->dir . '/c.jpg', 'ours');
+	// Renamed a.jpg → b.jpg earlier; this rename b.jpg → c.jpg died after record_old_paths().
+	$GLOBALS['_test_attached_files'][20] = $this->dir . '/c.jpg';
+	add_post_meta(20, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, "2024/05/a.jpg\t2024/05/c.jpg");
+	add_post_meta(20, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, "2024/05/b.jpg\t2024/05/c.jpg");
+	$GLOBALS['_test_post_meta'][20][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 3, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['b.jpg' => 'c.jpg'], 'main' => 'c.jpg', 'meta' => [], 'old_name' => 'b.jpg', 'stem' => 'b',
+		'undo' => ['file' => $this->dir . '/b.jpg', 'meta' => [], 'backups' => [], 'old_paths' => ["2024/05/a.jpg\t2024/05/b.jpg"]],
+	];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(20))->toBe('failed');
+	expect(file_get_contents($this->dir . '/b.jpg'))->toBe('ours');
+	expect(get_post_meta(20, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, false))->toBe(["2024/05/a.jpg\t2024/05/b.jpg"]);
+	unset($GLOBALS['_test_post_meta'][20], $GLOBALS['_test_attached_files'][20]);
 });

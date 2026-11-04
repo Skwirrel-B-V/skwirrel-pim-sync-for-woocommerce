@@ -3156,6 +3156,12 @@ msgid "Renaming is switched off on this site, usually because uploads are stored
 msgstr "Le renommage est désactivé sur ce site, généralement parce qu’un autre plugin stocke les fichiers téléversés sur un stockage distant. Renommer les copies locales laisserait les fichiers distants avec l’ancien nom."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
+#. translators: 1: name of the offload plugin, e.g. WP Offload Media, 2: filter name
+#, php-format
+msgid "Renaming is switched off because %1$s is active. It copies uploads to remote storage, and renaming the local copies would leave the remote files with the old name. A developer who handles the remote files can switch renaming back on with the filter %2$s."
+msgstr "Le renommage est désactivé parce que %1$s est actif. Cette extension copie les fichiers téléversés vers un stockage distant, et renommer les copies locales laisserait les fichiers distants avec l’ancien nom. Un développeur qui gère lui-même les fichiers distants peut réactiver le renommage avec le filtre %2$s."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "Preview renaming"
 msgstr "Aperçu du renommage"
 
