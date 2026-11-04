@@ -2,6 +2,11 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Old links to renamed files keep redirecting after the plugin is deleted and installed again. The redirect now also turns on when old-path rows are left over, found with one lookup per site and remembered, so shops that never renamed a file pay nothing extra on a 404 (#90).
+
 ## [4.3.1]
 
 Safer attachment imports.

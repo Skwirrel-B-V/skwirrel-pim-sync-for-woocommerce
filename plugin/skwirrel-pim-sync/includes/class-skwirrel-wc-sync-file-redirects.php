@@ -21,6 +21,12 @@ class Skwirrel_WC_Sync_File_Redirects {
 
 	public const SETTING = 'file_redirect_old_links';
 
+	/**
+	 * Whether this site has old-path rows ('1' or '0'), found once when no rename job is recorded,
+	 * for example after the plugin was deleted and installed again. Autoloaded, so reading it costs no query.
+	 */
+	public const OPTION_HAS_OLD_PATHS = 'skwirrel_wc_sync_has_old_paths';
+
 	private static ?self $instance = null;
 
 	public static function instance(): self {
@@ -43,11 +49,37 @@ class Skwirrel_WC_Sync_File_Redirects {
 	}
 
 	/**
+	 * Whether this site may have old paths to redirect: a rename job ran, or old-path rows are left
+	 * from before the plugin was reinstalled (uninstall keeps them, but removes the rename job).
+	 * The rows are looked up once per site; the answer is stored, so later requests run no query.
+	 * Only a rename adds rows, and that records the rename job, so a stored '0' cannot go stale.
+	 */
+	public static function has_old_paths(): bool {
+		if ( Skwirrel_WC_Sync_File_Rename_Job::has_run() ) {
+			return true;
+		}
+		$known = get_option( self::OPTION_HAS_OLD_PATHS, '' );
+		if ( '1' === $known || '0' === $known ) {
+			return '1' === $known;
+		}
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- runs once per site, the answer is stored in an option.
+		$found = null !== $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT 1 FROM {$wpdb->postmeta} WHERE meta_key = %s LIMIT 1",
+				Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH
+			)
+		);
+		update_option( self::OPTION_HAS_OLD_PATHS, $found ? '1' : '0', true );
+		return $found;
+	}
+
+	/**
 	 * Redirect a request for a missing file in the uploads folder when the path belongs to a renamed file.
 	 */
 	public function maybe_redirect(): void {
 		// Sites that never renamed anything have no old paths to look up: no query on any request.
-		if ( ! self::is_enabled() || ! Skwirrel_WC_Sync_File_Rename_Job::has_run() ) {
+		if ( ! self::is_enabled() || ! self::has_old_paths() ) {
 			return;
 		}
 		$uploads = wp_upload_dir();

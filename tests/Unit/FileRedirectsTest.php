@@ -59,3 +59,49 @@ test('a path counts as a missing upload only when nothing exists behind it', fun
 	unlink($dir . '/there.pdf');
 	rmdir($dir);
 });
+
+describe('has_old_paths', function () {
+	beforeEach(function () {
+		$this->wpdb = $GLOBALS['wpdb'];
+		$GLOBALS['wpdb'] = new class {
+			public string $postmeta = 'wp_postmeta';
+			public int $queries = 0;
+			public ?string $answer = null;
+			public function prepare(string $query, ...$args): string {
+				return vsprintf(str_replace('%s', "'%s'", $query), $args);
+			}
+			public function get_var(string $query) {
+				$this->queries++;
+				return $this->answer;
+			}
+		};
+	});
+
+	afterEach(function () {
+		$GLOBALS['wpdb'] = $this->wpdb;
+		unset(
+			$GLOBALS['_test_options'][Skwirrel_WC_Sync_File_Redirects::OPTION_HAS_OLD_PATHS],
+			$GLOBALS['_test_options'][Skwirrel_WC_Sync_File_Rename_Job::OPTION]
+		);
+	});
+
+	test('a site that never renamed anything looks once and then remembers there is nothing', function () {
+		expect(Skwirrel_WC_Sync_File_Redirects::has_old_paths())->toBeFalse();
+		expect(Skwirrel_WC_Sync_File_Redirects::has_old_paths())->toBeFalse();
+		expect($GLOBALS['wpdb']->queries)->toBe(1);
+		expect($GLOBALS['_test_options'][Skwirrel_WC_Sync_File_Redirects::OPTION_HAS_OLD_PATHS])->toBe('0');
+	});
+
+	test('old-path rows left after a reinstall turn the redirect on without a rename', function () {
+		$GLOBALS['wpdb']->answer = '1';
+		expect(Skwirrel_WC_Sync_File_Redirects::has_old_paths())->toBeTrue();
+		expect(Skwirrel_WC_Sync_File_Redirects::has_old_paths())->toBeTrue();
+		expect($GLOBALS['wpdb']->queries)->toBe(1);
+	});
+
+	test('a site where a rename ran needs no query at all', function () {
+		$GLOBALS['_test_options'][Skwirrel_WC_Sync_File_Rename_Job::OPTION] = ['status' => 'done'];
+		expect(Skwirrel_WC_Sync_File_Redirects::has_old_paths())->toBeTrue();
+		expect($GLOBALS['wpdb']->queries)->toBe(0);
+	});
+});

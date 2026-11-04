@@ -129,6 +129,7 @@ Authentication: Bearer token or `X-Skwirrel-Api-Token` header.
 | `skwirrel_wc_sync_force_full_sync` | Flag: next scheduled sync runs as full sync (set after WC deletion) |
 | `skwirrel_wc_sync_attribute_groups` | Attribute groups `{groups: {id: {name, position, as_tab, hidden, admin_hidden, includes}}, assignments: {attribute slug: group id or '__none'}}`; automatic groups (`src-*`) store only overrides |
 | `skwirrel_wc_sync_attribute_sources` | Attribute source per slug `{slug: {source, class_key, class_name}}`, written by the sync (not autoloaded) |
+| `skwirrel_wc_sync_has_old_paths` | `'1'`/`'0'`: whether `_skwirrel_old_upload_path` rows exist, looked up once when no rename job is recorded (e.g. after a reinstall); autoloaded |
 | `skwirrel_wc_sync_rename_job` | State of the file rename job `{status, total, processed, renamed, skipped, failed, last_id, started, finished, updated}` (not autoloaded) |
 
 ## Sync Flow
