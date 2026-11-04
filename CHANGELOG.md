@@ -2,6 +2,12 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+* **Renaming is switched off on shops with WP Offload Media** (#76). With WP Offload Media Lite or Pro active, `Skwirrel_WC_Sync_File_Renamer::can_rename()` now defaults to false: the plugin copies uploads to remote storage, and renaming the local copy (also when it keeps local copies) would leave the remote file with the old name. The Files tab names the plugin in its notice and points developers to the filter `skwirrel_wc_sync_can_rename_files`, which still has the final word (return true to rename anyway, or false for other offload plugins). Detection uses the plugin's loaded instance, so an installed but inactive plugin changes nothing. Sites without an offload plugin see no change. Covered by `tests/Unit/FileRenamerTest.php`.
+
 ## [4.3.1]
 
 Safer attachment imports.

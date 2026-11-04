@@ -2136,7 +2136,21 @@ class Skwirrel_WC_Sync_Admin_Dashboard {
 			<div id="skwirrel-rename-actions">
 			<?php if ( ! $can_rename ) : ?>
 				<div class="skw-notice skw-notice-warning">
+					<?php $offload = Skwirrel_WC_Sync_File_Renamer::offload_plugin(); ?>
+					<?php if ( '' !== $offload ) : ?>
+					<p>
+						<?php
+						printf(
+							/* translators: 1: name of the offload plugin, e.g. WP Offload Media, 2: filter name */
+							esc_html__( 'Renaming is switched off because %1$s is active. It copies uploads to remote storage, and renaming the local copies would leave the remote files with the old name. A developer who handles the remote files can switch renaming back on with the filter %2$s.', 'skwirrel-pim-sync' ),
+							esc_html( $offload ),
+							'<code>skwirrel_wc_sync_can_rename_files</code>'
+						);
+						?>
+					</p>
+					<?php else : ?>
 					<p><?php esc_html_e( 'Renaming is switched off on this site, usually because uploads are stored on remote storage by another plugin. Renaming local copies would leave the remote files with the old name.', 'skwirrel-pim-sync' ); ?></p>
+					<?php endif; ?>
 				</div>
 				<p><span class="skw-btn skw-btn-secondary" aria-disabled="true" style="opacity: .5; pointer-events: none;"><?php esc_html_e( 'Preview renaming', 'skwirrel-pim-sync' ); ?></span></p>
 			<?php elseif ( Skwirrel_WC_Sync_File_Naming::MODE_CURRENT === $mode ) : ?>

@@ -34,16 +34,32 @@ class Skwirrel_WC_Sync_File_Renamer {
 	/**
 	 * Whether renaming is allowed on this site.
 	 *
-	 * Sites that offload uploads to remote storage return false: renaming would change files
-	 * the offload plugin has already copied. The per-file local-disk check still applies.
+	 * Off by default when an offload plugin is active (see offload_plugin()): it copies uploads
+	 * to remote storage, and renaming the local copy would leave the remote file with the old
+	 * name, also when the plugin keeps local copies. The filter has the final word, for other
+	 * offload plugins and for developers who handle the remote side themselves. The per-file
+	 * local-disk check still applies.
 	 */
 	public static function can_rename(): bool {
 		/**
 		 * Filters whether existing Skwirrel files may be renamed.
 		 *
-		 * @param bool $can_rename Default true.
+		 * @param bool $can_rename Default true, false while WP Offload Media (Lite or Pro) is active.
 		 */
-		return (bool) apply_filters( 'skwirrel_wc_sync_can_rename_files', true );
+		return (bool) apply_filters( 'skwirrel_wc_sync_can_rename_files', '' === self::offload_plugin() );
+	}
+
+	/**
+	 * Name of the active offload plugin that switches renaming off by default, or '' when none is.
+	 *
+	 * WP Offload Media Lite and Pro both keep their instance in the global `$as3cf` once loaded,
+	 * so a plugin that is installed but not active is not detected.
+	 */
+	public static function offload_plugin(): string {
+		if ( ( isset( $GLOBALS['as3cf'] ) && is_object( $GLOBALS['as3cf'] ) ) || class_exists( 'Amazon_S3_And_CloudFront', false ) ) {
+			return 'WP Offload Media';
+		}
+		return '';
 	}
 
 	/**

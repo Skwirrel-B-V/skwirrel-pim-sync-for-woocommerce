@@ -120,6 +120,43 @@ test('previewing changes nothing on disk', function () {
 	expect(get_post_meta(1, '_skwirrel_file_name', true))->toBe('foto.jpg');
 });
 
+test('no offload plugin is detected on a plain site', function () {
+	unset($GLOBALS['as3cf']);
+	expect(Skwirrel_WC_Sync_File_Renamer::offload_plugin())->toBe('');
+	expect(Skwirrel_WC_Sync_File_Renamer::can_rename())->toBeTrue();
+});
+
+test('WP Offload Media switches renaming off by default', function () {
+	$GLOBALS['as3cf'] = new stdClass();
+	try {
+		expect(Skwirrel_WC_Sync_File_Renamer::offload_plugin())->toBe('WP Offload Media');
+		expect(Skwirrel_WC_Sync_File_Renamer::can_rename())->toBeFalse();
+	} finally {
+		unset($GLOBALS['as3cf']);
+	}
+});
+
+test('the filter has the final word over offload detection', function () {
+	$GLOBALS['as3cf'] = new stdClass();
+	$seen             = null;
+	$GLOBALS['_test_filters']['skwirrel_wc_sync_can_rename_files'][] = static function (bool $can) use (&$seen): bool {
+		$seen = $can;
+		return true;
+	};
+	try {
+		expect(Skwirrel_WC_Sync_File_Renamer::can_rename())->toBeTrue();
+		expect($seen)->toBeFalse();
+	} finally {
+		unset($GLOBALS['as3cf']);
+	}
+});
+
+test('a non-object as3cf global (plugin not loaded) is not detected', function () {
+	$GLOBALS['as3cf'] = null;
+	expect(Skwirrel_WC_Sync_File_Renamer::offload_plugin())->toBe('');
+	unset($GLOBALS['as3cf']);
+});
+
 test('can_rename follows the filter and defaults to true', function () {
 	expect(Skwirrel_WC_Sync_File_Renamer::can_rename())->toBeTrue();
 	$GLOBALS['_test_filters']['skwirrel_wc_sync_can_rename_files'][] = static fn (): bool => false;
