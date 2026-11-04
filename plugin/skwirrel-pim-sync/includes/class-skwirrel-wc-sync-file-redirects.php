@@ -24,6 +24,7 @@ class Skwirrel_WC_Sync_File_Redirects {
 	/**
 	 * Whether this site has old-path rows ('1' or '0'), found once when no rename job is recorded,
 	 * for example after the plugin was deleted and installed again. Autoloaded, so reading it costs no query.
+	 * Uninstall removes it with the other options, so a reinstall always looks again.
 	 */
 	public const OPTION_HAS_OLD_PATHS = 'skwirrel_wc_sync_has_old_paths';
 
