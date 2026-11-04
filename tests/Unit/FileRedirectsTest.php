@@ -59,3 +59,50 @@ test('a path counts as a missing upload only when nothing exists behind it', fun
 	unlink($dir . '/there.pdf');
 	rmdir($dir);
 });
+
+test('the target URL keeps the original query string', function () {
+	expect(Skwirrel_WC_Sync_File_Redirects::target_url('https://cdn.example.com/wp-content/uploads', '2024/05/foto.jpg', 'v=2'))
+		->toBe('https://cdn.example.com/wp-content/uploads/2024/05/foto.jpg?v=2');
+});
+
+test('the target URL has no question mark without a query string', function () {
+	expect(Skwirrel_WC_Sync_File_Redirects::target_url('https://example.com/wp-content/uploads/', '2024/05/mijn foto.jpg', ''))
+		->toBe('https://example.com/wp-content/uploads/2024/05/mijn%20foto.jpg');
+});
+
+test('the target must exist on disk', function () {
+	$dir = sys_get_temp_dir() . '/skw-redirect-' . bin2hex(random_bytes(4));
+	mkdir($dir . '/2024', 0777, true);
+	file_put_contents($dir . '/2024/new.jpg', 'x');
+	file_put_contents($dir . '/2024/foto..jpg', 'x');
+	try {
+		expect(Skwirrel_WC_Sync_File_Redirects::target_exists('2024/foto..jpg', $dir))->toBeTrue();
+		expect(Skwirrel_WC_Sync_File_Redirects::target_exists('../2024/new.jpg', $dir))->toBeFalse();
+		expect(Skwirrel_WC_Sync_File_Redirects::target_exists('2024/new.jpg', $dir))->toBeTrue();
+		expect(Skwirrel_WC_Sync_File_Redirects::target_exists('2024/gone.jpg', $dir))->toBeFalse();
+		expect(Skwirrel_WC_Sync_File_Redirects::target_exists('', $dir))->toBeFalse();
+		expect(Skwirrel_WC_Sync_File_Redirects::target_exists('2024', $dir))->toBeFalse();
+		expect(Skwirrel_WC_Sync_File_Redirects::target_exists('2024/../2024/new.jpg', $dir))->toBeFalse();
+		expect(Skwirrel_WC_Sync_File_Redirects::target_exists("2024/new.jpg\0", $dir))->toBeFalse();
+	} finally {
+		unlink($dir . '/2024/new.jpg');
+		unlink($dir . '/2024/foto..jpg');
+		rmdir($dir . '/2024');
+		rmdir($dir);
+	}
+});
+
+test('the redirect is cached for about a day by default', function () {
+	$GLOBALS['_test_filters'] = [];
+	expect(Skwirrel_WC_Sync_File_Redirects::CACHE_CONTROL)->toBe('public, max-age=86400');
+	expect(Skwirrel_WC_Sync_File_Redirects::cache_control())->toBe('public, max-age=86400');
+});
+
+test('the cache header can be changed with a filter', function () {
+	$GLOBALS['_test_filters']['skwirrel_wc_sync_redirect_cache_control'][] = static fn (): string => 'no-store';
+	try {
+		expect(Skwirrel_WC_Sync_File_Redirects::cache_control())->toBe('no-store');
+	} finally {
+		$GLOBALS['_test_filters'] = [];
+	}
+});

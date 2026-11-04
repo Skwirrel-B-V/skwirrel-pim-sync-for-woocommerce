@@ -7,6 +7,7 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 ### Changed
 
 * **Renaming is switched off on shops with WP Offload Media** (#76). With WP Offload Media Lite or Pro active, `Skwirrel_WC_Sync_File_Renamer::can_rename()` now defaults to false: the plugin copies uploads to remote storage, and renaming the local copy (also when it keeps local copies) would leave the remote file with the old name. The Files tab names the plugin in its notice and points developers to the filter `skwirrel_wc_sync_can_rename_files`, which still has the final word (return true to rename anyway, or false for other offload plugins). Detection uses the plugin's loaded instance, so an installed but inactive plugin changes nothing. Sites without an offload plugin see no change. Covered by `tests/Unit/FileRenamerTest.php`.
+* **Redirects of old file links are safer and expire quickly** (#77). `Skwirrel_WC_Sync_File_Redirects::maybe_redirect()` only sends the 301 when the renamed file still exists in the uploads folder; otherwise the old URL gives a normal 404. The query string of the request is kept (`?v=2` ends up on the new URL). The response sends `Cache-Control: public, max-age=86400` (constant `CACHE_CONTROL`, filter `skwirrel_wc_sync_redirect_cache_control`), so after switching "Redirect old links" off or undoing a rename, browsers and CDNs stop following the redirect within about a day. Covered by `tests/Unit/FileRedirectsTest.php`.
 
 ## [4.3.1]
 
