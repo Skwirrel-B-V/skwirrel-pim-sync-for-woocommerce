@@ -307,3 +307,20 @@ test('restored-image backups reuse the active main and thumbnail destinations', 
 	expect($plan['backups']['thumbnail-orig']['file'])->toBe('new-150x150.jpg');
 	expect($plan['backups']['full-123']['file'])->toBe('new-orig-e123.jpg');
 });
+
+test('a second rename keeps a single -orig suffix on backups', function () {
+	$meta    = ['sizes' => ['thumbnail' => ['file' => 'foto-150x150.jpg']]];
+	$backups = [
+		'full-orig'      => ['file' => 'foto-orig.jpg'],
+		'thumbnail-orig' => ['file' => 'foto-orig-150x150.jpg'],
+	];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('foto.jpg', 'lamp.jpg', $meta, null, $backups);
+	expect($plan['moves'])->toBe([
+		'foto.jpg'              => 'lamp.jpg',
+		'foto-150x150.jpg'      => 'lamp-150x150.jpg',
+		'foto-orig.jpg'         => 'lamp-orig.jpg',
+		'foto-orig-150x150.jpg' => 'lamp-orig-150x150.jpg',
+	]);
+	expect($plan['backups']['full-orig']['file'])->toBe('lamp-orig.jpg');
+	expect($plan['backups']['thumbnail-orig']['file'])->toBe('lamp-orig-150x150.jpg');
+});

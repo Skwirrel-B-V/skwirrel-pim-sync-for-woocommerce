@@ -495,6 +495,8 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			$base                = (string) preg_replace( '/-e\d+$/', '', self::shared_stem( $old_main, $meta ) );
 			$backup_map          = $prefixes;
 			$backup_map[ $base ] = $new_stem . '-orig';
+			// Backups named by an earlier rename keep one `-orig`, not `-orig-orig`.
+			$backup_map[ $base . '-orig' ] = $new_stem . '-orig';
 			uksort( $backup_map, static fn ( string $a, string $b ): int => strlen( $b ) <=> strlen( $a ) );
 			foreach ( $backups as $key => $backup ) {
 				$new_file = is_array( $backup ) ? $sibling( $backup['file'] ?? null, $backup_map ) : null;
