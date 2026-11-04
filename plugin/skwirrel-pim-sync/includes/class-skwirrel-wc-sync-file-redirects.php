@@ -88,7 +88,7 @@ class Skwirrel_WC_Sync_File_Redirects {
 	 * Whether the renamed file a redirect would point at exists as a file in the uploads folder.
 	 */
 	public static function target_exists( string $target, string $uploads_dir ): bool {
-		if ( '' === $target || str_contains( $target, '..' ) || str_contains( $target, "\0" ) ) {
+		if ( '' === $target || str_contains( $target, "\0" ) || in_array( '..', explode( '/', str_replace( '\\', '/', $target ) ), true ) ) {
 			return false;
 		}
 		return is_file( rtrim( $uploads_dir, '/' ) . '/' . $target );
