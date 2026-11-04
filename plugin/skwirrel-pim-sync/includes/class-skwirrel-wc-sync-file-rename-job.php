@@ -26,6 +26,19 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	/** Old upload path of a renamed attachment, as "old relative path<TAB>current relative path" (one row per file). */
 	public const META_OLD_PATH = '_skwirrel_old_upload_path';
 
+	/** WordPress meta with the backups of an edited image. */
+	private const META_BACKUP_SIZES = '_wp_attachment_backup_sizes';
+
+	/**
+	 * A rename that has started but not finished: `stage` `move` (files may be moving) or `links`
+	 * (files, metadata and old paths done, links still to rewrite), plus what is needed to finish it.
+	 * Written before the first file moves and removed once the links are rewritten.
+	 */
+	public const META_PENDING = '_skwirrel_rename_pending';
+
+	/** Times an unfinished rename is resumed before it is given up and counted as failed. */
+	private const MAX_RESUME_ATTEMPTS = 3;
+
 	/** Set while a batch moves files, so the sync does not mistake a file in transit for a missing one. */
 	public const ACTIVE_TRANSIENT = 'skwirrel_wc_sync_rename_active';
 
@@ -199,7 +212,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		}
 		$state['updated'] = time();
 		// Never move files under a running sync: it looks attachments up by their file.
-		if ( get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ) ) {
+		if ( self::sync_running() ) {
 			// Waiting is activity: without saving it, a long sync would make this job look stalled.
 			update_option( self::OPTION, $state, false );
 			self::enqueue( self::SYNC_BUSY_DELAY );
@@ -222,7 +235,19 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		update_option( self::OPTION, $state, false );
 		try {
 			foreach ( $ids as $id ) {
-				$result = self::rename_attachment( $id );
+				try {
+					$result = self::rename_attachment( $id );
+				} catch ( \Throwable $e ) {
+					// One broken attachment must not stop the job; the cursor moves past it below.
+					( new Skwirrel_WC_Sync_Logger() )->error(
+						'File rename failed with an error',
+						[
+							'attachment_id' => $id,
+							'error'         => $e->getMessage(),
+						]
+					);
+					$result = 'failed';
+				}
 				++$state['processed'];
 				if ( 'renamed' === $result ) {
 					++$state['renamed'];
@@ -236,6 +261,12 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				update_option( self::OPTION, $state, false );
 				// Keep the guard alive for as long as the batch takes.
 				set_transient( self::ACTIVE_TRANSIENT, 1, 2 * MINUTE_IN_SECONDS );
+				// A sync that started during this batch: stop after the attachment just finished, and
+				// pick up from `last_id` once the sync is over.
+				if ( self::sync_running() ) {
+					self::enqueue( self::SYNC_BUSY_DELAY );
+					return;
+				}
 			}
 		} finally {
 			delete_transient( self::ACTIVE_TRANSIENT );
@@ -258,6 +289,26 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		}
 		update_option( self::OPTION, $state, false );
 		self::enqueue( 0 );
+	}
+
+	/**
+	 * Whether a product sync is running right now (it looks attachments up by their file).
+	 *
+	 * @phpstan-impure
+	 */
+	private static function sync_running(): bool {
+		$key = Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS;
+		if ( wp_using_ext_object_cache() ) {
+			// Force a backend read: another request may have started or finished the sync.
+			return (bool) wp_cache_get( $key, 'transient', true );
+		}
+		// get_option() caches both existing values and missing options for this request.
+		// Clear those entries before polling a flag written by a different worker.
+		wp_cache_delete( 'notoptions', 'options' );
+		wp_cache_delete( 'alloptions', 'options' );
+		wp_cache_delete( '_transient_' . $key, 'options' );
+		wp_cache_delete( '_transient_timeout_' . $key, 'options' );
+		return (bool) get_transient( $key );
 	}
 
 	/**
@@ -303,7 +354,11 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	 * @return string `renamed`, `skipped` (nothing to do) or `failed` (rolled back and logged).
 	 */
 	public static function rename_attachment( int $attachment_id ): string {
-		$logger   = new Skwirrel_WC_Sync_Logger();
+		$logger  = new Skwirrel_WC_Sync_Logger();
+		$pending = get_post_meta( $attachment_id, self::META_PENDING, true );
+		if ( is_array( $pending ) && ! empty( $pending['stage'] ) ) {
+			return self::resume( $attachment_id, $pending, $logger );
+		}
 		$reserved = [];
 		$item     = Skwirrel_WC_Sync_File_Renamer::classify( $attachment_id, $reserved );
 		if ( Skwirrel_WC_Sync_File_Renamer::STATUS_RENAME !== $item['status'] ) {
@@ -320,16 +375,24 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		$rel_dir  = ( '.' === $rel_dir ) ? '' : $rel_dir;
 		$meta     = wp_get_attachment_metadata( $attachment_id );
 		$meta     = is_array( $meta ) ? $meta : [];
+		$backups  = get_post_meta( $attachment_id, self::META_BACKUP_SIZES, true );
+		$backups  = is_array( $backups ) ? $backups : [];
 
 		// Only files that exist are planned: a size listed in the metadata but gone from disk stays as it
 		// is, so its (possibly occupied) target is neither moved onto nor written into the metadata.
 		$present = [];
-		foreach ( self::listed_files( basename( $old_path ), $meta ) as $name ) {
+		foreach ( self::listed_files( basename( $old_path ), $meta, $backups ) as $name ) {
 			if ( file_exists( $dir . '/' . $name ) ) {
 				$present[] = $name;
 			}
 		}
-		$plan = self::plan_moves( basename( $old_path ), $item['new'], $meta, $present );
+		$plan = self::plan_moves( basename( $old_path ), $item['new'], $meta, $present, $backups );
+
+		// Two files planned onto one name would overwrite each other.
+		if ( count( array_unique( $plan['moves'] ) ) < count( $plan['moves'] ) ) {
+			$logger->warning( 'File rename failed, two files would get the same name', [ 'attachment_id' => $attachment_id ] );
+			return 'failed';
+		}
 
 		// Targets must be free, so nothing is moved only to be rolled back.
 		foreach ( $plan['moves'] as $from => $to ) {
@@ -345,38 +408,211 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			}
 		}
 
+		// Recorded before anything moves, so a run that stops halfway is finished by the next one. Until
+		// then the attachment can briefly point at a moved file: a process that dies right after the
+		// move leaves it so until the next job run resumes it (the sync treats it as missing meanwhile).
+		$pending = [
+			'stage'    => 'move',
+			'attempts' => 0,
+			'dir'      => $dir,
+			'rel_dir'  => $rel_dir,
+			'moves'    => $plan['moves'],
+			'main'     => $plan['main'],
+			'meta'     => $plan['meta'],
+			'backups'  => $plan['backups'],
+			'old_name' => basename( $old_path ),
+			'stem'     => self::search_stem( basename( $old_path ), $meta, $backups ),
+			// What the attachment pointed at before, so giving up can restore it after the files go back.
+			'undo'     => [
+				'file'      => $old_path,
+				'meta'      => $meta,
+				'backups'   => $backups,
+				// A second rename rewrites the redirects of the first one, so keep them as they were.
+				'old_paths' => array_values( (array) get_post_meta( $attachment_id, self::META_OLD_PATH, false ) ),
+			],
+		];
+		update_post_meta( $attachment_id, self::META_PENDING, $pending );
+
 		if ( ! self::move_files( $dir, $plan['moves'] ) ) {
+			// A filesystem failure can also prevent the rollback. Keep the recovery plan
+			// until every source is back, rather than forgetting a partially moved file.
+			foreach ( array_keys( $plan['moves'] ) as $from ) {
+				if ( ! file_exists( $dir . '/' . $from ) ) {
+					$logger->error( 'File rename rollback incomplete, recovery marker retained', [ 'attachment_id' => $attachment_id ] );
+					return 'failed';
+				}
+			}
+			delete_post_meta( $attachment_id, self::META_PENDING );
 			$logger->warning( 'File rename failed and was rolled back', [ 'attachment_id' => $attachment_id ] );
 			return 'failed';
 		}
 
-		$new_main = $plan['main'];
-		update_attached_file( $attachment_id, $dir . '/' . $new_main );
-		$new_meta = $plan['meta'];
-		if ( ! empty( $new_meta ) ) {
-			$new_meta['file'] = ( '' !== $rel_dir ? $rel_dir . '/' : '' ) . $new_main;
-			wp_update_attachment_metadata( $attachment_id, $new_meta );
-		}
+		return self::finish( $attachment_id, $pending, $logger );
+	}
 
-		// Old path → new path for every file that really moved, minus the directory prefix handled below.
-		$pairs = [];
-		foreach ( $plan['moves'] as $from => $to ) {
-			if ( file_exists( $dir . '/' . $to ) ) {
-				$pairs[ ( '' !== $rel_dir ? $rel_dir . '/' : '' ) . $from ] = ( '' !== $rel_dir ? $rel_dir . '/' : '' ) . $to;
+	/**
+	 * Pick up a rename an earlier run did not finish. Each attempt is counted before any work, so a
+	 * fatal error counts too; after a few attempts it is given up and counted as failed.
+	 *
+	 * @param array<string,mixed> $pending See META_PENDING.
+	 * @return string `renamed` or `failed`.
+	 */
+	private static function resume( int $attachment_id, array $pending, Skwirrel_WC_Sync_Logger $logger ): string {
+		$attempts = (int) ( $pending['attempts'] ?? 0 );
+		if ( $attempts >= self::MAX_RESUME_ATTEMPTS ) {
+			$logger->error(
+				'File rename given up, links could not be finished',
+				[
+					'attachment_id' => $attachment_id,
+					'attempts'      => $attempts,
+				]
+			);
+			// Still moving files: nothing points at the new names yet, so move ours back (a file at a
+			// target that is not ours is left alone) and the attachment is whole under its old name.
+			if ( 'move' === ( $pending['stage'] ?? '' ) ) {
+				$dir = (string) ( $pending['dir'] ?? '' );
+				foreach ( (array) ( $pending['moves'] ?? [] ) as $from => $to ) {
+					if ( file_exists( $dir . '/' . $to ) && ! file_exists( $dir . '/' . $from ) ) {
+						if ( ! self::move_files( $dir, [ (string) $to => (string) $from ] ) ) {
+							$logger->error( 'File rename rollback incomplete, recovery marker retained', [ 'attachment_id' => $attachment_id ] );
+							return 'failed';
+						}
+					}
+				}
+			}
+			if ( 'move' === ( $pending['stage'] ?? '' ) ) {
+				self::undo_metadata( $attachment_id, $pending );
+			}
+			// Forgotten, so a later run can rename it again once the cause is fixed. At stage `links`
+			// the old paths are recorded, so the old links still redirect.
+			delete_post_meta( $attachment_id, self::META_PENDING );
+			return 'failed';
+		}
+		$pending['attempts'] = $attempts + 1;
+		$pending['resumed']  = true;
+		update_post_meta( $attachment_id, self::META_PENDING, $pending );
+
+		if ( 'move' === $pending['stage'] ) {
+			// Move what was left behind; a file already at its target, or gone, is left as it is.
+			$dir = (string) ( $pending['dir'] ?? '' );
+			foreach ( (array) ( $pending['moves'] ?? [] ) as $from => $to ) {
+				if ( file_exists( $dir . '/' . $from ) && ! file_exists( $dir . '/' . $to ) ) {
+					self::move_files( $dir, [ (string) $from => (string) $to ] );
+				}
+			}
+			// A file still at its old name could not move (its target was taken meanwhile, or the move
+			// failed); finishing would point the attachment at another file. Never point it at a main
+			// file that is not there either. It stays pending and counts towards giving up, which moves the
+			// files back.
+			$left = array_filter( array_keys( (array) ( $pending['moves'] ?? [] ) ), static fn ( $from ): bool => file_exists( $dir . '/' . $from ) );
+			if ( ! empty( $left ) || ! file_exists( $dir . '/' . (string) ( $pending['main'] ?? '' ) ) ) {
+				$logger->warning( 'Unfinished file rename could not be completed, files not in place', [ 'attachment_id' => $attachment_id ] );
+				return 'failed';
 			}
 		}
+		$logger->info( 'Unfinished file rename resumed', [ 'attachment_id' => $attachment_id ] );
+		return self::finish( $attachment_id, $pending, $logger );
+	}
 
-		add_post_meta( $attachment_id, self::META_PREVIOUS_NAME, basename( $old_path ) );
-		self::record_old_paths( $attachment_id, $pairs );
+	/**
+	 * Giving up at stage `move` after the files went back: a run may have died after `finish()` saved
+	 * the new file name, metadata, backups or old paths. Point the attachment back at its old files and
+	 * drop the old-path rows of this rename, so nothing names a file that is no longer there.
+	 *
+	 * @param array<string,mixed> $pending See META_PENDING.
+	 */
+	private static function undo_metadata( int $attachment_id, array $pending ): void {
+		$undo = $pending['undo'] ?? null;
+		if ( ! is_array( $undo ) || empty( $undo['file'] ) ) {
+			return;
+		}
+		$old_file = (string) $undo['file'];
+		if ( (string) get_attached_file( $attachment_id ) !== $old_file ) {
+			update_attached_file( $attachment_id, $old_file );
+			// The file still carries this name, so it is not a previous name.
+			delete_post_meta( $attachment_id, self::META_PREVIOUS_NAME, (string) ( $pending['old_name'] ?? '' ) );
+		}
+		if ( ! empty( $undo['meta'] ) && wp_get_attachment_metadata( $attachment_id ) !== $undo['meta'] ) {
+			wp_update_attachment_metadata( $attachment_id, (array) $undo['meta'] );
+		}
+		if ( ! empty( $undo['backups'] ) ) {
+			update_post_meta( $attachment_id, self::META_BACKUP_SIZES, (array) $undo['backups'] );
+		} elseif ( ! empty( $pending['backups'] ) ) {
+			delete_post_meta( $attachment_id, self::META_BACKUP_SIZES );
+		}
+		// Put the old-path rows back as they were before this rename: drop its own rows and undo the
+		// redirect targets it rewrote (an earlier a → b that became a → c goes back to a → b).
+		if ( isset( $undo['old_paths'] ) && is_array( $undo['old_paths'] ) ) {
+			delete_post_meta( $attachment_id, self::META_OLD_PATH );
+			foreach ( $undo['old_paths'] as $row ) {
+				add_post_meta( $attachment_id, self::META_OLD_PATH, (string) $row );
+			}
+		} else {
+			$rel_dir = (string) ( $pending['rel_dir'] ?? '' );
+			$prefix  = '' !== $rel_dir ? $rel_dir . '/' : '';
+			foreach ( (array) ( $pending['moves'] ?? [] ) as $from => $to ) {
+				delete_post_meta( $attachment_id, self::META_OLD_PATH, $prefix . $from . "\t" . $prefix . $to );
+			}
+		}
+	}
 
-		$replaced = self::replace_references( $pairs, self::shared_stem( basename( $old_path ), $meta ) );
+	/**
+	 * After the files moved: point the attachment at them, record the old paths, rewrite links,
+	 * and only then forget the pending rename.
+	 *
+	 * @param array<string,mixed> $pending See META_PENDING.
+	 */
+	private static function finish( int $attachment_id, array $pending, Skwirrel_WC_Sync_Logger $logger ): string {
+		if ( 'move' === $pending['stage'] ) {
+			$dir      = (string) $pending['dir'];
+			$rel_dir  = (string) $pending['rel_dir'];
+			$new_main = (string) $pending['main'];
+			$prefix   = '' !== $rel_dir ? $rel_dir . '/' : '';
+			update_attached_file( $attachment_id, $dir . '/' . $new_main );
+			$new_meta = (array) $pending['meta'];
+			if ( ! empty( $new_meta ) ) {
+				$new_meta['file'] = $prefix . $new_main;
+				wp_update_attachment_metadata( $attachment_id, $new_meta );
+			}
+			if ( ! empty( $pending['backups'] ) ) {
+				update_post_meta( $attachment_id, self::META_BACKUP_SIZES, (array) $pending['backups'] );
+			}
+
+			// Old path → new path for every file that really moved.
+			$pairs = [];
+			foreach ( (array) $pending['moves'] as $from => $to ) {
+				if ( file_exists( $dir . '/' . $to ) ) {
+					$pairs[ $prefix . $from ] = $prefix . $to;
+				}
+			}
+
+			// A resume may come after these were already written: write each row only once.
+			$resumed = ! empty( $pending['resumed'] );
+			if ( ! $resumed || ! in_array( (string) $pending['old_name'], (array) get_post_meta( $attachment_id, self::META_PREVIOUS_NAME, false ), true ) ) {
+				add_post_meta( $attachment_id, self::META_PREVIOUS_NAME, (string) $pending['old_name'] );
+			}
+			$recorded = $resumed ? (array) get_post_meta( $attachment_id, self::META_OLD_PATH, false ) : [];
+			self::record_old_paths(
+				$attachment_id,
+				array_filter( $pairs, static fn ( string $to, string $from ): bool => ! in_array( $from . "\t" . $to, $recorded, true ), ARRAY_FILTER_USE_BOTH )
+			);
+
+			$pending['stage'] = 'links';
+			$pending['pairs'] = $pairs;
+			unset( $pending['meta'], $pending['backups'], $pending['undo'] );
+			update_post_meta( $attachment_id, self::META_PENDING, $pending );
+		}
+
+		$pairs    = array_map( 'strval', (array) ( $pending['pairs'] ?? [] ) );
+		$replaced = self::replace_references( $pairs, (string) ( $pending['stem'] ?? '' ) );
+		delete_post_meta( $attachment_id, self::META_PENDING );
 
 		$logger->info(
 			'File renamed',
 			[
 				'attachment_id'    => $attachment_id,
-				'old_name'         => basename( $old_path ),
-				'new_name'         => $new_main,
+				'old_name'         => (string) ( $pending['old_name'] ?? '' ),
+				'new_name'         => basename( (string) get_attached_file( $attachment_id ) ),
 				'files_moved'      => count( $pairs ),
 				'references_fixed' => $replaced,
 			]
@@ -389,14 +625,18 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	 *
 	 * Generated sizes keep their `-WxH` suffix; a scaled image ("-scaled") keeps its original
 	 * next to it, so the original gets the new name and the scaled copy `<new name>-scaled`.
+	 * Modern-format copies (`sources`, for example `foo-jpg.webp` or `foo.jpg.webp`) move with the file
+	 * they belong to. Backups of an edited image (`_wp_attachment_backup_sizes`) get `<new name>-orig`,
+	 * so they never take the name of the edited files.
 	 *
 	 * @param string              $old_main Current main file name.
 	 * @param string              $new_name New name for the file the attachment is known by.
 	 * @param array<string,mixed> $meta     Attachment metadata.
 	 * @param string[]|null       $present  File names that exist on disk; null plans every listed file.
-	 * @return array{moves: array<string,string>, main: string, meta: array<string,mixed>}
+	 * @param array<string,mixed> $backups  The `_wp_attachment_backup_sizes` meta.
+	 * @return array{moves: array<string,string>, main: string, meta: array<string,mixed>, backups: array<string,mixed>}
 	 */
-	public static function plan_moves( string $old_main, string $new_name, array $meta, ?array $present = null ): array {
+	public static function plan_moves( string $old_main, string $new_name, array $meta, ?array $present = null, array $backups = [] ): array {
 		$ext      = pathinfo( $old_main, PATHINFO_EXTENSION );
 		$old_stem = pathinfo( $old_main, PATHINFO_FILENAME );
 		$new_stem = pathinfo( $new_name, PATHINFO_FILENAME );
@@ -441,20 +681,87 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			$meta['original_image'] = $new_name;
 		}
 
+		$sibling = static function ( mixed $file, array $map ) use ( $present, &$moves ): ?string {
+			if ( ! is_string( $file ) || '' === $file || ( null !== $present && ! in_array( $file, $present, true ) ) ) {
+				return null;
+			}
+			// Restored-image backups can reference the active main file or a generated size.
+			// Keep that file's destination and point every metadata entry at the same move.
+			if ( isset( $moves[ $file ] ) ) {
+				return $moves[ $file ];
+			}
+			$new_file = self::renamed_by_prefix( $file, $map );
+			if ( null !== $new_file ) {
+				$moves[ $file ] = $new_file;
+			}
+			return $new_file;
+		};
+
+		foreach ( (array) ( $meta['sources'] ?? [] ) as $mime => $source ) {
+			$new_file = is_array( $source ) ? $sibling( $source['file'] ?? null, $prefixes ) : null;
+			if ( null !== $new_file ) {
+				$meta['sources'][ $mime ]['file'] = $new_file;
+			}
+		}
+		foreach ( (array) ( $meta['sizes'] ?? [] ) as $key => $size ) {
+			foreach ( ( is_array( $size ) ? (array) ( $size['sources'] ?? [] ) : [] ) as $mime => $source ) {
+				$new_file = is_array( $source ) ? $sibling( $source['file'] ?? null, $prefixes ) : null;
+				if ( null !== $new_file ) {
+					$meta['sizes'][ $key ]['sources'][ $mime ]['file'] = $new_file;
+				}
+			}
+		}
+
+		if ( ! empty( $backups ) ) {
+			// The stem before WordPress added its `-e<timestamp>` edit suffix.
+			$base                = self::search_stem( $old_main, $meta, $backups );
+			$backup_map          = $prefixes;
+			$backup_map[ $base ] = $new_stem . '-orig';
+			// Backups named by an earlier rename keep one `-orig`, not `-orig-orig`.
+			$backup_map[ $base . '-orig' ] = $new_stem . '-orig';
+			uksort( $backup_map, static fn ( string $a, string $b ): int => strlen( $b ) <=> strlen( $a ) );
+			foreach ( $backups as $key => $backup ) {
+				$new_file = is_array( $backup ) ? $sibling( $backup['file'] ?? null, $backup_map ) : null;
+				if ( null !== $new_file ) {
+					$backups[ $key ]['file'] = $new_file;
+				}
+			}
+		}
+
 		return [
-			'moves' => $moves,
-			'main'  => $new_main,
-			'meta'  => $meta,
+			'moves'   => $moves,
+			'main'    => $new_main,
+			'meta'    => $meta,
+			'backups' => $backups,
 		];
 	}
 
 	/**
-	 * Every file name the attachment's metadata lists (main file, original, generated sizes).
+	 * A sibling file name with its stem prefix swapped, or null when no prefix matches. The prefix must
+	 * be followed by `-` or `.`, so `foo` never matches `foo10.jpg`.
 	 *
-	 * @param array<string,mixed> $meta Attachment metadata.
+	 * @param array<string,string> $map Old stem prefix => new stem prefix, longest first.
+	 */
+	private static function renamed_by_prefix( string $file, array $map ): ?string {
+		foreach ( $map as $from_prefix => $to_prefix ) {
+			$from_prefix = (string) $from_prefix;
+			$next        = substr( $file, strlen( $from_prefix ), 1 );
+			if ( str_starts_with( $file, $from_prefix ) && ( '-' === $next || '.' === $next ) ) {
+				return $to_prefix . substr( $file, strlen( $from_prefix ) );
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Every file name the attachment's metadata lists (main file, original, generated sizes, their
+	 * modern-format copies and the backups of an edited image).
+	 *
+	 * @param array<string,mixed> $meta    Attachment metadata.
+	 * @param array<string,mixed> $backups The `_wp_attachment_backup_sizes` meta.
 	 * @return string[]
 	 */
-	private static function listed_files( string $old_main, array $meta ): array {
+	private static function listed_files( string $old_main, array $meta, array $backups = [] ): array {
 		$files = [ $old_main ];
 		if ( isset( $meta['original_image'] ) && is_string( $meta['original_image'] ) ) {
 			$files[] = $meta['original_image'];
@@ -464,7 +771,31 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				$files[] = $size['file'];
 			}
 		}
+		$entries = array_merge( (array) ( $meta['sources'] ?? [] ), $backups );
+		foreach ( (array) ( $meta['sizes'] ?? [] ) as $size ) {
+			if ( is_array( $size ) ) {
+				$entries = array_merge( $entries, array_values( (array) ( $size['sources'] ?? [] ) ) );
+			}
+		}
+		foreach ( $entries as $entry ) {
+			if ( is_array( $entry ) && ! empty( $entry['file'] ) && is_string( $entry['file'] ) ) {
+				$files[] = $entry['file'];
+			}
+		}
 		return array_values( array_unique( $files ) );
+	}
+
+	/**
+	 * The stem every file a rename moves starts with, used to narrow the link search. With backups of an
+	 * edited image the `-e<timestamp>` edit suffix is dropped, so links to the original (`foo.jpg`) are
+	 * found too, not only links to the edited file (`foo-e123.jpg`).
+	 *
+	 * @param array<string,mixed> $meta    Attachment metadata (before renaming).
+	 * @param array<string,mixed> $backups The `_wp_attachment_backup_sizes` meta.
+	 */
+	public static function search_stem( string $old_main, array $meta, array $backups ): string {
+		$stem = self::shared_stem( $old_main, $meta );
+		return empty( $backups ) ? $stem : (string) preg_replace( '/-e\d+$/', '', $stem );
 	}
 
 	/**
@@ -549,10 +880,12 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		if ( empty( $pairs ) || '' === $needle ) {
 			return 0;
 		}
-		$like    = '%' . $wpdb->esc_like( $needle ) . '%';
-		$anchors = self::uploads_anchors();
-		$changed = 0;
-		$fetched = 0;
+		$like = '%' . $wpdb->esc_like( $needle ) . '%';
+		// Links can hold the percent-encoded name (`caf%C3%A9.jpg`), which the raw stem does not match.
+		$like_encoded = '%' . $wpdb->esc_like( rawurlencode( $needle ) ) . '%';
+		$anchors      = self::uploads_anchors();
+		$changed      = 0;
+		$fetched      = 0;
 
 		$last = 0;
 		$rows = [];
@@ -560,10 +893,12 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- rewriting links in content is the point of this job.
 			$rows    = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT ID, post_content, post_excerpt FROM {$wpdb->posts} WHERE ID > %d AND post_type <> 'attachment' AND (post_content LIKE %s OR post_excerpt LIKE %s) ORDER BY ID ASC LIMIT %d",
+					"SELECT ID, post_content, post_excerpt FROM {$wpdb->posts} WHERE ID > %d AND post_type <> 'attachment' AND (post_content LIKE %s OR post_excerpt LIKE %s OR post_content LIKE %s OR post_excerpt LIKE %s) ORDER BY ID ASC LIMIT %d",
 					$last,
 					$like,
 					$like,
+					$like_encoded,
+					$like_encoded,
 					self::REPLACE_CHUNK
 				)
 			);
@@ -594,11 +929,13 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- see above.
 			$rows    = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT meta_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE meta_id > %d AND meta_value LIKE %s AND meta_key NOT IN ('_wp_attached_file', '_wp_attachment_metadata', %s, %s) ORDER BY meta_id ASC LIMIT %d",
+					"SELECT meta_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE meta_id > %d AND (meta_value LIKE %s OR meta_value LIKE %s) AND meta_key NOT IN ('_wp_attached_file', '_wp_attachment_metadata', %s, %s, %s) ORDER BY meta_id ASC LIMIT %d",
 					$last,
 					$like,
+					$like_encoded,
 					self::META_OLD_PATH,
 					self::META_PREVIOUS_NAME,
+					self::META_PENDING,
 					self::REPLACE_CHUNK
 				)
 			);
@@ -619,13 +956,58 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	}
 
 	/**
-	 * Replace old relative paths with new ones in a string, including the JSON-escaped form (`\/`).
+	 * Percent-encode each segment of a relative path the way `rawurlencode()` and browsers do,
+	 * keeping the slashes: `2024/05/café.jpg` gives `2024/05/caf%C3%A9.jpg`.
+	 */
+	public static function encoded_path( string $path ): string {
+		return implode( '/', array_map( 'rawurlencode', explode( '/', $path ) ) );
+	}
+
+	/**
+	 * Let the hex digits of every `%XX` escape in a regex match either case (`%C3` and `%c3`),
+	 * while the rest of the name stays case-sensitive.
+	 *
+	 * @param string $quoted Output of preg_quote().
+	 * @return string
+	 */
+	private static function hex_insensitive( string $quoted ): string {
+		return (string) preg_replace_callback(
+			'~%([0-9A-F])([0-9A-F])~',
+			static fn ( array $m ): string => '%' . ( ctype_alpha( $m[1] ) ? '[' . $m[1] . strtolower( $m[1] ) . ']' : $m[1] ) . ( ctype_alpha( $m[2] ) ? '[' . $m[2] . strtolower( $m[2] ) . ']' : $m[2] ),
+			$quoted
+		);
+	}
+
+	/**
+	 * Old => new pairs plus the percent-encoded form of every old path that needs encoding,
+	 * mapped to the encoded new path.
+	 *
+	 * @param array<string,string> $pairs Old relative path => new relative path.
+	 * @return array<string,string>
+	 */
+	private static function with_encoded_pairs( array $pairs ): array {
+		$all = $pairs;
+		foreach ( $pairs as $old => $new ) {
+			$encoded = self::encoded_path( (string) $old );
+			if ( $encoded !== (string) $old && ! isset( $all[ $encoded ] ) ) {
+				$all[ $encoded ] = self::encoded_path( $new );
+			}
+		}
+		return $all;
+	}
+
+	/**
+	 * Replace old relative paths with new ones in a string, including the JSON-escaped form (`\/`)
+	 * and the percent-encoded form (`caf%C3%A9.jpg`).
 	 *
 	 * @param array<string,string> $pairs   Old relative path => new relative path.
 	 * @param string[]             $anchors Strings one of which must stand right before the path; empty for none.
 	 */
 	public static function replace_in_string( string $subject, array $pairs, array $anchors = [] ): string {
-		foreach ( $pairs as $old => $new ) {
+		foreach ( self::with_encoded_pairs( $pairs ) as $old => $new ) {
+			$old = (string) $old;
+			// Only an added encoded form gets case-free hex: a raw name with a literal "%AB" is exact.
+			$encoded = ! array_key_exists( $old, $pairs );
 			foreach ( [ [ $old, $new, $anchors ], [ str_replace( '/', '\\/', $old ), str_replace( '/', '\\/', $new ), array_map( static fn ( string $a ): string => str_replace( '/', '\\/', $a ), $anchors ) ] ] as [ $from, $to, $before ] ) {
 				// Where the path may start: right after one of the uploads anchors when given, so another
 				// site's URL that ends in the same path is left alone; otherwise after a path boundary
@@ -635,7 +1017,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 					? '(?<![A-Za-z0-9._-])'
 					: '(?<=' . implode( '|', array_map( static fn ( string $a ): string => preg_quote( $a, '~' ), $before ) ) . ')';
 				$subject = (string) preg_replace_callback(
-					'~' . $start . preg_quote( $from, '~' ) . '(?![A-Za-z0-9_-]|\.[A-Za-z0-9])~',
+					'~' . $start . ( $encoded ? self::hex_insensitive( preg_quote( $from, '~' ) ) : preg_quote( $from, '~' ) ) . '(?![A-Za-z0-9_-]|\.[A-Za-z0-9])~',
 					static fn (): string => $to,
 					$subject
 				);

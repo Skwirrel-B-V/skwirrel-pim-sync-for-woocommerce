@@ -177,3 +177,107 @@ test( 'a file can go back to an earlier name of its own without getting a suffix
 	$rel = dirname( (string) get_post_meta( $id, '_wp_attached_file', true ) ) . '/foto.jpg';
 	expect( Skwirrel_WC_Sync_File_Redirects::find_target( $rel ) )->toBe( '' );
 } );
+
+
+test( 'rename polling observes a sync flag changed outside the request cache', function (): void {
+	global $wpdb;
+	$key = Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS;
+	$poll = new ReflectionMethod( Skwirrel_WC_Sync_File_Rename_Job::class, 'sync_running' );
+	delete_transient( $key );
+	try {
+		expect( $poll->invoke( null ) )->toBeFalse();
+		// Direct SQL simulates a second request without invalidating this request's caches.
+		$wpdb->insert( $wpdb->options, [ 'option_name' => '_transient_' . $key, 'option_value' => '1', 'autoload' => 'off' ] );
+		$wpdb->insert( $wpdb->options, [ 'option_name' => '_transient_timeout_' . $key, 'option_value' => (string) ( time() + 600 ), 'autoload' => 'off' ] );
+		expect( $poll->invoke( null ) )->toBeTrue();
+		$wpdb->delete( $wpdb->options, [ 'option_name' => '_transient_' . $key ] );
+		$wpdb->delete( $wpdb->options, [ 'option_name' => '_transient_timeout_' . $key ] );
+		expect( $poll->invoke( null ) )->toBeFalse();
+	} finally {
+		delete_transient( $key );
+	}
+});
+
+
+test( 'percent-encoded links in content, srcset and downloadable files are rewritten (#72)', function (): void {
+	$upload  = wp_upload_dir();
+	$base    = $upload['baseurl'];
+	// Saved raw: without a user that may post unfiltered HTML, kses would strip the srcset on insert.
+	kses_remove_filters();
+	$post_id = wp_insert_post(
+		[
+			'post_title'   => 'Encoded links',
+			'post_status'  => 'publish',
+			'post_content' => '<a href="' . $base . '/2024/05/caf%C3%A9.jpg">x</a><img src="' . $base . '/2024/05/café.jpg" srcset="' . $base . '/2024/05/caf%C3%A9-300x200.jpg 300w">',
+		]
+	);
+	kses_init_filters();
+	update_post_meta(
+		$post_id,
+		'_downloadable_files',
+		[
+			'k' => [
+				'name' => 'Manual',
+				'file' => $base . '/2024/05/caf%C3%A9.jpg',
+			],
+		]
+	);
+	$pairs = [
+		'2024/05/café.jpg'         => '2024/05/foto.jpg',
+		'2024/05/café-300x200.jpg' => '2024/05/foto-300x200.jpg',
+	];
+
+	expect( Skwirrel_WC_Sync_File_Rename_Job::replace_references( $pairs, 'café' ) )->toBe( 2 );
+
+	$content = (string) get_post_field( 'post_content', $post_id );
+	expect( $content )->not->toContain( 'caf%C3%A9' );
+	expect( $content )->not->toContain( 'café' );
+	expect( $content )->toContain( $base . '/2024/05/foto-300x200.jpg 300w' );
+	expect( get_post_meta( $post_id, '_downloadable_files', true )['k']['file'] )->toBe( $base . '/2024/05/foto.jpg' );
+} );
+
+test( 'a rename that stops before the link rewrite is finished by the next run (#79)', function (): void {
+	$id = skwRenameImport( skwRenameJpeg( 400, 300 ), 'Onderbroken.jpg', 9201 );
+	expect( $id )->toBeGreaterThan( 0 );
+	$old_rel = (string) get_post_meta( $id, '_wp_attached_file', true );
+	// A restored image may keep a backup entry pointing at its active main file.
+	update_post_meta( $id, '_wp_attachment_backup_sizes', [ 'full-orig' => [ 'file' => basename( $old_rel ) ] ] );
+	$base    = wp_upload_dir()['baseurl'];
+	$post_id = wp_insert_post(
+		[
+			'post_title'   => 'Uses the interrupted image',
+			'post_status'  => 'publish',
+			'post_content' => '<img src="' . $base . '/' . $old_rel . '">',
+		]
+	);
+
+	update_option( 'skwirrel_wc_sync_settings', [ 'file_naming_mode' => 'original' ] );
+	// The process "dies" on the link search: after the files moved and the metadata was saved.
+	$die = static function ( string $sql ): string {
+		if ( str_contains( $sql, 'post_content LIKE' ) ) {
+			throw new RuntimeException( 'simulated crash' );
+		}
+		return $sql;
+	};
+	add_filter( 'query', $die );
+	try {
+		Skwirrel_WC_Sync_File_Rename_Job::rename_attachment( $id );
+		$this->fail( 'expected the simulated crash' );
+	} catch ( RuntimeException $e ) {
+		expect( $e->getMessage() )->toBe( 'simulated crash' );
+	} finally {
+		remove_filter( 'query', $die );
+	}
+	expect( basename( (string) get_attached_file( $id ) ) )->toBe( 'Onderbroken.jpg' );
+	expect( get_post_meta( $id, '_wp_attachment_backup_sizes', true )['full-orig']['file'] )->toBe( 'Onderbroken.jpg' );
+	expect( file_exists( (string) get_attached_file( $id ) ) )->toBeTrue();
+	expect( (string) get_post_field( 'post_content', $post_id ) )->toContain( $old_rel );
+	expect( get_post_meta( $id, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true )['stage'] )->toBe( 'links' );
+
+	// The next run sees the file as already renamed, but still finishes the links.
+	expect( Skwirrel_WC_Sync_File_Rename_Job::rename_attachment( $id ) )->toBe( 'renamed' );
+	expect( (string) get_post_field( 'post_content', $post_id ) )->toContain( dirname( $old_rel ) . '/Onderbroken.jpg' );
+	expect( get_post_meta( $id, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true ) )->toBe( '' );
+	expect( get_post_meta( $id, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, false ) )->toHaveCount( 1 );
+	expect( Skwirrel_WC_Sync_File_Rename_Job::rename_attachment( $id ) )->toBe( 'skipped' );
+} );
