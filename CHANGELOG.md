@@ -2,7 +2,9 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
-## [Unreleased]
+## [4.4.1]
+
+Faster link updates after a rename, and old links keep redirecting after a reinstall.
 
 ### Changed
 
