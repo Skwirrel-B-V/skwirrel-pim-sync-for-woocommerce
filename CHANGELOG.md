@@ -4,6 +4,10 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 
 ## Unreleased
 
+### Added
+
+* **Deleting the plugin cleans up after it** (#78). A new `uninstall.php` (logic in `Skwirrel_WC_Sync_Uninstaller`) runs when the plugin is deleted from Plugins, for every site of a multisite network. It removes every option and transient with the `skwirrel_wc_sync_` prefix: the settings, the auth token (also the Connectors API key `connectors_skwirrel_pim_api_key`), the sync history and last result, the permalink slugs, the attribute groups and sources, the rename job and the run state. It also drops the sync queue table, unschedules the plugin's Action Scheduler and WP-Cron actions, and deletes the `_skwirrel_file_name` and `_skwirrel_previous_file_name` metas. Kept: products, imported attachments and their Skwirrel keys, and `_skwirrel_old_upload_path`, so old links of renamed files are still known. Deactivating the plugin still keeps everything. Covered by `tests/Integration/UninstallIntegrationTest.php`.
+
 ### Changed
 
 * **Renaming is switched off on shops with WP Offload Media** (#76). With WP Offload Media Lite or Pro active, `Skwirrel_WC_Sync_File_Renamer::can_rename()` now defaults to false: the plugin copies uploads to remote storage, and renaming the local copy (also when it keeps local copies) would leave the remote file with the old name. The Files tab names the plugin in its notice and points developers to the filter `skwirrel_wc_sync_can_rename_files`, which still has the final word (return true to rename anyway, or false for other offload plugins). Detection uses the plugin's loaded instance, so an installed but inactive plugin changes nothing. Sites without an offload plugin see no change. Covered by `tests/Unit/FileRenamerTest.php`.
