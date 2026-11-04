@@ -28,6 +28,12 @@ class Skwirrel_WC_Sync_File_Redirects {
 	 */
 	public const OPTION_HAS_OLD_PATHS = 'skwirrel_wc_sync_has_old_paths';
 
+	/**
+	 * Cache lifetime of the 301 (one day). Short on purpose: after the setting is switched off or a
+	 * rename is undone, browsers and CDNs stop following the old redirect within about a day.
+	 */
+	public const CACHE_CONTROL = 'public, max-age=86400';
+
 	private static ?self $instance = null;
 
 	public static function instance(): self {
@@ -85,9 +91,11 @@ class Skwirrel_WC_Sync_File_Redirects {
 		}
 		$uploads = wp_upload_dir();
 		$base    = wp_parse_url( $uploads['baseurl'], PHP_URL_PATH );
-		$request = isset( $_SERVER['REQUEST_URI'] ) ? wp_parse_url( esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ), PHP_URL_PATH ) : '';
+		$parts   = isset( $_SERVER['REQUEST_URI'] ) ? wp_parse_url( esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ) ) : [];
+		$request = is_array( $parts ) ? ( $parts['path'] ?? '' ) : '';
+		$query   = is_array( $parts ) ? ( $parts['query'] ?? '' ) : '';
 
-		$relative = self::relative_upload_path( is_string( $request ) ? $request : '', is_string( $base ) ? $base : '' );
+		$relative = self::relative_upload_path( $request, is_string( $base ) ? $base : '' );
 		// A request for a path in the uploads folder that reached WordPress and has no file behind it.
 		// This does not rely on WordPress reporting a 404 page: with plain permalinks it answers an
 		// unknown path with the home page, so is_404() would never be true there.
@@ -95,15 +103,48 @@ class Skwirrel_WC_Sync_File_Redirects {
 			return;
 		}
 		$target = self::find_target( $relative );
-		if ( '' === $target ) {
+		// The new file must still exist: otherwise the old URL gives a normal 404, not a redirect to one.
+		if ( ! self::target_exists( $target, $uploads['basedir'] ) ) {
 			return;
 		}
-
-		$url = trailingslashit( $uploads['baseurl'] ) . self::encode_path( $target );
+		$url = self::target_url( $uploads['baseurl'], $target, (string) $query );
+		if ( ! headers_sent() ) {
+			header( 'Cache-Control: ' . self::cache_control() );
+		}
 		// The URL is built from the site's own uploads URL, which may legitimately sit on another host (CDN),
 		// so wp_safe_redirect() would refuse it.
 		wp_redirect( $url, 301, 'Skwirrel PIM sync' ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect
 		exit;
+	}
+
+	/**
+	 * Whether the renamed file a redirect would point at exists as a file in the uploads folder.
+	 */
+	public static function target_exists( string $target, string $uploads_dir ): bool {
+		if ( '' === $target || str_contains( $target, "\0" ) || in_array( '..', explode( '/', str_replace( '\\', '/', $target ) ), true ) ) {
+			return false;
+		}
+		return is_file( rtrim( $uploads_dir, '/' ) . '/' . $target );
+	}
+
+	/**
+	 * The URL of a renamed file, with the query string of the original request (without '?') appended.
+	 */
+	public static function target_url( string $uploads_baseurl, string $target, string $query ): string {
+		$url = trailingslashit( $uploads_baseurl ) . self::encode_path( $target );
+		return '' === $query ? $url : $url . '?' . $query;
+	}
+
+	/**
+	 * The Cache-Control value sent with the redirect.
+	 */
+	public static function cache_control(): string {
+		/**
+		 * Filters the Cache-Control header of the redirect from an old file URL.
+		 *
+		 * @param string $cache_control Default 'public, max-age=86400' (one day).
+		 */
+		return (string) apply_filters( 'skwirrel_wc_sync_redirect_cache_control', self::CACHE_CONTROL );
 	}
 
 	/**

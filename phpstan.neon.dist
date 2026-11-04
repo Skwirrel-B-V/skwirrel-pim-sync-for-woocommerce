@@ -8,6 +8,7 @@ parameters:
   paths:
     - plugin/skwirrel-pim-sync/skwirrel-pim-sync.php
     - plugin/skwirrel-pim-sync/includes/
+    - plugin/skwirrel-pim-sync/uninstall.php
   excludePaths:
     - vendor/
   bootstrapFiles:
