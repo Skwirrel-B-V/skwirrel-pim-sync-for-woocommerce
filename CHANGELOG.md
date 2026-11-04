@@ -2,7 +2,9 @@
 
 All notable changes to Skwirrel PIM sync for WooCommerce will be documented in this file.
 
-## [Unreleased]
+## [4.4.0]
+
+Offload-plugin protection, safer redirects, cleanup on uninstall, and more robust file renaming.
 
 ### Added
 
