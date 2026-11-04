@@ -6,6 +6,8 @@ All notable changes to Skwirrel PIM sync for WooCommerce will be documented in t
 
 ### Fixed
 
+* **Giving up a rename after its metadata was saved restores the old metadata** (#79). The recovery marker keeps what the attachment pointed at before; when a rename is given up while files were still moving, the files go back and so do the attached file, the attachment and backup metadata, and this rename's old-path and previous-name rows, so nothing names a file that was moved back.
+
 * **A failed rollback retains the recovery marker** (#79). Do not discard the pending plan while files still need recovery.
 
 * **Interrupted sibling-file renames retain their backup metadata** (#71, #79). The recovery marker carries the planned backup names and saves them together with attachment metadata before the link stage.

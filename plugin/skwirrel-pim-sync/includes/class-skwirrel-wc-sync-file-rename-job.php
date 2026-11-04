@@ -422,6 +422,12 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			'backups'  => $plan['backups'],
 			'old_name' => basename( $old_path ),
 			'stem'     => self::shared_stem( basename( $old_path ), $meta ),
+			// What the attachment pointed at before, so giving up can restore it after the files go back.
+			'undo'     => [
+				'file'    => $old_path,
+				'meta'    => $meta,
+				'backups' => $backups,
+			],
 		];
 		update_post_meta( $attachment_id, self::META_PENDING, $pending );
 
@@ -472,6 +478,9 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 					}
 				}
 			}
+			if ( 'move' === ( $pending['stage'] ?? '' ) ) {
+				self::undo_metadata( $attachment_id, $pending );
+			}
 			// Forgotten, so a later run can rename it again once the cause is fixed. At stage `links`
 			// the old paths are recorded, so the old links still redirect.
 			delete_post_meta( $attachment_id, self::META_PENDING );
@@ -501,6 +510,39 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		}
 		$logger->info( 'Unfinished file rename resumed', [ 'attachment_id' => $attachment_id ] );
 		return self::finish( $attachment_id, $pending, $logger );
+	}
+
+	/**
+	 * Giving up at stage `move` after the files went back: a run may have died after `finish()` saved
+	 * the new file name, metadata, backups or old paths. Point the attachment back at its old files and
+	 * drop the old-path rows of this rename, so nothing names a file that is no longer there.
+	 *
+	 * @param array<string,mixed> $pending See META_PENDING.
+	 */
+	private static function undo_metadata( int $attachment_id, array $pending ): void {
+		$undo = $pending['undo'] ?? null;
+		if ( ! is_array( $undo ) || empty( $undo['file'] ) ) {
+			return;
+		}
+		$old_file = (string) $undo['file'];
+		if ( (string) get_attached_file( $attachment_id ) !== $old_file ) {
+			update_attached_file( $attachment_id, $old_file );
+			// The file still carries this name, so it is not a previous name.
+			delete_post_meta( $attachment_id, self::META_PREVIOUS_NAME, (string) ( $pending['old_name'] ?? '' ) );
+		}
+		if ( ! empty( $undo['meta'] ) && wp_get_attachment_metadata( $attachment_id ) !== $undo['meta'] ) {
+			wp_update_attachment_metadata( $attachment_id, (array) $undo['meta'] );
+		}
+		if ( ! empty( $undo['backups'] ) ) {
+			update_post_meta( $attachment_id, self::META_BACKUP_SIZES, (array) $undo['backups'] );
+		} elseif ( ! empty( $pending['backups'] ) ) {
+			delete_post_meta( $attachment_id, self::META_BACKUP_SIZES );
+		}
+		$rel_dir = (string) ( $pending['rel_dir'] ?? '' );
+		$prefix  = '' !== $rel_dir ? $rel_dir . '/' : '';
+		foreach ( (array) ( $pending['moves'] ?? [] ) as $from => $to ) {
+			delete_post_meta( $attachment_id, self::META_OLD_PATH, $prefix . $from . "\t" . $prefix . $to );
+		}
 	}
 
 	/**
@@ -546,7 +588,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 
 			$pending['stage'] = 'links';
 			$pending['pairs'] = $pairs;
-			unset( $pending['meta'], $pending['backups'] );
+			unset( $pending['meta'], $pending['backups'], $pending['undo'] );
 			update_post_meta( $attachment_id, self::META_PENDING, $pending );
 		}
 

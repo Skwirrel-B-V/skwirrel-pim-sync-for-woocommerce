@@ -643,3 +643,33 @@ test('a failed give-up rollback keeps the recovery marker and moved bytes', func
 		unset($GLOBALS['_test_post_meta'][18]);
 	}
 });
+
+
+test('giving up a rename after its metadata was saved points the attachment back at its old files', function () {
+	file_put_contents($this->dir . '/foto.jpg', 'ours');
+	file_put_contents($this->dir . '/foto-300x200.jpg', 'our size');
+	$old_meta    = ['file' => '2024/05/old.jpg', 'sizes' => ['medium' => ['file' => 'old-300x200.jpg']]];
+	$old_backups = ['full-orig' => ['file' => 'old-orig.jpg']];
+	// A run died inside finish(): the new name, metadata, backups and old paths are saved, the marker still says `move`.
+	$GLOBALS['_test_attached_files'][19]      = $this->dir . '/foto.jpg';
+	$GLOBALS['_test_attachment_metadata'][19] = ['file' => '2024/05/foto.jpg', 'sizes' => ['medium' => ['file' => 'foto-300x200.jpg']]];
+	update_post_meta(19, '_wp_attachment_backup_sizes', ['full-orig' => ['file' => 'foto-orig.jpg']]);
+	add_post_meta(19, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, 'old.jpg');
+	add_post_meta(19, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, "2024/05/old.jpg\t2024/05/foto.jpg");
+	$GLOBALS['_test_post_meta'][19][Skwirrel_WC_Sync_File_Rename_Job::META_PENDING] = [
+		'stage' => 'move', 'attempts' => 3, 'dir' => $this->dir, 'rel_dir' => '2024/05',
+		'moves' => ['old.jpg' => 'foto.jpg', 'old-300x200.jpg' => 'foto-300x200.jpg'], 'main' => 'foto.jpg',
+		'meta' => [], 'backups' => ['full-orig' => ['file' => 'foto-orig.jpg']], 'old_name' => 'old.jpg', 'stem' => 'old',
+		'undo' => ['file' => $this->dir . '/old.jpg', 'meta' => $old_meta, 'backups' => $old_backups],
+	];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::rename_attachment(19))->toBe('failed');
+	expect(file_get_contents($this->dir . '/old.jpg'))->toBe('ours');
+	expect(file_get_contents($this->dir . '/old-300x200.jpg'))->toBe('our size');
+	expect(get_attached_file(19))->toBe($this->dir . '/old.jpg');
+	expect(wp_get_attachment_metadata(19))->toBe($old_meta);
+	expect(get_post_meta(19, '_wp_attachment_backup_sizes', true))->toBe($old_backups);
+	expect(get_post_meta(19, Skwirrel_WC_Sync_File_Rename_Job::META_OLD_PATH, false))->toBe([]);
+	expect(get_post_meta(19, Skwirrel_WC_Sync_File_Rename_Job::META_PREVIOUS_NAME, false))->toBe([]);
+	expect(get_post_meta(19, Skwirrel_WC_Sync_File_Rename_Job::META_PENDING, true))->toBe('');
+	unset($GLOBALS['_test_post_meta'][19], $GLOBALS['_test_attached_files'][19], $GLOBALS['_test_attachment_metadata'][19]);
+});
