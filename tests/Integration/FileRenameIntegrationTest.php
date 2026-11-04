@@ -177,3 +177,23 @@ test( 'a file can go back to an earlier name of its own without getting a suffix
 	$rel = dirname( (string) get_post_meta( $id, '_wp_attached_file', true ) ) . '/foto.jpg';
 	expect( Skwirrel_WC_Sync_File_Redirects::find_target( $rel ) )->toBe( '' );
 } );
+
+
+test( 'rename polling observes a sync flag changed outside the request cache', function (): void {
+	global $wpdb;
+	$key = Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS;
+	$poll = new ReflectionMethod( Skwirrel_WC_Sync_File_Rename_Job::class, 'sync_running' );
+	delete_transient( $key );
+	try {
+		expect( $poll->invoke( null ) )->toBeFalse();
+		// Direct SQL simulates a second request without invalidating this request's caches.
+		$wpdb->insert( $wpdb->options, [ 'option_name' => '_transient_' . $key, 'option_value' => '1', 'autoload' => 'off' ] );
+		$wpdb->insert( $wpdb->options, [ 'option_name' => '_transient_timeout_' . $key, 'option_value' => (string) ( time() + 600 ), 'autoload' => 'off' ] );
+		expect( $poll->invoke( null ) )->toBeTrue();
+		$wpdb->delete( $wpdb->options, [ 'option_name' => '_transient_' . $key ] );
+		$wpdb->delete( $wpdb->options, [ 'option_name' => '_transient_timeout_' . $key ] );
+		expect( $poll->invoke( null ) )->toBeFalse();
+	} finally {
+		delete_transient( $key );
+	}
+});

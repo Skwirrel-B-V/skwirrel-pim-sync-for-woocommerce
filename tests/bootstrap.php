@@ -875,3 +875,10 @@ if (!function_exists('wp_parse_url')) {
 
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-settings.php';
 require_once __DIR__ . '/../plugin/skwirrel-pim-sync/includes/class-skwirrel-wc-sync-admin-dashboard.php';
+
+
+if (!function_exists('wp_using_ext_object_cache')) {
+    function wp_using_ext_object_cache(): bool {
+        return false;
+    }
+}

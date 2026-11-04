@@ -202,7 +202,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		}
 		$state['updated'] = time();
 		// Never move files under a running sync: it looks attachments up by their file.
-		if ( get_transient( Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS ) ) {
+		if ( self::sync_running() ) {
 			// Waiting is activity: without saving it, a long sync would make this job look stalled.
 			update_option( self::OPTION, $state, false );
 			self::enqueue( self::SYNC_BUSY_DELAY );
@@ -239,6 +239,12 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				update_option( self::OPTION, $state, false );
 				// Keep the guard alive for as long as the batch takes.
 				set_transient( self::ACTIVE_TRANSIENT, 1, 2 * MINUTE_IN_SECONDS );
+				// A sync that started during this batch: stop after the attachment just finished, and
+				// pick up from `last_id` once the sync is over.
+				if ( self::sync_running() ) {
+					self::enqueue( self::SYNC_BUSY_DELAY );
+					return;
+				}
 			}
 		} finally {
 			delete_transient( self::ACTIVE_TRANSIENT );
@@ -261,6 +267,26 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		}
 		update_option( self::OPTION, $state, false );
 		self::enqueue( 0 );
+	}
+
+	/**
+	 * Whether a product sync is running right now (it looks attachments up by their file).
+	 *
+	 * @phpstan-impure
+	 */
+	private static function sync_running(): bool {
+		$key = Skwirrel_WC_Sync_History::SYNC_IN_PROGRESS;
+		if ( wp_using_ext_object_cache() ) {
+			// Force a backend read: another request may have started or finished the sync.
+			return (bool) wp_cache_get( $key, 'transient', true );
+		}
+		// get_option() caches both existing values and missing options for this request.
+		// Clear those entries before polling a flag written by a different worker.
+		wp_cache_delete( 'notoptions', 'options' );
+		wp_cache_delete( 'alloptions', 'options' );
+		wp_cache_delete( '_transient_' . $key, 'options' );
+		wp_cache_delete( '_transient_timeout_' . $key, 'options' );
+		return (bool) get_transient( $key );
 	}
 
 	/**
