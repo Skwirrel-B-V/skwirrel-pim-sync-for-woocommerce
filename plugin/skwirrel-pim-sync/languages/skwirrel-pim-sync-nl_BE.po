@@ -3116,6 +3116,12 @@ msgid "Renaming is switched off on this site, usually because uploads are stored
 msgstr "Hernoemen is op deze site uitgeschakeld, meestal omdat een andere plugin uploads op externe opslag bewaart. Het hernoemen van lokale kopieën zou de externe bestanden met de oude naam achterlaten."
 
 #: includes/class-skwirrel-wc-sync-admin-dashboard.php
+#. translators: 1: name of the offload plugin, e.g. WP Offload Media, 2: filter name
+#, php-format
+msgid "Renaming is switched off because %1$s is active. It copies uploads to remote storage, and renaming the local copies would leave the remote files with the old name. A developer who handles the remote files can switch renaming back on with the filter %2$s."
+msgstr "Hernoemen is uitgeschakeld omdat %1$s actief is. Die plugin kopieert uploads naar externe opslag, en het hernoemen van de lokale kopieën zou de externe bestanden met de oude naam achterlaten. Een ontwikkelaar die de externe bestanden zelf bijwerkt, kan hernoemen weer aanzetten met het filter %2$s."
+
+#: includes/class-skwirrel-wc-sync-admin-dashboard.php
 msgid "Preview renaming"
 msgstr "Hernoemen bekijken"
 
