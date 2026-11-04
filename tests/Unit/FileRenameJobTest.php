@@ -347,3 +347,27 @@ test('a sync that starts mid-batch stops the batch after the current attachment'
 		unset($GLOBALS['_test_attached_files'], $GLOBALS['_test_transients'], $GLOBALS['_test_options']['skwirrel_wc_sync_rename_job']);
 	}
 });
+
+test('a second rename keeps a single -orig suffix on backups', function () {
+	$meta    = ['sizes' => ['thumbnail' => ['file' => 'foto-150x150.jpg']]];
+	$backups = [
+		'full-orig'      => ['file' => 'foto-orig.jpg'],
+		'thumbnail-orig' => ['file' => 'foto-orig-150x150.jpg'],
+	];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('foto.jpg', 'lamp.jpg', $meta, null, $backups);
+	expect($plan['moves'])->toBe([
+		'foto.jpg'              => 'lamp.jpg',
+		'foto-150x150.jpg'      => 'lamp-150x150.jpg',
+		'foto-orig.jpg'         => 'lamp-orig.jpg',
+		'foto-orig-150x150.jpg' => 'lamp-orig-150x150.jpg',
+	]);
+	expect($plan['backups']['full-orig']['file'])->toBe('lamp-orig.jpg');
+	expect($plan['backups']['thumbnail-orig']['file'])->toBe('lamp-orig-150x150.jpg');
+});
+
+test('the reference search of an edited image also finds links to its backups', function () {
+	$backups = ['full-orig' => ['file' => 'foo.jpg']];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::search_stem('foo-e1700000000000.jpg', [], $backups))->toBe('foo');
+	expect(Skwirrel_WC_Sync_File_Rename_Job::search_stem('foo-e1700000000000.jpg', [], []))->toBe('foo-e1700000000000');
+	expect(Skwirrel_WC_Sync_File_Rename_Job::search_stem('foo-scaled.jpg', ['original_image' => 'foo.jpg'], []))->toBe('foo');
+});
