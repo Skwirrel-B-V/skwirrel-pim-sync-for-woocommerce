@@ -233,10 +233,11 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		// The heartbeat is saved before the work and after every attachment, so a slow batch on a big
 		// library never looks stalled and cannot be restarted while it is still working.
 		update_option( self::OPTION, $state, false );
+		$renamed_ids = [];
 		try {
 			foreach ( $ids as $id ) {
 				try {
-					$result = self::rename_attachment( $id );
+					$result = self::rename_attachment( $id, true );
 				} catch ( \Throwable $e ) {
 					// One broken attachment must not stop the job; the cursor moves past it below.
 					( new Skwirrel_WC_Sync_Logger() )->error(
@@ -250,6 +251,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				}
 				++$state['processed'];
 				if ( 'renamed' === $result ) {
+					$renamed_ids[] = $id;
 					++$state['renamed'];
 				} elseif ( 'failed' === $result ) {
 					++$state['failed'];
@@ -262,11 +264,26 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 				// Keep the guard alive for as long as the batch takes.
 				set_transient( self::ACTIVE_TRANSIENT, 1, 2 * MINUTE_IN_SECONDS );
 				// A sync that started during this batch: stop after the attachment just finished, and
-				// pick up from `last_id` once the sync is over.
+				// pick up from `last_id` once the sync is over. Renames of this batch keep their pending
+				// marker at stage `links`; the next batch finds them (waiting_ids()) and rewrites their links.
 				if ( self::sync_running() ) {
 					self::enqueue( self::SYNC_BUSY_DELAY );
 					return;
 				}
+			}
+			try {
+				// One pass over a big shop can take a while: keep the guard alive for it.
+				set_transient( self::ACTIVE_TRANSIENT, 1, 2 * MINUTE_IN_SECONDS );
+				self::finish_links( $renamed_ids );
+			} catch ( \Throwable $e ) {
+				// The renames stay pending; the next batch, or a later job, rewrites their links.
+				( new Skwirrel_WC_Sync_Logger() )->error(
+					'File rename link rewrite failed with an error',
+					[
+						'attachment_ids' => $renamed_ids,
+						'error'          => $e->getMessage(),
+					]
+				);
 			}
 		} finally {
 			delete_transient( self::ACTIVE_TRANSIENT );
@@ -353,11 +370,11 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	 *
 	 * @return string `renamed`, `skipped` (nothing to do) or `failed` (rolled back and logged).
 	 */
-	public static function rename_attachment( int $attachment_id ): string {
+	public static function rename_attachment( int $attachment_id, bool $defer_links = false ): string {
 		$logger  = new Skwirrel_WC_Sync_Logger();
 		$pending = get_post_meta( $attachment_id, self::META_PENDING, true );
 		if ( is_array( $pending ) && ! empty( $pending['stage'] ) ) {
-			return self::resume( $attachment_id, $pending, $logger );
+			return self::resume( $attachment_id, $pending, $logger, $defer_links );
 		}
 		$reserved = [];
 		$item     = Skwirrel_WC_Sync_File_Renamer::classify( $attachment_id, $reserved );
@@ -447,7 +464,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			return 'failed';
 		}
 
-		return self::finish( $attachment_id, $pending, $logger );
+		return self::finish( $attachment_id, $pending, $logger, $defer_links );
 	}
 
 	/**
@@ -457,7 +474,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	 * @param array<string,mixed> $pending See META_PENDING.
 	 * @return string `renamed` or `failed`.
 	 */
-	private static function resume( int $attachment_id, array $pending, Skwirrel_WC_Sync_Logger $logger ): string {
+	private static function resume( int $attachment_id, array $pending, Skwirrel_WC_Sync_Logger $logger, bool $defer_links = false ): string {
 		$attempts = (int) ( $pending['attempts'] ?? 0 );
 		if ( $attempts >= self::MAX_RESUME_ATTEMPTS ) {
 			$logger->error(
@@ -511,7 +528,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			}
 		}
 		$logger->info( 'Unfinished file rename resumed', [ 'attachment_id' => $attachment_id ] );
-		return self::finish( $attachment_id, $pending, $logger );
+		return self::finish( $attachment_id, $pending, $logger, $defer_links );
 	}
 
 	/**
@@ -562,7 +579,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	 *
 	 * @param array<string,mixed> $pending See META_PENDING.
 	 */
-	private static function finish( int $attachment_id, array $pending, Skwirrel_WC_Sync_Logger $logger ): string {
+	private static function finish( int $attachment_id, array $pending, Skwirrel_WC_Sync_Logger $logger, bool $defer_links = false ): string {
 		if ( 'move' === $pending['stage'] ) {
 			$dir      = (string) $pending['dir'];
 			$rel_dir  = (string) $pending['rel_dir'];
@@ -603,7 +620,11 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			update_post_meta( $attachment_id, self::META_PENDING, $pending );
 		}
 
-		$pairs    = array_map( 'strval', (array) ( $pending['pairs'] ?? [] ) );
+		$pairs = array_map( 'strval', (array) ( $pending['pairs'] ?? [] ) );
+		if ( $defer_links ) {
+			// The batch rewrites the links of all its attachments in one pass (finish_links()).
+			return 'renamed';
+		}
 		$replaced = self::replace_references( $pairs, (string) ( $pending['stem'] ?? '' ) );
 		delete_post_meta( $attachment_id, self::META_PENDING );
 
@@ -618,6 +639,134 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			]
 		);
 		return 'renamed';
+	}
+
+	/**
+	 * Rewrite the links of every attachment whose rename is waiting for them, in one pass, and
+	 * only then forget the pending renames. Left pending when this fails, so a later run finishes
+	 * them one by one.
+	 *
+	 * @param int[] $attachment_ids Attachments renamed in this batch.
+	 */
+	private static function finish_links( array $attachment_ids ): void {
+		// Also the renames an earlier batch left at this stage (it died or its rewrite failed): the
+		// cursor never goes back to them, so without this they would wait for a new job.
+		$waiting = self::pending_links( array_values( array_unique( array_merge( self::waiting_ids(), $attachment_ids ) ) ) );
+		if ( empty( $waiting['pending'] ) ) {
+			return;
+		}
+		$logger = new Skwirrel_WC_Sync_Logger();
+		// Count the attempt before the work, like resume(), so a fatal error (time limit, memory) in
+		// the rewrite counts too. Renames from this batch were already counted (or are new).
+		foreach ( $waiting['pending'] as $id => $pending ) {
+			if ( in_array( $id, $attachment_ids, true ) ) {
+				continue;
+			}
+			$attempts = (int) ( $pending['attempts'] ?? 0 ) + 1;
+			if ( $attempts > self::MAX_RESUME_ATTEMPTS ) {
+				// Given up like a failing resume: its old paths are recorded, so its old links redirect.
+				unset( $waiting['pending'][ $id ] );
+				delete_post_meta( $id, self::META_PENDING );
+				$logger->error(
+					'File rename given up, links could not be finished',
+					[
+						'attachment_id' => $id,
+						'attempts'      => $attempts - 1,
+					]
+				);
+				continue;
+			}
+			$pending['attempts']       = $attempts;
+			$waiting['pending'][ $id ] = $pending;
+			update_post_meta( $id, self::META_PENDING, $pending );
+		}
+		if ( empty( $waiting['pending'] ) ) {
+			return;
+		}
+		$waiting = self::pending_links( array_keys( $waiting['pending'] ) );
+		try {
+			$replaced = self::replace_references_many( $waiting['pairs'], $waiting['needles'] );
+		} catch ( \Throwable $e ) {
+			// One bad rename must not hold up the others: retry them one by one.
+			$logger->warning( 'File rename batch link rewrite failed, retrying one by one', [ 'error' => $e->getMessage() ] );
+			$replaced = 0;
+			foreach ( $waiting['pending'] as $id => $pending ) {
+				try {
+					$replaced += self::replace_references( array_map( 'strval', (array) ( $pending['pairs'] ?? [] ) ), (string) ( $pending['stem'] ?? '' ) );
+				} catch ( \Throwable $one ) {
+					// Stays pending; its attempt was counted above, so it is given up in a later batch.
+					unset( $waiting['pending'][ $id ] );
+					$logger->warning(
+						'File rename links could not be finished yet',
+						[
+							'attachment_id' => $id,
+							'attempts'      => (int) ( $pending['attempts'] ?? 0 ),
+							'error'         => $one->getMessage(),
+						]
+					);
+				}
+			}
+		}
+		foreach ( $waiting['pending'] as $id => $pending ) {
+			delete_post_meta( $id, self::META_PENDING );
+			$logger->info(
+				'File renamed',
+				[
+					'attachment_id' => $id,
+					'old_name'      => (string) ( $pending['old_name'] ?? '' ),
+					'new_name'      => basename( (string) get_attached_file( $id ) ),
+					'files_moved'   => count( (array) ( $pending['pairs'] ?? [] ) ),
+				]
+			);
+		}
+		$logger->info(
+			'File rename links rewritten',
+			[
+				'attachments'      => count( $waiting['pending'] ),
+				'references_fixed' => $replaced,
+			]
+		);
+	}
+
+	/**
+	 * Attachments with a rename waiting for its links.
+	 *
+	 * @return int[]
+	 */
+	private static function waiting_ids(): array {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- the plugin's own meta key; usually no rows.
+		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value LIKE %s LIMIT 100", self::META_PENDING, '%' . $wpdb->esc_like( '"links"' ) . '%' ) );
+		return array_map( 'intval', is_array( $ids ) ? $ids : [] );
+	}
+
+	/**
+	 * The pending renames at stage `links` among the given attachments, with their pairs merged
+	 * (keys kept, also an all-digit old path) and their file name stems.
+	 *
+	 * @param int[] $attachment_ids Attachments to look at.
+	 * @return array{pending: array<int,array<string,mixed>>, pairs: array<string,string>, needles: string[]}
+	 */
+	private static function pending_links( array $attachment_ids ): array {
+		$found   = [];
+		$pairs   = [];
+		$needles = [];
+		foreach ( $attachment_ids as $id ) {
+			$pending = get_post_meta( $id, self::META_PENDING, true );
+			if ( ! is_array( $pending ) || 'links' !== ( $pending['stage'] ?? '' ) ) {
+				continue;
+			}
+			$found[ $id ] = $pending;
+			foreach ( (array) ( $pending['pairs'] ?? [] ) as $old => $new ) {
+				$pairs[ (string) $old ] = (string) $new;
+			}
+			$needles[] = (string) ( $pending['stem'] ?? '' );
+		}
+		return [
+			'pending' => $found,
+			'pairs'   => $pairs,
+			'needles' => array_values( array_unique( $needles ) ),
+		];
 	}
 
 	/**
@@ -876,32 +1025,75 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 	 * @return int Number of posts and meta rows changed.
 	 */
 	public static function replace_references( array $pairs, string $needle ): int {
+		return self::replace_references_many( $pairs, [ $needle ] );
+	}
+
+	/**
+	 * Replace links for several renamed attachments at once: one pass over posts and one over post
+	 * meta for a whole batch, instead of one per attachment. Each table scan is the expensive part
+	 * (the search has a leading wildcard, so no index helps); the rows a pass finds are rewritten
+	 * with the pairs of every attachment, which gives the same result as one pass per attachment.
+	 *
+	 * @param array<string,string> $pairs   Old relative path => new relative path, for all attachments.
+	 * @param string[]             $needles File name stems (see replace_references()); a row must contain one.
+	 * @return int Number of posts and meta rows changed.
+	 */
+	public static function replace_references_many( array $pairs, array $needles ): int {
 		global $wpdb;
-		if ( empty( $pairs ) || '' === $needle ) {
+		$likes = [];
+		foreach ( $needles as $needle ) {
+			$needle = (string) $needle;
+			if ( '' === $needle ) {
+				continue;
+			}
+			$likes[] = '%' . $wpdb->esc_like( $needle ) . '%';
+			// Links can hold the percent-encoded name (`caf%C3%A9.jpg`), which the raw stem does not match.
+			$likes[] = '%' . $wpdb->esc_like( rawurlencode( $needle ) ) . '%';
+		}
+		$likes = array_values( array_unique( $likes ) );
+		if ( empty( $pairs ) || empty( $likes ) ) {
 			return 0;
 		}
-		$like = '%' . $wpdb->esc_like( $needle ) . '%';
-		// Links can hold the percent-encoded name (`caf%C3%A9.jpg`), which the raw stem does not match.
-		$like_encoded = '%' . $wpdb->esc_like( rawurlencode( $needle ) ) . '%';
-		$anchors      = self::uploads_anchors();
-		$changed      = 0;
-		$fetched      = 0;
+		$anchors = self::uploads_anchors();
+		// A link is only rewritten right after an uploads anchor, so a row without one can never change.
+		// Checking for the anchor first lets the database drop most rows with one cheap LIKE, before it
+		// tries every file name: one search per stem on every row is what made big shops slow.
+		$gate = [];
+		if ( ! empty( $anchors ) ) {
+			usort( $anchors, static fn ( string $a, string $b ): int => strlen( $a ) <=> strlen( $b ) );
+			$anchor = trim( $anchors[0], '/' );
+			if ( '' !== $anchor ) {
+				$gate = array_values( array_unique( [ '%' . $wpdb->esc_like( $anchor ) . '%', '%' . $wpdb->esc_like( str_replace( '/', '\\/', $anchor ) ) . '%' ] ) );
+			}
+		}
+		$post_gate  = empty( $gate ) ? '1=1' : implode( ' OR ', array_fill( 0, count( $gate ), 'post_content LIKE %s OR post_excerpt LIKE %s' ) );
+		$meta_gate  = empty( $gate ) ? '1=1' : implode( ' OR ', array_fill( 0, count( $gate ), 'meta_value LIKE %s' ) );
+		$post_where = '(' . $post_gate . ') AND (' . implode( ' OR ', array_fill( 0, count( $likes ), 'post_content LIKE %s OR post_excerpt LIKE %s' ) ) . ')';
+		$post_likes = [];
+		foreach ( array_merge( $gate, $likes ) as $like ) {
+			$post_likes[] = $like;
+			$post_likes[] = $like;
+		}
+		$meta_where = '(' . $meta_gate . ') AND (' . implode( ' OR ', array_fill( 0, count( $likes ), 'meta_value LIKE %s' ) ) . ')';
+		$meta_likes = array_merge( $gate, $likes );
+		$changed    = 0;
+		$fetched    = 0;
 
 		$last = 0;
 		$rows = [];
 		do {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- rewriting links in content is the point of this job.
-			$rows    = $wpdb->get_results(
+			// phpcs:disable WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- the LIKE placeholders are built per needle and filled by spreading $post_likes.
+			$rows = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT ID, post_content, post_excerpt FROM {$wpdb->posts} WHERE ID > %d AND post_type <> 'attachment' AND (post_content LIKE %s OR post_excerpt LIKE %s OR post_content LIKE %s OR post_excerpt LIKE %s) ORDER BY ID ASC LIMIT %d",
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $post_where is only "LIKE %s" placeholders, filled from $post_likes.
+					"SELECT ID, post_content, post_excerpt FROM {$wpdb->posts} WHERE ID > %d AND post_type <> 'attachment' AND ({$post_where}) ORDER BY ID ASC LIMIT %d",
 					$last,
-					$like,
-					$like,
-					$like_encoded,
-					$like_encoded,
-					self::REPLACE_CHUNK
+					...$post_likes,
+					...[ self::REPLACE_CHUNK ]
 				)
 			);
+			// phpcs:enable WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
 			$rows    = is_array( $rows ) ? $rows : [];
 			$fetched = count( $rows );
 			foreach ( $rows as $row ) {
@@ -926,19 +1118,23 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 
 		$last = 0;
 		do {
+			// phpcs:disable WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- the LIKE placeholders are built per needle and filled by spreading $meta_likes.
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- see above.
-			$rows    = $wpdb->get_results(
+			$rows = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT meta_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE meta_id > %d AND (meta_value LIKE %s OR meta_value LIKE %s) AND meta_key NOT IN ('_wp_attached_file', '_wp_attachment_metadata', %s, %s, %s) ORDER BY meta_id ASC LIMIT %d",
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $meta_where is only "LIKE %s" placeholders, filled from $meta_likes.
+					"SELECT meta_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE meta_id > %d AND ({$meta_where}) AND meta_key NOT IN ('_wp_attached_file', '_wp_attachment_metadata', %s, %s, %s) ORDER BY meta_id ASC LIMIT %d",
 					$last,
-					$like,
-					$like_encoded,
-					self::META_OLD_PATH,
-					self::META_PREVIOUS_NAME,
-					self::META_PENDING,
-					self::REPLACE_CHUNK
+					...$meta_likes,
+					...[
+						self::META_OLD_PATH,
+						self::META_PREVIOUS_NAME,
+						self::META_PENDING,
+						self::REPLACE_CHUNK,
+					]
 				)
 			);
+			// phpcs:enable WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
 			$rows    = is_array( $rows ) ? $rows : [];
 			$fetched = count( $rows );
 			foreach ( $rows as $row ) {
