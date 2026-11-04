@@ -32,7 +32,7 @@ class Skwirrel_WC_Sync_Uninstaller {
 	/** Options without the `skwirrel_wc_sync_` prefix: the Connectors API key (Skwirrel_WC_Sync_Connectors::CREDENTIAL_OPTION). */
 	private const EXTRA_OPTIONS = [ 'connectors_skwirrel_pim_api_key' ];
 
-	/** Scheduled hooks of the plugin (Action Scheduler and WP-Cron). */
+	/** Scheduled hooks of the plugin (Action Scheduler and WP-Cron). WP-Cron events are removed whatever their arguments. */
 	private const HOOKS = [ 'skwirrel_wc_sync_run', 'skwirrel_wc_sync_step', 'skwirrel_wc_sync_rename_batch' ];
 
 	/** Action Scheduler group of the plugin's actions. */
@@ -100,7 +100,7 @@ class Skwirrel_WC_Sync_Uninstaller {
 	 */
 	private static function unschedule(): void {
 		foreach ( self::HOOKS as $hook ) {
-			wp_clear_scheduled_hook( $hook );
+			wp_unschedule_hook( $hook );
 		}
 		if ( function_exists( 'as_unschedule_all_actions' ) ) {
 			as_unschedule_all_actions( '', [], self::AS_GROUP );

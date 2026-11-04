@@ -74,3 +74,19 @@ test( 'uninstall removes the plugin options and file name metas but keeps old up
 	// Later tests need the queue table back.
 	Skwirrel_WC_Sync_Queue::create_table();
 } );
+
+test( 'uninstall removes WP-Cron events of the plugin, also those with arguments', function () {
+	// The WP-Cron fallback schedules these with arguments when Action Scheduler is missing.
+	wp_schedule_single_event( time() + 3600, 'skwirrel_wc_sync_step', [ [ 'run_id' => 'r1' ] ] );
+	wp_schedule_single_event( time() + 3600, 'skwirrel_wc_sync_run', [ [ 'delta' => false ] ] );
+	wp_schedule_single_event( time() + 3600, 'skwirrel_wc_sync_rename_batch' );
+
+	Skwirrel_WC_Sync_Uninstaller::cleanup_site();
+
+	expect( wp_next_scheduled( 'skwirrel_wc_sync_step', [ [ 'run_id' => 'r1' ] ] ) )->toBeFalse();
+	expect( wp_next_scheduled( 'skwirrel_wc_sync_run', [ [ 'delta' => false ] ] ) )->toBeFalse();
+	expect( wp_next_scheduled( 'skwirrel_wc_sync_rename_batch' ) )->toBeFalse();
+
+	// Later tests need the queue table back.
+	Skwirrel_WC_Sync_Queue::create_table();
+} );
