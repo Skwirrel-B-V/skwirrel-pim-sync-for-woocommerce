@@ -324,3 +324,10 @@ test('a second rename keeps a single -orig suffix on backups', function () {
 	expect($plan['backups']['full-orig']['file'])->toBe('lamp-orig.jpg');
 	expect($plan['backups']['thumbnail-orig']['file'])->toBe('lamp-orig-150x150.jpg');
 });
+
+test('the reference search of an edited image also finds links to its backups', function () {
+	$backups = ['full-orig' => ['file' => 'foo.jpg']];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::search_stem('foo-e1700000000000.jpg', [], $backups))->toBe('foo');
+	expect(Skwirrel_WC_Sync_File_Rename_Job::search_stem('foo-e1700000000000.jpg', [], []))->toBe('foo-e1700000000000');
+	expect(Skwirrel_WC_Sync_File_Rename_Job::search_stem('foo-scaled.jpg', ['original_image' => 'foo.jpg'], []))->toBe('foo');
+});

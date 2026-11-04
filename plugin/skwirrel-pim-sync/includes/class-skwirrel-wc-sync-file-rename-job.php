@@ -383,7 +383,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 		add_post_meta( $attachment_id, self::META_PREVIOUS_NAME, basename( $old_path ) );
 		self::record_old_paths( $attachment_id, $pairs );
 
-		$replaced = self::replace_references( $pairs, self::shared_stem( basename( $old_path ), $meta ) );
+		$replaced = self::replace_references( $pairs, self::search_stem( basename( $old_path ), $meta, $backups ) );
 
 		$logger->info(
 			'File renamed',
@@ -492,7 +492,7 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 
 		if ( ! empty( $backups ) ) {
 			// The stem before WordPress added its `-e<timestamp>` edit suffix.
-			$base                = (string) preg_replace( '/-e\d+$/', '', self::shared_stem( $old_main, $meta ) );
+			$base                = self::search_stem( $old_main, $meta, $backups );
 			$backup_map          = $prefixes;
 			$backup_map[ $base ] = $new_stem . '-orig';
 			// Backups named by an earlier rename keep one `-orig`, not `-orig-orig`.
@@ -561,6 +561,19 @@ class Skwirrel_WC_Sync_File_Rename_Job {
 			}
 		}
 		return array_values( array_unique( $files ) );
+	}
+
+	/**
+	 * The stem every file a rename moves starts with, used to narrow the link search. With backups of an
+	 * edited image the `-e<timestamp>` edit suffix is dropped, so links to the original (`foo.jpg`) are
+	 * found too, not only links to the edited file (`foo-e123.jpg`).
+	 *
+	 * @param array<string,mixed> $meta    Attachment metadata (before renaming).
+	 * @param array<string,mixed> $backups The `_wp_attachment_backup_sizes` meta.
+	 */
+	public static function search_stem( string $old_main, array $meta, array $backups ): string {
+		$stem = self::shared_stem( $old_main, $meta );
+		return empty( $backups ) ? $stem : (string) preg_replace( '/-e\d+$/', '', $stem );
 	}
 
 	/**
