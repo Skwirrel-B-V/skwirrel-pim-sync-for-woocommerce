@@ -4,7 +4,7 @@ Tags: woocommerce, sync, pim, skwirrel, product-sync
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 4.4.0
+Stable tag: 4.4.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,6 +77,10 @@ If you want to go a step further and have the sync **reuse** the existing WP att
 Returning `true` tells the sync the attachment is still valid even though the local file is missing. The plugin ships a more thorough reference implementation (URL-equals-uploads-baseurl check) you can adapt — see the project's `mu-plugins/skwirrel-offload-compat.php`.
 
 == Changelog ==
+
+= 4.4.1 =
+* Updating links after a file rename is much faster on large catalogues: a batch now updates the links of all its files in one pass.
+* Fix: old links to renamed files keep redirecting after the plugin is deleted and installed again.
 
 = 4.4.0 =
 * Renaming is switched off when WP Offload Media (Lite or Pro) is active, because renaming the local copy would leave the remote file with its old name. Developers can turn it back on with the skwirrel_wc_sync_can_rename_files filter.
