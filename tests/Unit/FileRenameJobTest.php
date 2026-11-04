@@ -416,3 +416,27 @@ test('a raw name with a literal percent sign matches exactly', function () {
 	expect(Skwirrel_WC_Sync_File_Rename_Job::replace_in_string('/u/2024/05/100%AB.jpg /u/2024/05/100%ab.jpg', $pairs))
 		->toBe('/u/2024/05/foto.jpg /u/2024/05/100%ab.jpg');
 });
+
+test('a second rename keeps a single -orig suffix on backups', function () {
+	$meta    = ['sizes' => ['thumbnail' => ['file' => 'foto-150x150.jpg']]];
+	$backups = [
+		'full-orig'      => ['file' => 'foto-orig.jpg'],
+		'thumbnail-orig' => ['file' => 'foto-orig-150x150.jpg'],
+	];
+	$plan = Skwirrel_WC_Sync_File_Rename_Job::plan_moves('foto.jpg', 'lamp.jpg', $meta, null, $backups);
+	expect($plan['moves'])->toBe([
+		'foto.jpg'              => 'lamp.jpg',
+		'foto-150x150.jpg'      => 'lamp-150x150.jpg',
+		'foto-orig.jpg'         => 'lamp-orig.jpg',
+		'foto-orig-150x150.jpg' => 'lamp-orig-150x150.jpg',
+	]);
+	expect($plan['backups']['full-orig']['file'])->toBe('lamp-orig.jpg');
+	expect($plan['backups']['thumbnail-orig']['file'])->toBe('lamp-orig-150x150.jpg');
+});
+
+test('the reference search of an edited image also finds links to its backups', function () {
+	$backups = ['full-orig' => ['file' => 'foo.jpg']];
+	expect(Skwirrel_WC_Sync_File_Rename_Job::search_stem('foo-e1700000000000.jpg', [], $backups))->toBe('foo');
+	expect(Skwirrel_WC_Sync_File_Rename_Job::search_stem('foo-e1700000000000.jpg', [], []))->toBe('foo-e1700000000000');
+	expect(Skwirrel_WC_Sync_File_Rename_Job::search_stem('foo-scaled.jpg', ['original_image' => 'foo.jpg'], []))->toBe('foo');
+});
